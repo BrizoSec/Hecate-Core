@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="athr_logo.png" alt="Agentic Threat Hunting Framework Logo" width="400"/>
+  <img src="athf_logo.png" alt="Agentic Threat Hunting Framework Logo" width="400"/>
 </div>
 
 # Agentic Threat Hunting Framework (ATHF)
