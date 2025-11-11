@@ -88,7 +88,7 @@ grep "Needs Changes" hunts/H-*_*.md
 
 Before starting a new hunt, search past executions to avoid duplicates and apply lessons.
 
-### Using AI Assistants (Level 2: Augmented)
+### Using AI Assistants (Level 2: Searchable)
 
 If you're using Claude Code, GitHub Copilot, or similar AI tools:
 

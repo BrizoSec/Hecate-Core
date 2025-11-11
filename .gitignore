@@ -16,3 +16,19 @@ secrets/
 
 # Evidence artifacts (optional - uncomment if you want to exclude large files)
 # evidence/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+tools/mcp/venv/
+venv/
+ENV/
+env/

@@ -1,6 +1,6 @@
 # AI-Assisted Threat Hunting Workflow Guide
 
-**Level:** 2 (Augmented) - AI with Memory
+**Level:** 2 (Searchable) - AI with Memory
 **Audience:** Threat hunters using Claude Code, GitHub Copilot, Cursor, or similar AI tools
 **Prerequisites:** Completed Level 1 (have hunt repository with AGENTS.md)
 

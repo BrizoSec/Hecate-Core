@@ -2,7 +2,7 @@
 
 This folder is reserved for **structured memory** - the optional "recall system" for Level 4+ hunting.
 
-## Level 2: Augmented - Use Grep
+## Level 2: Searchable - Use Grep
 
 At Level 2 (AI-augmented hunting), your `hunts/` folder IS your memory. Before starting a new hunt, search through past hunt notes:
 
@@ -32,7 +32,7 @@ grep "Decision: Accept" ../hunts/*.md
 
 At Level 3 (single-agent automation), grep-based memory is still effective. An agent can automatically search past hunts before generating new hypotheses. No structured memory needed yet.
 
-## Level 4+: Coordinated/Adaptive - Add Structure When Grep Fails
+## Level 4+: Autonomous - Add Structure When Grep Fails
 
 When you have 50+ hunts or need multi-agent coordination, grep becomes painful. At that point, create structured memory:
 

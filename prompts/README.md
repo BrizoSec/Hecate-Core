@@ -1,6 +1,6 @@
 # AI Prompt Library
 
-This folder contains prompts to help you at **Level 0-1: Ephemeral/Persistent** (before AI integration).
+This folder contains prompts to help you at **Level 0-1: Manual/Documented** (before AI integration).
 
 ## What's Here
 
@@ -87,7 +87,7 @@ Have a better prompt? Found a useful variation?
 
 ## Next: Add AI Integration (Level 1 → 2)
 
-Once you reach **Level 2: Augmented**, you'll use AI tools (GitHub Copilot, Claude Code, Cursor) that automatically read your hunt repository via AGENTS.md.
+Once you reach **Level 2: Searchable**, you'll use AI tools (GitHub Copilot, Claude Code, Cursor) that automatically read your hunt repository via AGENTS.md.
 
 These prompts remain useful for:
 - Teams without AI tool access
@@ -113,11 +113,11 @@ grep -i "privilege escalation" hunts/*.md  # Find by keyword
 # Then use the prompts above
 ```
 
-This manual recall loop works at Level 1: Persistent. At Level 2: Augmented, AI tools do this automatically.
+This manual recall loop works at Level 1: Documented. At Level 2: Searchable, AI tools do this automatically.
 
 ## Using Environmental Context (environment.md)
 
-At **Level 2: Augmented**, incorporate environmental context into your workflow:
+At **Level 2: Searchable**, incorporate environmental context into your workflow:
 
 ### Before Planning a Hunt
 

@@ -300,6 +300,6 @@ Found these examples helpful? Have suggestions?
 - Contribute your own examples
 - Report issues or improvements
 
-**Remember:** These examples show Level 2 (Augmented) workflows. Most teams operate at Level 1-2. You don't need Level 3+ automation to get significant value from AI assistance.
+**Remember:** These examples show Level 2 (Searchable) workflows. Most teams operate at Level 1-2. You don't need Level 3+ automation to get significant value from AI assistance.
 
 **The goal: 80% time savings with 100% human validation. AI generates, you decide.**

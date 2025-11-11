@@ -64,19 +64,19 @@ Edit `templates/` to match your:
 
 ### 4. Start at Your Maturity Level
 
-**Level 0 → 1: Ephemeral → Persistent (Week 1)**
+**Level 0 → 1: Manual → Documented (Week 1)**
 - Create repository (git, SharePoint, Confluence, Jira, local folder)
 - Start documenting hunts in LOCK-structured markdown
 - Build searchable memory
 - No infrastructure changes needed
 
-**Level 1 → 2: Persistent → Augmented (Week 2-4)**
+**Level 1 → 2: Documented → Searchable (Week 2-4)**
 - Add AGENTS.md file to repo
 - Choose AI tool (GitHub Copilot, Claude Code, Cursor, or org-approved)
 - AI can now read your hunt history automatically
 - No coding required
 
-**Level 2+: Augmented → Autonomous/Coordinated (Month 3-6+)**
+**Level 2+: Searchable → Generative/Autonomous (Month 3-6+)**
 - Build scripts for repetitive tasks (if needed)
 - When grep is too slow (50+ hunts), add structured memory (JSON, SQLite)
 - See `memory/README.md` for memory scaling options
@@ -190,27 +190,27 @@ def update_tech_stack():
 ## Scaling ATHF in Your Organization
 
 ### Solo Hunter
-- **Level 1-2: Persistent → Augmented**: Repo + AI tool (GitHub Copilot, Claude Code)
+- **Level 1-2: Documented → Searchable**: Repo + AI tool (GitHub Copilot, Claude Code)
 - Keep hunts in personal repo or folder
 - Build memory with 10-20 reports before considering automation
 - Maintain environment.md yourself (15-30 min/quarter, event-driven updates)
 
 ### Small Team (2-5 people)
-- **Level 1-2: Persistent → Augmented**: Shared repo + AI tools
+- **Level 1-2: Documented → Searchable**: Shared repo + AI tools
 - Git, SharePoint, Confluence, Jira, or Notion
 - Collaborative memory via shared hunt notes
 - Optional: One person builds simple scripts for repetitive tasks
 - Shared responsibility: All team members update environment.md as they discover changes
 
 ### Security Team (5-20 people)
-- **Level 2-3: Augmented → Autonomous**: AI tools + optional automation
+- **Level 2-3: Searchable → Generative**: AI tools + optional automation
 - Scripts for repetitive workflows (if needed)
 - Metrics dashboards
 - Structured memory when grep becomes slow
 - Formalize environment.md updates (DevOps contributes, hunters consume)
 
 ### Enterprise SOC (20+ people)
-- **Level 3-4: Autonomous → Coordinated**: Automation + multi-agent systems
+- **Level 3-4: Generative → Autonomous**: Automation + multi-agent systems
 - Hunt library organized by TTP
 - Detection engineering pipeline integration
 - Learning systems (rare)

@@ -2,7 +2,7 @@
 
 **Purpose:** This file tells AI assistants (GitHub Copilot, Claude Code, Cursor, etc.) what your threat hunting repository contains and how to use it.
 
-**When to create this:** Level 2 (Augmented) - when you add AI integration to your hunting workflow.
+**When to create this:** Level 2 (Searchable) - when you add AI integration to your hunting workflow.
 
 **Who reads this:** AI tools that have access to your repository files.
 
@@ -145,7 +145,7 @@ This repository follows the **LOCK pattern**:
 
 ## AI Workflow Examples
 
-### Level 2 (Augmented) - AI with Memory
+### Level 2 (Searchable) - AI with Memory
 
 **User asks:** "Generate hypothesis for hunting Kerberoasting attacks"
 
@@ -168,7 +168,7 @@ When building automation scripts, AI should:
 
 ## Hypothesis Generation Workflow
 
-This section provides detailed guidance for AI assistants on generating threat hunting hypotheses from threat intelligence. This is the most common Level 2 (Augmented) workflow.
+This section provides detailed guidance for AI assistants on generating threat hunting hypotheses from threat intelligence. This is the most common Level 2 (Searchable) workflow.
 
 ### When to Generate Hypotheses
 
@@ -448,7 +448,7 @@ All AI-generated hypotheses must follow:
 
 ## Memory Scaling (Reference: memory/README.md)
 
-**Current maturity level:** [0: Ephemeral | 1: Persistent | 2: Augmented | 3: Autonomous | 4: Coordinated]
+**Current maturity level:** [0: Manual | 1: Documented | 2: Searchable | 3: Generative | 4: Autonomous]
 
 **Memory approach:**
 - **Level 1-2:** Grep-based search across markdown files (no structured memory yet)

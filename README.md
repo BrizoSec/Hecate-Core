@@ -1,671 +1,467 @@
-<div align="center">
-  <img src="athf_logo.png" alt="Agentic Threat Hunting Framework Logo" width="400"/>
-</div>
-
 # Agentic Threat Hunting Framework (ATHF)
 
-**Give your threat hunting program memory and agency.**
+> Give your threat hunting program memory and agency.
 
-ATHF is a framework for building threat hunting systems that remember past investigations, learn from outcomes, and augment human decision-making. It provides structure for progressing from manual hunting to AI-coordinated operations.
+Threat hunting frameworks like PEAK and TaHiTI taught us how to hunt, but not how to make our hunts remember.
 
-**Use it standalone, or layer it over [PEAK](https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html), [SQRRL](https://www.threathunting.net/files/The%20Threat%20Hunting%20Reference%20Model%20Part%202_%20The%20Hunting%20Loop%20_%20Sqrrl.pdf), or your existing methodology.**
+The **Agentic Threat Hunting Framework (ATHF)** is a blueprint for building systems that can recall past investigations, learn from outcomes, and augment human decision-making. It is the memory and automation layer that makes your existing process AI-ready. ATHF is not a replacement for your methodology. It enhances what you already use by creating structure, memory, and context for both humans and AI.
 
-## Why ATHF?
+## Why It Exists
+Most threat hunting programs lose valuable context once a hunt ends. Notes live in Slack or tickets, queries are written once and forgotten, and lessons learned exist only in analysts' heads. When someone asks, "Have we hunted this before?", the answer depends entirely on who remembers.
 
-**The Problem:**
-Attackers are using AI to get faster and better. Defenders need AI too. But how do we actually do that?
+Even when AI tools are introduced, they are often disconnected from the team's actual work. Someone might copy and paste a CTI report into ChatGPT and ask for ideas, but without access to your environment, your data, or your past hunts, the AI starts from zero every time.
 
-Existing threat hunting frameworks ([PEAK](https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html), [SQRRL](https://www.threathunting.net/files/The%20Threat%20Hunting%20Reference%20Model%20Part%202_%20The%20Hunting%20Loop%20_%20Sqrrl.pdf), [TaHiTI](https://www.betaalvereniging.nl/en/safety/tahiti/)) teach you *how to hunt*, but not *how to integrate AI into your hunting program*.
+ATHF changes that by giving your hunts structure, persistence, and context. It provides a way to make every past investigation accessible to both humans and AI assistants, turning disjointed documentation into a foundation for memory and learning.
 
-Without structure for memory and AI integration:
-- Hunt notes scattered across Slack, tickets, or living in hunters' heads
-- "Foggy memory" - you remember hunting something similar, but not the details
-- AI assistance is ad-hoc (copy/paste to ChatGPT with no context)
-- Knowledge evaporates when hunters leave
-- No foundation for AI to build on
+## The Core: The LOCK Pattern
 
-**ATHF's Solution:**
-A framework specifically for building **agentic capability** in threat hunting:
+Every threat hunt follows the same basic loop: **Learn → Observe → Check → Keep**.
 
-1. **LOCK Pattern** - AI-ready structure for hunt documentation
-2. **Memory by Design** - Architecture for recall (grep → AI-integrated → structured)
-3. **Maturity Progression** - Pragmatic path from manual to AI-augmented
-4. **Integration Patterns** - Works with PEAK, SQRRL, or your existing methodology
+ATHF formalizes that loop with the **LOCK Pattern**, a lightweight structure that is readable by both humans and AI tools.
 
-**What Makes ATHF Different:**
+**Learn:** Gather context from threat intelligence, alerts, or anomalies.
+*Example:* "We received CTI indicating increased use of Rundll32 for execution (T1218.011)."
 
-| Framework | Focus | What It Teaches | Complements ATHF? |
-|-----------|-------|-----------------|-------------------|
-| **PEAK** | Hunting process | "How should teams hunt systematically?" | ✅ Yes - ATHF adds AI integration |
-| **SQRRL** | Hypothesis-driven operations | "How do we validate threat hypotheses?" | ✅ Yes - ATHF structures for AI |
-| **TaHiTI** | Team coordination | "How do hunt teams work together?" | ✅ Yes - ATHF adds memory + AI |
-| **ATHF** | AI integration | "How do we integrate AI into hunting?" | Standalone or layered |
+**Observe:** Form a hypothesis about what the adversary might be doing.
+*Example:* "Adversaries may be using Rundll32 to load unsigned DLLs to bypass security controls."
 
-**In short:**
-- **PEAK/SQRRL/TaHiTI**: *Process frameworks* (how humans hunt)
-- **ATHF**: *AI integration framework* (how to structure hunts for AI)
-
-## Prerequisites: Get the Basics Down First
-
-**ATHF is not a threat hunting 101 course.** You need to be actively hunting before this framework provides value.
-
-Before implementing ATHF, you should have:
-- **Access to security data** - SIEM, EDR, logs, or other telemetry sources
-- **Basic hunting skills** - Ability to form hypotheses and recognize adversary behavior
-- **Query capabilities** - Can write SPL, KQL, SQL, or use your platform's query language
-- **Active hunting practice** - Actually conducting hunts (even if ad-hoc or poorly documented)
-
-**If you're not hunting yet**, start with:
-- [PEAK Framework](https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html) for hunting process
-- [MITRE ATT&CK](https://attack.mitre.org/) for adversary TTPs
-- [Threat Hunting Project](https://www.threathunting.net/) for hunting fundamentals
-
-**ATHF assumes you're already hunting.** It helps you structure your existing hunting work for AI integration - it doesn't teach you *how* to hunt.
-
-## What ATHF Is
-
-ATHF is both a **conceptual framework** and a **practical toolkit** for agentic threat hunting - building systems that can remember, learn, and augment human decision-making.
-
-**Core Components:**
-
-1. **LOCK Pattern** - AI-ready structure for documenting hunts
-2. **Memory Architecture** - From simple grep to AI-integrated to structured systems
-3. **5 Levels of Agentic Hunting** - Maturity model from manual to AI-augmented operations
-4. **Templates & Patterns** - Practical implementations you can copy
-
-**Relationship:**
-- **Standalone**: Use ATHF's LOCK pattern and maturity model to build agentic capability from scratch
-- **Layered**: Apply ATHF's memory and AI patterns to your existing PEAK/SQRRL workflow
-
-## Why LOCK?
-
-LOCK (Learn → Observe → Check → Keep) is the AI-ready structure for threat hunting:
-
-- **Learn**: Gather context (CTI, alert, anomaly)
-- **Observe**: Form hypothesis about adversary behavior
-- **Check**: Test with bounded query
-- **Keep**: Record decision and lessons learned
-
-## The LOCK Pattern
-
-Every threat hunting methodology follows the same core pattern—ATHF calls it **LOCK**:
-
-```
-🔒 Learn → Observe → Check → Keep
+**Check:** Test the hypothesis using bounded queries or scripts.
+*Example (Splunk):*
+```spl
+index=winlogs EventCode=4688 CommandLine="*rundll32*" NOT Signed="TRUE"
 ```
 
-**L — Learn**: Gather context (CTI, alert, anomaly)
-**O — Observe**: Form hypothesis about adversary behavior
-**C — Check**: Test with bounded query
-**K — Keep**: Record decision and lessons learned
+**Keep:** Record findings and lessons learned.
+*Example:* "No evidence of execution found in the past 14 days. Query should be expanded to include encoded commands next run."
 
-```mermaid
-graph LR
-    L["🔒 LEARN<br/>Gather context<br/>CTI, alert, anomaly"]
-    O["👁️ OBSERVE<br/>Form hypothesis<br/>Adversary behavior"]
-    C["✓ CHECK<br/>Test with query<br/>Bounded validation"]
-    K["📝 KEEP<br/>Record lessons<br/>Decisions + outcomes"]
+By capturing every hunt in this format, ATHF makes it possible for AI assistants to recall prior work, generate new hypotheses, and suggest refined queries based on past results.
 
-    L --> O
-    O --> C
-    C --> K
-    K -.Memory loop.-> L
+## The Five Levels of Agentic Hunting
 
-    style L fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style O fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style C fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style K fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+ATHF defines a simple maturity model for evolving your hunting program. Each level builds on the previous one.
+
+| Level | Focus | What Changes | Example |
+|-------|-------|--------------|---------|
+| **0** | Manual | Hunts live in Slack or tickets | "Didn't we already look at this last year?" |
+| **1** | Documented | Hunts are written in LOCK-structured markdown files | Markdown repo with `hunts/H-0001.md` |
+| **2** | Searchable | AI reads and recalls context via context file | Claude Code summarizes past hunts in seconds |
+| **3** | Generative | AI gets specialized hunting tools and capabilities | MCP server lets Claude search and analyze past hunts |
+| **4** | Autonomous | Multi-agent workflows share structured memory | Multiple agents create, validate, and document hunts |
+
+Most teams stop at Levels 1 or 2. That alone gives enormous benefit. At Level 1, your knowledge is documented and persists beyond individuals. At Level 2, your AI assistant can search your hunt history and act as an informed partner rather than a guessing machine.
+
+### Level 1 Example: Documented Hunts
+
+You document hunts using LOCK in markdown.
+
+**Example:** `hunts/H-0031.md`
+
+```markdown
+# H-0031: Detecting Remote Management Abuse via PowerShell and WMI (TA0002 / T1028 / T1047)
+
+**Learn**
+Incident response from a recent ransomware case showed adversaries using PowerShell remoting and WMI to move laterally between Windows hosts.
+These techniques often bypass EDR detections that look only for credential theft or file-based artifacts.
+Telemetry sources available: Sysmon (Event IDs 1, 3, 10), Windows Security Logs (Event ID 4624), and EDR process trees.
+
+**Observe**
+Adversaries may execute PowerShell commands remotely or invoke WMI for lateral movement using existing admin credentials.
+Suspicious behavior includes PowerShell or wmiprvse.exe processes initiated by non-admin accounts or targeting multiple remote systems in a short time window.
+
+**Check**
+index=sysmon OR index=edr
+(EventCode=1 OR EventCode=10)
+| search (Image="*powershell.exe" OR Image="*wmiprvse.exe")
+| stats count dc(DestinationHostname) as unique_targets by User, Computer, CommandLine
+| where unique_targets > 3
+| sort - unique_targets
+
+**Keep**
+Detected two accounts showing lateral movement patterns:
+- `svc_backup` executed PowerShell sessions on five hosts in under ten minutes
+- `itadmin-temp` invoked wmiprvse.exe from a workstation instead of a jump server
+
+Confirmed `svc_backup` activity as legitimate backup automation.
+Marked `itadmin-temp` as suspicious; account disabled pending review.
+
+Next iteration: expand to include remote registry and PSExec telemetry for broader coverage.
 ```
 
-LOCK isn't a new methodology—it's the **structure that makes your hunts AI-readable**.
+When someone new joins the team, they can quickly see what was tested, what was learned, and what should be tried next. This alone prevents redundant hunts and lost context.
 
-- **At Level 1: Persistent**: LOCK provides team consistency
-- **At Level 2: Augmented**: LOCK enables AI to parse your hunt history
-- **At Level 3+**: LOCK enables automation and multi-agent workflows
+### Level 2 Example: Searchable Memory
 
-By standardizing hunt notes around LOCK, AI can understand your hunts regardless of which framework (PEAK, SQRRL, TaHiTI) you use.
+Now you add an `AGENTS.md` file to your repository. It provides context for the AI:
 
-## The 5 Levels of Agentic Hunting
+```markdown
+# AGENTS.md
 
-| Level | Name | What Changes | Memory | AI Integration | Tools |
-|-------|------|--------------|--------|----------------|-------|
-| **0. Ephemeral** | Knowledge Disappears | Hunts in Slack, tickets, heads | None | Optional (copy/paste) | Slack, tickets, docs |
-| **1. Persistent** | Knowledge Captured | LOCK-structured markdown in repo | Searchable files (grep) | Optional (copy/paste) | Git, markdown, grep |
-| **2. Augmented** | AI Partner with Memory | AI reads repo context via AGENTS.md | Files + AGENTS.md | AI agent integrated | GitHub Copilot, Claude Code |
-| **3. Autonomous** | Automated Tasks | Scripts for repetitive workflows | Files + optional structure | Scripted agents | Python + AI APIs |
-| **4. Coordinated** | Multi-Agent Systems | Multiple specialized agents | Structured (JSON/DB) | Multi-agent orchestration | LangChain, AutoGen |
+## Purpose
+This repository contains threat hunting hypotheses and execution notes following the LOCK pattern (Learn → Observe → Check → Keep).
+AI assistants use this context to recall past investigations, summarize lessons learned, and generate new hypotheses and queries aligned with our environment and data sources.
 
-**Start at Level 0. Most teams operate at Level 1-2. Progress only when complexity demands it.**
+## Scope
+The repository includes:
+- `hunts/` – LOCK-structured hunt markdown files
+- `queries/` – validated search queries associated with each hunt
+- `templates/` – reference files for new hunts
+- `memory/` – archives or indexes for search and recall
 
-```mermaid
-graph LR
-    L0["Level 0<br/>Ephemeral"]
-    L1["Level 1<br/>Persistent"]
-    L2["Level 2<br/>Augmented"]
-    L3["Level 3<br/>Autonomous"]
-    L4["Level 4<br/>Coordinated"]
+AI tools should read these files to:
+- Identify existing hunts for a given MITRE ATT&CK technique or behavior
+- Summarize what was learned or validated
+- Recommend related hypotheses or query refinements
+- Avoid duplication by referencing past outcomes
 
-    L0 --> L1
-    L1 --> L2
-    L2 --> L3
-    L3 --> L4
+## Data Sources
+| Source | Description | Platform | Notes |
+|---------|-------------|-----------|-------|
+| winlogs | Windows Event Logs | Splunk index=winlogs | Sysmon + Security Events |
+| edr | Endpoint Detection and Response | CrowdStrike Falcon | Process and network telemetry |
+| proxy | Zscaler | Network activity | Domain, URL, and user metadata |
+| auth | Okta, AzureAD | Identity logs | Login success, MFA, and device context |
+| dns | Internal resolvers | CoreDNS or Infoblox | Useful for C2 and tunneling patterns |
 
-    style L0 fill:#f5f5f5,stroke:#9e9e9e
-    style L1 fill:#fff9c4,stroke:#fbc02d,stroke-width:3px
-    style L2 fill:#fff9c4,stroke:#fbc02d,stroke-width:3px
-    style L3 fill:#e1f5fe,stroke:#0288d1
-    style L4 fill:#f3e5f5,stroke:#9c27b0
+## Workflow Expectations
+1. All hunts must follow the LOCK pattern and live in `hunts/` with a unique ID (H-XXXX).
+2. Each hunt should include:
+   - A hypothesis describing adversary behavior
+   - Relevant data sources and ATT&CK mappings
+   - One or more queries in `queries/`
+   - A **Keep** section documenting validation results and next steps
+3. When possible, include contextual tags such as `#windows`, `#credential-access`, `#persistence`.
 
-    Sweet["⭐ Most teams operate here"]
-    Sweet -.-> L1
-    Sweet -.-> L2
+## AI Usage Guidelines
+AI assistants may:
+- Summarize findings from past hunts
+- Generate new hypotheses based on ATT&CK techniques or CTI context
+- Propose bounded queries using existing data sources
+- Draft hunt documentation in LOCK format
 
-    style Sweet fill:#ffffcc,stroke:#ff9800,stroke-width:2px,stroke-dasharray: 5 5
+AI assistants must not:
+- Execute queries or modify production systems
+- Generate queries for data sources not listed above
+- Overwrite existing hunt files without human review
+
+## Guardrails
+- AI-generated output is treated as a draft until reviewed by a human analyst.
+- Every new or updated hunt must be validated for query safety, accuracy, and scope.
+- Use the **environment.md** file to understand available telemetry and platform constraints before suggesting new hunts.
+- Maintain version control discipline: each update should be committed with a message referencing the hunt ID.
+
+## Example Interactions
+**You can ask:**
+- "What have we learned about PowerShell lateral movement?"
+- "Generate a new hypothesis for credential dumping using LSASS, referencing past hunts."
+- "Summarize outcomes of hunts related to T1059 (Command Execution)."
+- "Suggest improvements to the query used in H-0021."
+
+**The AI should respond with:**
+- A reference to prior hunts (H-XXXX)
+- A LOCK-structured hypothesis or summary
+- Safe, bounded query suggestions based on listed data sources
+
+## Version
+ATHF v1.0
+Maintainer: [Your Name or Team]
+Last Updated: [Insert Date]
 ```
 
-## Philosophy
+Once that file exists, you can open your repo in Claude Code, GitHub Copilot, or Cursor and ask:
 
-ATHF is a **framework for building agentic capability**, not a replacement for hunting methodologies.
+> "What have we learned about T1028?"
 
-**ATHF's thesis:**
-Threat hunting becomes more effective when systems can:
-1. **Remember** - Recall past hunts to avoid duplication and apply lessons
-2. **Learn** - Identify patterns in what works and what doesn't
-3. **Decide** - Augment human decision-making with AI assistance on validated patterns
+The AI searches your hunts directory, summarizes the results, and suggests a new hypothesis or query. What used to take 20 minutes of grepping and copy-pasting now takes under five.
 
-**How ATHF achieves this:**
-- **LOCK Pattern** - Standardizes hunt documentation for AI parsing
-- **Memory Design** - Scalable architecture from grep to weighted systems
-- **Maturity Levels** - Pragmatic progression path (don't over-engineer early)
-- **Agent Patterns** - Practical examples for single-agent → multi-agent → learning systems
+### Level 3 Example: Generative Capabilities
 
-**Use ATHF when:**
-- You want AI to assist or augment hunting tasks
-- You need memory across hunts (avoid duplicates, apply lessons)
-- You're building toward agent-driven hunting operations
-- You want to make your hunting program learnable by machines
+At this stage, you give your AI assistant **custom tools** that extend its capabilities beyond just reading files. Instead of manually drafting hunt hypotheses, your AI can generate LOCK-formatted hunts using a specialized tool that incorporates memory from past hunts.
 
-## Three Rules for Agentic Hunting
+The most effective way to do this is by creating an **MCP (Model Context Protocol) server** that exposes hunting-specific tools to Claude Code, Cursor, or other AI assistants.
 
-1. **Validate AI output** - Never run AI-generated queries without review
-2. **Build memory first** - Agents without memory repeat mistakes
-3. **Progress gradually** - Level 1: Persistent is better than Level 0: Ephemeral, even if you never reach Level 4: Coordinated
+**Example: Hunt Hypothesis Generator**
 
-## What You Get
-
-### Templates (`templates/`)
-AI-ready templates for hunt hypotheses, execution reports, and queries. Designed to be:
-- **Parseable by AI** - Structured markdown AI can read and write
-- **Framework-agnostic** - Works with PEAK, SQRRL, or custom processes
-- **Memory-first** - Captures lessons for future recall
-
-### AI Prompts (`prompts/`)
-- **hypothesis-generator.md** - Generate testable hypotheses from context
-- **query-builder.md** - Draft safe, bounded queries
-- **summarizer.md** - Document results and lessons learned
-
-Copy these prompts into ChatGPT, Claude, or your AI tool.
-
-### Example Hunt (`hunts/H-0001`)
-Real-world example showing:
-- How to structure hunt notes for AI parsing
-- How to build memory through dated executions
-- How lessons learned improve future hunts
-
-### Memory System Guide (`memory/`)
-- Level 1-2: Persistent/Augmented - Grep-based memory (no additional tools)
-- Level 3+: Autonomous/Coordinated - When to add structured memory (JSON, SQLite)
-- Scaling guidance for 10, 50, 500+ hunts
-
-### Environmental Context (`environment.md`)
-Context file that informs hunt planning and AI-assisted hypothesis generation:
-
-**environment.md** - Tech stack inventory:
-- Security tools (SIEM, EDR, network monitoring)
-- Technology stack (languages, frameworks, databases, cloud platforms)
-- Internal documentation links (wikis, architecture diagrams, asset inventory)
-- Network architecture and infrastructure
-- Patch status and CVE context (for awareness, not hunting driver)
-
-**How this supports hunting:**
-- **Level 0-1**: Manual reference when planning hunts
-- **Level 2**: AI reads environment.md to suggest relevant data sources and validate hypothesis feasibility
-- **Level 3+**: Agents auto-validate hunts against tech stack, identify telemetry gaps
-
-**Example Level 2 workflow:**
-```
-You: "Generate hypothesis for credential dumping via LSASS"
-AI: *reads environment.md*
-    "I see you have Windows systems with Sysmon Event ID 10 (process access).
-    I'll focus the hypothesis on detecting MiniDump API calls to lsass.exe..."
-```
-
-See environment.md template for detailed inventory structure.
-
-## Progression Guide
-
-### Level 0 → 1: Build the Repo (Week 1)
-
-**What to do:**
-1. Create a repository (GitHub, SharePoint, Confluence, Jira, or local folder)
-2. Copy ATHF templates for LOCK-structured hunts
-3. Start documenting new hunts in markdown
-4. Commit/save each completed hunt
-
-**Win:** Memory persists. Knowledge doesn't disappear when people leave.
-
-**Cost:** Free
-
-**Skills:** None (just markdown)
-
-**Signal you're ready for Level 2: Augmented:** You have 5-10 hunt files and find yourself manually searching before each new hunt.
-
----
-
-### Level 1 → 2: Add AI Integration (Week 2-4)
-
-**What to do:**
-1. Create minimal AGENTS.md file in your repo root:
-   ```markdown
-   # AGENTS.md - Context for AI Assistants
-
-   ## Purpose
-   This repo contains threat hunting hypotheses and outcomes using LOCK pattern.
-   AI assistants use this to suggest new hunts and recall lessons learned.
-
-   ## Data Sources
-   - winlogs (Windows Event Logs)
-   - edr (CrowdStrike Falcon telemetry)
-   - proxy (Zscaler web proxy logs)
-
-   ## Guardrails
-   - AI drafts, humans review
-   - Never execute queries without validation
-   ```
-
-2. Choose your AI tool (use what your organization approves):
-   - **GitHub Copilot** - [Setup docs](https://docs.github.com/en/copilot)
-   - **Claude Code** - [Setup docs](https://docs.anthropic.com/claude/docs/claude-code)
-   - **Cursor** - [Setup docs](https://cursor.sh/docs)
-   - **Others**: Any AI tool that can read files
-
-3. Start asking questions about your hunt history:
-   ```
-   You: "What have we learned about brute force attacks?"
-   AI: *searches repo* "Based on H-0005 and H-0012..."
-
-   You: "Generate hypothesis for VPN brute force"
-   AI: *reads past hunts* "Adversaries may attempt..."
-   ```
-
-**The Difference This Makes:**
-
-#### Level 1: Persistent - Manual (15-20 min)
-
-```mermaid
-graph LR
-    L1_Start[CTI Report] --> L1_Grep[Manual grep:<br/>T1003 LSASS]
-    L1_Grep --> L1_Read[Read 3 files<br/>manually]
-    L1_Read --> L1_Copy[Copy/paste to<br/>ChatGPT]
-    L1_Copy --> L1_Draft[Get hypothesis]
-    L1_Draft --> L1_File[Manually create<br/>hunt file]
-    L1_File --> L1_Query[Write query]
-    L1_Query --> L1_Time[⏱️ 15-20 min]
-
-    style L1_Time fill:#ffcccc,stroke:#ff0000
-```
-
-#### Level 2: Augmented - AI Partner (3-5 min)
-
-```mermaid
-graph LR
-    L2_Start[CTI Report] --> L2_Ask[Ask AI:<br/>What about LSASS?]
-    L2_Ask --> L2_Auto[AI auto-searches<br/>& summarizes]
-    L2_Auto --> L2_Gen[Ask: Generate<br/>hypothesis]
-    L2_Gen --> L2_Create[Ask: Create<br/>hunt file]
-    L2_Create --> L2_Query[Ask: Generate<br/>query]
-    L2_Query --> L2_Time[⏱️ 3-5 min]
-
-    style L2_Time fill:#ccffcc,stroke:#00ff00
-```
-
-**Win:** Stop manually grepping. AI becomes your memory interface.
-
-**Cost:** ~$10-20/month
-
-**Skills:** None (no coding)
-
-**Signal you're ready for Level 3: Autonomous:** A specific task feels tedious after doing it 10+ times.
-
----
-
-### AI-Assisted Hunting Quick Start (Level 2)
-
-Once you have AGENTS.md configured and an AI tool installed, here's your typical workflow:
-
-#### Generating Hypotheses from Threat Intel
-
-**Scenario:** You receive threat intelligence about adversary TTPs or emerging attack patterns
-
-**Workflow:**
-
-1. **Open your AI tool** (Claude Code, GitHub Copilot, Cursor) in your hunt repository
-
-2. **Ask the AI to check memory first:**
-   ```
-   You: "Check if we've hunted for T1218.011 (Rundll32 execution) before"
-
-   AI: *searches hunts/ folder*
-        "Found H-0018 from 3 months ago targeting Rundll32 DLL execution.
-        That hunt focused on unsigned DLLs. Should I generate a new hypothesis
-        for a different angle, like suspicious command-line patterns?"
-   ```
-
-3. **Request hypothesis generation:**
-   ```
-   You: "Yes, generate a LOCK-structured hypothesis for Rundll32 abuse"
-
-   AI: *reads AGENTS.md, environment.md, past Rundll32 hunts*
-        *generates complete hypothesis with:*
-        - Testable hypothesis statement
-        - Context (why now, ATT&CK mapping T1218.011)
-        - Data sources from YOUR environment
-        - Time range recommendations
-        - Query approach with lessons from H-0018
-   ```
-
-4. **Review and create hunt file:**
-   ```
-   You: "Create this as H-0025.md in the hunts/ folder"
-
-   AI: *creates file with generated hypothesis*
-   ```
-
-5. **Generate query:**
-   ```
-   You: "Draft a Splunk query for this hypothesis with safety bounds"
-
-   AI: *references past queries, adds time limits, result caps*
-        *creates query in queries/H-0025.spl*
-   ```
-
-**Total time: 3-5 minutes instead of 15-20 minutes manual work**
-
-#### Key AI Commands to Use
-
-**Memory Recall:**
-- "What have we learned about [TTP/behavior]?"
-- "Find past hunts for T1110 brute force"
-- "Have we hunted this before?"
-
-**Hypothesis Generation:**
-- "Generate hypothesis for [TTP/threat intel]"
-- "Based on past [similar hunt], create a new hypothesis for [new context]"
-
-**Query Building:**
-- "Draft a query for this hypothesis with safety bounds"
-- "What false positives did we find in similar past hunts?"
-- "Generate query using data sources from environment.md"
-
-**Documentation:**
-- "Summarize these hunt results in LOCK format"
-- "Document lessons learned from this hunt"
-- "Create execution report with findings and next actions"
-
-#### What Makes This Work
-
-The AI can assist effectively because:
-
-1. **AGENTS.md** tells it how to use your repository
-2. **LOCK structure** provides consistent format for parsing
-3. **Past hunts** serve as memory for lessons learned
-4. **environment.md** ensures suggestions match your tech stack and data sources
-
-#### Common Pitfalls to Avoid
-
-**Don't:** Just copy/paste AI output without review
-**Do:** Validate queries before running, check false positive rate
-
-**Don't:** Let AI generate queries for data sources you don't have
-**Do:** Keep environment.md updated so AI knows your capabilities
-
-**Don't:** Skip checking past hunts (duplicates waste time)
-**Do:** Always ask AI to search memory first
-
-**Don't:** Trust AI to remember across sessions without context
-**Do:** Use AGENTS.md to provide persistent context
-
----
-
-### Level 2 → 3: Automate One Task (Month 3-6)
-
-**What to do:**
-1. Identify the most repetitive task in your workflow
-2. Write a simple Python script that:
-   - Searches past hunts
-   - Calls AI API (OpenAI, Anthropic, or Azure OpenAI)
-   - Produces output (hypothesis, documentation, or file creation)
-3. Test thoroughly before trusting it
-
-**Examples:**
-- Auto-generate hunt ideas from CTI feeds
-- Script that formats investigation notes into LOCK structure
-- Automated "similar hunt finder"
-
-**Use your Level 2: Augmented AI tool to help write the script.**
-
-**Win:** Repetitive tasks happen automatically.
-
-**Cost:** ~$10-60/month
-
-**Skills:** Basic Python
-
-**Signal you're ready for Level 4: Coordinated:** You have 50+ hunts, grep is slow, or you need parallel agents.
-
----
-
-### Level 3 → 4: Multi-Agent Coordination (Year 1+)
-
-**What to do:**
-1. Add structured memory (SQLite database or JSON index)
-2. Build specialized agents:
-   - **Research agent**: Pulls threat intel + past hunts
-   - **Query agent**: Generates SIEM queries
-   - **Documentation agent**: Writes execution reports
-3. Use orchestration framework (LangChain, AutoGen, or custom)
-4. Agents share access to central memory
-
-**Win:** Complex workflows become partially autonomous.
-
-**Cost:** ~$50-200+/month
-
-**Skills:** Python + orchestration frameworks
-
-**Reality check:** Most teams stop at Level 1-2. Only pursue this if you have 100+ hunts and dedicated engineering resources.
-
-## What You'll Need From Your Tech Stack
-
-ATHF is designed to work with what you already have. Here's what's required at each maturity level:
-
-### Level 0-1: Ephemeral → Persistent
-**Requirements:**
-- **Storage**: Any folder (git, SharePoint, Confluence, Jira, local)
-- **SIEM Access**: Read-only query access to your SIEM
-- **Skills**: Write/edit markdown files
-- **Cost**: Free
-
-**That's it.** No APIs, no infrastructure, no code.
-
-### Level 2: Augmented (AI Partner)
-**Additional:**
-- **AI Tool**: GitHub Copilot, Claude Code, Cursor, or org-approved tool that can read files
-- **Setup**: See tool docs (links in progression guide above)
-- **Skills**: None (no coding)
-- **Cost**: ~$10-20/month
-
-**Still no coding required.** Just install an AI tool and point it at your repo.
-
-### Level 3: Autonomous (Automation)
-**Additional:**
-- **Programming**: Basic Python
-- **AI API**: OpenAI, Anthropic, or Azure OpenAI
-- **Environment**: Python 3.8+
-- **Infrastructure**: Runs on your laptop or single VM
-- **Cost**: ~$10-60/month
-
-### Level 4: Coordinated (Multi-Agent)
-**Additional:**
-- **Structured Memory**: SQLite or PostgreSQL
-- **Agent Framework**: LangChain, AutoGen, or custom
-- **Infrastructure**: Dedicated VM (2-4 CPU, 8GB RAM)
-- **Cost**: ~$50-200+/month
-
-**This is rare.** Most teams stop at Level 1-2.
-
-## Integration Patterns
-
-### Storage Options
-| Storage | Best For | Grep Support | Team Collaboration |
-|---------|----------|--------------|-------------------|
-| **Git** | Teams, version control | ✅ Native | ✅ Pull requests |
-| **Local Folders** | Solo hunters | ✅ Native | ❌ No |
-| **SharePoint/Confluence** | Enterprise compliance | ⚠️ Via export | ✅ Comments |
-| **Jira/ServiceNow** | Integration with tickets | ⚠️ Via export | ✅ Workflows |
-| **Notion/Obsidian** | Knowledge management | ✅ Search API | ✅ Sharing |
-
-**Recommendation:** Start with git (free, grep-friendly, team-ready). Export to other tools as needed.
-
-### AI Tools by Level
-| Level | Tool | Cost | Skills Required |
-|-------|------|------|-----------------|
-| **0-1** | Optional (ChatGPT copy/paste) | $0-20/mo | None |
-| **2** | GitHub Copilot, Claude Code, Cursor | $10-20/mo | None |
-| **3** | OpenAI/Anthropic API | $10-60/mo | Basic Python |
-| **4** | LangChain, AutoGen | $50-200+/mo | Python + orchestration |
-
-## Examples
-
-### Level 1: Persistent - Manual Grep
-
-```bash
-# Before starting a hunt, search past work
-grep -l "T1059.001" hunts/*.md
-# Results: H-0015.md, H-0023.md
-
-# Read files manually, apply lessons to new hunt
-```
-
-### Level 2: Augmented - AI with Memory
-
-```
-You → AI: "What have we learned about T1059.001 PowerShell?"
-
-AI: *searches repo* "Based on H-0015 and H-0023:
-- Most persistence via scheduled tasks
-- WMI event consumers less common
-- Base64 encoding standard for evasion"
-
-You → AI: "Generate hypothesis for PowerShell persistence,
-           excluding scheduled tasks"
-
-AI: *uses LOCK structure* "Adversaries use base64-encoded
-    PowerShell via WMI event consumers to establish persistence.
-    Check WMI event subscriptions for PowerShell.exe processes..."
-```
-
-### Level 3: Autonomous - Script Automation
+Below is an MCP server that gives Claude the ability to generate hunt hypotheses:
 
 ```python
-# Memory-aware hypothesis generator
-def generate_hypothesis(ttp, context):
-    # Script automatically searches past hunts
-    past_hunts = search_hunts(ttp=ttp)
+"""
+hunt_mcp_server.py
+Level 3 example – MCP tool for generating LOCK-formatted hunt hypotheses.
+"""
 
-    # Calls AI API with memory context
-    prompt = f"""
-    Past hunts for {ttp}:
-    {past_hunts}
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from pathlib import Path
+import json
 
-    New context: {context}
+app = Server("athf-hunt-server")
+HUNTS_DIR = Path("hunts")
 
-    Generate LOCK-structured hypothesis avoiding duplicates.
+@app.list_tools()
+async def list_tools():
+    return [
+        {
+            "name": "generate_hunt_hypothesis",
+            "description": "Generate a LOCK-formatted hunt hypothesis from CTI or threat context",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "threat_context": {
+                        "type": "string",
+                        "description": "CTI report, alert details, or threat description"
+                    },
+                    "technique_id": {
+                        "type": "string",
+                        "description": "MITRE ATT&CK technique ID (e.g., T1059.001)"
+                    }
+                },
+                "required": ["threat_context", "technique_id"]
+            }
+        }
+    ]
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict):
+    if name == "generate_hunt_hypothesis":
+        return await generate_hypothesis(
+            arguments["threat_context"],
+            arguments["technique_id"]
+        )
+
+async def generate_hypothesis(threat_context: str, technique_id: str):
     """
-    return ai.generate(prompt)
+    Generate a LOCK-formatted hunt hypothesis using past hunt context.
+    """
+    # Search past hunts for this technique
+    past_hunts = search_past_hunts(technique_id)
+
+    # Read AGENTS.md for data sources
+    data_sources = load_data_sources()
+
+    # Build context for the AI
+    context = {
+        "threat": threat_context,
+        "technique": technique_id,
+        "past_hunts": past_hunts,
+        "available_data_sources": data_sources,
+        "lessons_learned": extract_lessons(past_hunts)
+    }
+
+    # Return structured context for Claude to generate the hypothesis
+    return {
+        "context": context,
+        "instruction": "Generate a LOCK-formatted hunt hypothesis that avoids duplication"
+    }
+
+def search_past_hunts(technique_id: str):
+    """Search for past hunts related to this technique."""
+    related = []
+    for hunt_file in HUNTS_DIR.glob("H-*.md"):
+        content = hunt_file.read_text()
+        if technique_id in content:
+            related.append({
+                "file": hunt_file.name,
+                "summary": extract_keep_section(content)
+            })
+    return related
+
+if __name__ == "__main__":
+    stdio_server(app)
 ```
 
-### Level 4: Coordinated - Multi-Agent Workflow
+**Using It with Claude Code**
 
-```python
-# Orchestrated agents
-research_agent.gather_intel(ttp="T1110.001")
-memory_agent.find_similar_hunts(ttp="T1110.001")
-hypothesis_agent.generate(context=research + memory)
-query_agent.build_query(hypothesis)
-# Human reviews and executes
-docs_agent.document_results(findings)
+Once installed, you paste a CTI report into Claude and say:
+
+> "Generate a hunt hypothesis for this new Qakbot campaign (T1059.003)"
+
+Claude will:
+1. **Use the `generate_hunt_hypothesis` tool** with the CTI context
+2. **Receive structured data** about past hunts, data sources, and lessons learned
+3. **Generate a complete LOCK-formatted hypothesis** avoiding duplication and incorporating what worked before
+
+**Example Output:**
+
+```markdown
+# H-0157: PowerShell-Based Qakbot Loader Detection (T1059.003)
+
+**Learn**
+New Qakbot campaign observed using Windows Script Host to execute obfuscated
+PowerShell commands for initial access. Based on H-0142, we know Qakbot often
+uses base64 encoding and registry persistence.
+
+**Observe**
+Adversaries will likely execute PowerShell with -EncodedCommand parameter from
+wscript.exe or cscript.exe parent processes. Looking for PowerShell execution
+chains originating from non-standard parents.
+
+**Check**
+index=winlogs EventCode=4688
+| search ParentImage="*wscript.exe" OR ParentImage="*cscript.exe"
+| search Image="*powershell.exe"
+| where CommandLine LIKE "%EncodedCommand%" OR CommandLine LIKE "%-enc%"
+| stats count by User, Computer, CommandLine
+
+**Keep**
+[To be completed after hunt execution]
+- Reference lessons from H-0142: check for registry persistence in Run keys
+- Expand to include WMI execution if initial query yields high volume
 ```
 
-## FAQ
+**The difference:**
+- **Level 2:** Claude reads past hunts and suggests ideas
+- **Level 3:** Claude generates complete, context-aware hunt hypotheses using a specialized tool
 
-**Q: Do I need to use your templates?**
-No. Use your own templates with ATHF prompts and memory patterns.
+At Level 3, success looks like this:
+- Claude **generates** LOCK-formatted hunts instead of just discussing them
+- New hunts **reference** lessons learned from past hunts automatically
+- Hypotheses are **validated** against your actual data sources
+- You spend time **refining and executing** hunts, not writing them from scratch
 
-**Q: Does ATHF require agents/automation?**
-No. Level 1-2: Persistent/Augmented work with just markdown files and AI chat tools (GitHub Copilot, Claude Code). No coding required.
+### Level 4 Example: Autonomous Workflows
 
-**Q: Can I use ATHF without PEAK?**
-Yes. ATHF works with any hunting process. Use LOCK structure for documentation and build AI integration at your own pace.
+At this stage, you move from **reactive assistance** to **proactive automation**. Instead of asking your AI for help with each task, you deploy autonomous agents that monitor, reason, and act based on objectives you define.
 
-**Q: Is this just "use ChatGPT for threat hunting"?**
-No. ATHF provides:
-- LOCK structure so AI can parse hunts consistently
-- Memory architecture (repo → AI-integrated → structured)
-- Progression from manual to AI-augmented
-- Patterns for automation and multi-agent systems
+The key difference from Level 3: **agents operate autonomously** rather than waiting for your prompts. They detect events, make decisions within guardrails, and coordinate with each other through shared memory (your LOCK-structured hunts).
 
-**Q: Where's the code?**
-Level 1-2: Persistent/Augmented need no code. Most teams stop here.
+**Example: Multi-Agent Hunt Pipeline**
 
-## Quick Start
+Below is a conceptual workflow showing how multiple autonomous agents coordinate:
 
-### 1. Install the Templates
+```yaml
+# config/agent_workflow.yaml
+# Defines autonomous agents and their coordination
 
-```bash
-git clone https://github.com/sydney-nebulock/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
+agents:
+  - name: cti_monitor
+    role: Watch CTI feeds and identify relevant threats
+    triggers:
+      - schedule: "every 6 hours"
+      - webhook: "/api/cti/new"
+    actions:
+      - search_hunts(technique_id)  # Check if we've hunted this before
+      - trigger_agent("hypothesis_generator") if new_technique
+
+  - name: hypothesis_generator
+    role: Create LOCK-formatted hunt hypotheses
+    triggers:
+      - agent_event: "cti_monitor.new_technique"
+    actions:
+      - search_hunts(technique_id)  # Get historical context
+      - generate_lock_hypothesis()
+      - validate_query()
+      - create_draft_hunt_file()
+      - trigger_agent("validator")
+
+  - name: validator
+    role: Review and validate draft hunts
+    triggers:
+      - agent_event: "hypothesis_generator.draft_ready"
+    actions:
+      - validate_query(query, platform)
+      - check_data_source_compatibility()
+      - flag_for_human_review() if issues_found
+      - trigger_agent("notifier")
+
+  - name: notifier
+    role: Alert analysts when hunts need review
+    triggers:
+      - agent_event: "validator.review_needed"
+    actions:
+      - post_to_slack(channel="#threat-hunting", hunt_id)
+      - create_github_issue(labels=["hunt-review"])
+
+guardrails:
+  - all_hunts_require_human_approval: true
+  - no_automatic_query_execution: true
+  - log_all_agent_actions: true
+  - daily_summary_report: true
 ```
 
-Or download and copy to any storage (SharePoint, Confluence, Jira, folders).
+**How It Works:**
 
-### 2. See the Example
+1. **CTI Monitor Agent** runs every 6 hours, checking threat feeds
+2. Detects new Qakbot campaign using T1059.003
+3. Searches past hunts - finds we haven't covered this sub-technique
+4. **Triggers Hypothesis Generator Agent**
+5. Generator searches historical hunts for context
+6. Creates draft hunt `H-0156.md` with LOCK structure
+7. **Triggers Validator Agent**
+8. Validator checks query against data sources from `AGENTS.md`
+9. Flags for human review
+10. **Triggers Notifier Agent**
+11. Posts to Slack: "New hunt H-0156 ready for review"
 
-Check `hunts/` for a complete hunt showing AI-assisted workflow:
-- **H-0001.md** - Hypothesis template with AI guidance
-- **H-0001_2025-10-22.md** - First execution
-- **H-0001_2025-10-29.md** - Refined execution using memory
+**You wake up to:**
+> "3 new draft hunts created overnight based on recent CTI. Ready for your review."
 
-### 3. Start at Your Level
+**The difference:**
+- **Level 2:** You ask AI questions, it responds
+- **Level 3:** You direct AI to use tools
+- **Level 4:** Agents work autonomously toward objectives, notify you when human judgment is needed
 
-Choose your starting point:
-- **No structured hunt docs?** Start with Level 0 → 1: Build the Repo
-- **Have hunt docs, want AI?** Jump to Level 1 → 2: Add AI Integration
-- **Want automation?** See Level 2 → 3: Automate One Task
+At Level 4, success looks like this:
+- Agents **monitor** CTI feeds without your intervention
+- Agents **generate** draft hunts based on new threats
+- Agents **coordinate** through shared memory (LOCK hunts)
+- You focus on **validating** and **approving** rather than creating from scratch
 
-See the "Progression Guide" section above for detailed step-by-step instructions.
+**Implementation Options:**
 
-## Questions?
+Level 4 can be built using various agent frameworks:
+- **LangGraph** - For building stateful, multi-agent workflows
+- **CrewAI** - For role-based agent collaboration
+- **AutoGen** - For conversational agent patterns
+- **Custom orchestration** - Purpose-built for your environment
 
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) for adoption strategies
-- Review [prompts/README.md](prompts/README.md) for AI workflow guidance
-- Review the templates and example hunt (H-0001)
-- Open a discussion to share your agentic hunting setup
+The key is that **all agents share the same memory layer** - your LOCK-structured hunts - ensuring consistency and enabling true coordination.
 
-## License
+## How to Get Started
 
-MIT License - Use freely, adapt completely, keep your data private.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/sydney-nebulock/agentic-threat-hunting-framework
+   ```
+
+2. Review the `templates/` and `hunts/` directories
+
+3. Start documenting new hunts using the LOCK pattern
+
+4. Add an `AGENTS.md` file once you have a few hunts recorded
+
+5. Choose an AI assistant that can read your files and start using memory-aware prompts
+
+You can be operational at **Level 1 within a day** and **Level 2 within a week**. No coding or infrastructure changes are required until Level 3.
+
+## Why This Matters
+
+Agentic threat hunting is not about replacing analysts. It is about building systems that can:
+
+- Remember what has been done before
+- Learn from past successes and mistakes
+- Support human judgment with contextual recall
+
+When your framework has memory, you stop losing knowledge to turnover or forgotten notes. When your AI assistant can reference that memory, it becomes a force multiplier instead of a curiosity.
+
+## Feedback and Contributions
+
+ATHF is open source and under active development. Feedback, forks, and pull requests are welcome.
+
+You can find the repository here:
+**[https://github.com/Nebulock-Inc/agentic-threat-hunting-framework](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework)**
+
+Try it in your own environment, adapt it to your workflow, and share what you learn. The goal is to help every threat hunting team move from ad-hoc memory to structured, agentic capability.
+
+If you build on ATHF, I would love to hear about your implementation and how your team integrates memory into the hunt loop.
+
+**Happy thrunting!**
 
 ---
 
-**ATHF: The memory and automation layer for threat hunting.**
+## Closing
 
-Works with your methodology. Grows with your maturity. Stays out of your way.
+ATHF is a framework for the future of threat hunting. It learns, remembers, and scales with you.
+
+**Start small. Document one hunt. Add structure. Build memory.**
+
+Once your program can remember, everything else becomes possible.

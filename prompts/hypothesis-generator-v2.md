@@ -1,7 +1,7 @@
 # Hypothesis Generator v2 - Enhanced Prompt for AI Tools
 
 **Version:** 2.0
-**Level:** 2 (Augmented) - AI with Memory
+**Level:** 2 (Searchable) - AI with Memory
 **Purpose:** Generate LOCK-structured threat hunting hypotheses from threat intelligence
 
 ## When to Use This Prompt
