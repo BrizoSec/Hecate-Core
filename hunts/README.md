@@ -1,141 +1,189 @@
 # Hunt Directory
 
-This folder contains your threat hunting hypotheses and execution reports.
+This folder contains your threat hunting investigations using the **LOCK methodology** (Learn-Observe-Check-Keep) with **ABLE scoping** (Actor-Behavior-Location-Evidence).
+
+For template structure details, see [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md).
 
 ## File Structure
 
 ```
 hunts/
-├── H-0001.md                 ← Reusable hypothesis (the "recipe")
-├── H-0001_2025-10-22.md     ← First execution report
-└── H-0001_2025-10-29.md     ← Second execution report
+├── H-0001.md    ← SSH Brute Force Detection hunt
+├── H-0002.md    ← Linux Crontab Persistence hunt
+└── H-0003.md    ← Your next hunt
 ```
 
-As you add more hunts, your structure will grow:
-```
-hunts/
-├── H-0001.md
-├── H-0001_2025-10-22.md
-├── H-0001_2025-10-29.md
-├── H-0002.md                 ← New hypothesis
-└── H-0002_2025-11-05.md     ← Its first execution
-```
+Each file is a complete hunt from planning through execution results.
 
-## How It Works
+## Quick Start
 
-### 1. Create a Hypothesis
+### 1. Create a New Hunt
 
-Copy the template to create a new hunt:
+Copy the template and fill it out:
 
 ```bash
-cp templates/HUNT_HYPOTHESIS.md hunts/H-0004.md
+cp templates/HUNT_LOCK.md hunts/H-0003.md
 ```
 
-Fill out:
-- Hypothesis (what you're hunting for)
-- Context (why now, ATT&CK mapping)
-- Data needed (index, fields, time range)
+Start with the **LEARN** section:
+- Write your hypothesis
+- Fill out ABLE scoping table (Actor, Behavior, Location, Evidence)
+- Add threat intel and MITRE ATT&CK context
 
-The hypothesis file stays lightweight - just the plan.
+Set status to **Planning** while developing queries.
 
 ### 2. Execute the Hunt
 
-When ready to run the hunt, create a dated execution file:
+Update the same file as you run your hunt:
 
-```bash
-cp hunts/H-0004.md hunts/H-0004_$(date +%Y-%m-%d).md
-```
+- Change status from **Planning** → **In Progress**
+- Fill out **CHECK** section with data source details
+- Add your queries and results
+- Document what worked and what didn't
 
-Then fill out the execution report with:
-- Query results and metrics
-- Findings and analysis
-- Decision (Accept/Reject/Needs Changes)
+### 3. Capture Results
+
+Complete the **KEEP** section:
+
+- Executive summary of findings
+- True positives / false positives / suspicious events
 - Lessons learned
+- Follow-up actions and new hunt ideas
 
-### 3. Run Again
+Change status to **Completed** when done.
 
-Keep the original hypothesis file (`H-0004.md`) for future runs. Next time you want to hunt the same behavior:
+### 4. Iterate
+
+Next time you hunt the same behavior:
+- Open the same H-####.md file
+- Update queries based on lessons learned
+- Re-run and update findings
+- Keep refining
+
+The file becomes your evolving playbook for that technique.
+
+## Searching Past Hunts
+
+### Using AI Assistants (Level 2+)
+
+If you're using Claude Code or similar AI tools, just ask:
+
+```
+"Have we hunted SSH brute force before?"
+"What lessons did we learn from PowerShell hunts?"
+"Find hunts that detected true positives"
+"Show me all Linux persistence hunts"
+```
+
+The AI will search the hunts/ folder and summarize findings.
+
+### Manual Grep
 
 ```bash
-cp hunts/H-0004.md hunts/H-0004_2025-11-05.md
-```
+# Find hunts by MITRE technique
+grep -l "T1110.001" hunts/H-*.md
 
-Apply lessons from previous runs to refine your approach.
-
-## Checking Hunt Status
-
-**See all hypotheses (backlog):**
-```bash
-ls hunts/H-*.md | grep -v "_"
-```
-
-**See if a hunt has been executed:**
-```bash
-ls hunts/H-0001_*.md  # Shows all execution dates for H-0001
-```
-
-**Find completed hunts:**
-```bash
-grep "Status.*Completed" hunts/H-*_*.md
-```
-
-**Find hunts that need refinement:**
-```bash
-grep "Needs Changes" hunts/H-*_*.md
-```
-
-## Memory Building (Levels 1-3)
-
-Before starting a new hunt, search past executions to avoid duplicates and apply lessons.
-
-### Using AI Assistants (Level 2: Searchable)
-
-If you're using Claude Code, GitHub Copilot, or similar AI tools:
-
-**Ask your AI assistant to search for you:**
-```
-"Search past hunts for T1110.001 credential access attempts"
-"Find hunts where we dealt with brute force attacks"
-"What lessons did we learn from past PowerShell hunts?"
-"Show me all hunts that found accepted findings"
-"Have we hunted Active Directory lateral movement before?"
-```
-
-The AI will grep the hunts/ folder and summarize findings for you.
-
-### Manual Grep (Levels 1-3)
-
-If you prefer command line:
-
-```bash
-# Find past hunts for a TTP
-grep -l "T1110.001" hunts/H-*_*.md
-
-# Find hunts by behavior
-grep -i "brute force" hunts/H-*_*.md
+# Find by behavior
+grep -i "brute force" hunts/H-*.md
 
 # Find by technology
-grep -i "powershell" hunts/H-*_*.md
+grep -i "powershell" hunts/H-*.md
 
-# Find by application
-grep -i "active directory" hunts/H-*_*.md
+# See completed hunts
+grep "Status.*Completed" hunts/H-*.md
 
-# Find by keyword
-grep -i "privilege escalation" hunts/H-*_*.md
-
-# See what worked
-grep "Decision.*Accept" hunts/H-*_*.md
-
-# Learn from past mistakes
-grep "Lessons Learned" -A 3 hunts/H-*_*.md
+# Learn from past lessons
+grep "Lessons Learned" -A 5 hunts/H-*.md
 ```
 
-**Both approaches work through Level 3.** When you have 50+ hunts or need multi-agent coordination, see [memory/README.md](../memory/README.md) for structured memory options.
+## Hunt Status Tracking
+
+```bash
+# List all hunts
+ls hunts/H-*.md
+
+# Count total hunts
+ls hunts/H-*.md | wc -l
+
+# Find in-progress hunts
+grep "Status.*In Progress" hunts/H-*.md
+
+# Find hunts that need follow-up
+grep "Follow-up Actions" -A 10 hunts/H-*.md | grep "\[ \]"
+```
+
+## Level 3: MCP Integration
+
+At Level 3, you can connect MCPs to execute hunts directly through Claude.
+
+### What are MCPs?
+
+MCP (Model Context Protocol) servers let Claude interact with your security tools:
+- Execute Splunk queries
+- Analyze results automatically
+- Create tickets with findings
+- Enrich data with threat intel
+
+### Example Workflow
+
+```
+User: "Run hunt H-0001"
+
+Claude:
+1. Reads H-0001.md hypothesis and queries
+2. Executes Splunk query via MCP
+3. Analyzes results and identifies TPs/FPs
+4. Updates hunt file with findings
+5. Creates tickets for true positives
+
+"Hunt completed. Found 3 brute force attempts. Created INC-2847."
+```
+
+### Getting Started with MCPs
+
+1. **Setup guide:** [../integrations/README.md](../integrations/README.md)
+2. **Splunk walkthrough:** [../integrations/MCP_CATALOG.md](../integrations/MCP_CATALOG.md)
+3. **Splunk quickstart:** [../integrations/quickstart/splunk.md](../integrations/quickstart/splunk.md)
+
+### Time Savings
+
+**Without MCPs (Level 2):**
+- Manual query execution: ~10 minutes
+- Copy/paste results: ~5 minutes
+- Analysis and documentation: ~25 minutes
+- Ticket creation: ~5 minutes
+- **Total:** ~45 minutes per hunt
+
+**With MCPs (Level 3):**
+- Claude executes and analyzes automatically
+- Results documented in hunt file
+- Tickets created with full context
+- **Total:** ~5 minutes per hunt
 
 ## Tips
 
-- **Keep hypothesis files simple** - Just the plan, no results
-- **Dated files are comprehensive** - Include everything: findings, analysis, screenshots, lessons
-- **Don't delete hypothesis files** - They're your reusable templates
-- **Use consistent dating** - YYYY-MM-DD format for easy sorting
-- **Reference related hunts** - Link between similar investigations
+**Creating Hunts:**
+- Start with ABLE scoping - be specific about Evidence (log sources, key fields, examples)
+- Actor is optional - focus on Behavior first
+- Use clear MITRE ATT&CK technique IDs in titles
+
+**Executing Hunts:**
+- Document query iterations - show what didn't work and why
+- Be honest about false positives - they're learning opportunities
+- Capture telemetry gaps for engineering follow-up
+
+**Refining Hunts:**
+- Update the same file as you iterate
+- Keep old queries (comment them out) to show evolution
+- Link related hunts in Follow-up Hunts section
+
+**Status Management:**
+- **Planning** = Developing hypothesis and queries
+- **In Progress** = Actively executing and collecting data
+- **Completed** = Results documented, lessons captured
+
+## Example Hunts
+
+- [H-0001.md](H-0001.md) - SSH Brute Force Detection (T1110.001)
+- [H-0002.md](H-0002.md) - Linux Crontab Persistence (T1053.003)
+- [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md) - Template structure reference

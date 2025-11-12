@@ -24,13 +24,14 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 
 ```
 /
-├── hunts/              # Hunt hypotheses and execution notes
-│   ├── H-XXXX.md       # Hypothesis files
-│   └── H-XXXX_DATE.md  # Execution/run notes
+├── hunts/              # Hunt files following LOCK pattern
+│   └── H-XXXX.md       # Single file per hunt (Planning → In Progress → Completed)
 ├── templates/          # LOCK-structured templates for new hunts
-├── prompts/            # AI prompt templates for manual workflows
-├── queries/            # Reusable query patterns
-├── memory/             # Hunt memory and recall system
+│   └── HUNT_LOCK.md    # Unified template combining hypothesis + execution
+├── prompts/            # AI prompt templates
+│   ├── basic-prompts.md  # Level 0-1 copy-paste prompts
+│   └── ai-workflow.md    # Level 2 AI-assisted workflows
+├── queries/            # Reusable query patterns (optional)
 └── environment.md      # Tech stack, tools, infrastructure inventory
 ```
 
@@ -168,244 +169,30 @@ When building automation scripts, AI should:
 
 ## Hypothesis Generation Workflow
 
-This section provides detailed guidance for AI assistants on generating threat hunting hypotheses from threat intelligence. This is the most common Level 2 (Searchable) workflow.
+**For complete workflows with examples, see [prompts/ai-workflow.md](prompts/ai-workflow.md)**
 
-### When to Generate Hypotheses
+This section provides essential guidance for AI assistants generating threat hunting hypotheses. This is the most common Level 2 (Searchable) workflow.
 
-AI should offer to generate hypotheses when users provide:
-- Threat intelligence reports (APT activity, campaign analysis)
-- TTP references (e.g., "T1003 credential dumping")
-- Security news/advisories (CISA alerts, vendor bulletins)
-- Observed anomalies or suspicious behaviors
+### Essential Workflow Steps
 
-### Step-by-Step Workflow
+**Core Process:**
+1. **Search Memory First** - Check hunts/ for similar TTPs or past work
+2. **Validate Environment** - Read environment.md to confirm data sources exist
+3. **Generate LOCK Hypothesis** - Create testable hypothesis following templates/HUNT_LOCK.md
+4. **Suggest Next Steps** - Offer to create hunt file or draft query
 
-**Step 1: Check Memory (Avoid Duplicates)**
-```
-AI Action: Search past hunts before generating anything new
-Commands:
-- Search hunts/ for similar TTPs or behaviors
-- Look for related hypotheses that might be adapted
-- Check for lessons learned from past similar hunts
+**Key Requirements:**
+- Match hypothesis format: "Adversaries use [behavior] to [goal] on [target]"
+- Reference past hunts by ID (e.g., "Building on H-0022 lessons...")
+- Specify data sources from environment.md (e.g., "index=winlogs", "SecurityEvent table")
+- Include bounded time range with justification
+- Consider false positives from similar past hunts
 
-AI Response: "I found 2 past hunts related to this:
-- H-0015 (2024-09-12): Similar TTP, found X
-- H-0023 (2024-10-01): Related behavior, learned Y
-Should I generate a new hypothesis building on these lessons?"
-```
+**Output Must Follow:** [templates/HUNT_LOCK.md](templates/HUNT_LOCK.md) structure
 
-**Step 2: Validate Environment (Ensure Relevance)**
-```
-AI Action: Confirm we have visibility for this hunt
-Commands:
-- Read environment.md to check if affected tech exists
-- Verify data sources are available for proposed hunt
-- Identify telemetry gaps that might limit hunt effectiveness
-
-AI Response: "I see you run [affected technology] with logging to [SIEM].
-We have [data source] available for this hunt. Note: [any gaps]"
-```
-
-**Step 3: Generate LOCK-Structured Hypothesis**
-```
-AI Action: Create hypothesis following LOCK pattern
-Structure:
-- Hypothesis: "Adversaries use [behavior] to [goal] on [target system]"
-- Context: Why now? What triggered this hunt?
-- ATT&CK: Technique ID and tactic
-- Data Needed: Specific indexes/tables from environment.md
-- Time Range: Recommended lookback period
-- Query: High-level approach (not full query yet)
-
-AI Response: Present complete hypothesis in markdown format
-ready to copy into new hunt file (H-XXXX.md)
-```
-
-**Step 4: Suggest Next Steps**
-```
-AI Action: Guide user on what to do next
-Options:
-- "Would you like me to create the hunt file (H-XXXX.md)?"
-- "Should I draft a query for this hypothesis?"
-- "Need me to check similar past hunts for lessons learned?"
-
-AI Response: Be proactive but wait for confirmation before creating files
-```
-
-### Example Conversations
-
-#### Example 1: TTP-Driven Hypothesis
-
-**User:** "We need to hunt for Living off the Land (LOLBins) abuse"
-
-**AI Should:**
-1. Search hunts/ for past LOLBins hunts (T1218, T1059, etc.)
-2. Check environment.md for EDR/process monitoring availability
-3. Ask clarifying questions:
-
-```
-AI: "I see we have [EDR platform] with process telemetry.
-Before generating the hypothesis, which LOLBins should we focus on?
-
-Options:
-1. PowerShell (T1059.001) - Already hunted (H-0012, H-0019)
-2. WMIC (T1047) - Not recently hunted
-3. Rundll32 (T1218.011) - Never hunted
-4. All suspicious built-in tools (broad hunt)
-
-Also, are you investigating a specific incident, or is this proactive?"
-```
-
-**User:** "Focus on rundll32 abuse, proactive hunt"
-
-**AI Generates:**
-```markdown
-# H-XXXX | Rundll32 Living off the Land Hunt
-
-**Status:** Candidate
-
-## Hypothesis
-Adversaries abuse rundll32.exe to execute malicious DLLs or bypass
-application control by using Windows built-in functionality for payload execution.
-
-## Context
-
-**Why Now:**
-- Proactive hunt for common LOLBin abuse
-- No recent coverage (last hunt: H-0008, 6 months ago)
-- Commonly used post-exploitation (ref: MITRE ATT&CK)
-
-**ATT&CK:** T1218.011 (Signed Binary Proxy Execution: Rundll32)
-**Tactic:** Defense Evasion
-
-## Data Needed
-- **EDR:** Process execution logs (CommandLine arguments)
-- **Sysmon:** Event ID 1 (Process Creation) with parent process context
-
-[Based on environment.md: CrowdStrike Falcon data in Splunk index=edr]
-
-## Time Range
-- Last 14 days initially (balance: recent activity vs. noise)
-
-## Query Approach
-1. Find rundll32.exe executions
-2. Filter for suspicious patterns:
-   - Unusual DLL paths (user directories, temp folders)
-   - Non-standard export functions
-   - Parent processes (Office, browsers, scripting engines)
-3. Exclude known-good patterns (Windows updates, legitimate apps)
-
-## Known False Positives (from past hunts)
-- H-0008 found: Windows Updates spawn rundll32 frequently
-- Common legitimate DLLs: shell32.dll, advpack.dll (standard functions)
-
-## Next Steps
-- Draft query with FP filters based on H-0008 lessons
-- Execute on 7-day window first
-- If results look clean, expand to 14 days
-```
-
-**AI Should Then:** "This hypothesis builds on lessons from H-0008 (past rundll32 hunt).
-Should I pull those specific false positive filters to include in the query?"
-
-### Memory Search Patterns
-
-When users ask to generate hypotheses, AI should automatically search:
-
-**Pattern 1: TTP-Based**
-```
-Search: grep -l "T####" hunts/*.md
-Purpose: Find past hunts for same ATT&CK technique
-```
-
-**Pattern 2: Behavior-Based**
-```
-Search: grep -li "keyword" hunts/*.md
-Keywords: "brute force", "lateral movement", "credential dump", etc.
-Purpose: Find hunts with similar behaviors
-```
-
-**Pattern 3: Technology-Based**
-```
-Search: grep -li "technology" hunts/*.md environment.md
-Examples: "VPN", "Active Directory", "AWS S3"
-Purpose: Find hunts targeting same systems/platforms
-```
-
-### Safety Checks Before Generating
-
-AI should validate before generating hypothesis:
-
-**Check 1: Data Availability**
-- Question: "Do we have logs for this hunt?"
-- Action: Read environment.md data sources section
-- Response: Warn if critical telemetry is missing
-
-**Check 2: Scope Appropriateness**
-- Question: "Is this hunt realistic in scope?"
-- Action: Consider query complexity vs. environment size
-- Response: Suggest narrowing if too broad
-
-**Check 3: Duplication**
-- Question: "Have we hunted this before?"
-- Action: Search hunts/ for similar TTPs and behaviors
-- Response: Reference past hunts, suggest building on lessons
-
-**Check 4: Testability**
-- Question: "Can this hypothesis be tested with a query?"
-- Action: Verify hypothesis is concrete, not abstract
-- Response: Request clarification if hypothesis is too vague
-
-### Output Format Expectations
-
-All AI-generated hypotheses must follow:
-
-**File Naming:** `H-XXXX.md` (user specifies number, or AI suggests next)
-
-**Required Sections:**
-- Hypothesis statement (one sentence, testable)
-- Context (Why now, ATT&CK, Tactic)
-- Data Needed (specific indexes from environment.md)
-- Time Range (bounded, justified)
-- Query Approach (high-level steps)
-
-**Optional Sections (include when relevant):**
-- Known False Positives (from past similar hunts)
-- Priority Level (if incident-driven)
-- Immediate Actions (if time-sensitive)
-- References (CTI reports, CVE links, past hunt IDs)
-
-**Quality Standards:**
-- Hypothesis is specific and testable
-- References actual data sources from environment.md
-- Includes lessons from past hunts if available
-- Has realistic time bounds
-- Considers false positive rate
-
-### Common Mistakes to Avoid
-
-**Mistake 1: Generating Without Checking Memory**
-❌ Bad: Immediately generate hypothesis without searching
-✅ Good: Search hunts/ first, reference if duplicates exist
-
-**Mistake 2: Ignoring Environment Context**
-❌ Bad: Suggest hunting Windows events when user only has Linux
-✅ Good: Read environment.md, ensure hunt matches tech stack
-
-**Mistake 3: Vague Hypotheses**
-❌ Bad: "Adversaries may use PowerShell maliciously"
-✅ Good: "Adversaries use base64-encoded PowerShell to download second-stage payloads from external IPs"
-
-**Mistake 4: No Time Bounds**
-❌ Bad: "Search all time for suspicious activity"
-✅ Good: "Search last 30 days (threat intel published date) to present"
-
-**Mistake 5: Forgetting Lessons Learned**
-❌ Bad: Generate query that past hunts found generates noise
-✅ Good: Reference H-XXXX false positives and pre-filter
+**Complete workflow details, examples, and troubleshooting:** [prompts/ai-workflow.md](prompts/ai-workflow.md)
 
 ---
-
 ## ATT&CK Coverage
 
 **Optional - Document your priority TTPs:**
@@ -446,7 +233,7 @@ All AI-generated hypotheses must follow:
 
 ---
 
-## Memory Scaling (Reference: memory/README.md)
+## Memory Scaling
 
 **Current maturity level:** [0: Manual | 1: Documented | 2: Searchable | 3: Generative | 4: Autonomous]
 

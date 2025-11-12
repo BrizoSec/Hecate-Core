@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="athf_logo.png" alt="ATHF Logo" width="400"/>
+</p>
+
 # Agentic Threat Hunting Framework (ATHF)
 
 > Give your threat hunting program memory and agency.
@@ -36,6 +40,24 @@ index=winlogs EventCode=4688 CommandLine="*rundll32*" NOT Signed="TRUE"
 
 By capturing every hunt in this format, ATHF makes it possible for AI assistants to recall prior work, generate new hypotheses, and suggest refined queries based on past results.
 
+```mermaid
+graph LR
+    L["🔒 LEARN<br/>Gather context<br/>CTI, alert, anomaly"]
+    O["👁️ OBSERVE<br/>Form hypothesis<br/>Adversary behavior"]
+    C["✓ CHECK<br/>Test with query<br/>Bounded validation"]
+    K["📝 KEEP<br/>Record lessons<br/>Decisions + outcomes"]
+
+    L --> O
+    O --> C
+    C --> K
+    K -.Memory loop.-> L
+
+    style L fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style O fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style C fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style K fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+```
+
 ## The Five Levels of Agentic Hunting
 
 ATHF defines a simple maturity model for evolving your hunting program. Each level builds on the previous one.
@@ -45,10 +67,30 @@ ATHF defines a simple maturity model for evolving your hunting program. Each lev
 | **0** | Manual | Hunts live in Slack or tickets | "Didn't we already look at this last year?" |
 | **1** | Documented | Hunts are written in LOCK-structured markdown files | Markdown repo with `hunts/H-0001.md` |
 | **2** | Searchable | AI reads and recalls context via context file | Claude Code summarizes past hunts in seconds |
-| **3** | Generative | AI gets specialized hunting tools and capabilities | MCP server lets Claude search and analyze past hunts |
+| **3** | Generative | AI connects to your security tools via MCPs | Connect Splunk, CrowdStrike, and Jira MCPs for automated queries and enrichment |
 | **4** | Autonomous | Multi-agent workflows share structured memory | Multiple agents create, validate, and document hunts |
 
 Most teams stop at Levels 1 or 2. That alone gives enormous benefit. At Level 1, your knowledge is documented and persists beyond individuals. At Level 2, your AI assistant can search your hunt history and act as an informed partner rather than a guessing machine.
+
+```mermaid
+graph LR
+    L0["Level 0<br/>Manual<br/>📝 Slack/Tickets"]
+    L1["Level 1<br/>Documented<br/>📄 LOCK Markdown"]
+    L2["Level 2<br/>Searchable<br/>🔍 AI Memory"]
+    L3["Level 3<br/>Generative<br/>🔧 MCP Tools"]
+    L4["Level 4<br/>Autonomous<br/>🤖 Multi-Agent"]
+
+    L0 --> L1
+    L1 --> L2
+    L2 --> L3
+    L3 --> L4
+
+    style L0 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style L1 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style L2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style L3 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style L4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+```
 
 ### Level 1 Example: Documented Hunts
 
@@ -91,232 +133,127 @@ When someone new joins the team, they can quickly see what was tested, what was 
 
 ### Level 2 Example: Searchable Memory
 
-Now you add an `AGENTS.md` file to your repository. It provides context for the AI:
+At Level 2, you add an [AGENTS.md](AGENTS.md) file to your repository. This file provides context for AI assistants (Claude Code, GitHub Copilot, Cursor) about:
+- Your repository structure (hunts/, templates/, queries/)
+- Available data sources (SIEM indexes, EDR platforms, network logs)
+- Workflow expectations and guardrails
+- How AI should search past hunts before generating new ones
 
-```markdown
-# AGENTS.md
-
-## Purpose
-This repository contains threat hunting hypotheses and execution notes following the LOCK pattern (Learn → Observe → Check → Keep).
-AI assistants use this context to recall past investigations, summarize lessons learned, and generate new hypotheses and queries aligned with our environment and data sources.
-
-## Scope
-The repository includes:
-- `hunts/` – LOCK-structured hunt markdown files
-- `queries/` – validated search queries associated with each hunt
-- `templates/` – reference files for new hunts
-- `memory/` – archives or indexes for search and recall
-
-AI tools should read these files to:
-- Identify existing hunts for a given MITRE ATT&CK technique or behavior
-- Summarize what was learned or validated
-- Recommend related hypotheses or query refinements
-- Avoid duplication by referencing past outcomes
-
-## Data Sources
-| Source | Description | Platform | Notes |
-|---------|-------------|-----------|-------|
-| winlogs | Windows Event Logs | Splunk index=winlogs | Sysmon + Security Events |
-| edr | Endpoint Detection and Response | CrowdStrike Falcon | Process and network telemetry |
-| proxy | Zscaler | Network activity | Domain, URL, and user metadata |
-| auth | Okta, AzureAD | Identity logs | Login success, MFA, and device context |
-| dns | Internal resolvers | CoreDNS or Infoblox | Useful for C2 and tunneling patterns |
-
-## Workflow Expectations
-1. All hunts must follow the LOCK pattern and live in `hunts/` with a unique ID (H-XXXX).
-2. Each hunt should include:
-   - A hypothesis describing adversary behavior
-   - Relevant data sources and ATT&CK mappings
-   - One or more queries in `queries/`
-   - A **Keep** section documenting validation results and next steps
-3. When possible, include contextual tags such as `#windows`, `#credential-access`, `#persistence`.
-
-## AI Usage Guidelines
-AI assistants may:
-- Summarize findings from past hunts
-- Generate new hypotheses based on ATT&CK techniques or CTI context
-- Propose bounded queries using existing data sources
-- Draft hunt documentation in LOCK format
-
-AI assistants must not:
-- Execute queries or modify production systems
-- Generate queries for data sources not listed above
-- Overwrite existing hunt files without human review
-
-## Guardrails
-- AI-generated output is treated as a draft until reviewed by a human analyst.
-- Every new or updated hunt must be validated for query safety, accuracy, and scope.
-- Use the **environment.md** file to understand available telemetry and platform constraints before suggesting new hunts.
-- Maintain version control discipline: each update should be committed with a message referencing the hunt ID.
-
-## Example Interactions
-**You can ask:**
-- "What have we learned about PowerShell lateral movement?"
-- "Generate a new hypothesis for credential dumping using LSASS, referencing past hunts."
-- "Summarize outcomes of hunts related to T1059 (Command Execution)."
-- "Suggest improvements to the query used in H-0021."
-
-**The AI should respond with:**
-- A reference to prior hunts (H-XXXX)
-- A LOCK-structured hypothesis or summary
-- Safe, bounded query suggestions based on listed data sources
-
-## Version
-ATHF v1.0
-Maintainer: [Your Name or Team]
-Last Updated: [Insert Date]
-```
-
-Once that file exists, you can open your repo in Claude Code, GitHub Copilot, or Cursor and ask:
+**What it enables:** Once AGENTS.md exists, you can open your repo in Claude Code or similar tools and ask:
 
 > "What have we learned about T1028?"
 
-The AI searches your hunts directory, summarizes the results, and suggests a new hypothesis or query. What used to take 20 minutes of grepping and copy-pasting now takes under five.
+The AI automatically searches your hunts directory, references past investigations, and suggests refined hypotheses based on lessons learned. What used to take 20 minutes of grepping and copy-pasting now takes under five seconds.
+
+**See the full [AGENTS.md](AGENTS.md) file** for the complete structure and examples.
+
+```mermaid
+graph TB
+    T1["⏱️ 15-20 minutes"]
+    T2["⏱️ 3-5 minutes"]
+
+    subgraph Level1["📋 Level 1: Manual"]
+        direction LR
+        M1["💭 Think"] --> M2["🔍 Grep"] --> M3["📋 Copy-paste"] --> M4["💻 Draft"] --> M5["✅ Validate"]
+    end
+
+    T1 -.-> Level1
+    Level1 -.Upgrade to Level 2.-> Level2
+
+    subgraph Level2["🤖 Level 2: AI-Assisted"]
+        direction LR
+        A1["💬 Ask Claude"] --> A2["🤖 AI searches"] --> A3["📝 Generated"]
+    end
+
+    T2 -.-> Level2
+
+    style Level1 fill:#ffebee,stroke:#c62828,stroke-width:3px
+    style Level2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style T1 fill:#fff,stroke:#999,stroke-dasharray: 5 5
+    style T2 fill:#fff,stroke:#999,stroke-dasharray: 5 5
+    style M1 fill:#fff,stroke:#999
+    style M2 fill:#fff,stroke:#999
+    style M3 fill:#fff,stroke:#999
+    style M4 fill:#fff,stroke:#999
+    style M5 fill:#fff,stroke:#999
+    style A1 fill:#fff,stroke:#999
+    style A2 fill:#fff,stroke:#999
+    style A3 fill:#fff,stroke:#999
+```
 
 ### Level 3 Example: Generative Capabilities
 
-At this stage, you give your AI assistant **custom tools** that extend its capabilities beyond just reading files. Instead of manually drafting hunt hypotheses, your AI can generate LOCK-formatted hunts using a specialized tool that incorporates memory from past hunts.
+At this stage, you give your AI assistant **tools to interact with your security stack** via MCP (Model Context Protocol) servers. Instead of manually copying queries to Splunk or looking up IOCs in threat intel, Claude does it directly.
 
-The most effective way to do this is by creating an **MCP (Model Context Protocol) server** that exposes hunting-specific tools to Claude Code, Cursor, or other AI assistants.
+**Level 3 is "Bring Your Own MCP"** - you connect MCPs for whatever tools you already use: SIEM, threat intel, EDR, ticketing, asset inventory, etc.
 
-**Example: Hunt Hypothesis Generator**
+**Example MCP Integrations:**
+- **Splunk:** Execute hunt queries, retrieve results (official MCP available)
+- **CrowdStrike:** Query endpoint telemetry (official MCP available)
+- **Jira:** Auto-create incident tickets (official MCP available)
+- **Your tools:** Find MCPs for your specific security stack
 
-Below is an MCP server that gives Claude the ability to generate hunt hypotheses:
+**Example: SIEM Query Execution**
 
-```python
-"""
-hunt_mcp_server.py
-Level 3 example – MCP tool for generating LOCK-formatted hunt hypotheses.
-"""
-
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from pathlib import Path
-import json
-
-app = Server("athf-hunt-server")
-HUNTS_DIR = Path("hunts")
-
-@app.list_tools()
-async def list_tools():
-    return [
-        {
-            "name": "generate_hunt_hypothesis",
-            "description": "Generate a LOCK-formatted hunt hypothesis from CTI or threat context",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "threat_context": {
-                        "type": "string",
-                        "description": "CTI report, alert details, or threat description"
-                    },
-                    "technique_id": {
-                        "type": "string",
-                        "description": "MITRE ATT&CK technique ID (e.g., T1059.001)"
-                    }
-                },
-                "required": ["threat_context", "technique_id"]
-            }
-        }
-    ]
-
-@app.call_tool()
-async def call_tool(name: str, arguments: dict):
-    if name == "generate_hunt_hypothesis":
-        return await generate_hypothesis(
-            arguments["threat_context"],
-            arguments["technique_id"]
-        )
-
-async def generate_hypothesis(threat_context: str, technique_id: str):
-    """
-    Generate a LOCK-formatted hunt hypothesis using past hunt context.
-    """
-    # Search past hunts for this technique
-    past_hunts = search_past_hunts(technique_id)
-
-    # Read AGENTS.md for data sources
-    data_sources = load_data_sources()
-
-    # Build context for the AI
-    context = {
-        "threat": threat_context,
-        "technique": technique_id,
-        "past_hunts": past_hunts,
-        "available_data_sources": data_sources,
-        "lessons_learned": extract_lessons(past_hunts)
-    }
-
-    # Return structured context for Claude to generate the hypothesis
-    return {
-        "context": context,
-        "instruction": "Generate a LOCK-formatted hunt hypothesis that avoids duplication"
-    }
-
-def search_past_hunts(technique_id: str):
-    """Search for past hunts related to this technique."""
-    related = []
-    for hunt_file in HUNTS_DIR.glob("H-*.md"):
-        content = hunt_file.read_text()
-        if technique_id in content:
-            related.append({
-                "file": hunt_file.name,
-                "summary": extract_keep_section(content)
-            })
-    return related
-
-if __name__ == "__main__":
-    stdio_server(app)
+Without MCP (Level 2):
+```
+You: "Search for SSH brute force attempts"
+Claude: "Here's a Splunk query: index=linux_secure action=failure | stats count by src_ip"
+You: [Copies query to Splunk, runs it, pastes results back]
+Claude: "I see 3 high-volume IPs..."
 ```
 
-**Using It with Claude Code**
+With Splunk MCP (Level 3):
+```
+You: "Search for SSH brute force attempts"
+Claude: [Executes Splunk query via MCP]
+"Found 3 source IPs with high failure rates:
+- 203.0.113.45 (127 attempts)
+- 198.51.100.22 (89 attempts)
+- 192.0.2.15 (67 attempts)
 
-Once installed, you paste a CTI report into Claude and say:
-
-> "Generate a hunt hypothesis for this new Qakbot campaign (T1059.003)"
-
-Claude will:
-1. **Use the `generate_hunt_hypothesis` tool** with the CTI context
-2. **Receive structured data** about past hunts, data sources, and lessons learned
-3. **Generate a complete LOCK-formatted hypothesis** avoiding duplication and incorporating what worked before
-
-**Example Output:**
-
-```markdown
-# H-0157: PowerShell-Based Qakbot Loader Detection (T1059.003)
-
-**Learn**
-New Qakbot campaign observed using Windows Script Host to execute obfuscated
-PowerShell commands for initial access. Based on H-0142, we know Qakbot often
-uses base64 encoding and registry persistence.
-
-**Observe**
-Adversaries will likely execute PowerShell with -EncodedCommand parameter from
-wscript.exe or cscript.exe parent processes. Looking for PowerShell execution
-chains originating from non-standard parents.
-
-**Check**
-index=winlogs EventCode=4688
-| search ParentImage="*wscript.exe" OR ParentImage="*cscript.exe"
-| search Image="*powershell.exe"
-| where CommandLine LIKE "%EncodedCommand%" OR CommandLine LIKE "%-enc%"
-| stats count by User, Computer, CommandLine
-
-**Keep**
-[To be completed after hunt execution]
-- Reference lessons from H-0142: check for registry persistence in Run keys
-- Expand to include WMI execution if initial query yields high volume
+Let me check CrowdStrike for detections..."
+[Queries CrowdStrike MCP]
+"203.0.113.45 connected to 3 hosts with Qakbot detections.
+Should I create a Jira ticket for investigation?"
 ```
 
-**The difference:**
-- **Level 2:** Claude reads past hunts and suggests ideas
-- **Level 3:** Claude generates complete, context-aware hunt hypotheses using a specialized tool
+**The difference:** Claude executes queries, enriches data, and creates tickets - not just suggests them.
 
-At Level 3, success looks like this:
-- Claude **generates** LOCK-formatted hunts instead of just discussing them
-- New hunts **reference** lessons learned from past hunts automatically
-- Hypotheses are **validated** against your actual data sources
-- You spend time **refining and executing** hunts, not writing them from scratch
+**Multi-MCP Workflow Example**
+
+Run an entire hunt end-to-end:
+```
+You: "Execute hunt H-0042"
+
+Claude:
+1. [Reads H-0042.md hypothesis file]
+2. [Splunk MCP] Executes detection query
+3. [CrowdStrike MCP] Validates suspicious hosts found
+4. [Jira MCP] Creates incident tickets for confirmed threats
+5. Updates hunt file with findings and commits
+
+"Hunt completed in 2 minutes:
+- 9 suspicious events found
+- 1 confirmed Qakbot C2 (203.0.113.45)
+- 3 incident tickets created (SEC-1547, SEC-1548, SEC-1549)
+- Hunt updated with execution results"
+```
+
+**Getting Started with Level 3**
+
+1. **Browse the catalog:** See [integrations/MCP_CATALOG.md](integrations/MCP_CATALOG.md)
+2. **Pick your first MCP:** Start with Splunk or CrowdStrike
+3. **Follow quickstart guide:** [integrations/quickstart/](integrations/quickstart/)
+4. **Review example hunts:** See [hunts/](hunts/) directory for examples
+
+**Level 3 Success Criteria:**
+- Claude **executes** hunt queries instead of just writing them
+- IOCs are **enriched** automatically with threat intel
+- Incident tickets are **created** with full context
+- You focus on **analysis and decision-making**, not manual task execution
+
+**Learn more:** [integrations/README.md](integrations/README.md)
 
 ### Level 4 Example: Autonomous Workflows
 

@@ -79,7 +79,6 @@ Edit `templates/` to match your:
 **Level 2+: Searchable → Generative/Autonomous (Month 3-6+)**
 - Build scripts for repetitive tasks (if needed)
 - When grep is too slow (50+ hunts), add structured memory (JSON, SQLite)
-- See `memory/README.md` for memory scaling options
 
 ### 5. Build Your Hunt Library
 
@@ -146,7 +145,6 @@ As your hunt repository grows, your memory needs evolve:
   - SQLite database for faster queries
   - Full-text search (Elasticsearch, local search tools)
 - Agents can query structured memory efficiently
-- See [memory/README.md](memory/README.md) for implementation details
 
 **Key principle:** Don't build structure until grep becomes painful. Most teams operate at 10-50 hunts where grep is sufficient.
 
