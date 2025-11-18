@@ -165,7 +165,7 @@ At Level 2, you add context files to your repository that provide AI assistants 
 - Workflow expectations and guardrails
 - How AI should search past hunts before generating new ones
 
-**[.claude/hunting-knowledge.md](.claude/hunting-knowledge.md)** - Embeds threat hunting expertise:
+**[knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Embeds threat hunting expertise:
 
 - Pattern-based hypothesis generation frameworks (TTP-driven, Actor-driven, Behavior-driven, Telemetry Gap-driven)
 - Quality criteria for evaluating hypotheses (falsifiable, scoped, observable, actionable, contextual)
@@ -181,7 +181,7 @@ The AI automatically searches your hunts directory, references past investigatio
 
 **The combination of AGENTS.md (environmental context) and hunting-knowledge.md (domain expertise) transforms AI assistants from generic helpers into informed threat hunting partners.**
 
-**See the full [AGENTS.md](AGENTS.md) file** for repository structure and workflow guidance, and [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) for the complete threat hunting knowledge base.
+**See the full [AGENTS.md](AGENTS.md) file** for repository structure and workflow guidance, and [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) for the complete threat hunting knowledge base.
 
 ```mermaid
 graph TB
@@ -460,7 +460,7 @@ The key is that **all agents share the same memory layer** - your LOCK-structure
 
 4. Add context files once you have a few hunts recorded:
    - **AGENTS.md** - Your environment, data sources, and workflows
-   - **.claude/hunting-knowledge.md** - Threat hunting expertise and frameworks (included in repo)
+   - **knowledge/hunting-knowledge.md** - Threat hunting expertise and frameworks (included in repo)
 
 5. Choose an AI assistant that can read your files and start using memory-aware prompts
 

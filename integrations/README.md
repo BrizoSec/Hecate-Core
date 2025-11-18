@@ -5,7 +5,7 @@ At Level 3, you extend Claude Code's capabilities by connecting MCP (Model Conte
 ## What Is Level 3?
 
 **Level 1 (Documented):** You manually document hunts in markdown files
-**Level 2 (Searchable):** Claude reads past hunts, applies expert hunting frameworks from .claude/hunting-knowledge.md, and uses AGENTS.md for environmental context
+**Level 2 (Searchable):** Claude reads past hunts, applies expert hunting frameworks from knowledge/hunting-knowledge.md, and uses AGENTS.md for environmental context
 **Level 3 (Generative):** Claude executes queries, enriches data, and creates tickets through MCPs
 
 At Level 3, Claude doesn't just read about your tools - it **uses** them.

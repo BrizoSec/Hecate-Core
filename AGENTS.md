@@ -14,7 +14,7 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 
 **AI assistants should:**
 
-- **Read [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) before generating hypotheses** - This contains the "hunting brain" knowledge (hypothesis generation, behavioral models, pivot logic, analytical rigor, frameworks)
+- **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) before generating hypotheses** - This contains the "hunting brain" knowledge (hypothesis generation, behavioral models, pivot logic, analytical rigor, frameworks)
 - Read past hunt notes before suggesting new hypotheses
 - Reference lessons learned when generating queries
 - Avoid suggesting hunts we've already completed
@@ -34,6 +34,8 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 ├── prompts/            # AI prompt templates
 │   ├── basic-prompts.md  # Level 0-1 copy-paste prompts
 │   └── ai-workflow.md    # Level 2 AI-assisted workflows
+├── knowledge/          # Domain expertise and hunting frameworks
+│   └── hunting-knowledge.md  # Expert hunting knowledge base
 ├── queries/            # Reusable query patterns (optional)
 └── environment.md      # Tech stack, tools, infrastructure inventory
 ```
@@ -42,7 +44,7 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 
 ## Hunting Brain Knowledge Base
 
-### .claude/hunting-knowledge.md
+### knowledge/hunting-knowledge.md
 
 **Purpose:** Embeds expert threat hunting knowledge into AI reasoning. This is Claude's "hunting brain" - the analytical frameworks, heuristics, and mental models that expert hunters internalize.
 
@@ -227,7 +229,7 @@ This section provides essential guidance for AI assistants generating threat hun
 
 **Core Process:**
 
-1. **Consult Hunting Brain** - Read [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
+1. **Consult Hunting Brain** - Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
 2. **Search Memory First** - Check hunts/ for similar TTPs or past work
 3. **Validate Environment** - Read environment.md to confirm data sources exist
 4. **Generate LOCK Hypothesis** - Create testable hypothesis following templates/HUNT_LOCK.md
@@ -248,7 +250,7 @@ This section provides essential guidance for AI assistants generating threat hun
 
 **Complete workflow details, examples, and troubleshooting:** [prompts/ai-workflow.md](prompts/ai-workflow.md)
 
-**Hunting Brain Reference:** [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) - Sections 1, 2, 5 are critical for hypothesis generation
+**Hunting Brain Reference:** [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) - Sections 1, 2, 5 are critical for hypothesis generation
 
 ---
 
