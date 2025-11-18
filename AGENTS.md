@@ -14,10 +14,12 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 
 **AI assistants should:**
 
+- **Read [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) before generating hypotheses** - This contains the "hunting brain" knowledge (hypothesis generation, behavioral models, pivot logic, analytical rigor, frameworks)
 - Read past hunt notes before suggesting new hypotheses
 - Reference lessons learned when generating queries
 - Avoid suggesting hunts we've already completed
 - Use environment.md to inform hunt planning
+- **Focus on behaviors and TTPs (top of Pyramid of Pain), not indicators** - Never build hunts around hashes or IPs alone
 
 ---
 
@@ -35,6 +37,37 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 ├── queries/            # Reusable query patterns (optional)
 └── environment.md      # Tech stack, tools, infrastructure inventory
 ```
+
+---
+
+## Hunting Brain Knowledge Base
+
+### .claude/hunting-knowledge.md
+
+**Purpose:** Embeds expert threat hunting knowledge into AI reasoning. This is Claude's "hunting brain" - the analytical frameworks, heuristics, and mental models that expert hunters internalize.
+
+**When to consult:**
+
+- **Before generating hypotheses** - Review Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
+- **During hunt execution** - Review Section 3 (Pivot Logic) for artifact chains
+- **When analyzing findings** - Review Section 4 (Analytical Rigor) for confidence scoring and bias checks
+- **When mapping TTPs** - Review Section 2 (Behavioral Models) for TTP → observable mappings
+
+**Core Sections:**
+
+1. **Hypothesis Generation Knowledge** - Pattern-based generation, quality criteria, good/bad examples, seed conversion
+2. **Behavioral Models** - ATT&CK TTP → observable mappings, behavior-to-telemetry translation, blind spots, baselines
+3. **Pivot Logic** - Artifact chains, pivot playbooks, when to pivot vs collapse decisions
+4. **Analytical Rigor** - Confidence scoring rubric, evidence strength, cognitive bias checks, suspicious vs benign heuristics
+5. **Framework Mental Models** - Pyramid of Pain, Diamond Model, Cyber Kill Chain, Hunt Maturity, Data Quality
+
+**Key Principle:** All hunts must focus on **behaviors and TTPs (top half of Pyramid of Pain)**. Never build hunts solely around hashes, IPs, or domains - these are trivial for adversaries to change. Hunt for behaviors that are painful for adversaries to modify.
+
+**AI Usage:**
+
+- Apply frameworks, don't just mention them (e.g., use Pyramid of Pain to prioritize indicators, apply confidence rubric to score findings)
+- Reference specific sections when explaining reasoning
+- Demonstrate analytical rigor using the knowledge base principles
 
 ---
 
@@ -194,22 +227,28 @@ This section provides essential guidance for AI assistants generating threat hun
 
 **Core Process:**
 
-1. **Search Memory First** - Check hunts/ for similar TTPs or past work
-2. **Validate Environment** - Read environment.md to confirm data sources exist
-3. **Generate LOCK Hypothesis** - Create testable hypothesis following templates/HUNT_LOCK.md
-4. **Suggest Next Steps** - Offer to create hunt file or draft query
+1. **Consult Hunting Brain** - Read [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
+2. **Search Memory First** - Check hunts/ for similar TTPs or past work
+3. **Validate Environment** - Read environment.md to confirm data sources exist
+4. **Generate LOCK Hypothesis** - Create testable hypothesis following templates/HUNT_LOCK.md
+5. **Apply Quality Criteria** - Use hunting-knowledge.md Section 1 quality checklist (Falsifiable, Scoped, Observable, Actionable, Contextual)
+6. **Suggest Next Steps** - Offer to create hunt file or draft query
 
 **Key Requirements:**
 
+- **Focus on behaviors/TTPs (top of Pyramid of Pain)** - Never build hypothesis around hashes or IPs alone
 - Match hypothesis format: "Adversaries use [behavior] to [goal] on [target]"
 - Reference past hunts by ID (e.g., "Building on H-0022 lessons...")
 - Specify data sources from environment.md (e.g., "index=winlogs", "SecurityEvent table")
 - Include bounded time range with justification
 - Consider false positives from similar past hunts
+- Apply hypothesis quality rubric from hunting-knowledge.md
 
 **Output Must Follow:** [templates/HUNT_LOCK.md](templates/HUNT_LOCK.md) structure
 
 **Complete workflow details, examples, and troubleshooting:** [prompts/ai-workflow.md](prompts/ai-workflow.md)
+
+**Hunting Brain Reference:** [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) - Sections 1, 2, 5 are critical for hypothesis generation
 
 ---
 

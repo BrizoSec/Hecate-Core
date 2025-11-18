@@ -50,8 +50,8 @@ Contains:
 **Use ai-workflow.md if:**
 
 - You have Claude Code, GitHub Copilot, or Cursor
-- Your hunt repository has AGENTS.md and documented past hunts
-- You want AI to search memory and apply lessons learned
+- Your hunt repository has AGENTS.md, .claude/hunting-knowledge.md, and documented past hunts
+- You want AI to search memory, apply expert hunting frameworks, and apply lessons learned
 - You're ready for more advanced workflows
 
 ---
@@ -137,7 +137,8 @@ AI: [Searches hunts/, reads environment.md, generates context-aware hypothesis]
 
 1. Document your hunts using [templates/HUNT_LOCK.md](../templates/HUNT_LOCK.md)
 2. Create AGENTS.md in your repository (see main README)
-3. Progress to Level 2 with ai-workflow.md
+3. Ensure .claude/hunting-knowledge.md is present (included in repo by default)
+4. Progress to Level 2 with ai-workflow.md
 
 ### After Level 2 Workflows
 

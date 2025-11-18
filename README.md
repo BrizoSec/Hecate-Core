@@ -156,20 +156,32 @@ When someone new joins the team, they can quickly see what was tested, what was 
 - **AI gives contextually correct suggestions** based on your environment
 - **Instant context retrieval** - seconds instead of minutes
 
-At Level 2, you add an [AGENTS.md](AGENTS.md) file to your repository. This file provides context for AI assistants (Claude Code, GitHub Copilot, Cursor) about:
+At Level 2, you add context files to your repository that provide AI assistants (Claude Code, GitHub Copilot, Cursor) with the knowledge they need to assist effectively:
+
+**[AGENTS.md](AGENTS.md)** - Provides environmental and structural context:
 
 - Your repository structure (hunts/, templates/, queries/)
 - Available data sources (SIEM indexes, EDR platforms, network logs)
 - Workflow expectations and guardrails
 - How AI should search past hunts before generating new ones
 
-**What it enables:** Once AGENTS.md exists, you can open your repo in Claude Code or similar tools and ask:
+**[.claude/hunting-knowledge.md](.claude/hunting-knowledge.md)** - Embeds threat hunting expertise:
+
+- Pattern-based hypothesis generation frameworks (TTP-driven, Actor-driven, Behavior-driven, Telemetry Gap-driven)
+- Quality criteria for evaluating hypotheses (falsifiable, scoped, observable, actionable, contextual)
+- Observable-to-TTP mapping guidance
+- Data quality considerations (completeness, timeliness, fidelity, accuracy, consistency)
+- Best practices for working within the LOCK pattern
+
+**What it enables:** Once these context files exist, you can open your repo in Claude Code or similar tools and ask:
 
 > "What have we learned about T1028?"
 
-The AI automatically searches your hunts directory, references past investigations, and suggests refined hypotheses based on lessons learned. What used to take 20 minutes of grepping and copy-pasting now takes under five seconds.
+The AI automatically searches your hunts directory, references past investigations, and suggests refined hypotheses based on lessons learned - applying expert threat hunting frameworks from the knowledge base. What used to take 20 minutes of grepping and copy-pasting now takes under five seconds.
 
-**See the full [AGENTS.md](AGENTS.md) file** for the complete structure and examples.
+**The combination of AGENTS.md (environmental context) and hunting-knowledge.md (domain expertise) transforms AI assistants from generic helpers into informed threat hunting partners.**
+
+**See the full [AGENTS.md](AGENTS.md) file** for repository structure and workflow guidance, and [.claude/hunting-knowledge.md](.claude/hunting-knowledge.md) for the complete threat hunting knowledge base.
 
 ```mermaid
 graph TB
@@ -446,7 +458,9 @@ The key is that **all agents share the same memory layer** - your LOCK-structure
 
 3. Start documenting new hunts using the LOCK pattern
 
-4. Add an `AGENTS.md` file once you have a few hunts recorded
+4. Add context files once you have a few hunts recorded:
+   - **AGENTS.md** - Your environment, data sources, and workflows
+   - **.claude/hunting-knowledge.md** - Threat hunting expertise and frameworks (included in repo)
 
 5. Choose an AI assistant that can read your files and start using memory-aware prompts
 

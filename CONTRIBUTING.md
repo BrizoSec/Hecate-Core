@@ -65,6 +65,13 @@ Edit `templates/` to match your:
 - List high-priority ATT&CK TTPs for your environment
 - Update when data sources change or AI tooling changes
 
+**.claude/hunting-knowledge.md** - Threat hunting domain expertise (included in repo):
+
+- Pre-loaded with expert hunting frameworks and quality criteria
+- Generally used as-is unless you want to customize for your organization
+- Contains hypothesis generation patterns, behavioral models, pivot logic, analytical rigor frameworks
+- Referenced by AI assistants to apply expert hunting methodology
+
 ### 4. Start at Your Maturity Level
 
 **Level 0 → 1: Manual → Documented (Week 1)**
@@ -76,9 +83,10 @@ Edit `templates/` to match your:
 
 **Level 1 → 2: Documented → Searchable (Week 2-4)**
 
-- Add AGENTS.md file to repo
+- Add AGENTS.md file to repo (customize for your environment)
+- Ensure .claude/hunting-knowledge.md is present (included in repo by default)
 - Choose AI tool (GitHub Copilot, Claude Code, Cursor, or org-approved)
-- AI can now read your hunt history automatically
+- AI can now read your hunt history automatically and apply expert hunting frameworks
 - No coding required
 
 **Level 2+: Searchable → Generative/Autonomous (Month 3-6+)**
@@ -133,6 +141,12 @@ The [environment.md](environment.md) file is a living document that informs hunt
 
 - **As needed** - When data sources change, AI tools change, or team practices evolve
 - **Semi-annual reviews** - Ensure AI assistant context remains accurate
+
+**.claude/hunting-knowledge.md:**
+
+- **Rarely updated** - Core hunting frameworks are stable
+- **Update only if** - Your organization develops unique hunting methodologies or you want to add organization-specific guidance
+- **Most teams use as-is** - Pre-loaded expert knowledge is generally applicable across environments
 
 ### Memory Scaling Guidance
 
