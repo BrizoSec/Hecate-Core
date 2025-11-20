@@ -77,7 +77,7 @@ ATHF defines a simple maturity model for evolving your hunting program. Each lev
 | **1** | Documented | Hunts are written in LOCK-structured markdown files | Markdown repo with `hunts/H-0001.md` |
 | **2** | Searchable | AI reads and recalls context via context file | Claude Code summarizes past hunts in seconds |
 | **3** | Generative | AI connects to your security tools via MCPs | Connect Splunk, CrowdStrike, and Jira MCPs for automated queries and enrichment |
-| **4** | Autonomous | Multi-agent workflows share structured memory | Multiple agents create, validate, and document hunts |
+| **4** | Agentic | Multi-agent workflows share structured memory | Multiple agents create, validate, and document hunts |
 
 Most teams stop at Levels 1 or 2. That alone gives enormous benefit. At Level 1, your knowledge is documented and persists beyond individuals. At Level 2, your AI assistant can search your hunt history and act as an informed partner rather than a guessing machine.
 
@@ -87,7 +87,7 @@ graph LR
     L1["Level 1<br/>Documented<br/>📄 LOCK Markdown"]
     L2["Level 2<br/>Searchable<br/>🔍 AI Memory"]
     L3["Level 3<br/>Generative<br/>🔧 MCP Tools"]
-    L4["Level 4<br/>Autonomous<br/>🤖 Multi-Agent"]
+    L4["Level 4<br/>Agentic<br/>🤖 Multi-Agent"]
 
     L0 --> L1
     L1 --> L2
@@ -333,7 +333,7 @@ Claude:
 
 **Learn more:** [integrations/README.md](integrations/README.md)
 
-### Level 4: Autonomous Workflows
+### Level 4: Agentic Workflows
 
 **What you get:**
 
@@ -435,6 +435,8 @@ At Level 4, success looks like this:
 - Agents **coordinate** through shared memory (LOCK hunts)
 - You focus on **validating** and **approving** rather than creating from scratch
 
+**Success can look like many things at Level 4.** You might have agents that autonomously execute queries using tools like the Splunk MCP server, or agents that orchestrate multi-step workflows across your security stack. At this stage, you're mature enough to make these architectural decisions based on your team's needs and risk tolerance.
+
 **Implementation Options:**
 
 Level 4 can be built using various agent frameworks:
@@ -447,6 +449,8 @@ Level 4 can be built using various agent frameworks:
 The key is that **all agents share the same memory layer** - your LOCK-structured hunts - ensuring consistency and enabling true coordination.
 
 ## How to Get Started
+
+**This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant. The LOCK pattern and maturity levels are starting points—not prescriptions.
 
 1. **Clone the repository**
 

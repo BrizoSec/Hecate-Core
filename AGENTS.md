@@ -208,7 +208,7 @@ This repository follows the **LOCK pattern**:
 4. Generate LOCK-formatted hypothesis referencing available data sources
 5. Suggest query targeting confirmed data sources (e.g., Windows Security Event Logs in Splunk)
 
-### Level 3+ (Autonomous) - Scripted Workflows
+### Level 3+ (Agentic) - Scripted Workflows
 
 When building automation scripts, AI should:
 
@@ -301,7 +301,7 @@ This section provides essential guidance for AI assistants generating threat hun
 
 ## Memory Scaling
 
-**Current maturity level:** [0: Manual | 1: Documented | 2: Searchable | 3: Generative | 4: Autonomous]
+**Current maturity level:** [0: Manual | 1: Documented | 2: Searchable | 3: Generative | 4: Agentic]
 
 **Memory approach:**
 

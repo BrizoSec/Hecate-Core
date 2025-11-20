@@ -89,7 +89,7 @@ Edit `templates/` to match your:
 - AI can now read your hunt history automatically and apply expert hunting frameworks
 - No coding required
 
-**Level 2+: Searchable → Generative/Autonomous (Month 3-6+)**
+**Level 2+: Searchable → Generative/Agentic (Month 3-6+)**
 
 - Build scripts for repetitive tasks (if needed)
 - When grep is too slow (50+ hunts), add structured memory (JSON, SQLite)
@@ -245,7 +245,7 @@ def update_tech_stack():
 
 ### Enterprise SOC (20+ people)
 
-- **Level 3-4: Generative → Autonomous**: Automation + multi-agent systems
+- **Level 3-4: Generative → Agentic**: Automation + multi-agent systems
 - Hunt library organized by TTP
 - Detection engineering pipeline integration
 - Learning systems (rare)

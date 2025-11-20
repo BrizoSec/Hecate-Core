@@ -2,7 +2,7 @@
 
 **Purpose:** This document embeds expert threat hunting knowledge into Claude's reasoning process. Read and internalize these frameworks before generating hypotheses, analyzing findings, or making hunting decisions.
 
-**Last Updated:** 2024-11-17
+**Last Updated:** 2025-11-17
 **Maintained By:** ATHF Framework
 
 ---
@@ -1988,7 +1988,7 @@ Use Diamond Model to structure pivots:
 - Hunt program influences industry (research, sharing)
 - Adversary TTP research informs hunt development
 
-**ATHF Equivalent:** ATHF Level 4 (Autonomous) - Automated hunt execution, AI orchestration
+**ATHF Equivalent:** ATHF Level 4 (Agentic) - Automated hunt execution, AI orchestration
 
 **Progression Goal:** Maintain leadership, continuous innovation
 
@@ -2000,7 +2000,7 @@ Use Diamond Model to structure pivots:
 | Level 1 (Documented) | HMM1 (Minimal) | Process + templates |
 | Level 2 (Searchable) | HMM2 (Procedural) | Memory + AI assistance |
 | Level 3 (Generative) | HMM3 (Innovative) | AI-generated hunts |
-| Level 4 (Autonomous) | HMM4 (Leading) | Automated execution |
+| Level 4 (Agentic) | HMM4 (Leading) | Automated execution |
 
 **Maturity Progression Strategy:**
 

@@ -111,7 +111,7 @@ Always maintain human oversight:
 
 ## Level 4 Preview
 
-Once you have MCP integrations working, Level 4 (Autonomous) becomes possible. Instead of you asking Claude to run hunts, **autonomous agents** can:
+Once you have MCP integrations working, Level 4 (Agentic) becomes possible. Instead of you asking Claude to run hunts, **autonomous agents** can:
 
 - Monitor CTI feeds and generate draft hunts
 - Execute scheduled hunts automatically
