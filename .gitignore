@@ -9,6 +9,7 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+.markdownlint.json
 
 # Sensitive data
 *.env
