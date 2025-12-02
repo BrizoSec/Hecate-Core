@@ -158,8 +158,6 @@ Connect MCP servers or APIs for the tools you already use in your security opera
 
 **Level 3 is "Bring Your Own Tools"** - you connect MCP servers or APIs for whatever tools you already use.
 
-![Level 3: Bring Your Own Tools](../assets/athf_level3.png)
-
 ### Capabilities
 
 Your AI Assistant Can:

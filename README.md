@@ -46,16 +46,14 @@ ATHF defines a simple maturity model. Each level builds on the previous one.
 | Level | Capability | What You Get |
 |-------|-----------|--------------|
 | **1** | Documented | Persistent hunt records using LOCK |
-| **2** | Searchable | AI reads and recalls your hunts + **machine-readable metadata** (YAML frontmatter) |
+| **2** | Searchable | AI reads and recalls your hunts |
 | **3** | Generative | AI executes queries via MCP tools |
 | **4** | Agentic | Autonomous agents monitor and act |
 
 **Level 1:** Operational within a day
-**Level 2:** Operational within a week (includes optional YAML frontmatter for AI filtering)
+**Level 2:** Operational within a week
 **Level 3:** 2-4 weeks (optional)
 **Level 4:** 1-3 months (optional)
-
-**New in Level 2+:** Hunt files support YAML frontmatter - machine-readable metadata enabling AI to filter hunts by status, tactics, techniques, and findings. Learn more in [hunts/FORMAT_GUIDELINES.md](hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
 
 **Read more:** [docs/maturity-model.md](docs/maturity-model.md)
 
@@ -124,4 +122,4 @@ Try it in your own environment, adapt it to your workflow, and share what you le
 Memory is the multiplier. Agency is the force.
 Once your program can remember, everything else becomes possible.
 
-Happy thrunting!
+Happy hunting!

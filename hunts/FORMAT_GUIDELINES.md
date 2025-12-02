@@ -218,6 +218,7 @@ tags: [javascript, node-js, living-off-the-land, supply-chain]
 **YAML Frontmatter:** Optional - You can omit it entirely or include minimal fields
 
 **Focus on:**
+
 - Understanding hypothesis generation
 - Writing clear queries
 - Documenting lessons learned
@@ -231,6 +232,7 @@ tags: [javascript, node-js, living-off-the-land, supply-chain]
 **YAML Frontmatter:** Recommended - Include all required fields + tags
 
 **Focus on:**
+
 - Consistent metadata across hunts
 - Using AI to find related work
 - Tracking ATT&CK coverage
@@ -244,6 +246,7 @@ tags: [javascript, node-js, living-off-the-land, supply-chain]
 **YAML Frontmatter:** Required - All fields, especially findings metrics
 
 **Focus on:**
+
 - Hunt success rate analysis
 - Automated coverage gap identification
 - Programmatic hunt scheduling
@@ -254,21 +257,25 @@ tags: [javascript, node-js, living-off-the-land, supply-chain]
 ### Best Practices
 
 **Consistency**
+
 - Use lowercase hyphenated tactics (`credential-access`, not `Credential Access`)
 - Use proper ATT&CK technique IDs (`T1003.001`, not `T1003`)
 - Use kebab-case for multi-word tags (`living-off-the-land`, not `living_off_the_land`)
 
 **When to Update**
+
 - **During Planning:** Set `status: planning`, populate tactics/techniques/platform
 - **During Execution:** Change `status: in-progress`
 - **Post-Execution:** Update `status: completed`, add findings counts
 
 **Related Hunts**
+
 - Link to hunts you built upon (`related_hunts: [H-0022]`)
 - Link to hunts that extend your findings (`related_hunts: [H-0045, H-0046]`)
 - Don't overlink - only add hunts that directly inform or extend this work
 
 **Tags**
+
 - Supplement ATT&CK with context: `supply-chain`, `zero-day`, `apt29`
 - Use lowercase hyphenated format: `credential-theft`, not `Credential Theft`
 - 3-6 tags per hunt is ideal

@@ -259,6 +259,7 @@ Starting at **Level 2 (Searchable)**, hunt files include **YAML frontmatter** - 
 **When user asks: "Find all completed hunts for credential access"**
 
 AI should:
+
 1. Read hunt files in `hunts/` folder
 2. Parse YAML frontmatter from each file
 3. Filter where:
@@ -269,6 +270,7 @@ AI should:
 **When user asks: "Have we hunted T1003 sub-techniques before?"**
 
 AI should:
+
 1. Parse YAML frontmatter from all hunts
 2. Filter where `techniques` array matches `T1003.*` pattern
 3. List matching hunts with their specific sub-techniques
@@ -277,6 +279,7 @@ AI should:
 **When user asks: "Show me hunts with high false positive rates"**
 
 AI should:
+
 1. Parse YAML frontmatter from completed hunts
 2. Calculate FP ratio: `false_positives / findings_count`
 3. Sort hunts by FP ratio descending
@@ -375,23 +378,27 @@ AI Workflow:
 ### Important Notes for AI
 
 **Backward Compatibility:**
+
 - Hunts without YAML frontmatter are still valid
 - For hunts without frontmatter, parse markdown metadata section
 - Gracefully handle missing optional fields (use null/0 defaults)
 
 **Parsing YAML:**
+
 - YAML frontmatter starts with `---` on line 1
 - YAML block ends with `---` (closing delimiter)
 - Use standard YAML parsing libraries
 - Handle arrays, integers, and strings correctly
 
 **Field Conventions:**
+
 - `tactics` uses lowercase hyphenated format: `credential-access`
 - `platform` uses title case: `Windows`, `macOS`, `Linux`
 - `tags` uses lowercase hyphenated format: `living-off-the-land`
 - `techniques` uses standard ATT&CK IDs: `T1003.001`
 
 **When Generating New Hunts:**
+
 - Always include YAML frontmatter at Level 2+
 - Populate `related_hunts` when building on past work
 - Set `status: planning` for new hypotheses

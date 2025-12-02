@@ -190,7 +190,7 @@ tags: [linux, cron, persistence]
 ---
 ```
 
-3. Keep the existing markdown metadata section below the title for human readability
+1. Keep the existing markdown metadata section below the title for human readability
 
 **Full documentation:** See [hunts/FORMAT_GUIDELINES.md](../hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
 

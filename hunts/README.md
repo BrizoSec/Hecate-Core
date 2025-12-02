@@ -8,7 +8,7 @@ For template structure details, see [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md)
 
 ```
 hunts/
-├── H-0001.md    ← SSH Brute Force Detection hunt
+├── H-0001.md    ← macOS Data Collection via AppleScript Detection
 ├── H-0002.md    ← Linux Crontab Persistence hunt
 └── H-0003.md    ← Your next hunt
 ```
@@ -71,8 +71,8 @@ The file becomes your evolving playbook for that technique.
 If you're using Claude Code or similar AI tools, just ask:
 
 ```
-"Have we hunted SSH brute force before?"
-"What lessons did we learn from PowerShell hunts?"
+"Have we hunted macOS data collection before?"
+"What lessons did we learn from persistence hunts?"
 "Find hunts that detected true positives"
 "Show me all Linux persistence hunts"
 ```
@@ -193,6 +193,6 @@ Claude:
 
 ## Example Hunts
 
-- [H-0001.md](H-0001.md) - SSH Brute Force Detection (T1110.001)
+- [H-0001.md](H-0001.md) - macOS Data Collection via AppleScript Detection (T1005, T1059.002, T1555.003)
 - [H-0002.md](H-0002.md) - Linux Crontab Persistence (T1053.003)
 - [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md) - Template structure reference
