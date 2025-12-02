@@ -1,4 +1,24 @@
+---
+hunt_id: H-XXXX
+title: [Hunt Title]
+status: planning  # Options: planning, in-progress, completed
+date: YYYY-MM-DD
+hunter: [Your Name]
+platform: [Windows, macOS, Linux, Cloud, Network]  # Array - can include multiple platforms
+tactics: [initial-access, persistence, privilege-escalation, defense-evasion, credential-access, discovery, lateral-movement, collection, command-and-control, exfiltration, impact]
+techniques: [T1003.001, T1059.001]  # MITRE ATT&CK technique IDs
+data_sources: [Splunk, ClickHouse, Sentinel, etc.]  # SIEM/log platforms used
+related_hunts: []  # Hunt IDs that relate to this hunt (e.g., [H-0001, H-0005])
+findings_count: 0  # Total findings discovered (optional - can update post-execution)
+true_positives: 0  # Count of confirmed malicious activity (optional)
+false_positives: 0  # Count of benign activity flagged (optional)
+customer_deliverables: []  # For managed service providers tracking client reports (optional)
+tags: [supply-chain, credential-theft, living-off-the-land]  # Freeform tags for categorization
+---
+
 # H-XXXX: [Hunt Title]
+
+> **Note:** YAML frontmatter above enables AI filtering and automation (Level 2+). It's optional at Level 0-1, recommended at Level 2+, required at Level 3+. The markdown metadata section below provides human-readable context.
 
 **Hunt Metadata**
 

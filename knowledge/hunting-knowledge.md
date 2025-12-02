@@ -597,6 +597,163 @@ This section maps techniques to specific log evidence. Use this to translate abs
 | WMI activity | Sysmon Event 19/20/21, Windows Event 5857/5858/5859 | wmi_consumer, wmi_filter, command | index=windows EventCode=19 |
 | Driver load | Sysmon Event 6 | image_loaded, signature, signed | index=windows EventCode=6 |
 
+### SPL Query Optimization Best Practices
+
+**Core Principle:** Filter early, let the indexers do the heavy lifting.
+
+When crafting SPL queries for threat hunting, the placement of your filters dramatically impacts performance. Always apply filters as early as possible in your search—ideally in the base search before any pipe commands. This allows Splunk to push filtering logic down to the indexers, reducing the amount of data that needs to be processed by the search heads.
+
+#### The Efficiency Question: One Fat Search vs Multiple Skinny Ones
+
+**Option A: Early Filtering (RECOMMENDED)**
+
+```spl
+index=edr_mac sourcetype=process_execution
+(process_name="osascript" OR process_name="AppleScript")
+(command_line="*duplicate file*" OR command_line="*Cookies.binarycookies*" OR command_line="*NoteStore.sqlite*")
+| stats count by _time, hostname, user, process_name, command_line, parent_process
+| sort -_time
+```
+
+**Why this works:**
+
+- All filters applied in base search (before first pipe)
+- Indexers can filter data at source, reducing network transfer
+- Search heads receive only relevant events
+- CPU cycles focused on meaningful data
+- Efficiency score: 💪 10/10
+
+**Option B: Late Filtering (AVOID)**
+
+```spl
+index=edr_mac sourcetype=process_execution
+| search (process_name="osascript" OR process_name="AppleScript")
+| search (command_line="*duplicate file*" OR command_line="*Cookies.binarycookies*" OR command_line="*NoteStore.sqlite*")
+| stats count by _time, hostname, user, process_name, command_line, parent_process
+| sort -_time
+```
+
+**Why this fails:**
+
+- Base search pulls all `process_execution` events (potentially millions)
+- Filtering happens post-indexing on search heads
+- Massive unnecessary data transfer from indexers
+- Search heads waste CPU on irrelevant events
+- Like sifting gold through a spaghetti strainer
+- Efficiency score: 😩 3/10
+
+#### SPL Query Optimization Rules
+
+**Rule 1: Base Search Should Be Specific**
+
+- Good: `index=windows sourcetype=sysmon EventCode=1 process_name="powershell.exe"`
+- Bad: `index=windows | search EventCode=1 | search process_name="powershell.exe"`
+
+**Rule 2: Combine Related Filters with Boolean Logic**
+
+- Good: `(field1="value1" OR field1="value2") (field2="*pattern*")`
+- Bad: Multiple sequential `| search` commands
+
+**Rule 3: Time Range Filters Are Free**
+
+- Always specify appropriate time ranges (earliest/latest)
+- Indexers handle time filtering natively without performance cost
+- Example: `index=windows earliest=-24h latest=now`
+
+**Rule 4: Use NOT Carefully**
+
+- NOT filters still require indexers to evaluate, but better in base search
+- Example: `index=windows NOT user="SYSTEM"` (in base search, not `| search NOT`)
+
+**Rule 5: Stats and Aggregations After Filtering**
+
+- Always filter first, then aggregate
+- Good: `index=... filters... | stats count by field`
+- Bad: `index=... | stats count by field | search count>10` (aggregate then filter)
+
+#### Common Anti-Patterns to Avoid
+
+**Anti-Pattern 1: The Kitchen Sink Search**
+
+```spl
+index=* sourcetype=*
+| search index=windows
+| search EventCode=4688
+```
+
+Problem: Searches all indexes then filters (massive waste)
+
+**Anti-Pattern 2: Sequential Search Commands**
+
+```spl
+index=windows EventCode=4688
+| search process_name="cmd.exe"
+| search command_line="*whoami*"
+| search user!="SYSTEM"
+```
+
+Problem: Each `| search` is a post-processing step (combine into base search)
+
+**Anti-Pattern 3: Stats Then Filter**
+
+```spl
+index=windows EventCode=4625
+| stats count by src_ip
+| search count>20
+```
+
+Problem: Aggregates all failed auths, then filters by count (wasteful)
+Better: Use `where` after stats or filter before stats if possible
+
+#### Hunt Performance Guidelines
+
+**For Large Environments (>1TB/day):**
+
+- Every filter in base search saves minutes of search time
+- Avoid wildcards at start of strings when possible (`*value` slower than `value*`)
+- Use tstats for pre-aggregated data when available
+
+**For Complex Hunts:**
+
+- Break into multiple targeted searches rather than one massive search
+- Example: Hunt for 5 different TTPs separately, not one search with OR for all
+
+**For Iterative Hunting:**
+
+- Start with broad base search to understand data volume
+- Progressively add filters to base search (not as `| search` commands)
+- Monitor search job inspector to verify indexer vs search head CPU usage
+
+#### Verification: Is Your Query Efficient?
+
+Check Splunk's Job Inspector after running search:
+
+- **Good:** High % of time in "indexers"
+- **Bad:** High % of time in "search head" with simple filters
+- **Goal:** Indexers filter 95%+ of events, search heads only process relevant data
+
+**Example Application to Hunt:**
+
+When hunting for suspicious osascript usage (macOS):
+
+```spl
+# Efficient Hunt Query
+index=edr_mac sourcetype=process_execution
+process_name IN ("osascript", "AppleScript")
+(command_line="*duplicate file*" OR command_line="*Cookies.binarycookies*" OR command_line="*NoteStore.sqlite*")
+earliest=-7d latest=now
+| stats count, values(command_line) as commands by hostname, user, parent_process
+| where count>5
+| sort -count
+```
+
+This query:
+
+- Filters at indexer level (process_name, command_line patterns, time)
+- Minimizes data transfer to search heads
+- Aggregates only relevant events
+- Applies post-aggregation filter with `where` (appropriate use case)
+
 ### Common Detection Blind Spots by Domain
 
 #### Windows/Active Directory Blind Spots

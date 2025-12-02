@@ -27,18 +27,99 @@ This repository contains threat hunting hypotheses, execution notes, and lessons
 
 ```
 /
-├── hunts/              # Hunt files following LOCK pattern
-│   └── H-XXXX.md       # Single file per hunt (Planning → In Progress → Completed)
-├── templates/          # LOCK-structured templates for new hunts
-│   └── HUNT_LOCK.md    # Unified template combining hypothesis + execution
-├── prompts/            # AI prompt templates
-│   ├── basic-prompts.md  # Level 0-1 copy-paste prompts
-│   └── ai-workflow.md    # Level 2 AI-assisted workflows
-├── knowledge/          # Domain expertise and hunting frameworks
+├── README.md              # Framework overview and landing page
+├── AGENTS.md              # This file - AI assistant context
+├── USING_ATHF.md          # Adoption and customization guide
+├── environment.md         # Tech stack, tools, infrastructure inventory
+│
+├── hunts/                 # Hunt hypothesis cards (LOCK structure)
+│   └── H-XXXX.md          # Single file per hunt (hypothesis, planning, outcomes)
+│
+├── queries/               # Query implementations for testing hypotheses
+│   └── H-XXXX.spl         # Splunk/KQL queries with time bounds and result caps
+│
+├── runs/                  # Hunt execution results and findings
+│   └── H-XXXX_YYYY-MM-DD.md  # Dated execution notes (LOCK structure)
+│
+├── templates/             # LOCK-structured templates for new hunts
+│   └── HUNT_LOCK.md       # Unified template combining hypothesis + execution
+│
+├── prompts/               # AI prompt templates
+│   ├── basic-prompts.md   # Level 0-1 copy-paste prompts
+│   └── ai-workflow.md     # Level 2 AI-assisted workflows
+│
+├── knowledge/             # Domain expertise and hunting frameworks
 │   └── hunting-knowledge.md  # Expert hunting knowledge base
-├── queries/            # Reusable query patterns (optional)
-└── environment.md      # Tech stack, tools, infrastructure inventory
+│
+├── integrations/          # MCP server catalog and quickstart guides
+│   ├── MCP_CATALOG.md     # Available tool integrations
+│   └── quickstart/        # Setup guides for specific tools
+│
+├── docs/                  # Detailed documentation
+│   ├── getting-started.md # Step-by-step adoption guide
+│   ├── lock-pattern.md    # LOCK methodology details
+│   ├── maturity-model.md  # Five levels explained
+│   └── level3-mcp-examples.md  # MCP integration examples
+│
+└── assets/                # Images and diagrams
+    ├── athf_logo.jpg
+    ├── athf_lock.png
+    └── athf_fivelevels.png
 ```
+
+---
+
+## Directory Structure & File Naming Conventions
+
+The repository uses a **hunt-centric naming scheme** where all files related to a single hunt share the same hunt ID (H-####). This ensures traceability and makes it easy to find related artifacts.
+
+### Folder Purposes & File Naming
+
+| Folder | Purpose | File Naming | Example |
+|--------|---------|-------------|---------|
+| **hunts/** | Hunt hypothesis cards following LOCK pattern | `H-####.md` | `H-0042.md` |
+| **queries/** | Query implementations (reusable, testable) | `H-####.spl` or `H-####.kql` | `H-0042.spl` |
+| **runs/** | Execution results and findings from running a hunt | `H-####_YYYY-MM-DD.md` | `H-0042_2025-11-29.md` |
+| **templates/** | LOCK-structured templates for new hunts | (referenced, not created per hunt) | `HUNT_LOCK.md` |
+
+### Workflow: Hypothesis → Query → Results
+
+The three-file workflow connects directly through hunt IDs:
+
+```
+H-0042.md (hypothesis, LOCK structure)
+    ↓
+H-0042.spl (query to test the hypothesis)
+    ↓
+H-0042_2025-11-29.md (results from running the query on Nov 29)
+    ↓
+H-0042_2025-12-06.md (results from re-running the same query on Dec 6)
+```
+
+**Key Points:**
+
+- **hunts/** = The "what we're hunting for" (behavior, TTP, hypothesis)
+- **queries/** = The "how we test it" (bounded, time-limited search logic)
+- **runs/** = The "what we found" (execution results, decisions, lessons learned)
+- **Dates in runs/** = Track hunt iteration over time (same hunt re-executed on different dates)
+
+### Example: Complete Hunt Lifecycle
+
+1. **Create hypothesis** → `hunts/H-0042.md` (LOCK-formatted hunt card)
+2. **Draft query** → `queries/H-0042.spl` (Splunk query with time bounds and result caps)
+3. **Execute hunt** → Run query, document findings → `runs/H-0042_2025-11-29.md` (LOCK-formatted results)
+4. **Re-run hunt later** → Same query, new date → `runs/H-0042_2025-12-06.md` (new execution)
+5. **Refine query** → Update `queries/H-0042.spl` based on lessons learned
+6. **Re-run refined hunt** → `runs/H-0042_2025-12-13.md` (improved results)
+
+### AI Guidance
+
+When working with hunts:
+
+- **Use hunt ID as primary reference** - "Let me look at H-0042" immediately tells you: hypothesis (hunts/), query (queries/), and all past executions (runs/)
+- **Search by hunt ID first** - Check if a hunt already exists before creating new ones (grep hunts/ for hunt ID)
+- **Link queries to hypotheses** - Every query should correspond to a hunt card (same H-#### ID)
+- **Track execution history** - Multiple run files for same hunt ID shows iteration and learning over time
 
 ---
 
@@ -103,49 +184,47 @@ AI: *checks environment.md* "I see you run Java applications with log aggregatio
 
 ---
 
-## Data Sources
+## Data Sources & Environment Context
 
-**Update this section with your actual data sources:**
+**Reference:** See [environment.md](../environment.md) for the comprehensive, authoritative inventory of your tech stack, tools, and infrastructure.
 
-### SIEM / Log Aggregation
+### Quick Reference for Hunt Planning
 
-- **Platform:** [e.g., Splunk Enterprise, Elastic Security, Microsoft Sentinel]
-- **Indexes/Tables:** [e.g., `index=winlogs`, `SecurityEvent`, `logs-*`]
-- **Retention:** [e.g., 90 days hot, 1 year cold]
-- **Query Language:** [SPL, KQL, Lucene, etc.]
+Before suggesting a hunt, I verify that the required data sources and telemetry are available in your environment. Use this table to see what I look for:
 
-### EDR / Endpoint Security
+| Category | Hunt Requires | Why This Matters | Reference |
+|----------|---------------|------------------|-----------|
+| **SIEM/Logs** | Log aggregation platform with query language (SPL, KQL, etc.) | Can't hunt without searchable logs | See environment.md "SIEM / Log Aggregation" |
+| **Endpoint** | EDR with process, network, and/or file telemetry | Determines what adversary behaviors you can detect | See environment.md "EDR / Endpoint Security" |
+| **Network** | Flow data (NetFlow/IPFIX) or firewall/IDS logs | Needed for C2 communication, lateral movement, data exfiltration hunts | See environment.md "Network Security" |
+| **Cloud** | Cloud provider (AWS/Azure/GCP) with CloudTrail/activity logging | Scope of cloud hunting capability | See environment.md "Cloud Security" |
+| **Identity** | Active Directory or identity provider with auth logs | Needed for credential attack, lateral movement, persistence hunts | See environment.md "Identity & Access" |
 
-- **Platform:** [e.g., CrowdStrike Falcon, Microsoft Defender, SentinelOne]
-- **Telemetry:** [Process execution, network connections, file events]
-- **Query Access:** [API, console, integrated with SIEM]
+### How I Use This Information
 
-### Network Security
+**Before generating a hunt, I will:**
 
-- **Flow Data:** [NetFlow, IPFIX, Zeek logs]
-- **Packet Capture:** [Available? Retention period?]
-- **Firewall Logs:** [Vendor, where logs are stored]
-- **IDS/IPS:** [Snort, Suricata, alerts in SIEM]
+1. **Check environment.md** for your actual tools, versions, and coverage
+2. **Verify required data sources** exist (e.g., "Is SIEM available? What query language?")
+3. **Confirm compatibility** (e.g., suggesting SPL queries only if you use Splunk)
+4. **Note coverage gaps** (e.g., "You don't have EDR, so we can't hunt process execution patterns")
+5. **Avoid suggesting hunts you can't run** (e.g., "Cloud hunting requires CloudTrail integration, which isn't documented")
 
-### Cloud Security
+**If I can't find data source information:**
 
-- **Providers:** [AWS, Azure, GCP]
-- **Logging:** [CloudTrail, Azure Monitor, Cloud Logging]
-- **Where Stored:** [Centralized in SIEM? Separate platform?]
+- I will ask you directly: "Do you have [telemetry type]?" or "What's your query language?"
+- I will reference the section in environment.md that should contain the answer
+- I will not make assumptions about your infrastructure
 
-### Identity & Access
+### Known Gaps & Blind Spots
 
-- **Identity Provider:** [Active Directory, Okta, Azure AD]
-- **Authentication Logs:** [Where are auth events logged?]
-- **MFA Events:** [Available? Where?]
-
-**AI Note:** Always verify data sources exist before generating queries. Reference environment.md for detailed coverage.
+See [environment.md "Known Gaps & Blind Spots"](../environment.md#known-gaps--blind-spots) for documented areas where visibility is limited. This informs hunt prioritization and helps avoid suggesting hunts for unmonitored systems.
 
 ---
 
 ## Hunting Methodology
 
-**Primary Framework:** [PEAK / TaHiTI]
+**Primary Framework:** [LOCK / PEAK / TaHiTI]
 
 This repository follows the **LOCK pattern**:
 
@@ -160,6 +239,163 @@ This repository follows the **LOCK pattern**:
 - Ensure queries are bounded by time, scope, and impact
 - Document lessons learned after hunt execution
 - Reference past hunts when suggesting new ones
+
+---
+
+## Hunt Metadata & Machine-Readable Format
+
+### YAML Frontmatter for AI
+
+Starting at **Level 2 (Searchable)**, hunt files include **YAML frontmatter** - machine-readable metadata that enables AI assistants to:
+
+- **Filter hunts programmatically** by status, tactics, techniques, platform
+- **Discover related hunts** via `related_hunts` field
+- **Calculate hunt metrics** (success rates, TP/FP ratios, findings counts)
+- **Identify coverage gaps** (which ATT&CK techniques have we hunted?)
+- **Track hunt evolution** (planning → in-progress → completed)
+
+### How AI Should Use Hunt Metadata
+
+**When user asks: "Find all completed hunts for credential access"**
+
+AI should:
+1. Read hunt files in `hunts/` folder
+2. Parse YAML frontmatter from each file
+3. Filter where:
+   - `status: completed`
+   - `tactics` array contains `credential-access`
+4. Return matching hunt IDs and titles
+
+**When user asks: "Have we hunted T1003 sub-techniques before?"**
+
+AI should:
+1. Parse YAML frontmatter from all hunts
+2. Filter where `techniques` array matches `T1003.*` pattern
+3. List matching hunts with their specific sub-techniques
+4. Identify which T1003 sub-techniques have NOT been hunted
+
+**When user asks: "Show me hunts with high false positive rates"**
+
+AI should:
+1. Parse YAML frontmatter from completed hunts
+2. Calculate FP ratio: `false_positives / findings_count`
+3. Sort hunts by FP ratio descending
+4. Return top results with lessons learned from KEEP sections
+
+### Metadata Schema Quick Reference
+
+**Essential fields for AI filtering:**
+
+```yaml
+hunt_id: H-0042                    # Unique identifier
+status: completed                  # planning | in-progress | completed
+platform: [Windows, Linux]         # Target platforms (array)
+tactics: [credential-access]       # MITRE tactics (array)
+techniques: [T1003.001]            # MITRE techniques (array)
+data_sources: [Splunk, EDR]        # Log platforms (array)
+related_hunts: [H-0015]            # Related hunt IDs (array)
+findings_count: 15                 # Total findings
+true_positives: 3                  # Confirmed malicious
+false_positives: 12                # Benign flagged
+tags: [kerberos, credential-theft] # Freeform tags (array)
+```
+
+**Full schema documentation:** See [hunts/FORMAT_GUIDELINES.md](hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
+
+### AI Workflow Examples
+
+#### Example 1: Finding Related Work
+
+```
+User: "Generate hypothesis for hunting Kerberoasting attacks"
+
+AI Workflow:
+1. Search hunts/ folder for files with `tactics: [credential-access]`
+   and `techniques` matching T1558 pattern
+2. Check `related_hunts` fields to find hunt chains
+3. Read lessons learned from similar past hunts (H-0042)
+4. Generate new hypothesis incorporating past findings
+5. Suggest `related_hunts: [H-0042]` in new hunt metadata
+```
+
+#### Example 2: Coverage Gap Analysis
+
+```
+User: "Which MITRE tactics do we need to hunt more?"
+
+AI Workflow:
+1. Parse all hunt YAML frontmatter
+2. Count hunts per tactic:
+   - credential-access: 8 hunts
+   - persistence: 5 hunts
+   - lateral-movement: 2 hunts  ← Low coverage
+   - exfiltration: 1 hunt  ← Low coverage
+3. Prioritize hunt suggestions for low-coverage tactics
+4. Reference environment.md to ensure we have telemetry
+```
+
+#### Example 3: Hunt Success Metrics
+
+```
+User: "What's our hunt success rate?"
+
+AI Workflow:
+1. Filter hunts where `status: completed`
+2. Calculate metrics:
+   - Total hunts: 15
+   - Hunts with TPs: 8 (53% detection rate)
+   - Average TP per hunt: 2.1
+   - Average FP per hunt: 7.3
+   - Most successful tactic: credential-access (75% TP rate)
+3. Return summary with recommendations
+```
+
+#### Example 4: Platform-Specific Hunting
+
+```
+User: "Find all Linux persistence hunts"
+
+AI Workflow:
+1. Filter where:
+   - `platform` array contains "Linux"
+   - `tactics` array contains "persistence"
+2. Return matching hunts: H-0002, H-0018, H-0029
+3. Show related techniques: T1053.003 (cron), T1543.002 (systemd)
+4. Suggest coverage gaps: T1574 (hijack execution flow)
+```
+
+### Maturity-Based Metadata Usage
+
+| Maturity Level | AI Capability | Metadata Requirements |
+|----------------|---------------|----------------------|
+| **Level 0-1** (Manual) | AI reads past hunts via grep | Metadata optional, focus on LOCK structure |
+| **Level 2** (Searchable) | AI filters by tactics/techniques/status | YAML frontmatter recommended with core fields |
+| **Level 3+** (Generative) | AI calculates metrics, identifies gaps | YAML required with findings counts populated |
+
+### Important Notes for AI
+
+**Backward Compatibility:**
+- Hunts without YAML frontmatter are still valid
+- For hunts without frontmatter, parse markdown metadata section
+- Gracefully handle missing optional fields (use null/0 defaults)
+
+**Parsing YAML:**
+- YAML frontmatter starts with `---` on line 1
+- YAML block ends with `---` (closing delimiter)
+- Use standard YAML parsing libraries
+- Handle arrays, integers, and strings correctly
+
+**Field Conventions:**
+- `tactics` uses lowercase hyphenated format: `credential-access`
+- `platform` uses title case: `Windows`, `macOS`, `Linux`
+- `tags` uses lowercase hyphenated format: `living-off-the-land`
+- `techniques` uses standard ATT&CK IDs: `T1003.001`
+
+**When Generating New Hunts:**
+- Always include YAML frontmatter at Level 2+
+- Populate `related_hunts` when building on past work
+- Set `status: planning` for new hypotheses
+- Leave findings fields at 0 until hunt execution
 
 ---
 
