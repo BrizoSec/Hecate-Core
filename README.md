@@ -163,9 +163,11 @@ athf hunt coverage                  # MITRE ATT&CK coverage
 
 ## 📺 See It In Action
 
-> **Demo coming soon:** Terminal recording showing `athf init`, `athf hunt new`, and `athf hunt list` in action.
+![ATHF Demo](assets/demo.gif)
 
-For now, check out our [example hunts](SHOWCASE.md) to see real-world hunt documentation and results.
+Watch ATHF in action: initialize a workspace, create hunts, and explore your threat hunting catalog in under 60 seconds.
+
+**[View example hunts →](SHOWCASE.md)**
 
 ## Installation
 
