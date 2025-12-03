@@ -10,14 +10,22 @@ Thumbs.db
 .idea/
 .claude/
 .markdownlint.json
+.markdown-link-check.json
 
 # Sensitive data
 *.env
 credentials/
 secrets/
 
+# User-specific ATHF config
+.athfconfig.yaml
+
 # Evidence artifacts (optional - uncomment if you want to exclude large files)
 # evidence/
+
+# Demo recordings
+*.cast
+*.cast[0-9]
 
 # Python
 __pycache__/
@@ -44,6 +52,7 @@ MANIFEST
 # Testing
 .pytest_cache/
 .coverage
+.coveragerc
 coverage.xml
 htmlcov/
 .tox/
@@ -55,6 +64,9 @@ htmlcov/
 dmypy.json
 .pyre/
 .pytype/
+
+# Code quality
+.flake8
 
 # Virtual environments
 tools/mcp/venv/

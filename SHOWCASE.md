@@ -225,7 +225,7 @@ Attackers with initial access will create Lambda functions with overly permissiv
 ### Query Evolution
 
 **Iteration 1: Monitor all Lambda creations (Too noisy)**
-```json
+```spl
 index=aws_cloudtrail eventName="CreateFunction"
 | stats count by userIdentity.principalId, requestParameters.functionName
 ```
@@ -233,7 +233,7 @@ index=aws_cloudtrail eventName="CreateFunction"
 **Problem:** Can't differentiate malicious from legitimate Lambda deployments
 
 **Iteration 2: Focus on suspicious IAM policies (Better)**
-```json
+```spl
 index=aws_cloudtrail (eventName="CreateFunction" OR eventName="UpdateFunctionConfiguration")
 | spath input=requestParameters.role output=lambda_role
 | join lambda_role [search index=aws_cloudtrail eventName="PutRolePolicy" OR eventName="AttachRolePolicy"
@@ -248,7 +248,7 @@ index=aws_cloudtrail (eventName="CreateFunction" OR eventName="UpdateFunctionCon
 **Problem:** Need to filter known automation accounts
 
 **Iteration 3: Final - anomaly + permissions + trigger analysis**
-```json
+```spl
 index=aws_cloudtrail (eventName="CreateFunction" OR eventName="UpdateFunctionConfiguration" OR eventName="CreateEventSourceMapping")
 | spath input=requestParameters.role output=lambda_role
 | eval function_name=coalesce('requestParameters.functionName', 'requestParameters.FunctionName')

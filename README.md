@@ -9,7 +9,7 @@
 [![PyPI](https://img.shields.io/badge/PyPI-coming%20soon-orange)](https://pypi.org/)
 [![GitHub stars](https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers)
 
-**[Quick Start](#quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](SHOWCASE.md)**
+**[Quick Start](#-quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](SHOWCASE.md)**
 
 > Give your threat hunting program memory and agency.
 
@@ -239,7 +239,7 @@ When your framework has memory, you stop losing knowledge to turnover or forgott
 - **GitHub Discussions:** [Ask questions, share hunts](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions)
 - **Issues:** [Report bugs or request features](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
 - **Adoption Guide:** See [USING_ATHF.md](USING_ATHF.md) for how to use ATHF in your organization
-- **Twitter/X:** [@NeblockInc](https://twitter.com/NeblockInc) - Follow for updates
+- **LinkedIn:** [Nebulock Inc.](https://www.linkedin.com/company/nebulock-inc) - Follow for updates
 
 ## 📖 Using ATHF
 
