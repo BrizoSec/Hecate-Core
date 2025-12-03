@@ -48,14 +48,14 @@ pause 2
 
 # 4. Create first hunt
 echo ""
-echo "\$ athf hunt new --technique T1003.001 --title \"LSASS Dumping Detection\" --platform windows --non-interactive"
-$ATHF_BIN hunt new --technique T1003.001 --title "LSASS Dumping Detection" --platform windows --non-interactive
+echo "\$ athf hunt new --technique T1003.001 --title \"LSASS Dumping Detection\" --non-interactive"
+$ATHF_BIN hunt new --technique T1003.001 --title "LSASS Dumping Detection" --non-interactive
 pause 3
 
 # 5. Create second hunt
 echo ""
-echo "\$ athf hunt new --technique T1558.003 --title \"Kerberoasting Detection\" --tactic credential-access --non-interactive"
-$ATHF_BIN hunt new --technique T1558.003 --title "Kerberoasting Detection" --tactic credential-access --non-interactive
+echo "\$ athf hunt new --technique T1558.003 --title \"Kerberoasting Detection\" --non-interactive"
+$ATHF_BIN hunt new --technique T1558.003 --title "Kerberoasting Detection" --non-interactive
 pause 3
 
 # 6. List hunts
@@ -64,13 +64,7 @@ echo "\$ athf hunt list"
 $ATHF_BIN hunt list
 pause 4
 
-# 7. Validate hunts
-echo ""
-echo "\$ athf hunt validate"
-$ATHF_BIN hunt validate
-pause 3
-
-# 8. Show stats
+# 7. Show stats
 echo ""
 echo "\$ athf hunt stats"
 $ATHF_BIN hunt stats
