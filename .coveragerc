@@ -1,0 +1,42 @@
+# .coveragerc - Coverage.py configuration for ATHF
+
+[run]
+source = athf
+omit =
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */site-packages/*
+branch = True
+
+[report]
+# Show lines that weren't covered
+show_missing = True
+# Skip covered files
+skip_covered = False
+# Precision for coverage percentage
+precision = 2
+
+# Exclude lines from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+    # Debug-only code
+    def __repr__
+    if self\.debug
+    # Defensive programming
+    raise AssertionError
+    raise NotImplementedError
+    # Type checking
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+    # Abstract methods
+    @(abc\.)?abstractmethod
+    # Main entry points
+    if __name__ == .__main__.:
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml

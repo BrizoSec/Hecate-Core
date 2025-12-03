@@ -1,0 +1,382 @@
+"""Initialize ATHF directory structure."""
+
+import os
+from pathlib import Path
+import click
+import yaml
+from rich.console import Console
+from rich.prompt import Prompt, Confirm
+
+console = Console()
+
+
+@click.command()
+@click.option("--path", default=".", help="Directory to initialize ATHF in")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+def init(path, non_interactive):
+    """Initialize ATHF directory structure.
+
+    Creates the necessary directories and configuration files for an ATHF
+    threat hunting program.
+    """
+    base_path = Path(path).resolve()
+
+    # Check if already initialized
+    config_path = base_path / ".athfconfig.yaml"
+    if config_path.exists() and not Confirm.ask(
+        f"ATHF already initialized in {base_path}. Reinitialize?",
+        default=False
+    ):
+        console.print("[yellow]Initialization cancelled.[/yellow]")
+        return
+
+    console.print("\n[bold cyan]🎯 Initializing Agentic Threat Hunting Framework[/bold cyan]\n")
+
+    # Gather configuration
+    if non_interactive:
+        config = _default_config()
+    else:
+        config = _interactive_config()
+
+    # Create directory structure
+    directories = [
+        "hunts",
+        "queries",
+        "runs",
+        "templates",
+        "knowledge",
+        "prompts",
+        "integrations",
+        "docs"
+    ]
+
+    console.print("\n[bold]Creating directory structure...[/bold]")
+    for dir_name in directories:
+        dir_path = base_path / dir_name
+        dir_path.mkdir(exist_ok=True)
+        console.print(f"  ✓ Created [cyan]{dir_name}/[/cyan]")
+
+    # Save configuration
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    console.print(f"  ✓ Created [cyan].athfconfig.yaml[/cyan]")
+
+    # Create AGENTS.md if it doesn't exist
+    agents_path = base_path / "AGENTS.md"
+    if not agents_path.exists():
+        _create_agents_file(agents_path, config)
+        console.print(f"  ✓ Created [cyan]AGENTS.md[/cyan]")
+
+    # Copy templates if they don't exist
+    templates_path = base_path / "templates"
+    if not (templates_path / "HUNT_LOCK.md").exists():
+        _create_hunt_template(templates_path / "HUNT_LOCK.md")
+        console.print(f"  ✓ Created [cyan]templates/HUNT_LOCK.md[/cyan]")
+
+    console.print("\n[bold green]✅ ATHF initialized successfully![/bold green]")
+    console.print(f"\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Customize [cyan]AGENTS.md[/cyan] with your environment details")
+    console.print(f"  2. Create your first hunt: [cyan]athf hunt new[/cyan]")
+    console.print(f"  3. Check out the docs at [cyan]docs/getting-started.md[/cyan]")
+
+
+def _default_config():
+    """Return default configuration."""
+    return {
+        "hunt_prefix": "H-",
+        "siem": "Splunk",
+        "edr": "CrowdStrike",
+        "query_language": "SPL",
+        "hunt_retention_days": 365
+    }
+
+
+def _interactive_config():
+    """Gather configuration interactively."""
+    console.print("[bold]📋 Quick setup questions:[/bold]")
+
+    config = {}
+
+    # SIEM
+    siem = Prompt.ask(
+        "1. What SIEM do you use?",
+        choices=["Splunk", "Sentinel", "Elastic", "Chronicle", "Other"],
+        default="Splunk"
+    )
+    config["siem"] = siem
+
+    # Query language mapping
+    query_lang_map = {
+        "Splunk": "SPL",
+        "Sentinel": "KQL",
+        "Elastic": "Lucene",
+        "Chronicle": "YARA-L",
+        "Other": "Custom"
+    }
+    config["query_language"] = query_lang_map.get(siem, "SPL")
+
+    # EDR
+    edr = Prompt.ask(
+        "2. What's your primary EDR?",
+        choices=["CrowdStrike", "SentinelOne", "Defender", "Carbon Black", "Other"],
+        default="CrowdStrike"
+    )
+    config["edr"] = edr
+
+    # Hunt prefix
+    hunt_prefix = Prompt.ask(
+        "3. Hunt ID prefix (e.g., H-, HUNT-)",
+        default="H-"
+    )
+    config["hunt_prefix"] = hunt_prefix
+
+    # Retention
+    retention = Prompt.ask(
+        "4. Hunt retention (days)",
+        default="365"
+    )
+    config["hunt_retention_days"] = int(retention)
+
+    return config
+
+
+def _create_agents_file(path, config):
+    """Create AGENTS.md file with configuration."""
+    content = f"""# ATHF Agent Context
+
+This file provides context to AI assistants about your threat hunting environment.
+
+## Data Sources
+
+### SIEM / Log Aggregation
+- **Platform:** {config['siem']}
+- **Query Language:** {config['query_language']}
+- **Indexes:** [Add your indexes here]
+- **Retention:** 90 days
+- **Access:** [Add access method]
+
+### EDR / Endpoint Security
+- **Platform:** {config['edr']}
+- **Telemetry:** Process execution, network connections, file modifications
+- **Query Access:** [Add query method]
+
+### Other Data Sources
+[Add additional data sources]
+
+## Technology Stack
+
+### Security Tools
+- SIEM: {config['siem']}
+- EDR: {config['edr']}
+- [Add more tools]
+
+### Cloud Platforms
+[Add cloud platforms if applicable]
+
+## Known Visibility Gaps
+
+Document what you can't see:
+- [Add visibility gaps]
+
+## Hunt Numbering Convention
+
+- **Prefix:** {config['hunt_prefix']}
+- **Format:** {config['hunt_prefix']}XXXX (e.g., {config['hunt_prefix']}0001)
+- **Retention:** {config['hunt_retention_days']} days
+
+## Team Context
+
+[Add information about your team, shift coverage, escalation procedures]
+"""
+
+    with open(path, "w") as f:
+        f.write(content)
+
+
+def _create_hunt_template(path):
+    """Create hunt template file."""
+    content = """---
+hunt_id: H-XXXX
+title: [Hunt Title]
+status: planning
+date: YYYY-MM-DD
+hunter: [Your Name]
+platform: [Windows/Linux/macOS/Cloud]
+tactics: [persistence, credential-access, etc.]
+techniques: [T1003.001, T1005, etc.]
+data_sources: [SIEM, EDR, etc.]
+related_hunts: []
+findings_count: 0
+true_positives: 0
+false_positives: 0
+customer_deliverables: []
+tags: []
+---
+
+# H-XXXX: [Hunt Title]
+
+**Hunt Metadata**
+
+- **Date:** YYYY-MM-DD
+- **Hunter:** [Your Name]
+- **Status:** Planning
+- **MITRE ATT&CK:** [Primary Technique]
+
+---
+
+## LEARN: Prepare the Hunt
+
+### Hypothesis Statement
+
+[What behavior are you looking for? What will you observe if the hypothesis is true?]
+
+### Threat Context
+
+[What threat actor/malware/TTP motivates this hunt?]
+
+### ABLE Scoping
+
+| **Field**   | **Your Input** |
+|-------------|----------------|
+| **Actor** *(Optional)* | [Threat actor or malware family] |
+| **Behavior** | [TTP or behavior pattern] |
+| **Location** | [Systems, networks, or environments to hunt] |
+| **Evidence** | [Data sources and key fields to examine] |
+
+### Threat Intel & Research
+
+- **MITRE ATT&CK Techniques:** [List relevant techniques]
+- **CTI Sources & References:** [Links to reports, blogs, etc.]
+
+### Related Tickets
+
+| **Team** | **Ticket/Details** |
+|----------|-------------------|
+| **SOC/IR** | [Ticket numbers or N/A] |
+
+---
+
+## OBSERVE: Expected Behaviors
+
+### What Normal Looks Like
+
+[Describe legitimate activity that should not trigger alerts]
+
+### What Suspicious Looks Like
+
+[Describe adversary behavior patterns to hunt for]
+
+### Expected Observables
+
+- **Processes:** [Process names, command lines]
+- **Network:** [Connections, protocols, domains]
+- **Files:** [File paths, extensions, sizes]
+- **Registry:** [Registry keys if applicable]
+- **Authentication:** [Login patterns if applicable]
+
+---
+
+## CHECK: Execute & Analyze
+
+### Data Source Information
+
+- **Index/Data Source:** [SIEM index or data source]
+- **Time Range:** [Date range for hunt]
+- **Events Analyzed:** [Approximate count]
+- **Data Quality:** [Assessment of data completeness]
+
+### Hunting Queries
+
+#### Initial Query
+
+```
+[Your initial query]
+```
+
+**Query Notes:**
+- [What did this query return?]
+- [What worked? What didn't?]
+
+#### Refined Query
+
+```
+[Your refined query after iterations]
+```
+
+**Refinement Rationale:**
+- [Why did you change the query?]
+- [What improvements were made?]
+
+### Visualization & Analytics
+
+[Describe any visualizations, timelines, or statistical analysis]
+
+### Query Performance
+
+**What Worked Well:**
+- [Effective filters or techniques]
+
+**What Didn't Work:**
+- [Challenges or limitations]
+
+**Iterations Made:**
+- [Document query evolution]
+
+---
+
+## KEEP: Findings & Response
+
+### Executive Summary
+
+[Concise summary of hunt results and key findings]
+
+### Findings
+
+| **Finding** | **Ticket** | **Description** |
+|-------------|-----------|-----------------|
+| True Positive | [Ticket] | [Description] |
+| False Positive | N/A | [Description] |
+
+**True Positives:** [Count]
+**False Positives:** [Count]
+
+### Detection Logic
+
+**Automation Opportunity:**
+
+[Can this hunt become an automated detection rule?]
+
+**Proposed Detection:**
+
+```
+[Detection rule if applicable]
+```
+
+### Lessons Learned
+
+**What Worked Well:**
+- [Successes]
+
+**What Could Be Improved:**
+- [Areas for improvement]
+
+**Telemetry Gaps Identified:**
+- [Missing data sources or visibility gaps]
+
+### Follow-up Actions
+
+- [ ] [Action item 1]
+- [ ] [Action item 2]
+
+### Follow-up Hunts
+
+- [Related hunt ideas for future investigation]
+
+---
+
+**Hunt Completed:** YYYY-MM-DD
+**Next Review:** [Date for recurring hunt if applicable]
+"""
+
+    with open(path, "w") as f:
+        f.write(content)

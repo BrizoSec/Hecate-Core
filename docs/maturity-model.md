@@ -10,6 +10,7 @@ ATHF defines a simple maturity model for evolving your hunting program. Each lev
 
 | Level | Capability | What You Get | Time to Implement |
 |-------|-----------|--------------|-------------------|
+| **0** | Ad-hoc | Hunts exist in Slack, tickets, or analyst notes | Current state |
 | **1** | Documented | Persistent hunt records using LOCK | 1 day |
 | **2** | Searchable | AI reads and recalls your hunts | 1 week |
 | **3** | Generative | AI executes queries via MCP tools | 2-4 weeks |

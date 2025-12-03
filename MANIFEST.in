@@ -1,0 +1,45 @@
+# MANIFEST.in - Package data inclusion rules for ATHF
+
+# Include documentation files
+include README.md
+include LICENSE
+include USING_ATHF.md
+include INSTALL.md
+include CHANGELOG.md
+
+# Include all markdown documentation in docs/
+recursive-include docs *.md
+
+# Include templates
+recursive-include templates *.md
+
+# Include example hunts
+recursive-include hunts *.md
+
+# Include example queries
+recursive-include queries *.spl *.kql *.sql
+
+# Include knowledge base
+recursive-include knowledge *.md
+
+# Include integration documentation
+recursive-include integrations *.md
+
+# Include visual assets
+recursive-include assets *.png *.gif *.svg
+
+# Exclude development and test files
+exclude .gitignore
+exclude .athfconfig.yaml
+exclude pytest.ini
+exclude .coveragerc
+recursive-exclude tests *
+recursive-exclude .github *
+prune tests
+prune .github
+
+# Exclude cached files
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *$py.class
+global-exclude .DS_Store
