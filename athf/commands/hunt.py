@@ -5,7 +5,7 @@ import yaml
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from rich import box
 from athf.core.hunt_manager import HuntManager
 from athf.core.template_engine import render_hunt_template
@@ -112,10 +112,10 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
         f.write(hunt_content)
 
     console.print(f"\n[bold green]✅ Created {hunt_id}: {hunt_title}[/bold green]")
-    console.print(f"\n[bold]Next steps:[/bold]")
+    console.print("\n[bold]Next steps:[/bold]")
     console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to flesh out your hypothesis")
-    console.print(f"  2. Document your hunt using the LOCK pattern")
-    console.print(f"  3. View all hunts: [cyan]athf hunt list[/cyan]")
+    console.print("  2. Document your hunt using the LOCK pattern")
+    console.print("  3. View all hunts: [cyan]athf hunt list[/cyan]")
 
 
 @hunt.command()

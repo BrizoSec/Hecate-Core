@@ -93,20 +93,23 @@ open -a "Google Chrome" assets/demo.gif
 
 ## Pro Tips for a Great Recording
 
-### Before Recording:
+### Before Recording
+
 - ✅ Close all other terminal windows
 - ✅ Disable terminal bell/notifications
 - ✅ Make sure terminal size is consistent
 - ✅ Test the script once to see timing
 - ✅ Have good lighting (if recording screen)
 
-### During Recording:
+### During Recording
+
 - ✅ Don't rush - let commands breathe
 - ✅ Pause at key outputs so viewers can read
 - ✅ Keep it under 60 seconds
 - ✅ Don't show errors or restarts
 
-### After Recording:
+### After Recording
+
 - ✅ Watch the playback before converting
 - ✅ Re-record if anything looks off
 - ✅ Test GIF loads in browser

@@ -6,7 +6,6 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![PyPI](https://img.shields.io/badge/PyPI-coming%20soon-orange)](https://pypi.org/)
 [![GitHub stars](https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers)
 
 **[Quick Start](#-quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](SHOWCASE.md)**
@@ -79,8 +78,10 @@ ATHF defines a simple maturity model. Each level builds on the previous one.
 ### Option 1: Python CLI (Recommended)
 
 ```bash
-# Coming soon - pip installable package
-pip install athf-framework
+# Install from source (PyPI package coming soon)
+git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+cd agentic-threat-hunting-framework
+pip install -e .
 
 # Initialize your hunt program
 athf init
@@ -149,6 +150,8 @@ athf hunt coverage                  # MITRE ATT&CK coverage
 
 **Full documentation:** [CLI Reference](docs/CLI_REFERENCE.md)
 
+> **Note:** The CLI is fully functional and ready to use. Install from source using `pip install -e .` in the repository directory. PyPI package publication coming soon.
+
 ## 📺 See It In Action
 
 ![ATHF Demo](assets/demo.gif)
@@ -164,20 +167,28 @@ Watch ATHF in action: initialize a workspace, create hunts, and explore your thr
 - Git
 - Your favorite AI code assistant
 
-### CLI Installation (Coming Soon)
+### CLI Installation
 
+**From Source:**
+```bash
+git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+cd agentic-threat-hunting-framework
+pip install -e .
+```
+
+**PyPI Installation (Coming Soon):**
 ```bash
 pip install athf-framework
 ```
 
-### Manual Setup
+### Markdown-Only Setup (No CLI)
 
 ```bash
 git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
 cd agentic-threat-hunting-framework
 ```
 
-That's it! Start documenting hunts in the `hunts/` directory using the LOCK pattern.
+Start documenting hunts in the `hunts/` directory using the LOCK pattern.
 
 ## Documentation
 

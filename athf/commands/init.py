@@ -1,6 +1,5 @@
 """Initialize ATHF directory structure."""
 
-import os
 from pathlib import Path
 import click
 import yaml
@@ -59,25 +58,25 @@ def init(path, non_interactive):
     # Save configuration
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-    console.print(f"  ✓ Created [cyan].athfconfig.yaml[/cyan]")
+    console.print("  ✓ Created [cyan].athfconfig.yaml[/cyan]")
 
     # Create AGENTS.md if it doesn't exist
     agents_path = base_path / "AGENTS.md"
     if not agents_path.exists():
         _create_agents_file(agents_path, config)
-        console.print(f"  ✓ Created [cyan]AGENTS.md[/cyan]")
+        console.print("  ✓ Created [cyan]AGENTS.md[/cyan]")
 
     # Copy templates if they don't exist
     templates_path = base_path / "templates"
     if not (templates_path / "HUNT_LOCK.md").exists():
         _create_hunt_template(templates_path / "HUNT_LOCK.md")
-        console.print(f"  ✓ Created [cyan]templates/HUNT_LOCK.md[/cyan]")
+        console.print("  ✓ Created [cyan]templates/HUNT_LOCK.md[/cyan]")
 
     console.print("\n[bold green]✅ ATHF initialized successfully![/bold green]")
-    console.print(f"\n[bold]Next steps:[/bold]")
-    console.print(f"  1. Customize [cyan]AGENTS.md[/cyan] with your environment details")
-    console.print(f"  2. Create your first hunt: [cyan]athf hunt new[/cyan]")
-    console.print(f"  3. Check out the docs at [cyan]docs/getting-started.md[/cyan]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print("  1. Customize [cyan]AGENTS.md[/cyan] with your environment details")
+    console.print("  2. Create your first hunt: [cyan]athf hunt new[/cyan]")
+    console.print("  3. Check out the docs at [cyan]docs/getting-started.md[/cyan]")
 
 
 def _default_config():

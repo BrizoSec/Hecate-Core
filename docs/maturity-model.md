@@ -18,6 +18,26 @@ ATHF defines a simple maturity model for evolving your hunting program. Each lev
 
 ---
 
+## How ATHF CLI Commands Support Each Level
+
+**Important:** The CLI is optional. ATHF is markdown-first - you can achieve all maturity levels using just markdown files and your AI assistant. The CLI provides convenience commands for common workflows, but the framework structure works without it.
+
+**If you choose to use the CLI**, it provides consistent commands across all maturity levels. What changes is **who uses them** and **how they're used**:
+
+| Level | Who Uses CLI | How It's Used | Example |
+|-------|--------------|---------------|---------|
+| **1** | You (manually) | Create and validate hunts | `athf hunt new` creates structured hunt files<br>OR manually create markdown files |
+| **2** | You + AI (interactive) | AI searches hunts, suggests refinements | AI uses `athf hunt search` to recall past work<br>OR AI searches markdown files directly |
+| **3** | AI (on your behalf) | AI executes queries and documents results | AI uses MCP tools + `athf hunt new` to create hunts<br>OR AI writes markdown files directly |
+| **4** | Autonomous agents | Agents coordinate through CLI | CTI agent uses `athf hunt new`, validator uses `athf hunt validate`<br>OR agents manipulate markdown files |
+
+**Key insights:**
+- The CLI doesn't change between levels - it becomes building blocks for increasingly sophisticated automation
+- The framework structure (hunts/, LOCK pattern, AGENTS.md) is what enables AI assistance, not the CLI
+- Choose CLI for convenience, skip it if you prefer direct markdown manipulation
+
+---
+
 ## Level 1: Documented Hunts
 
 **What you get:**
@@ -70,10 +90,28 @@ When someone new joins the team, they can quickly see what was tested, what was 
 
 ### Getting Started at Level 1
 
+**Using the CLI (Recommended):**
+```bash
+# Initialize workspace
+athf init
+
+# Create your first hunt
+athf hunt new --technique T1003.001 --title "LSASS Credential Dumping"
+
+# Validate structure
+athf hunt validate
+
+# View your hunt catalog
+athf hunt list
+```
+
+**Without the CLI (Pure Markdown):**
 1. Copy a hunt template from [templates/](../templates/)
 2. Fill out the LOCK sections
 3. Save as `hunts/H-XXXX.md`
 4. Commit to your repository
+
+> **Note:** Both paths are equally valid. The CLI provides convenience, but the markdown-first approach gives you complete control. Many teams prefer pure markdown for simplicity and transparency. Choose what works best for your workflow.
 
 **You can be operational at Level 1 within a day.**
 
@@ -130,6 +168,21 @@ The AI automatically searches your hunts directory, references past investigatio
 3. Review [knowledge/hunting-knowledge.md](../knowledge/hunting-knowledge.md) (already included)
 4. Open your repo in Claude Code or similar AI assistant
 5. Start asking questions about your hunts
+
+**CLI Commands at Level 2:**
+At this level, you still run commands manually, but AI helps you decide what to run:
+```bash
+# AI suggests: "Let me search for related hunts first"
+athf hunt search "T1003"
+
+# AI suggests: "Check your coverage gaps"
+athf hunt coverage
+
+# AI suggests: "Let's see your success rates"
+athf hunt stats
+```
+
+The AI reads your hunt files and provides context-aware suggestions, but you execute the commands.
 
 **You can be operational at Level 2 within a week.**
 
@@ -197,6 +250,24 @@ Should I create a Jira ticket for investigation?"
 
 **The difference:** Claude executes queries, enriches data, and creates tickets - not just suggests them.
 
+### CLI Integration at Level 3
+
+At Level 3, AI uses CLI commands directly as part of workflows:
+
+**Example: AI-Driven Hunt Creation**
+```
+You: "Search for SSH brute force and create a hunt"
+
+AI: [Executes Splunk query via MCP]
+    [Gets results: 3 high-volume IPs]
+    [Uses: athf hunt new --technique T1110.001 --title "SSH Brute Force Detection"]
+    [Documents findings in hunt file]
+    [Uses: athf hunt validate to check structure]
+    "Created H-0087.md documenting SSH brute force activity. Review?"
+```
+
+**The difference:** You direct the workflow, AI executes both MCP tools (Splunk) and CLI commands (athf).
+
 ### Getting Started at Level 3
 
 1. Browse the catalog: See [integrations/MCP_CATALOG.md](../integrations/MCP_CATALOG.md)
@@ -257,6 +328,37 @@ At Level 4, multiple specialized agents work together:
 
 **You wake up to:**
 > "3 new draft hunts created overnight based on recent CTI. Ready for your review."
+
+### CLI Commands in Autonomous Workflows
+
+At Level 4, agents use CLI commands without your intervention:
+
+**Autonomous Agent Workflow:**
+```bash
+# CTI Monitor Agent (runs every 6 hours)
+athf hunt search "T1059.003"  # Check for existing hunts
+# No matches found
+
+# Hypothesis Generator Agent (triggered by CTI Monitor)
+athf hunt new \
+  --technique T1059.003 \
+  --title "Qakbot JavaScript Dropper Detection" \
+  --platform windows \
+  --non-interactive
+
+# Validator Agent (triggered by Generator)
+athf hunt validate H-0156  # Ensure structure is correct
+athf hunt coverage  # Update coverage metrics
+
+# Notifier Agent (triggered by Validator)
+# Posts to Slack: "H-0156 ready for review"
+```
+
+**The progression:**
+- **Level 1:** You run `athf hunt new` manually
+- **Level 2:** AI suggests when to run `athf hunt new`
+- **Level 3:** AI runs `athf hunt new` when you ask
+- **Level 4:** Agents run `athf hunt new` autonomously based on objectives
 
 ### The Maturity Progression
 

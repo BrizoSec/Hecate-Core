@@ -3,8 +3,7 @@
 import re
 from pathlib import Path
 from typing import List, Dict, Optional
-from datetime import datetime
-from athf.core.hunt_parser import parse_hunt_file, HuntParser
+from athf.core.hunt_parser import parse_hunt_file
 
 
 class HuntManager:
@@ -77,7 +76,7 @@ class HuntManager:
                     "file_path": str(hunt_file)
                 })
 
-            except Exception as e:
+            except Exception:
                 # Skip files that can't be parsed
                 continue
 
@@ -118,7 +117,9 @@ class HuntManager:
         pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
 
         for hunt in hunts:
-            hunt_id = hunt.get("hunt_id", "")
+            hunt_id = hunt.get("hunt_id")
+            if not hunt_id or not isinstance(hunt_id, str):
+                continue
             match = pattern.match(hunt_id)
             if match:
                 numbers.append(int(match.group(1)))

@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List
 import yaml
 
 
