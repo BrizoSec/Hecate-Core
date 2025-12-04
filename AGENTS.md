@@ -186,7 +186,7 @@ AI: *checks environment.md* "I see you run Java applications with log aggregatio
 
 ## Data Sources & Environment Context
 
-**Reference:** See [environment.md](../environment.md) for the comprehensive, authoritative inventory of your tech stack, tools, and infrastructure.
+**Reference:** See [environment.md](docs/environment.md) for the comprehensive, authoritative inventory of your tech stack, tools, and infrastructure.
 
 ### Quick Reference for Hunt Planning
 
@@ -218,7 +218,7 @@ Before suggesting a hunt, I verify that the required data sources and telemetry 
 
 ### Known Gaps & Blind Spots
 
-See [environment.md "Known Gaps & Blind Spots"](../environment.md#known-gaps--blind-spots) for documented areas where visibility is limited. This informs hunt prioritization and helps avoid suggesting hunts for unmonitored systems.
+See [environment.md "Known Gaps & Blind Spots"](docs/environment.md#known-gaps--blind-spots) for documented areas where visibility is limited. This informs hunt prioritization and helps avoid suggesting hunts for unmonitored systems.
 
 ---
 

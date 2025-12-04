@@ -136,7 +136,7 @@ See [integrations/README.md](integrations/README.md) and [integrations/MCP_CATAL
 
 ## Maintaining Environmental Context
 
-The [environment.md](environment.md) file is a living document that informs hunt planning and enables AI-assisted hypothesis generation at all maturity levels.
+The [environment.md](docs/environment.md) file is a living document that informs hunt planning and enables AI-assisted hypothesis generation at all maturity levels.
 
 ### Who Maintains This File?
 

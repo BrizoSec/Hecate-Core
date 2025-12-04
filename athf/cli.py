@@ -68,7 +68,6 @@ def cli():
       athf hunt search    Find hunts by keyword
       athf hunt stats     Show program metrics
     """
-    pass
 
 
 # Register command groups

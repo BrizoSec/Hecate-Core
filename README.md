@@ -203,7 +203,7 @@ Start documenting hunts in the `hunts/` directory using the LOCK pattern.
 
 - [Level 1: Documented Hunts](docs/maturity-model.md#level-1-documented-hunts)
 - [Level 2: Searchable Memory](docs/maturity-model.md#level-2-searchable-memory)
-- [Level 3: Generative Capabilities](docs/level3-mcp-examples.md)
+- [Level 3: Generative Capabilities](docs/level4-agentic-workflows.md)
 - [Level 4: Agentic Workflows](docs/level4-agentic-workflows.md)
 
 ### Integration & Customization

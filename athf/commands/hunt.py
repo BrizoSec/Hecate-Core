@@ -21,10 +21,9 @@ def get_config_path():
 
     if new_location.exists():
         return new_location
-    elif old_location.exists():
+    if old_location.exists():
         return old_location
-    else:
-        return new_location  # Default to new location for creation
+    return new_location  # Default to new location for creation
 
 
 HUNT_EPILOG = """
@@ -76,7 +75,6 @@ def hunt():
     • Calculate success rates and coverage
     • Validate hunt file structure
     """
-    pass
 
 
 @hunt.command()
@@ -118,7 +116,7 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
     # Load config
     config_path = get_config_path()
     if config_path.exists():
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
     else:
         config = {"hunt_prefix": "H-"}
@@ -190,7 +188,7 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
     hunt_file = Path("hunts") / f"{hunt_id}.md"
     hunt_file.parent.mkdir(exist_ok=True)
 
-    with open(hunt_file, "w") as f:
+    with open(hunt_file, "w", encoding="utf-8") as f:
         f.write(hunt_content)
 
     console.print(f"\n[bold green]✅ Created {hunt_id}: {hunt_title}[/bold green]")
@@ -205,8 +203,8 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
 @click.option("--tactic", help="Filter by MITRE tactic")
 @click.option("--technique", help="Filter by MITRE technique (e.g., T1003.001)")
 @click.option("--platform", help="Filter by platform")
-@click.option("--format", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
-def list(status, tactic, technique, platform, format):
+@click.option("--output", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
+def list_hunts(status, tactic, technique, platform, output):
     """List all hunts with filtering and formatting options.
 
     \b
@@ -231,13 +229,15 @@ def list(status, tactic, technique, platform, format):
       athf hunt list --tactic persistence --platform Linux
 
       # JSON output for scripting
-      athf hunt list --format json
+      athf hunt list --output json
 
     \b
     Output formats:
       • table (default): Human-readable table with colors
       • json: Machine-readable for scripts and automation
       • yaml: Structured format for configuration management
+
+    Note: Use --output instead of --format for specifying output format.
     """
     manager = HuntManager()
     hunts = manager.list_hunts(
@@ -252,12 +252,12 @@ def list(status, tactic, technique, platform, format):
         console.print("\nCreate your first hunt: [cyan]athf hunt new[/cyan]")
         return
 
-    if format == "json":
+    if output == "json":
         import json
         console.print(json.dumps(hunts, indent=2))
         return
 
-    if format == "yaml":
+    if output == "yaml":
         console.print(yaml.dump(hunts, default_flow_style=False))
         return
 

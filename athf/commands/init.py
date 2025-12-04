@@ -100,7 +100,7 @@ def init(path, non_interactive):
         console.print(f"  ✓ Created [cyan]{dir_name}/[/cyan]")
 
     # Save configuration
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
     console.print("  ✓ Created [cyan]config/.athfconfig.yaml[/cyan]")
 
@@ -232,7 +232,7 @@ Document what you can't see:
 [Add information about your team, shift coverage, escalation procedures]
 """
 
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -421,5 +421,5 @@ tags: []
 **Next Review:** [Date for recurring hunt if applicable]
 """
 
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
