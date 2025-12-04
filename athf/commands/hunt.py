@@ -27,9 +27,55 @@ def get_config_path():
         return new_location  # Default to new location for creation
 
 
-@click.group()
+HUNT_EPILOG = """
+\b
+Examples:
+  # Interactive hunt creation (guided prompts)
+  athf hunt new
+
+  # Non-interactive with all options
+  athf hunt new --technique T1003.001 --title "LSASS Dumping" --non-interactive
+
+  # List hunts with filters
+  athf hunt list --status completed --tactic credential-access
+
+  # Search hunts for keywords
+  athf hunt search "kerberoasting"
+
+  # Get JSON output for scripting
+  athf hunt list --format json
+
+  # Show coverage gaps
+  athf hunt coverage
+
+  # Validate hunt structure
+  athf hunt validate H-0042
+
+\b
+Workflow:
+  1. Create hunt → athf hunt new
+  2. Edit hunt file → hunts/H-XXXX.md (use LOCK pattern)
+  3. Create query → queries/H-XXXX.spl
+  4. Execute hunt → document findings in runs/H-XXXX_YYYY-MM-DD.md
+  5. Track results → athf hunt stats
+
+\b
+Learn more: https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/CLI_REFERENCE.md
+"""
+
+
+@click.group(epilog=HUNT_EPILOG)
 def hunt():
-    """Manage threat hunts."""
+    """Manage threat hunting activities and track program metrics.
+
+    \b
+    Hunt commands help you:
+    • Create structured hunt hypotheses
+    • Track hunts across your program
+    • Search past work to avoid duplication
+    • Calculate success rates and coverage
+    • Validate hunt file structure
+    """
     pass
 
 
@@ -41,9 +87,31 @@ def hunt():
 @click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
 @click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
 def new(technique, title, tactic, platform, data_source, non_interactive):
-    """Create a new hunt.
+    """Create a new hunt hypothesis with LOCK structure.
 
-    Interactive mode guides you through creating a hunt with proper structure.
+    \b
+    Creates a hunt file with:
+    • Auto-generated hunt ID (H-XXXX format)
+    • YAML frontmatter with metadata
+    • LOCK pattern sections (Learn, Observe, Check, Keep)
+    • MITRE ATT&CK mapping
+
+    \b
+    Interactive mode (default):
+      Guides you through hunt creation with prompts and suggestions.
+      Example: athf hunt new
+
+    \b
+    Non-interactive mode:
+      Provide all details via options for scripting.
+      Example: athf hunt new --technique T1003.001 --title "LSASS Dumping" \\
+               --tactic credential-access --platform Windows --non-interactive
+
+    \b
+    After creation:
+      1. Edit hunts/H-XXXX.md to flesh out your hypothesis
+      2. Create query in queries/H-XXXX.spl
+      3. Execute hunt and document in runs/H-XXXX_YYYY-MM-DD.md
     """
     console.print("\n[bold cyan]🎯 Creating new hunt[/bold cyan]\n")
 
@@ -104,7 +172,8 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
         # Data sources
         console.print("\n5. Data Sources (comma-separated):")
         console.print(f"   Examples: [cyan]{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}, Network Logs[/cyan]")
-        ds_input = Prompt.ask("   Data Sources", default=",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
         hunt_data_sources = [ds.strip() for ds in ds_input.split(",")]
 
     # Render template
@@ -138,9 +207,37 @@ def new(technique, title, tactic, platform, data_source, non_interactive):
 @click.option("--platform", help="Filter by platform")
 @click.option("--format", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
 def list(status, tactic, technique, platform, format):
-    """List all hunts.
+    """List all hunts with filtering and formatting options.
 
-    Shows hunt catalog with optional filters.
+    \b
+    Displays hunt catalog with:
+    • Hunt ID and title
+    • Current status
+    • MITRE ATT&CK techniques
+    • True/False positive counts
+
+    \b
+    Examples:
+      # List all hunts
+      athf hunt list
+
+      # Show only completed hunts
+      athf hunt list --status completed
+
+      # Filter by tactic
+      athf hunt list --tactic credential-access
+
+      # Combine filters
+      athf hunt list --tactic persistence --platform Linux
+
+      # JSON output for scripting
+      athf hunt list --format json
+
+    \b
+    Output formats:
+      • table (default): Human-readable table with colors
+      • json: Machine-readable for scripts and automation
+      • yaml: Structured format for configuration management
     """
     manager = HuntManager()
     hunts = manager.list_hunts(
@@ -195,9 +292,29 @@ def list(status, tactic, technique, platform, format):
 @hunt.command()
 @click.argument("hunt_id", required=False)
 def validate(hunt_id):
-    """Validate hunt structure.
+    """Validate hunt file structure and metadata.
 
-    Checks YAML frontmatter, required fields, and LOCK sections.
+    \b
+    Validates:
+    • YAML frontmatter syntax
+    • Required metadata fields
+    • LOCK section structure
+    • MITRE ATT&CK technique format
+    • File naming conventions
+
+    \b
+    Examples:
+      # Validate specific hunt
+      athf hunt validate H-0042
+
+      # Validate all hunts
+      athf hunt validate
+
+    \b
+    Use this to:
+    • Catch formatting errors before committing
+    • Ensure consistency across hunt documentation
+    • Verify hunt files are AI-assistant readable
     """
     if hunt_id:
         # Validate specific hunt
@@ -211,7 +328,12 @@ def validate(hunt_id):
         # Validate all hunts
         console.print("\n[bold]🔍 Validating all hunts...[/bold]\n")
 
-        hunt_files = list(Path("hunts").glob("*.md"))
+        hunts_dir = Path("hunts")
+        if not hunts_dir.exists():
+            console.print("[yellow]No hunts directory found.[/yellow]")
+            return
+
+        hunt_files = list(hunts_dir.glob("*.md"))
 
         if not hunt_files:
             console.print("[yellow]No hunt files found.[/yellow]")
@@ -251,9 +373,26 @@ def _validate_single_hunt(hunt_file: Path):
 
 @hunt.command()
 def stats():
-    """Show hunt program statistics.
+    """Show hunt program statistics and success metrics.
 
-    Displays success rates, TP/FP ratios, and coverage metrics.
+    \b
+    Calculates and displays:
+    • Total hunts vs completed hunts
+    • Total findings (True Positives + False Positives)
+    • Success rate (hunts with TPs / completed hunts)
+    • TP/FP ratio (quality of detections)
+    • Hunt velocity metrics
+
+    \b
+    Example:
+      athf hunt stats
+
+    \b
+    Use this to:
+    • Track hunting program effectiveness over time
+    • Identify areas for improvement
+    • Demonstrate hunting value to leadership
+    • Set quarterly goals and OKRs
     """
     manager = HuntManager()
     stats = manager.calculate_stats()
@@ -279,9 +418,36 @@ def stats():
 @hunt.command()
 @click.argument("query")
 def search(query):
-    """Full-text search across all hunts.
+    """Full-text search across all hunt files.
 
-    Example: athf hunt search "kerberoasting"
+    \b
+    Searches through:
+    • Hunt titles and descriptions
+    • YAML frontmatter metadata
+    • LOCK section content
+    • Lessons learned
+    • Query comments
+
+    \b
+    Examples:
+      # Search for specific TTP
+      athf hunt search "kerberoasting"
+
+      # Search for technology
+      athf hunt search "powershell"
+
+      # Search by hunt ID
+      athf hunt search "H-0042"
+
+      # Search for data source
+      athf hunt search "sysmon"
+
+    \b
+    Use this to:
+    • Avoid duplicate hunts
+    • Find related past work
+    • Reference lessons learned
+    • Check if a TTP has been hunted before
     """
     manager = HuntManager()
     results = manager.search_hunts(query)
@@ -300,9 +466,31 @@ def search(query):
 
 @hunt.command()
 def coverage():
-    """Show MITRE ATT&CK technique coverage.
+    """Show MITRE ATT&CK technique coverage across hunts.
 
-    Displays which techniques you've hunted for, organized by tactic.
+    \b
+    Analyzes and displays:
+    • Which tactics you've hunted (e.g., Persistence, Credential Access)
+    • Which techniques per tactic
+    • Coverage gaps (tactics with few/no hunts)
+    • Hunt distribution across the ATT&CK matrix
+
+    \b
+    Example:
+      athf hunt coverage
+
+    \b
+    Use this to:
+    • Identify blind spots in your hunting program
+    • Prioritize future hunt topics
+    • Demonstrate coverage to stakeholders
+    • Align hunting with threat intelligence priorities
+    • Balance hunt portfolio across tactics
+
+    \b
+    Pro tip:
+      Combine with threat intel to focus on attacker-relevant TTPs.
+      Example: "Which persistence techniques are we NOT hunting?"
     """
     manager = HuntManager()
     coverage = manager.calculate_attack_coverage()

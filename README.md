@@ -254,6 +254,12 @@ The goal is to help every threat hunting team move from ad-hoc memory to structu
 
 ---
 
+## 👤 Author
+
+Created by **Sydney Marrone** © 2025
+
+---
+
 **Start small. Document one hunt. Add structure. Build memory.**
 
 Memory is the multiplier. Agency is the force.

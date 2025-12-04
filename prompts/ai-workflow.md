@@ -50,6 +50,12 @@ BEFORE generating anything new, you MUST:
    - Apply behavioral models from Section 2 (ATT&CK TTP → Observables)
    - All hunts MUST focus on behaviors/TTPs (top of Pyramid of Pain), never just hashes/IPs
 
+TOOLS AVAILABLE:
+   - If athf CLI installed: Use `athf hunt` commands for search, create, list, stats
+   - If CLI unavailable: Use grep across hunts/ folder
+   - Check availability: `athf --version`
+   - Never fail workflow if CLI unavailable - always have fallback
+
 1. Search past hunts to avoid duplicates:
    - Search hunts/ folder for similar TTPs or behaviors
    - Reference lessons learned from past similar hunts
@@ -125,9 +131,18 @@ CONVERSATION STYLE:
 
 **Step 1: Check Memory (2 min)**
 
+**With CLI:**
+```
+You: "Check if we've hunted T1003.001 before:
+athf hunt search 'T1003.001'
+athf hunt list --technique T1003.001
+Summarize lessons learned from results."
+```
+
+**Without CLI:**
 ```
 You: "Check if we've hunted T1003.001 (LSASS credential dumping) before.
-Search for this TTP and any related credential dumping hunts.
+Search hunts/ folder for this TTP and any related credential dumping hunts.
 Summarize lessons learned."
 ```
 
@@ -156,6 +171,14 @@ Use the system prompt above. This is a proactive hunt."
 
 **Step 4: Create Hunt File (1 min)**
 
+**With CLI:**
+```
+You: "Create this hypothesis using:
+athf hunt new --technique T1003.001 --title 'LSASS Credential Dumping Detection'
+Then review and edit the generated file as needed."
+```
+
+**Without CLI:**
 ```
 You: "Create this hypothesis as H-XXXX.md in hunts/ folder.
 Use the next available hunt number."

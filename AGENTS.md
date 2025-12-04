@@ -117,7 +117,7 @@ H-0042_2025-12-06.md (results from re-running the same query on Dec 6)
 When working with hunts:
 
 - **Use hunt ID as primary reference** - "Let me look at H-0042" immediately tells you: hypothesis (hunts/), query (queries/), and all past executions (runs/)
-- **Search by hunt ID first** - Check if a hunt already exists before creating new ones (grep hunts/ for hunt ID)
+- **Search by hunt ID first** - Check if hunt exists: `athf hunt search "H-0042"` (or `grep "H-0042" hunts/*.md` if CLI unavailable)
 - **Link queries to hypotheses** - Every query should correspond to a hunt card (same H-#### ID)
 - **Track execution history** - Multiple run files for same hunt ID shows iteration and learning over time
 
@@ -222,6 +222,51 @@ See [environment.md "Known Gaps & Blind Spots"](../environment.md#known-gaps--bl
 
 ---
 
+## CLI Commands for AI Assistants
+
+**Purpose:** ATHF includes optional CLI tools (`athf` command) that automate common hunt management tasks. When available, these commands are faster and more reliable than manual file operations.
+
+### Quick Command Reference
+
+| Command | Use When | Replaces Manual | Output Format |
+|---------|----------|-----------------|---------------|
+| `athf hunt new --technique T1003` | Creating new hunt | Manual file + YAML | Hunt file created |
+| `athf hunt search "kerberoasting"` | Full-text search | grep across files | Text results |
+| `athf hunt list --tactic credential-access` | Filter by metadata | grep + YAML parsing | Table/JSON/YAML |
+| `athf hunt stats` | Calculate metrics | Manual TP/FP counting | Statistics summary |
+| `athf hunt coverage` | ATT&CK gap analysis | Manual technique tracking | Coverage report |
+| `athf hunt validate H-0001` | Check structure | Manual YAML check | Validation results |
+
+### CLI Availability Check
+
+AI assistants should verify CLI is installed before using:
+
+```bash
+athf --version
+```
+
+- **If succeeds** → Use CLI commands (faster, structured output)
+- **If fails** → Use grep/manual fallback (shown in examples below)
+
+### When to Use CLI vs Manual
+
+**Use CLI when:**
+- Creating hunts (handles ID generation, template, YAML frontmatter)
+- Filtering by metadata (tactics, techniques, status, platform)
+- Calculating statistics (automatic TP/FP/success rate calculation)
+- Validating hunt structure (automatic checks)
+- Need structured output (JSON/YAML for parsing)
+
+**Use Manual/Grep when:**
+- Reading hunt content (LOCK sections, lessons learned)
+- Editing existing hunt files
+- Custom filtering beyond CLI capabilities
+- CLI not installed (Level 0-1 maturity)
+
+**Full CLI documentation:** [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)
+
+---
+
 ## Hunting Methodology
 
 **Primary Framework:** [LOCK / PEAK / TaHiTI]
@@ -309,12 +354,24 @@ tags: [kerberos, credential-theft] # Freeform tags (array)
 
 #### Example 1: Finding Related Work
 
+**CLI Approach (Recommended):**
+```bash
+athf hunt search "kerberoasting"
+athf hunt list --tactic credential-access --technique T1558
+```
+
+**Manual Approach (Fallback if CLI unavailable):**
+```bash
+grep -r "kerberoasting" hunts/
+grep "T1558" hunts/*.md
+```
+
+**AI Workflow:**
 ```
 User: "Generate hypothesis for hunting Kerberoasting attacks"
 
 AI Workflow:
-1. Search hunts/ folder for files with `tactics: [credential-access]`
-   and `techniques` matching T1558 pattern
+1. Search for "Kerberoasting" using CLI or grep
 2. Check `related_hunts` fields to find hunt chains
 3. Read lessons learned from similar past hunts (H-0042)
 4. Generate new hypothesis incorporating past findings
@@ -323,11 +380,23 @@ AI Workflow:
 
 #### Example 2: Coverage Gap Analysis
 
+**CLI Approach (Recommended):**
+```bash
+athf hunt coverage
+```
+
+**Manual Approach (Fallback if CLI unavailable):**
+```bash
+# Parse YAML frontmatter from all hunts, count by tactic
+grep -h "^tactics:" hunts/H-*.md | sort | uniq -c
+```
+
+**AI Workflow:**
 ```
 User: "Which MITRE tactics do we need to hunt more?"
 
 AI Workflow:
-1. Parse all hunt YAML frontmatter
+1. Get coverage data via CLI or manual YAML parsing
 2. Count hunts per tactic:
    - credential-access: 8 hunts
    - persistence: 5 hunts
@@ -339,11 +408,23 @@ AI Workflow:
 
 #### Example 3: Hunt Success Metrics
 
+**CLI Approach (Recommended):**
+```bash
+athf hunt stats
+```
+
+**Manual Approach (Fallback if CLI unavailable):**
+```bash
+# Parse YAML from completed hunts, calculate TP/FP ratios
+grep -A20 "^status: completed" hunts/H-*.md | grep -E "(true_positives|false_positives|findings_count)"
+```
+
+**AI Workflow:**
 ```
 User: "What's our hunt success rate?"
 
 AI Workflow:
-1. Filter hunts where `status: completed`
+1. Get statistics via CLI or manual parsing
 2. Calculate metrics:
    - Total hunts: 15
    - Hunts with TPs: 8 (53% detection rate)
@@ -355,13 +436,23 @@ AI Workflow:
 
 #### Example 4: Platform-Specific Hunting
 
+**CLI Approach (Recommended):**
+```bash
+athf hunt list --platform Linux --tactic persistence
+```
+
+**Manual Approach (Fallback if CLI unavailable):**
+```bash
+# Search for Linux + persistence in YAML frontmatter
+grep -l "platform.*Linux" hunts/H-*.md | xargs grep -l "tactics.*persistence"
+```
+
+**AI Workflow:**
 ```
 User: "Find all Linux persistence hunts"
 
 AI Workflow:
-1. Filter where:
-   - `platform` array contains "Linux"
-   - `tactics` array contains "persistence"
+1. Filter hunts via CLI or manual grep
 2. Return matching hunts: H-0002, H-0018, H-0029
 3. Show related techniques: T1053.003 (cron), T1543.002 (systemd)
 4. Suggest coverage gaps: T1574 (hijack execution flow)
@@ -553,9 +644,11 @@ This section provides essential guidance for AI assistants generating threat hun
 
 **When AI needs to recall past hunts:**
 
-- Use grep/search across `hunts/` folder (hunt notes)
-- Use grep/search across `environment.md` (tech stack and context)
-- At Level 3+: Query structured memory if available
+- **CLI available:** Use `athf hunt search`, `athf hunt list --filter`, `athf hunt stats`
+- **CLI unavailable:** Use grep/search across `hunts/` folder and `environment.md`
+- **Level 3+:** Query structured memory via CLI or custom scripts
+
+**CLI benefits:** Structured output (JSON/YAML), built-in filtering, automatic YAML parsing
 
 ---
 

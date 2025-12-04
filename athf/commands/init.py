@@ -13,10 +13,49 @@ console = Console()
 @click.option("--path", default=".", help="Directory to initialize ATHF in")
 @click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
 def init(path, non_interactive):
-    """Initialize ATHF directory structure.
+    """Initialize a new ATHF threat hunting workspace.
 
-    Creates the necessary directories and configuration files for an ATHF
-    threat hunting program.
+    \b
+    Creates directory structure:
+      config/         Configuration files
+      hunts/          Hunt hypothesis cards
+      queries/        Reusable query library
+      runs/           Hunt execution results
+      templates/      Hunt templates (LOCK pattern)
+      knowledge/      Domain expertise and frameworks
+      prompts/        AI workflow prompts
+      integrations/   Tool integration configs
+      docs/           Documentation
+
+    \b
+    Generates files:
+      • config/.athfconfig.yaml (workspace configuration)
+      • AGENTS.md (AI assistant context)
+      • templates/HUNT_LOCK.md (hunt template)
+
+    \b
+    Examples:
+      # Interactive setup (recommended for first time)
+      athf init
+
+      # Non-interactive with defaults
+      athf init --non-interactive
+
+      # Initialize in specific directory
+      athf init --path /path/to/workspace
+
+    \b
+    Interactive setup will ask you:
+      1. SIEM platform (Splunk, Sentinel, Elastic, etc.)
+      2. EDR platform (CrowdStrike, SentinelOne, etc.)
+      3. Hunt ID prefix (default: H-)
+      4. Hunt retention period (default: 365 days)
+
+    \b
+    After initialization:
+      1. Customize AGENTS.md with your environment details
+      2. Add data sources to config/.athfconfig.yaml
+      3. Create your first hunt: athf hunt new
     """
     base_path = Path(path).resolve()
 

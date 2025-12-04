@@ -79,7 +79,26 @@ If you're using Claude Code or similar AI tools, just ask:
 
 The AI will search the hunts/ folder and summarize findings.
 
-### Manual Grep
+### CLI Search (Recommended)
+
+```bash
+# Find hunts by MITRE technique
+athf hunt list --technique T1110.001
+
+# Find by behavior (full-text search)
+athf hunt search "brute force"
+
+# Find by technology
+athf hunt search "powershell"
+
+# See completed hunts
+athf hunt list --status completed
+
+# Get hunt statistics
+athf hunt stats
+```
+
+### Manual Grep (Fallback)
 
 ```bash
 # Find hunts by MITRE technique

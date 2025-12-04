@@ -114,7 +114,7 @@ jobs:
         # Install markdown-link-check
         npm install -g markdown-link-check
         # Check all markdown files for broken links
-        find . -name "*.md" -not -path "./node_modules/*" -not -path "./.github/*" | xargs markdown-link-check --config .markdown-link-check.json
+        find . -name "*.md" -not -path "./node_modules/*" -not -path "./.github/*" | xargs markdown-link-check --config config/.markdown-link-check.json
       continue-on-error: true  # Don't fail on external link issues
 
     - name: Validate markdown formatting
