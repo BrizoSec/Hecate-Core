@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import yaml
 
 
@@ -109,7 +109,7 @@ class HuntParser:
 
         return sections
 
-    def validate(self) -> tuple[bool, List[str]]:
+    def validate(self) -> Tuple[bool, List[str]]:
         """Validate hunt structure.
 
         Returns:
@@ -154,7 +154,7 @@ def parse_hunt_file(file_path: Path) -> Dict:
     return parser.parse()
 
 
-def validate_hunt_file(file_path: Path) -> tuple[bool, List[str]]:
+def validate_hunt_file(file_path: Path) -> Tuple[bool, List[str]]:
     """Convenience function to validate a hunt file.
 
     Args:
