@@ -4,14 +4,23 @@
 
 <h1 align="center">Agentic Threat Hunting Framework (ATHF)</h1>
 
-[![PyPI version](https://badge.fury.io/py/athf-framework.svg)](https://badge.fury.io/py/athf-framework)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers)
+<p align="center">
+  <a href="https://badge.fury.io/py/athf-framework"><img src="https://badge.fury.io/py/athf-framework.svg" alt="PyPI version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers"><img src="https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social" alt="GitHub stars"></a>
+</p>
 
-**[Quick Start](#-quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](SHOWCASE.md)**
+<p align="center">
+  <strong><a href="#-quick-start">Quick Start</a></strong> •
+  <strong><a href="#installation">Installation</a></strong> •
+  <strong><a href="#documentation">Documentation</a></strong> •
+  <strong><a href="SHOWCASE.md">Examples</a></strong>
+</p>
 
-> Give your threat hunting program memory and agency.
+<p align="center">
+  <em>Give your threat hunting program memory and agency.</em>
+</p>
 
 The **Agentic Threat Hunting Framework (ATHF)** is the memory and automation layer for your threat hunting program. It gives your hunts structure, persistence, and context - making every past investigation accessible to both humans and AI.
 
