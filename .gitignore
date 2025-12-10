@@ -55,7 +55,7 @@ coverage.xml
 htmlcov/
 .tox/
 .nox/
-testing/
+# Note: testing/ directory is tracked (contains important test scripts)
 
 # Type checking
 .mypy_cache/
