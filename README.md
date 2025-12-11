@@ -5,7 +5,6 @@
 <h1 align="center">Agentic Threat Hunting Framework (ATHF)</h1>
 
 <p align="center">
-  <a href="https://badge.fury.io/py/athf-framework"><img src="https://badge.fury.io/py/athf-framework.svg" alt="PyPI version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers"><img src="https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social" alt="GitHub stars"></a>
@@ -88,22 +87,16 @@ ATHF defines a simple maturity model. Each level builds on the previous one.
 ### Option 1: Python CLI (Recommended)
 
 ```bash
-# Install via PyPI
-pip install athf-framework
+# Clone and install from source
+git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+cd agentic-threat-hunting-framework
+pip install -e .
 
 # Initialize your hunt program
 athf init
 
 # Create your first hunt
 athf hunt new --technique T1003.001 --title "LSASS Credential Dumping"
-```
-
-**Or install from source:**
-
-```bash
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
-pip install -e .
 ```
 
 ### Option 2: Pure Markdown (No Installation)
@@ -165,8 +158,6 @@ athf hunt coverage                  # MITRE ATT&CK coverage
 
 **Full documentation:** [CLI Reference](docs/CLI_REFERENCE.md)
 
-> **Note:** The CLI is fully functional and ready to use. Install from source using `pip install -e .` in the repository directory. PyPI package publication coming soon.
-
 ## 📺 See It In Action
 
 ![ATHF Demo](assets/athf-cli-workflow.gif)
@@ -184,12 +175,6 @@ Watch ATHF in action: initialize a workspace, create hunts, and explore your thr
 
 ### CLI Installation
 
-**Via PyPI (Recommended):**
-```bash
-pip install athf-framework
-```
-
-**From Source:**
 ```bash
 git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
 cd agentic-threat-hunting-framework
