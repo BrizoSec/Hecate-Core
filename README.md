@@ -5,8 +5,8 @@
 <h1 align="center">Agentic Threat Hunting Framework (ATHF)</h1>
 
 <p align="center">
-  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/v/agentic-threat-hunting-framework" alt="PyPI version"></a>
-  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/dm/agentic-threat-hunting-framework" alt="PyPI downloads"></a>
+  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/v/agentic_threat_hunting_framework" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/dm/agentic_threat_hunting_framework" alt="PyPI downloads"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers"><img src="https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social" alt="GitHub stars"></a>
