@@ -5,6 +5,8 @@
 <h1 align="center">Agentic Threat Hunting Framework (ATHF)</h1>
 
 <p align="center">
+  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/v/agentic-threat-hunting-framework" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/agentic-threat-hunting-framework/"><img src="https://img.shields.io/pypi/dm/agentic-threat-hunting-framework" alt="PyPI downloads"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers"><img src="https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social" alt="GitHub stars"></a>
@@ -84,13 +86,11 @@ ATHF defines a simple maturity model. Each level builds on the previous one.
 
 ## 🚀 Quick Start
 
-### Option 1: Python CLI (Recommended)
+### Option 1: Install from PyPI (Recommended)
 
 ```bash
-# Clone and install from source
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
-pip install -e .
+# Install ATHF
+pip install agentic-threat-hunting-framework
 
 # Initialize your hunt program
 athf init
@@ -99,7 +99,20 @@ athf init
 athf hunt new --technique T1003.001 --title "LSASS Credential Dumping"
 ```
 
-### Option 2: Pure Markdown (No Installation)
+### Option 2: Install from Source (Development)
+
+```bash
+# Clone and install from source
+git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+cd agentic-threat-hunting-framework
+pip install -e .
+
+# Initialize and start hunting
+athf init
+athf hunt new --technique T1003.001
+```
+
+### Option 3: Pure Markdown (No Installation)
 
 ```bash
 # Clone the repository
@@ -170,18 +183,25 @@ Watch ATHF in action: initialize a workspace, create hunts, and explore your thr
 
 ### Prerequisites
 - Python 3.8-3.13 (for CLI option)
-- Git
 - Your favorite AI code assistant
 
-### CLI Installation
+### From PyPI (Recommended)
+
+```bash
+pip install agentic-threat-hunting-framework
+athf init
+```
+
+### From Source (Development)
 
 ```bash
 git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
 cd agentic-threat-hunting-framework
 pip install -e .
+athf init
 ```
 
-### Markdown-Only Setup (No CLI)
+### Markdown-Only Setup (No Installation)
 
 ```bash
 git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework

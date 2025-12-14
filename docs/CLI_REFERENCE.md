@@ -21,7 +21,7 @@ Complete reference for all `athf` command-line interface commands.
 ## Installation
 
 ```bash
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 ```
 
 See [INSTALL.md](INSTALL.md) for detailed installation instructions.
@@ -915,7 +915,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - run: pip install athf-framework
+      - run: pip install agentic-threat-hunting-framework
       - run: athf hunt validate
 ```
 

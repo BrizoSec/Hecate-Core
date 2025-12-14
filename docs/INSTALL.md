@@ -7,7 +7,7 @@ This guide covers installation methods and development setup for the Agentic Thr
 The fastest way to get started:
 
 ```bash
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 athf init
 ```
 
@@ -23,7 +23,7 @@ That's it! You're ready to start threat hunting.
 
 ```bash
 # Install the latest stable release
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 
 # Verify installation
 athf --version
@@ -47,7 +47,7 @@ source athf-env/bin/activate  # On macOS/Linux
 athf-env\Scripts\activate     # On Windows
 
 # Install ATHF
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 ```
 
 ---
@@ -338,7 +338,7 @@ python3 --version
 brew install python3
 
 # Install ATHF
-pip3 install athf-framework
+pip3 install agentic-threat-hunting-framework
 
 # Add to PATH if needed (check installation output)
 export PATH="$HOME/Library/Python/3.x/bin:$PATH"
@@ -354,7 +354,7 @@ sudo apt update
 sudo apt install python3 python3-pip python3-venv
 
 # Install ATHF
-pip3 install athf-framework
+pip3 install agentic-threat-hunting-framework
 
 # Add to PATH if needed
 export PATH="$HOME/.local/bin:$PATH"
@@ -371,7 +371,7 @@ Add the PATH export to your `~/.bashrc` to make it permanent.
 python --version
 
 # Install ATHF
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 
 # Verify
 athf --version
@@ -423,9 +423,9 @@ If all commands work, you're ready to go!
 
 **Solution**:
 
-1. Find where pip installed athf:
+1. Find where pip installed the package:
    ```bash
-   pip show athf-framework
+   pip show agentic-threat-hunting-framework
    ```
 
 2. The scripts are typically in:
@@ -454,7 +454,7 @@ If all commands work, you're ready to go!
 pip list | grep athf
 
 # If not listed, install it
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 
 # Check which Python pip is using
 pip --version
@@ -487,15 +487,15 @@ python --version
 
 ```bash
 # Option 1: Install for current user only (recommended)
-pip install --user athf-framework
+pip install --user agentic-threat-hunting-framework
 
 # Option 2: Use a virtual environment (best practice)
 python3 -m venv athf-env
 source athf-env/bin/activate
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 
 # Option 3: Install globally (not recommended)
-sudo pip install athf-framework
+sudo pip install agentic-threat-hunting-framework
 ```
 
 ### Import errors with dependencies
@@ -510,7 +510,7 @@ python3 -m venv fresh-env
 source fresh-env/bin/activate
 
 # Install ATHF in the clean environment
-pip install athf-framework
+pip install agentic-threat-hunting-framework
 
 # Verify dependencies
 pip list
@@ -535,7 +535,7 @@ To upgrade to the latest version:
 
 ```bash
 # Upgrade from PyPI
-pip install --upgrade athf-framework
+pip install --upgrade agentic-threat-hunting-framework
 
 # Or from source
 cd agentic-threat-hunting-framework
@@ -554,7 +554,7 @@ To remove ATHF:
 
 ```bash
 # Uninstall the package
-pip uninstall athf-framework
+pip uninstall agentic-threat-hunting-framework
 
 # Remove your workspace (optional - this deletes your hunts!)
 # rm -rf /path/to/your/athf-workspace
