@@ -121,7 +121,7 @@ def _get_hunt_text(hunt_id: str) -> Optional[str]:
     hunt_file = Path(f"hunts/{hunt_id}.md")
     if not hunt_file.exists():
         return None
-    return hunt_file.read_text()
+    return hunt_file.read_text(encoding='utf-8')
 
 
 def _find_similar_hunts(
@@ -156,7 +156,7 @@ def _find_similar_hunts(
         if exclude_hunt and hunt_id == exclude_hunt:
             continue
 
-        content = hunt_file.read_text()
+        content = hunt_file.read_text(encoding='utf-8')
         metadata = _extract_hunt_metadata(content)
 
         # Extract searchable text (weighted semantic sections)

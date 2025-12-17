@@ -197,7 +197,7 @@ def _build_context(
 
 def _read_and_optimize(file_path: Path) -> str:
     """Read file and optimize for token efficiency."""
-    content = file_path.read_text()
+    content = file_path.read_text(encoding='utf-8')
 
     # First pass: Remove all control characters except tabs and newlines
     # Control characters are U+0000 through U+001F (0-31), except tab (9), LF (10), CR (13)

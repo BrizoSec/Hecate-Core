@@ -4,7 +4,7 @@ This module contains reference data for the MITRE ATT&CK Enterprise matrix,
 including tactic ordering and technique counts.
 """
 
-from typing import Dict, TypedDict
+from typing import Dict, List, TypedDict
 
 
 class TacticInfo(TypedDict):
@@ -122,7 +122,7 @@ def get_tactic_technique_count(tactic_key: str) -> int:
     return 0
 
 
-def get_sorted_tactics() -> list[str]:
+def get_sorted_tactics() -> List[str]:
     """Get all tactic keys sorted by ATT&CK matrix order.
 
     Returns:

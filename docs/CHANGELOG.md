@@ -29,9 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Type errors in `athf/core/attack_matrix.py` (added TypedDict for proper mypy checking)
-- Python 3.8 compatibility in `athf/commands/env.py` (Union syntax)
+- Python 3.8 compatibility: `list[str]` → `List[str]` in `athf/core/attack_matrix.py`
+- Python 3.8 compatibility: `int | str` → `Union[int, str]` in `athf/commands/env.py`
+- Windows UTF-8 encoding errors in `athf/commands/context.py` and `athf/commands/similar.py`
+- Test assertion errors in `tests/commands/test_env.py` for env info and activate commands
 - Removed unused type ignore comments in `athf/commands/similar.py`
-- CI/CD pipeline mypy errors blocking builds
+- CI/CD pipeline errors blocking builds on Python 3.8-3.12 across all platforms
 
 ## [0.2.0] - 2024-12-17
 

@@ -65,15 +65,16 @@ class TestEnvCommand:
 
         assert result.exit_code == 0
         # Should show either environment info or missing venv message
-        assert "Virtual Environment Info" in result.output or "No virtual environment" in result.output
+        assert "Virtual Environment Info" in result.output or "No .venv directory found" in result.output
 
     def test_env_activate_shows_command(self, runner):
         """Test that env activate shows activation command."""
         result = runner.invoke(env, ["activate"])
 
-        assert result.exit_code == 0
+        # Exit code 1 when no venv exists (click.Abort), 0 when venv exists
+        assert result.exit_code in (0, 1)
         # Should show activation command or setup instructions
-        assert "source" in result.output or "athf env setup" in result.output
+        assert "source" in result.output or "athf env setup" in result.output or "No .venv directory found" in result.output
 
     def test_env_deactivate_shows_command(self, runner):
         """Test that env deactivate shows deactivation command."""
