@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - None
 
+## [0.2.1] - 2024-12-17
+
+### Fixed
+- Type errors in `athf/core/attack_matrix.py` (added TypedDict for proper mypy checking)
+- Python 3.8 compatibility in `athf/commands/env.py` (Union syntax)
+- Removed unused type ignore comments in `athf/commands/similar.py`
+- CI/CD pipeline mypy errors blocking builds
+
 ## [0.2.0] - 2024-12-17
 
 ### Added

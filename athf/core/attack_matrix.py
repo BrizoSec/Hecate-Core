@@ -4,9 +4,20 @@ This module contains reference data for the MITRE ATT&CK Enterprise matrix,
 including tactic ordering and technique counts.
 """
 
+from typing import Dict, TypedDict
+
+
+class TacticInfo(TypedDict):
+    """Type definition for tactic information."""
+
+    name: str
+    technique_count: int
+    order: int
+
+
 # MITRE ATT&CK Enterprise Matrix v14 (January 2024)
 # Approximate technique counts per tactic (includes sub-techniques)
-ATTACK_TACTICS = {
+ATTACK_TACTICS: Dict[str, TacticInfo] = {
     "reconnaissance": {
         "name": "Reconnaissance",
         "technique_count": 10,
@@ -92,7 +103,9 @@ def get_tactic_display_name(tactic_key: str) -> str:
     Returns:
         Display name (e.g., "Credential Access")
     """
-    return ATTACK_TACTICS.get(tactic_key, {}).get("name", tactic_key.replace("-", " ").title())
+    if tactic_key in ATTACK_TACTICS:
+        return ATTACK_TACTICS[tactic_key]["name"]
+    return tactic_key.replace("-", " ").title()
 
 
 def get_tactic_technique_count(tactic_key: str) -> int:
@@ -104,7 +117,9 @@ def get_tactic_technique_count(tactic_key: str) -> int:
     Returns:
         Total technique count for the tactic
     """
-    return ATTACK_TACTICS.get(tactic_key, {}).get("technique_count", 0)
+    if tactic_key in ATTACK_TACTICS:
+        return ATTACK_TACTICS[tactic_key]["technique_count"]
+    return 0
 
 
 def get_sorted_tactics() -> list[str]:

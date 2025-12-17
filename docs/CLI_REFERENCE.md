@@ -148,7 +148,7 @@ edr: crowdstrike
 hunt_prefix: H
 retention_days: 90
 initialized: 2025-12-02T14:30:00
-version: 0.2.0
+version: 0.2.1
 ```
 
 ### Exit Codes
@@ -237,7 +237,7 @@ Virtual Environment Info:
   Location: /path/to/.venv
   Python: Python 3.11.5
   Packages: 42 installed
-  athf: ✓ Installed (version 0.2.0)
+  athf: ✓ Installed (version 0.2.1)
   scikit-learn: ✓ Installed (required for athf similar)
 ```
 
@@ -1658,7 +1658,7 @@ retention_days: 90
 
 # Metadata (auto-generated)
 initialized: 2025-12-02T14:30:00
-version: 0.2.0
+version: 0.2.1
 ```
 
 ### Environment Variables

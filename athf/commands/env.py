@@ -3,6 +3,7 @@
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
+from typing import Union
 
 import click
 from rich.console import Console
@@ -280,7 +281,7 @@ def info() -> None:
 
     # Get installed packages count
     pip_path = python_path.parent / "pip"
-    package_count: int | str
+    package_count: Union[int, str]
     try:
         result = subprocess.run(
             [str(pip_path), "list", "--format", "freeze"],
