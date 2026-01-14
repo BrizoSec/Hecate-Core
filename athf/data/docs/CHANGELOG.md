@@ -25,6 +25,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - None
 
+## [0.4.0] - 2026-01-14
+
+### Added
+- **Splunk Integration** - Native Splunk data source support
+  - `athf commands/splunk.py` - Splunk CLI command for query execution
+  - `athf/core/splunk_client.py` - Splunk REST API client
+  - Optional dependencies in pyproject.toml: `splunk = ["requests>=2.25.0"]`
+  - Integration quickstart guide at `integrations/quickstart/splunk.md`
+- **Documentation Expansion** - Comprehensive CLI reference and user guides
+  - CLI_REFERENCE.md expanded by +530 lines with complete command documentation
+  - Enhanced getting-started.md with improved onboarding workflow
+  - Improved level4-agentic-workflows.md with agent orchestration patterns
+  - Enhanced maturity-model.md with +70 lines of maturity progression guidance
+- **Workspace Structure** - Standard directory initialization
+  - docs/, hunts/, integrations/, knowledge/, prompts/, templates/ directories
+  - environment.md template for documenting data sources and tech stack
+
+### Changed
+- **AGENTS.md** - Updated AI assistant instructions with Splunk integration context
+- **CLI Enhancements** - Improved command structure and error handling
+- **Template Engine** - Enhanced template rendering capabilities
+- **Web Search** - Updated Tavily integration for research workflows
+
+### Removed
+- **Testing Infrastructure** - Removed testing/ directory (8 files)
+  - Consolidated testing approach for cleaner repository structure
+  - Files removed: AGENTS.md, PRESENTATION_OUTLINE.md, README.md, TEST-SUMMARY.md, TESTING.md
+  - Scripts removed: test-fresh-install.sh, test-local.sh, test-quick.sh
+
 ## [0.3.1] - 2026-01-13
 
 ### Fixed

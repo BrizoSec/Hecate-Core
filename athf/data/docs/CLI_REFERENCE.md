@@ -9,17 +9,24 @@ Complete reference for all `athf` command-line interface commands.
 | [`athf init`](#athf-init) | Setup | Initialize ATHF workspace directory structure |
 | [`athf env setup`](#athf-env) | Environment | Setup Python virtual environment with dependencies |
 | [`athf env info`](#athf-env) | Environment | Show virtual environment information |
+| [`athf agent list`](#athf-agent-list) | Agent Framework | List all available agents |
+| [`athf agent info`](#athf-agent-info) | Agent Framework | Show detailed agent information |
+| [`athf agent run`](#athf-agent-run) | Agent Framework | Run individual agent |
+| [`athf research new`](#athf-research-new) | Research | Create new research document with web search |
+| [`athf research list`](#athf-research-list) | Research | List all research documents |
+| [`athf research view`](#athf-research-view) | Research | View research document |
 | [`athf hunt new`](#athf-hunt-new) | Hunt Management | Create new hunt from template with auto-generated ID |
 | [`athf hunt list`](#athf-hunt-list) | Hunt Management | List all hunts with optional filtering |
 | [`athf hunt validate`](#athf-hunt-validate) | Hunt Management | Validate hunt file structure and metadata |
 | [`athf hunt stats`](#athf-hunt-stats) | Hunt Management | Display hunt statistics and success metrics |
 | [`athf hunt search`](#athf-hunt-search) | Hunt Management | Full-text search across all hunts |
 | [`athf hunt coverage`](#athf-hunt-coverage) | Hunt Management | Display MITRE ATT&CK coverage heatmap |
-| [`athf investigate new`](#athf-investigate-new) | Investigation Management | Create new investigation file for exploratory work |
-| [`athf investigate list`](#athf-investigate-list) | Investigation Management | List all investigations with optional filtering |
-| [`athf investigate search`](#athf-investigate-search) | Investigation Management | Full-text search across investigations |
-| [`athf investigate validate`](#athf-investigate-validate) | Investigation Management | Validate investigation file structure |
-| [`athf investigate promote`](#athf-investigate-promote) | Investigation Management | Promote investigation to formal hunt |
+| [`athf hunt execute`](#athf-hunt-execute) | Hunt Management | Execute hunt workflow with agent orchestration |
+| [`athf investigate new`](#athf-investigate-new) | Investigation | Create new investigation file for exploratory work |
+| [`athf investigate list`](#athf-investigate-list) | Investigation | List all investigations with optional filtering |
+| [`athf investigate search`](#athf-investigate-search) | Investigation | Full-text search across investigations |
+| [`athf investigate validate`](#athf-investigate-validate) | Investigation | Validate investigation file structure |
+| [`athf investigate promote`](#athf-investigate-promote) | Investigation | Promote investigation to formal hunt |
 | [`athf context`](#athf-context) | AI Optimization | Export AI-optimized context bundle (saves ~75% tokens) |
 | [`athf similar`](#athf-similar) | AI Optimization | Find similar hunts using semantic search |
 
@@ -29,6 +36,12 @@ Complete reference for all `athf` command-line interface commands.
 - [Global Options](#global-options)
 - [athf init](#athf-init)
 - [athf env](#athf-env)
+- [athf agent list](#athf-agent-list)
+- [athf agent info](#athf-agent-info)
+- [athf agent run](#athf-agent-run)
+- [athf research new](#athf-research-new)
+- [athf research list](#athf-research-list)
+- [athf research view](#athf-research-view)
 - [athf context](#athf-context)
 - [athf similar](#athf-similar)
 - [athf hunt new](#athf-hunt-new)
@@ -37,6 +50,7 @@ Complete reference for all `athf` command-line interface commands.
 - [athf hunt stats](#athf-hunt-stats)
 - [athf hunt search](#athf-hunt-search)
 - [athf hunt coverage](#athf-hunt-coverage)
+- [athf hunt execute](#athf-hunt-execute)
 - [athf investigate new](#athf-investigate-new)
 - [athf investigate list](#athf-investigate-list)
 - [athf investigate search](#athf-investigate-search)
@@ -589,6 +603,7 @@ Creates a new hunt file with proper YAML frontmatter and LOCK structure. Automat
 | `--behavior` | String | Behavior description (for ABLE framework) |
 | `--location` | String | Location/scope description (for ABLE framework) |
 | `--evidence` | String | Evidence description (for ABLE framework) |
+| `--research` | String | Research document ID (e.g., R-0001) to link to this hunt |
 
 \* Required in non-interactive mode
 
@@ -633,6 +648,22 @@ athf hunt new \
   --title "LSASS Memory Dumping" \
   --non-interactive
 ```
+
+**Link to pre-hunt research document**:
+
+```bash
+athf hunt new \
+  --research R-0001 \
+  --technique T1003.001 \
+  --title "LSASS Memory Dumping Hunt" \
+  --tactics credential-access \
+  --platforms windows \
+  --non-interactive
+```
+
+This links the hunt to research document `R-0001` (created via `athf research new`). The hunt file will include:
+- `spawned_from: R-0001` in YAML frontmatter
+- Link to research document in the "Threat Intel & Research" section
 
 **AI-friendly one-liner with rich content** (full hypothesis + ABLE framework):
 
@@ -1130,14 +1161,27 @@ Displays a comprehensive visual coverage heatmap of all 14 MITRE ATT&CK tactics,
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--tactic` | String | - | Filter by specific tactic (or 'all' for all tactics) |
 | `--detailed` | Flag | False | Show detailed technique coverage with hunt references |
 
 ### Examples
 
-**Show coverage heatmap:**
+**Show coverage for all tactics (default):**
 
 ```bash
 athf hunt coverage
+```
+
+**Show all tactics explicitly:**
+
+```bash
+athf hunt coverage --tactic all
+```
+
+**Filter by specific tactic:**
+
+```bash
+athf hunt coverage --tactic credential-access
 ```
 
 **Output:**
@@ -1163,14 +1207,25 @@ Impact                    ░░░░░░░░░░░░░░░░░░
 Overall: 10/221 techniques (5%)
 ```
 
-**Show detailed technique breakdown:**
+**Show detailed technique breakdown (all tactics):**
 
 ```bash
 athf hunt coverage --detailed
 ```
 
+**Filter by tactic with detailed view:**
+
+```bash
+athf hunt coverage --tactic persistence --detailed
+```
+
 **Detailed Output:**
 ```
+MITRE ATT&CK Coverage - Persistence
+────────────────────────────────────────────────────────────
+
+Persistence              2 hunts, 7 techniques
+
 🔍 Detailed Technique Coverage
 
 Persistence (2 hunts, 7 unique techniques)
@@ -1181,12 +1236,13 @@ Persistence (2 hunts, 7 unique techniques)
   • T1078.004 - H-0003
   • T1098 - H-0003
   • T1546.004 - H-0003
-
-Collection (1 hunts, 3 unique techniques)
-  • T1005 - H-0001
-  • T1059.002 - H-0001
-  • T1555.003 - H-0001
 ```
+
+**Valid tactic names:**
+- `reconnaissance`, `resource-development`, `initial-access`, `execution`
+- `persistence`, `privilege-escalation`, `defense-evasion`, `credential-access`
+- `discovery`, `lateral-movement`, `collection`, `command-and-control`
+- `exfiltration`, `impact`
 
 ### Progress Bar Legend
 
@@ -1636,6 +1692,456 @@ Next steps:
 - `0`: Success
 - `1`: Investigation not found or parsing error
 - `2`: Missing required options (non-interactive mode)
+
+---
+
+## athf agent list
+
+List all available agents in the ATHF framework.
+
+### Synopsis
+
+```bash
+athf agent list [OPTIONS]
+```
+
+### Description
+
+Displays all 8 agents (6 core + 2 LLM) available for threat hunting workflows. Shows agent names, types, and brief descriptions.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
+
+### Examples
+
+**List all agents:**
+
+```bash
+athf agent list
+```
+
+Output:
+```
+Available Agents
+
+Core Agents (6):
+  • context-loader        - Load hunt context and related files
+  • query-validator       - Validate SQL queries before execution
+  • coverage-analyzer     - Analyze MITRE ATT&CK coverage
+  • metrics-aggregator    - Aggregate hunt metrics and statistics
+  • similarity-scorer     - Find similar hunts using TF-IDF
+  • investigation-promoter - Promote investigations to hunts
+
+LLM Agents (2):
+  • hypothesis-generator  - Generate hunt hypotheses from threat intel
+  • research-agent        - Conduct pre-hunt research with web search
+```
+
+**JSON output:**
+
+```bash
+athf agent list --output json
+```
+
+### Exit Codes
+
+- `0`: Success
+
+---
+
+## athf agent info
+
+Show detailed information about a specific agent.
+
+### Synopsis
+
+```bash
+athf agent info AGENT_NAME
+```
+
+### Description
+
+Displays detailed information about an agent including capabilities, input requirements, output format, and usage examples.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `AGENT_NAME` | String | Agent name (e.g., hypothesis-generator, context-loader) |
+
+### Examples
+
+**Show agent details:**
+
+```bash
+athf agent info hypothesis-generator
+```
+
+Output:
+```
+Agent: hypothesis-generator
+Type: LLM Agent
+Description: Generate structured hunt hypotheses from threat intelligence
+
+Capabilities:
+  • Analyzes threat intel and TTPs
+  • Generates ABLE framework scoping
+  • Creates testable hypotheses
+  • Suggests data sources and queries
+
+Input Requirements:
+  • --threat-intel (required): Threat intelligence or context
+
+Output Format:
+  • hypothesis: Testable hypothesis statement
+  • actor: Threat actor description
+  • behavior: Expected behavior patterns
+  • location: Where to look (data sources)
+  • evidence: What evidence to collect
+
+Example Usage:
+  athf agent run hypothesis-generator \
+    --threat-intel "APT29 using WMI for persistence"
+```
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Agent not found
+
+---
+
+## athf agent run
+
+Run an individual agent with specified parameters.
+
+### Synopsis
+
+```bash
+athf agent run AGENT_NAME [OPTIONS]
+```
+
+### Description
+
+Executes a specific agent with provided inputs. Agents are autonomous components that perform specific tasks in the threat hunting workflow.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `AGENT_NAME` | String | Agent to run (see `athf agent list`) |
+
+### Common Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--output` | Choice | Output format: `json`, `yaml`, `text` (default: text) |
+
+### Agent-Specific Options
+
+**hypothesis-generator:**
+- `--threat-intel` (required): Threat intelligence text
+- `--technique`: MITRE ATT&CK technique (optional)
+
+**context-loader:**
+- `--hunt`: Hunt ID to load context for
+- `--tactic`: Filter by tactic
+- `--platform`: Filter by platform
+
+**query-validator:**
+- `--sql`: SQL query to validate
+- `--target`: Target database (default: clickhouse)
+
+**coverage-analyzer:**
+- `--tactic`: Analyze specific tactic coverage
+
+**similarity-scorer:**
+- `--query`: Search query text
+- `--hunt`: Hunt ID to find similar hunts for
+- `--limit`: Max results (default: 10)
+
+### Examples
+
+**Generate hypothesis:**
+
+```bash
+athf agent run hypothesis-generator \
+  --threat-intel "APT29 using WMI for lateral movement and persistence" \
+  --technique T1047
+```
+
+**Load hunt context:**
+
+```bash
+athf agent run context-loader \
+  --hunt H-0013 \
+  --output json
+```
+
+**Validate query:**
+
+```bash
+athf agent run query-validator \
+  --sql "SELECT * FROM events WHERE time >= now() - INTERVAL 7 DAY LIMIT 100"
+```
+
+**Analyze coverage:**
+
+```bash
+athf agent run coverage-analyzer --tactic credential-access
+```
+
+**Find similar hunts:**
+
+```bash
+athf agent run similarity-scorer \
+  --query "password spraying" \
+  --limit 5
+```
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Agent execution failed
+- `2`: Invalid arguments
+
+---
+
+## athf research new
+
+Create new research document with web search and LLM analysis.
+
+### Synopsis
+
+```bash
+athf research new [OPTIONS]
+```
+
+### Description
+
+Conducts deep pre-hunt research using a 5-skill methodology: System Internals, Adversary Tradecraft, Telemetry Mapping, Historical Analysis, and Environmental Factors. Uses web search (Tavily API) and LLM analysis (AWS Bedrock) to generate comprehensive research documents.
+
+**Research Depth:**
+- **Advanced** (default): 15-20 minutes, thorough 5-skill methodology
+- **Basic**: 5 minutes, rapid research for urgent hunts
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--topic` | String | Required | Research topic (e.g., "LSASS dumping", "Pass-the-Hash") |
+| `--technique` | String | - | MITRE ATT&CK technique (e.g., T1003.001) |
+| `--depth` | Choice | advanced | Research depth: `basic`, `advanced` |
+| `--output` | Choice | markdown | Output format: `markdown`, `json`, `yaml` |
+
+### Examples
+
+**Deep research (default):**
+
+```bash
+athf research new --topic "LSASS dumping" --technique T1003.001
+```
+
+**Quick research for urgent hunts:**
+
+```bash
+athf research new --topic "Pass-the-Hash" --depth basic
+```
+
+**Research without technique mapping:**
+
+```bash
+athf research new --topic "Cloud IAM enumeration"
+```
+
+### Output
+
+```
+🔬 Starting research: LSASS dumping
+
+Research ID: R-0003
+
+⏳ Conducting research (this may take 15-20 minutes)...
+
+✅ Research complete!
+
+Created: research/R-0003.md
+
+Next steps:
+  1. Review research/R-0003.md
+  2. Create hunt: athf hunt new --research R-0003
+  3. Link to hunt in frontmatter
+```
+
+### Generated File Structure
+
+```yaml
+---
+research_id: R-0003
+title: "LSASS Dumping Research"
+topic: "LSASS dumping"
+technique: T1003.001
+depth: advanced
+date: 2026-01-13
+status: completed
+---
+
+# R-0003: LSASS Dumping Research
+
+## Executive Summary
+...
+
+## System Internals
+...
+
+## Adversary Tradecraft
+...
+
+## Telemetry Mapping
+...
+
+## Historical Analysis
+...
+
+## Environmental Factors
+...
+
+## Recommendations
+...
+```
+
+### Requirements
+
+**Optional but Recommended:**
+- `TAVILY_API_KEY`: Web search for adversary tradecraft (get from https://tavily.com)
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`: AWS Bedrock for LLM analysis
+  - Without Bedrock: Falls back to template-based research
+  - With Bedrock: Enhanced analysis using Claude Sonnet 4.5
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Research failed
+- `2`: Missing required options
+
+---
+
+## athf research list
+
+List all research documents.
+
+### Synopsis
+
+```bash
+athf research list [OPTIONS]
+```
+
+### Description
+
+Displays all research documents with filtering options.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--status` | Choice | - | Filter by status: `in-progress`, `completed` |
+| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
+
+### Examples
+
+```bash
+# List all research
+athf research list
+
+# Filter by status
+athf research list --status completed
+
+# JSON output
+athf research list --output json
+```
+
+### Exit Codes
+
+- `0`: Success
+
+---
+
+## athf research view
+
+View research document content.
+
+### Synopsis
+
+```bash
+athf research view RESEARCH_ID
+```
+
+### Description
+
+Displays the full content of a research document.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `RESEARCH_ID` | String | Research ID (e.g., R-0001) |
+
+### Examples
+
+```bash
+athf research view R-0001
+```
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Research not found
+
+---
+
+## athf hunt execute
+
+Execute hunt workflow with agent orchestration.
+
+### Synopsis
+
+```bash
+athf hunt execute HUNT_ID [OPTIONS]
+```
+
+### Description
+
+Orchestrates the complete LOCK pattern workflow using autonomous agents. Loads context, validates queries, executes hunt, and generates findings.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt to execute (e.g., H-0013) |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dry-run` | Flag | False | Simulate execution without running queries |
+
+### Examples
+
+```bash
+# Execute hunt with orchestration
+athf hunt execute H-0013
+
+# Dry run to validate workflow
+athf hunt execute H-0013 --dry-run
+```
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Execution failed
 
 ---
 

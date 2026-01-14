@@ -191,14 +191,25 @@ The repository includes [knowledge/hunting-knowledge.md](../knowledge/hunting-kn
 
 **No changes needed** - this file provides universal hunting expertise that AI assistants will apply to your environment.
 
-### Test AI Integration
+### Test AI Integration and Agent Framework (v0.3.0+)
 
 1. Open your repository in Claude Code, GitHub Copilot, or Cursor
 2. Ask: "What hunts have we documented?"
 3. Ask: "What data sources do we have for Windows endpoint hunting?"
-4. Ask: "Generate a hypothesis for T1003.001 LSASS dumping"
+4. Try the agent framework:
+   ```bash
+   # List available agents
+   athf agent list
 
-If the AI can answer these questions using your repository context, you're successfully at Level 2!
+   # Generate a hypothesis using the hypothesis-generator agent
+   athf agent run hypothesis-generator \
+     --threat-intel "APT29 using LSASS dumping for credential theft"
+
+   # Conduct pre-hunt research
+   athf research new --topic "LSASS dumping" --technique T1003.001
+   ```
+
+If the AI can answer these questions and the agent commands work, you're successfully at Level 2!
 
 **Time investment:** Approximately 1 week to customize AGENTS.md and test AI integration.
 
@@ -332,12 +343,45 @@ Don't build a full agent pipeline on day one:
 
 If you installed the CLI (Option A), here are the most useful commands:
 
+### Agent Framework (v0.3.0+)
+
+```bash
+# List all available agents
+athf agent list
+
+# Get details about a specific agent
+athf agent info hypothesis-generator
+
+# Run an agent
+athf agent run hypothesis-generator --threat-intel "APT29 using WMI"
+athf agent run context-loader --hunt H-0013
+athf agent run similarity-scorer --query "password spraying"
+```
+
+### Research Workflow (v0.3.0+)
+
+```bash
+# Create research document (15-20 min deep research)
+athf research new --topic "LSASS dumping" --technique T1003.001
+
+# Quick research for urgent hunts (5 min)
+athf research new --topic "Pass-the-Hash" --depth basic
+
+# List and view research
+athf research list
+athf research view R-0001
+```
+
 ### Hunt Management
 
 ```bash
 # Create hunts
 athf hunt new                           # Interactive mode
 athf hunt new --technique T1003.001 --title "LSASS Dumping"
+athf hunt new --research R-0001         # Link to research document
+
+# Execute hunt workflow with agents (v0.3.0+)
+athf hunt execute H-0013
 
 # List and search
 athf hunt list                          # All hunts
