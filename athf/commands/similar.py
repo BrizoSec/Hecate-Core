@@ -20,6 +20,9 @@ Examples:
   # Find hunts similar to specific hunt
   athf similar --hunt H-0013
 
+  # Include session logs as separate results
+  athf similar "telegram bot" --sessions
+
   # Limit results to top 5
   athf similar "kerberos" --limit 5
 
@@ -30,6 +33,8 @@ Examples:
 Why This Helps AI:
   • Semantic search (not just keyword matching)
   • Find related hunts with different terminology
+  • Session decisions and rationales boost hunt scores
+  • --sessions shows individual session matches
   • Discover patterns across hunt history
   • Better than grep for conceptual matches
   • Identify similar hunts to avoid duplication
@@ -60,13 +65,14 @@ def similar(
     """Find hunts similar to a query or hunt ID.
 
     Uses semantic similarity to find related hunts even when
-    terminology differs. Better than keyword search for discovering
-    patterns and avoiding duplicate hunts.
+    terminology differs. Session logs (decisions, rationales)
+    are folded into hunt scores by default.
 
     \b
     Use Cases:
     • Check if similar hunt already exists
     • Find related hunts for context
+    • Search past session decisions and rationales
     • Discover patterns across hunt history
     • Identify hunt clusters by topic
 
@@ -74,6 +80,9 @@ def similar(
     Examples:
       # Text query
       athf similar "password spraying"
+
+      # Include session results
+      athf similar "orphaned CDN" --sessions
 
       # Similar to existing hunt
       athf similar --hunt H-0013
