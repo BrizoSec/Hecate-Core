@@ -64,6 +64,9 @@ dmypy.json
 .pyre/
 .pytype/
 
+# Plan documents (session-specific, not shared)
+docs/plans/
+
 # Virtual environments
 tools/mcp/venv/
 venv/
