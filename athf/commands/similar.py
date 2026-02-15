@@ -129,10 +129,16 @@ def similar(
 
 def _get_hunt_text(hunt_id: str) -> Optional[str]:
     """Get full text content of a hunt."""
-    hunt_file = Path(f"hunts/{hunt_id}.md")
-    if not hunt_file.exists():
-        return None
-    return hunt_file.read_text(encoding="utf-8")
+    hunts_dir = Path("hunts")
+    # Check flat path first, then search recursively
+    hunt_file = hunts_dir / f"{hunt_id}.md"
+    if hunt_file.exists():
+        return hunt_file.read_text(encoding="utf-8")
+    # Search nested directories (e.g., hunts/production/2026/Q1/H-0026.md)
+    matches = list(hunts_dir.rglob(f"{hunt_id}.md"))
+    if matches:
+        return matches[0].read_text(encoding="utf-8")
+    return None
 
 
 def _find_similar_hunts(
@@ -156,12 +162,20 @@ def _find_similar_hunts(
         console.print("[dim]Install with: pip install scikit-learn[/dim]")
         raise click.Abort()
 
-    # Load all hunts
+    # Load all hunts (deduplicate by hunt ID, prefer deeper paths)
     hunts_dir = Path("hunts")
-    hunt_files = list(hunts_dir.glob("H-*.md"))
+    all_hunt_files = list(hunts_dir.rglob("H-*.md"))
 
-    if not hunt_files:
+    if not all_hunt_files:
         return []
+
+    # Deduplicate: if same hunt ID appears in multiple paths, keep the deeper one
+    hunt_file_map: Dict[str, Path] = {}
+    for hf in all_hunt_files:
+        hid = hf.stem
+        if hid not in hunt_file_map or len(hf.parts) > len(hunt_file_map[hid].parts):
+            hunt_file_map[hid] = hf
+    hunt_files = list(hunt_file_map.values())
 
     sessions_dir = Path("sessions")
 
