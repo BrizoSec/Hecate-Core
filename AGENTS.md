@@ -14,7 +14,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 - **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Expert hunting frameworks and analytical methods
 - **Browse past hunts** - Search hunt history before suggesting new hypotheses
 - Reference lessons learned when generating queries
-- Use [docs/environment.md](docs/environment.md) template to understand available data sources
+- Use [environment.md](environment.md) to understand available data sources
 - **Focus on behaviors and TTPs (top of Pyramid of Pain), not indicators**
 
 ---
@@ -200,7 +200,7 @@ The file [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) contai
 
 ## Data Sources
 
-See [docs/environment.md](docs/environment.md) template for documenting your organization's data sources:
+See [environment.md](environment.md) for documenting your organization's data sources:
 
 - SIEM/log aggregation platforms
 - EDR/endpoint telemetry coverage
