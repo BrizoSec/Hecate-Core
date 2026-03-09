@@ -453,6 +453,7 @@ def list_investigations(
     table.add_column("ID", style="cyan", no_wrap=True)
     table.add_column("Title", style="white")
     table.add_column("Type", style="yellow")
+    table.add_column("Related Hunts", style="green")
     table.add_column("Tags", style="dim")
     table.add_column("Date", style="dim")
 
@@ -462,13 +463,16 @@ def list_investigations(
         title = frontmatter.get("title", "Untitled")
         inv_type = frontmatter.get("type", "unknown")
         inv_tags = frontmatter.get("tags", [])
+        inv_related_hunts = frontmatter.get("related_hunts", [])
         date = frontmatter.get("date", "N/A")
 
         tags_str = ", ".join(inv_tags[:3]) if inv_tags else "-"
         if len(inv_tags) > 3:
             tags_str += f" (+{len(inv_tags) - 3})"
 
-        table.add_row(inv_id, title, inv_type, tags_str, date)
+        related_hunts_str = ", ".join(inv_related_hunts) if inv_related_hunts else "-"
+
+        table.add_row(inv_id, title, inv_type, related_hunts_str, tags_str, date)
 
     console.print(table)
     console.print(f"\n[dim]Total: {len(filtered_investigations)} investigations[/dim]")
@@ -753,14 +757,16 @@ def promote(
 {inv_content}
 """
 
-    # Write hunt file
-    hunts_dir = Path("hunts")
-    hunts_dir.mkdir(exist_ok=True)
-    hunt_file = hunts_dir / f"{hunt_id}.md"
+    # Write hunt file using hierarchical directory structure
+    from athf.commands.hunt import get_hunt_directory
+
+    hunt_dir = get_hunt_directory()
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
 
     # Validate path is within hunts directory (Python 3.8 compatible)
     try:
-        hunt_file.resolve().relative_to(hunts_dir.resolve())
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
     except (ValueError, OSError):
         console.print("[red]Error: Invalid hunt file path[/red]")
         return

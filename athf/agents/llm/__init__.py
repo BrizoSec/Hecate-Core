@@ -14,12 +14,14 @@ from athf.agents.llm.hypothesis_generator import (
     HypothesisGenerationInput,
     HypothesisGenerationOutput,
     HypothesisGeneratorAgent,
+    ResearchContext,
 )
 
 __all__ = [
     "HypothesisGeneratorAgent",
     "HypothesisGenerationInput",
     "HypothesisGenerationOutput",
+    "ResearchContext",
     "HuntResearcherAgent",
     "ResearchInput",
     "ResearchOutput",

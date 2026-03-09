@@ -84,7 +84,7 @@ class ResearchParser:
             "adversary_tradecraft": r"##\s+2\.\s+Adversary Tradecraft.*?(?=##\s+3\.|$)",
             "telemetry_mapping": r"##\s+3\.\s+Telemetry Mapping.*?(?=##\s+4\.|$)",
             "related_work": r"##\s+4\.\s+Related Work.*?(?=##\s+5\.|$)",
-            "synthesis": r"##\s+5\.\s+Research Synthesis.*?(?=##\s+[A-Z]|$)",
+            "synthesis": r"##\s+5\.\s+Research Synthesis.*?(?=\n## (?!#)|$)",
         }
 
         for section_name, pattern in section_patterns.items():
@@ -270,6 +270,169 @@ class ResearchManager:
             return parse_research_file(nested_file)
 
         return None
+
+    def extract_research_context(self, research_doc: Dict[str, Any]) -> "ResearchContext":
+        """Extract structured ResearchContext from a parsed research document.
+
+        Args:
+            research_doc: Parsed research doc from get_research()
+
+        Returns:
+            ResearchContext dataclass instance
+        """
+        from athf.agents.llm.hypothesis_generator import ResearchContext
+
+        frontmatter = research_doc.get("frontmatter", {})
+        sections = research_doc.get("sections", {})
+
+        # Extract from frontmatter
+        research_id = frontmatter.get("research_id", "")
+        topic = frontmatter.get("topic", "")
+        mitre_techniques = frontmatter.get("mitre_techniques", [])
+        data_source_availability = frontmatter.get("data_source_availability", {})
+        estimated_hunt_complexity = frontmatter.get("estimated_hunt_complexity", "unknown")
+
+        # Extract from synthesis section
+        synthesis = sections.get("synthesis", "")
+        recommended_hypothesis = self._extract_markdown_blockquote(synthesis)
+        gaps_identified = self._extract_markdown_list_under_heading(synthesis, "Gaps Identified")
+
+        # Extract from adversary_tradecraft section
+        adversary_section = sections.get("adversary_tradecraft", "")
+        adversary_tradecraft_findings = self._extract_markdown_list_under_heading(adversary_section, "Key Findings")
+        adversary_tradecraft_summary = self._extract_markdown_paragraph_under_heading(adversary_section, "Summary")
+
+        # Extract from telemetry_mapping section (handles both "Key Findings" and "Key Fields")
+        telemetry_section = sections.get("telemetry_mapping", "")
+        telemetry_mapping_findings = self._extract_markdown_list_under_heading(telemetry_section, "Key Findings")
+        if not telemetry_mapping_findings:
+            telemetry_mapping_findings = self._extract_markdown_list_under_heading(telemetry_section, "Key Fields")
+        telemetry_mapping_summary = self._extract_markdown_paragraph_under_heading(telemetry_section, "Summary")
+
+        # Extract system research summary
+        system_section = sections.get("system_research", "")
+        system_research_summary = self._extract_markdown_paragraph_under_heading(system_section, "Summary")
+
+        return ResearchContext(
+            research_id=research_id,
+            topic=topic,
+            mitre_techniques=mitre_techniques,
+            recommended_hypothesis=recommended_hypothesis,
+            gaps_identified=gaps_identified,
+            data_source_availability=data_source_availability,
+            estimated_hunt_complexity=estimated_hunt_complexity,
+            adversary_tradecraft_findings=adversary_tradecraft_findings,
+            telemetry_mapping_findings=telemetry_mapping_findings,
+            system_research_summary=system_research_summary,
+            adversary_tradecraft_summary=adversary_tradecraft_summary,
+            telemetry_mapping_summary=telemetry_mapping_summary,
+        )
+
+    def find_by_technique(self, technique_id: str) -> Optional[Dict[str, Any]]:
+        """Find the most recent completed research document for a technique.
+
+        Args:
+            technique_id: MITRE ATT&CK technique ID (e.g., T1055)
+
+        Returns:
+            Parsed research doc or None if not found
+        """
+        matches = self.list_research(technique=technique_id, status="completed")
+
+        if not matches:
+            return None
+
+        # Sort by created_date descending, pick most recent
+        matches.sort(key=lambda r: r.get("created_date", ""), reverse=True)
+
+        research_id = matches[0].get("research_id")
+        if research_id:
+            return self.get_research(research_id)
+
+        return None
+
+    @staticmethod
+    def _extract_markdown_blockquote(text: str) -> Optional[str]:
+        """Extract the first blockquote line from markdown text.
+
+        Args:
+            text: Markdown text to search
+
+        Returns:
+            Blockquote content without '> ' prefix, or None
+        """
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("> "):
+                return stripped[2:]
+        return None
+
+    @staticmethod
+    def _extract_markdown_list_under_heading(text: str, heading: str) -> List[str]:
+        """Extract bullet list items under a specific ### heading.
+
+        Args:
+            text: Markdown text to search
+            heading: Heading text (without ### prefix)
+
+        Returns:
+            List of bullet item strings (without '- ' prefix)
+        """
+        items: List[str] = []
+        in_section = False
+
+        for line in text.split("\n"):
+            stripped = line.strip()
+
+            # Check for target heading
+            if stripped.lower() == f"### {heading.lower()}" or stripped.lower() == f"### {heading}".lower():
+                in_section = True
+                continue
+
+            # Stop at next heading
+            if in_section and stripped.startswith("### "):
+                break
+
+            # Collect list items
+            if in_section and stripped.startswith("- "):
+                items.append(stripped[2:])
+
+        return items
+
+    @staticmethod
+    def _extract_markdown_paragraph_under_heading(text: str, heading: str) -> str:
+        """Extract the first paragraph under a specific ### heading.
+
+        Args:
+            text: Markdown text to search
+            heading: Heading text (without ### prefix)
+
+        Returns:
+            Paragraph text, or empty string
+        """
+        in_section = False
+        paragraph_lines: List[str] = []
+
+        for line in text.split("\n"):
+            stripped = line.strip()
+
+            # Check for target heading
+            if stripped.lower() == f"### {heading.lower()}" or stripped.lower() == f"### {heading}".lower():
+                in_section = True
+                continue
+
+            # Stop at next heading
+            if in_section and stripped.startswith("### "):
+                break
+
+            if in_section:
+                if stripped:
+                    paragraph_lines.append(stripped)
+                elif paragraph_lines:
+                    # First empty line after content ends the paragraph
+                    break
+
+        return " ".join(paragraph_lines)
 
     def search_research(self, query: str) -> List[Dict[str, Any]]:
         """Full-text search across research documents.

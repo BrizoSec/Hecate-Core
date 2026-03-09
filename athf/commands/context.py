@@ -1,6 +1,7 @@
 """Context export command for AI-optimized context loading."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -150,6 +151,7 @@ def _build_context(  # noqa: C901
         "environment": None,
         "hunt_index": None,
         "hunts": [],
+        "research": [],
         "domain_knowledge": [],
     }
 
@@ -165,11 +167,11 @@ def _build_context(  # noqa: C901
 
     # Load hunts based on filters (can be combined)
     if full:
-        # Full export: include all hunts
-        hunt_files = list(Path("hunts").glob("H-*.md"))
+        # Full export: include all hunts (recursive for nested directory structure)
+        hunt_files = list(Path("hunts").glob("**/H-*.md"))
     elif hunt:
-        # Specific hunt: only load that one
-        hunt_files = [Path(f"hunts/{hunt}.md")]
+        # Specific hunt: search recursively in hunts directory
+        hunt_files = list(Path("hunts").glob(f"**/{hunt}.md"))
     else:
         # Combine tactic and platform filters
         if tactic and platform:
@@ -187,12 +189,25 @@ def _build_context(  # noqa: C901
     # Load hunt content
     for hunt_file in hunt_files:
         if hunt_file.exists():
+            content_text = _read_and_optimize(hunt_file)
             context["hunts"].append(
                 {
                     "hunt_id": hunt_file.stem,
-                    "content": _read_and_optimize(hunt_file),
+                    "content": content_text,
                 }
             )
+
+            # Load referenced research documents
+            research_id = _extract_research_from_hunt(content_text)
+            if research_id:
+                research_file = _find_research_file(research_id)
+                if research_file and research_file.exists():
+                    context["research"].append(
+                        {
+                            "research_id": research_id,
+                            "content": _read_and_optimize(research_file),
+                        }
+                    )
 
     # Load relevant domain knowledge
     if tactic or full:
@@ -207,6 +222,56 @@ def _build_context(  # noqa: C901
                 )
 
     return context
+
+
+def _extract_research_from_hunt(content: str) -> Optional[str]:
+    """Extract research ID from hunt YAML frontmatter.
+
+    Args:
+        content: Hunt file content
+
+    Returns:
+        Research ID (e.g., R-0008) or None
+    """
+    if not content.startswith("---"):
+        return None
+
+    frontmatter_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if not frontmatter_match:
+        return None
+
+    try:
+        metadata = yaml.safe_load(frontmatter_match.group(1))
+        if metadata and "research" in metadata:
+            research_val = metadata["research"]
+            if isinstance(research_val, str) and research_val.startswith("R-"):
+                return research_val
+    except yaml.YAMLError:
+        pass
+
+    return None
+
+
+def _find_research_file(research_id: str) -> Optional[Path]:
+    """Find a research file by ID.
+
+    Args:
+        research_id: Research ID (e.g., R-0008)
+
+    Returns:
+        Path to research file or None
+    """
+    # Try flat structure first
+    flat_path = Path("research") / f"{research_id}.md"
+    if flat_path.exists():
+        return flat_path
+
+    # Try recursive search
+    matches = list(Path("research").rglob(f"{research_id}.md"))
+    if matches:
+        return matches[0]
+
+    return None
 
 
 def _read_and_optimize(file_path: Path) -> str:
@@ -244,7 +309,7 @@ def _find_hunts_by_tactic(tactic: str) -> List[Path]:
     # Normalize tactic name (e.g., "credential-access" -> "credential access")
     normalized_tactic = tactic.replace("-", " ").lower()
 
-    for hunt_file in hunts_dir.glob("H-*.md"):
+    for hunt_file in hunts_dir.glob("**/H-*.md"):
         content = hunt_file.read_text(encoding="utf-8")
 
         # Check YAML frontmatter for tactics field
@@ -273,7 +338,7 @@ def _find_hunts_by_platform(platform: str) -> List[Path]:
 
     normalized_platform = platform.lower()
 
-    for hunt_file in hunts_dir.glob("H-*.md"):
+    for hunt_file in hunts_dir.glob("**/H-*.md"):
         content = hunt_file.read_text(encoding="utf-8")
 
         # Check YAML frontmatter for platform field
@@ -356,6 +421,14 @@ def _format_as_markdown(context_data: Dict[str, Any]) -> str:
         for hunt in context_data["hunts"]:
             md += f"### {hunt['hunt_id']}\n\n"
             md += hunt["content"]
+            md += "\n\n---\n\n"
+
+    # Research
+    if context_data.get("research"):
+        md += "## Research\n\n"
+        for research in context_data["research"]:
+            md += f"### {research['research_id']}\n\n"
+            md += research["content"]
             md += "\n\n---\n\n"
 
     # Domain Knowledge

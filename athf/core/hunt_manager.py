@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional, Set
 
 from athf.core.attack_matrix import ATTACK_TACTICS, TOTAL_TECHNIQUES, get_sorted_tactics
 from athf.core.hunt_parser import parse_hunt_file
-from athf.utils.validation import validate_hunt_id
+from athf.utils.validation import validate_file_path, validate_hunt_id
+
+# Documentation files to exclude when discovering hunt files at any directory level
+EXCLUDED_DOC_FILES = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
 
 
 class HuntManager:
@@ -22,6 +25,38 @@ class HuntManager:
 
         if not self.hunts_dir.exists():
             self.hunts_dir.mkdir(parents=True, exist_ok=True)
+
+    def find_hunt_file(self, hunt_id: str) -> Optional[Path]:
+        """Find a hunt file by ID, searching recursively.
+
+        Args:
+            hunt_id: Hunt ID (e.g., H-0001)
+
+        Returns:
+            Path to the hunt file, or None if not found
+        """
+        if not validate_hunt_id(hunt_id):
+            return None
+        # Try flat first for speed
+        flat = self.hunts_dir / f"{hunt_id}.md"
+        if flat.exists():
+            return flat
+        # Recursive fallback
+        matches = list(self.hunts_dir.rglob(f"{hunt_id}.md"))
+        if not matches:
+            return None
+        result = matches[0]
+        if not validate_file_path(result, self.hunts_dir):
+            return None
+        return result
+
+    def find_all_hunt_files(self) -> List[Path]:
+        """Find all hunt files recursively, excluding documentation.
+
+        Returns:
+            Sorted list of hunt file Paths
+        """
+        return sorted(f for f in self.hunts_dir.rglob("*.md") if f.name not in EXCLUDED_DOC_FILES)
 
     def list_hunts(
         self,
@@ -45,17 +80,7 @@ class HuntManager:
         """
         hunts = []
 
-        # Exclude documentation files (at any level)
-        exclude_files = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
-
-        # Find all hunt files recursively (supports both flat and hierarchical structure)
-        hunt_files = sorted(self.hunts_dir.rglob("*.md"))
-
-        for hunt_file in hunt_files:
-            # Skip documentation files (at any level in the tree)
-            if hunt_file.name in exclude_files:
-                continue
-
+        for hunt_file in self.find_all_hunt_files():
             try:
                 hunt_data = parse_hunt_file(hunt_file)
                 frontmatter = hunt_data.get("frontmatter", {})
@@ -124,25 +149,8 @@ class HuntManager:
         Returns:
             Hunt data dict or None if not found
         """
-        # Validate hunt ID format and prevent path traversal
-        if not validate_hunt_id(hunt_id):
-            return None
-
-        # First try flat structure for backward compatibility
-        hunt_file = self.hunts_dir / f"{hunt_id}.md"
-
-        # If not found in flat structure, search recursively
-        if not hunt_file.exists():
-            # Search recursively for the hunt file
-            matching_files = list(self.hunts_dir.rglob(f"{hunt_id}.md"))
-            if not matching_files:
-                return None
-            hunt_file = matching_files[0]  # Use first match
-
-        # Validate path is within hunts directory (Python 3.8 compatible)
-        try:
-            hunt_file.resolve().relative_to(self.hunts_dir.resolve())
-        except (ValueError, OSError):
+        hunt_file = self.find_hunt_file(hunt_id)
+        if not hunt_file:
             return None
 
         return parse_hunt_file(hunt_file)
@@ -193,14 +201,7 @@ class HuntManager:
         results = []
         query_lower = query.lower()
 
-        # Exclude documentation files (at any level)
-        exclude_files = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
-
-        for hunt_file in self.hunts_dir.rglob("*.md"):
-            # Skip documentation files (at any level in the tree)
-            if hunt_file.name in exclude_files:
-                continue
-
+        for hunt_file in self.find_all_hunt_files():
             # Determine environment from file path
             hunt_file_parts = hunt_file.parts
             environment = None

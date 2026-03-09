@@ -1,9 +1,10 @@
 """Hunt management commands."""
 
+import json
 import random
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import yaml
@@ -285,6 +286,19 @@ def new(
 
     console.print(f"\n[bold green]✅ Created {hunt_id}: {hunt_title}[/bold green]")
 
+    # Link hunt back to research document (issue #14)
+    if research:
+        try:
+            from athf.core.research_manager import ResearchManager
+
+            research_mgr = ResearchManager()
+            if research_mgr.link_hunt_to_research(research, hunt_id):
+                console.print(f"[dim]Linked {hunt_id} to research {research}[/dim]")
+            else:
+                console.print(f"[yellow]Warning: Could not link {hunt_id} to research {research}[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not update research document: {e}[/yellow]")
+
     # Easter egg: Hunt #100 milestone
     if hunt_id.endswith("0100"):
         console.print("\n[bold yellow]✨ Milestone Achievement: Hunt #100 ✨[/bold yellow]\n")
@@ -456,12 +470,7 @@ def validate(hunt_id: str) -> None:
             console.print("[yellow]No hunts directory found.[/yellow]")
             return
 
-        # Exclude documentation files (at any level)
-        exclude_files = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
-
-        hunt_files = list(hunts_dir.rglob("*.md"))
-        # Filter out documentation files (at any level in the tree)
-        hunt_files = [f for f in hunt_files if f.name not in exclude_files]
+        hunt_files = HuntManager(hunts_dir).find_all_hunt_files()
 
         if not hunt_files:
             console.print("[yellow]No hunt files found.[/yellow]")
@@ -803,3 +812,325 @@ def coffee() -> None:
         "Fuel your hypotheses with coffee. Validate them with data.",
     ]
     console.print(f"[dim italic]{random.choice(wisdom_quotes)}[/dim italic]\n")
+
+
+@hunt.command(name="promote")
+@click.argument("hunt_id")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def promote_hunt(hunt_id: str, yes: bool) -> None:
+    """Promote a hunt from test to production.
+
+    \b
+    Moves a hunt file from hunts/test/... to hunts/production/...
+    while preserving its hunt ID and updating the file path.
+
+    \b
+    Examples:
+      # Promote a test hunt to production
+      athf hunt promote H-0042
+
+      # Skip confirmation
+      athf hunt promote H-0042 --yes
+
+    \b
+    After promotion:
+      • Hunt file moved to production directory
+      • Original test file removed
+      • Hunt ID preserved (no renumbering)
+    """
+    import shutil
+
+    if not validate_hunt_id(hunt_id):
+        console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+        console.print("[yellow]Expected format: H-0001[/yellow]")
+        return
+
+    manager = HuntManager()
+    hunt_file = manager.find_hunt_file(hunt_id)
+
+    if not hunt_file:
+        console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+        return
+
+    # Check hunt is in test directory
+    if "test" not in hunt_file.parts:
+        if "production" in hunt_file.parts:
+            console.print(f"[yellow]{hunt_id} is already in production: {hunt_file}[/yellow]")
+        else:
+            console.print(f"[yellow]{hunt_id} is not in a test directory: {hunt_file}[/yellow]")
+        return
+
+    # Calculate production destination
+    prod_dir = get_hunt_directory(is_test=False)
+    prod_file = prod_dir / f"{hunt_id}.md"
+
+    console.print(f"\n[bold cyan]🔄 Promoting {hunt_id} to production[/bold cyan]\n")
+    console.print(f"  [dim]From:[/dim] {hunt_file}")
+    console.print(f"  [dim]To:  [/dim] {prod_file}\n")
+
+    if prod_file.exists():
+        console.print(f"[red]Error: Destination already exists: {prod_file}[/red]")
+        return
+
+    if not yes:
+        confirm = Prompt.ask("Proceed with promotion?", choices=["y", "n"], default="y")
+        if confirm != "y":
+            console.print("[dim]Promotion cancelled.[/dim]")
+            return
+
+    # Move the file
+    prod_dir.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(hunt_file), str(prod_file))
+
+    console.print(f"[bold green]✅ Promoted {hunt_id} to production[/bold green]")
+    console.print(f"  [dim]{prod_file}[/dim]\n")
+
+
+def _load_linked_research(research_id: str, research_dir: Path) -> Optional[Dict[str, Any]]:
+    """Load a linked research document by ID.
+
+    Args:
+        research_id: Research ID (e.g., R-0008)
+        research_dir: Path to research directory
+
+    Returns:
+        Dict with research frontmatter and sections, or None if not found
+    """
+    research_file = research_dir / f"{research_id}.md"
+    if not research_file.exists():
+        return None
+
+    try:
+        from athf.core.research_manager import parse_research_file
+
+        research_data = parse_research_file(research_file)
+        frontmatter = research_data.get("frontmatter", {})
+
+        return {
+            "research_id": frontmatter.get("research_id"),
+            "topic": frontmatter.get("topic"),
+            "mitre_techniques": frontmatter.get("mitre_techniques", []),
+            "status": frontmatter.get("status"),
+            "depth": frontmatter.get("depth"),
+            "duration_minutes": frontmatter.get("duration_minutes"),
+            "data_source_availability": frontmatter.get("data_source_availability", {}),
+            "estimated_hunt_complexity": frontmatter.get("estimated_hunt_complexity"),
+            "created_date": frontmatter.get("created_date"),
+            "sections": research_data.get("sections", {}),
+            "file_path": str(research_file),
+        }
+    except Exception:
+        return None
+
+
+def _json_serializer(obj: Any) -> Any:
+    """JSON serializer for objects not serializable by default."""
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def _load_sessions_for_hunt(hunt_id: str, sessions_dir: Path) -> List[Dict[str, Any]]:
+    """Load all session data for a hunt from the sessions directory.
+
+    Reads session.yaml, decisions.yaml, findings.yaml, and queries.yaml
+    from each matching session directory.
+
+    Args:
+        hunt_id: Hunt ID to find sessions for (e.g., H-0027)
+        sessions_dir: Path to sessions directory
+
+    Returns:
+        List of session dicts with all available data
+    """
+    sessions: List[Dict[str, Any]] = []
+
+    if not sessions_dir.exists():
+        return sessions
+
+    for session_dir in sorted(sessions_dir.iterdir()):
+        if not session_dir.is_dir() or session_dir.name.startswith("."):
+            continue
+
+        session_file = session_dir / "session.yaml"
+        if not session_file.exists():
+            continue
+
+        try:
+            with open(session_file, "r", encoding="utf-8") as f:
+                session_data = yaml.safe_load(f) or {}
+
+            if session_data.get("hunt_id") != hunt_id:
+                continue
+
+            # Load optional YAML files
+            for yaml_name in ("decisions", "findings", "queries"):
+                yaml_file = session_dir / f"{yaml_name}.yaml"
+                if yaml_file.exists():
+                    with open(yaml_file, "r", encoding="utf-8") as f:
+                        extra_data = yaml.safe_load(f) or {}
+                    session_data[yaml_name] = extra_data.get(yaml_name, [])
+
+            sessions.append(session_data)
+        except Exception:
+            continue
+
+    return sessions
+
+
+@hunt.command(name="export")
+@click.argument("hunt_id", required=False)
+@click.option("--all", "export_all", is_flag=True, help="Export all hunts")
+@click.option("--output", "output_file", type=click.Path(), help="Write to file instead of stdout")
+@click.option("--include-content", is_flag=True, help="Include raw markdown content in output")
+@click.option("--no-sessions", is_flag=True, help="Exclude session data from export")
+@click.option("--status", help="Filter by status when using --all (planning, active, completed)")
+def export_hunt(
+    hunt_id: Optional[str],
+    export_all: bool,
+    output_file: Optional[str],
+    include_content: bool,
+    no_sessions: bool,
+    status: Optional[str],
+) -> None:
+    """Export hunt data as structured JSON.
+
+    \b
+    Exports full hunt data including frontmatter, LOCK sections,
+    and associated session data (decisions, findings, queries).
+
+    \b
+    Examples:
+      # Export a single hunt
+      athf hunt export H-0027
+
+      # Export all hunts
+      athf hunt export --all
+
+      # Export to file
+      athf hunt export H-0027 --output hunt-0027.json
+
+      # Export with raw markdown content
+      athf hunt export H-0027 --include-content
+
+      # Export without session data
+      athf hunt export H-0027 --no-sessions
+
+      # Export all completed hunts
+      athf hunt export --all --status completed
+
+    \b
+    Use this to:
+      • Feed hunt data into external tools and dashboards
+      • Create machine-readable hunt reports
+      • Power graph databases and analytics pipelines
+      • Archive hunts in structured format
+    """
+    if not hunt_id and not export_all:
+        console.print("[red]Error: Provide a hunt ID or use --all[/red]")
+        console.print("[dim]Example: athf hunt export H-0027[/dim]")
+        console.print("[dim]         athf hunt export --all[/dim]")
+        raise click.Abort()
+
+    manager = HuntManager()
+    sessions_dir = Path("sessions")
+
+    if export_all:
+        hunts = manager.list_hunts(status=status)
+        if not hunts:
+            console.print("[yellow]No hunts found.[/yellow]")
+            return
+
+        export_data: List[Dict[str, Any]] = []
+        for hunt_summary in hunts:
+            hid = hunt_summary.get("hunt_id")
+            if not hid:
+                continue
+            hunt_data = manager.get_hunt(hid)
+            if not hunt_data:
+                continue
+            export_data.append(_build_export_dict(hunt_data, sessions_dir, include_content, no_sessions))
+
+        result = json.dumps(export_data, indent=2, default=_json_serializer)
+
+    else:
+        if not validate_hunt_id(hunt_id):  # type: ignore[arg-type]
+            console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+            console.print("[yellow]Expected format: H-0001[/yellow]")
+            raise click.Abort()
+
+        hunt_data = manager.get_hunt(hunt_id)  # type: ignore[arg-type]
+        if not hunt_data:
+            console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+            raise click.Abort()
+
+        export_dict = _build_export_dict(hunt_data, sessions_dir, include_content, no_sessions)
+        result = json.dumps(export_dict, indent=2, default=_json_serializer)
+
+    if output_file:
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(result)
+            f.write("\n")
+        console.print(f"[green]Exported to {output_path}[/green]")
+    else:
+        click.echo(result)
+
+
+def _build_export_dict(
+    hunt_data: Dict[str, Any],
+    sessions_dir: Path,
+    include_content: bool,
+    no_sessions: bool,
+) -> Dict[str, Any]:
+    """Build the export dictionary for a single hunt.
+
+    Args:
+        hunt_data: Parsed hunt data from HuntParser
+        sessions_dir: Path to sessions directory
+        include_content: Whether to include raw markdown
+        no_sessions: Whether to exclude sessions
+
+    Returns:
+        Dict ready for JSON serialization
+    """
+    frontmatter = hunt_data.get("frontmatter", {})
+    hunt_id = frontmatter.get("hunt_id", "")
+
+    export: Dict[str, Any] = {
+        "hunt_id": hunt_id,
+        "title": frontmatter.get("title"),
+        "status": frontmatter.get("status"),
+        "date": frontmatter.get("date"),
+        "hunter": frontmatter.get("hunter"),
+        "platform": frontmatter.get("platform", []),
+        "tactics": frontmatter.get("tactics", []),
+        "techniques": frontmatter.get("techniques", []),
+        "data_sources": frontmatter.get("data_sources", []),
+        "related_hunts": frontmatter.get("related_hunts", []),
+        "spawned_from": frontmatter.get("spawned_from"),
+        "findings_count": frontmatter.get("findings_count", 0),
+        "true_positives": frontmatter.get("true_positives", 0),
+        "false_positives": frontmatter.get("false_positives", 0),
+        "events_scanned": frontmatter.get("events_scanned"),
+        "tags": frontmatter.get("tags", []),
+        "lock_sections": hunt_data.get("lock_sections", {}),
+        "file_path": hunt_data.get("file_path"),
+    }
+
+    if include_content:
+        export["content"] = hunt_data.get("content", "")
+
+    # Load linked research document
+    spawned_from = frontmatter.get("spawned_from")
+    if spawned_from:
+        research_dir = Path("research")
+        research = _load_linked_research(spawned_from, research_dir)
+        if research:
+            export["research"] = research
+
+    if not no_sessions:
+        export["sessions"] = _load_sessions_for_hunt(hunt_id, sessions_dir)
+
+    return export

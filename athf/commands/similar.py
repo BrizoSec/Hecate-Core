@@ -129,16 +129,12 @@ def similar(
 
 def _get_hunt_text(hunt_id: str) -> Optional[str]:
     """Get full text content of a hunt."""
-    hunts_dir = Path("hunts")
-    # Check flat path first, then search recursively
-    hunt_file = hunts_dir / f"{hunt_id}.md"
-    if hunt_file.exists():
-        return hunt_file.read_text(encoding="utf-8")
-    # Search nested directories (e.g., hunts/production/2026/Q1/H-0026.md)
-    matches = list(hunts_dir.rglob(f"{hunt_id}.md"))
-    if matches:
-        return matches[0].read_text(encoding="utf-8")
-    return None
+    from athf.core.hunt_manager import HuntManager
+
+    hunt_file = HuntManager().find_hunt_file(hunt_id)
+    if not hunt_file:
+        return None
+    return hunt_file.read_text(encoding="utf-8")
 
 
 def _find_similar_hunts(
@@ -162,20 +158,13 @@ def _find_similar_hunts(
         console.print("[dim]Install with: pip install scikit-learn[/dim]")
         raise click.Abort()
 
-    # Load all hunts (deduplicate by hunt ID, prefer deeper paths)
-    hunts_dir = Path("hunts")
-    all_hunt_files = list(hunts_dir.rglob("H-*.md"))
+    # Load all hunts (HuntManager handles recursive search + deduplication)
+    from athf.core.hunt_manager import HuntManager
 
-    if not all_hunt_files:
+    hunt_files = HuntManager().find_all_hunt_files()
+
+    if not hunt_files:
         return []
-
-    # Deduplicate: if same hunt ID appears in multiple paths, keep the deeper one
-    hunt_file_map: Dict[str, Path] = {}
-    for hf in all_hunt_files:
-        hid = hf.stem
-        if hid not in hunt_file_map or len(hf.parts) > len(hunt_file_map[hid].parts):
-            hunt_file_map[hid] = hf
-    hunt_files = list(hunt_file_map.values())
 
     sessions_dir = Path("sessions")
 
@@ -202,13 +191,15 @@ def _find_similar_hunts(
             truncated = session_texts[: int(len(session_texts) * 0.75)]
             searchable_text = f"{searchable_text} {truncated}"
 
-        hunt_data.append({
-            "hunt_id": hunt_id,
-            "searchable_text": searchable_text,
-            "metadata": metadata,
-            "source": "hunt",
-            "session_count": len(hunt_sessions),
-        })
+        hunt_data.append(
+            {
+                "hunt_id": hunt_id,
+                "searchable_text": searchable_text,
+                "metadata": metadata,
+                "source": "hunt",
+                "session_count": len(hunt_sessions),
+            }
+        )
 
         # If --sessions, also add sessions as separate documents
         if include_sessions:
@@ -245,17 +236,19 @@ def _find_similar_hunts(
         if "session_id" not in doc_info:
             # Hunt result
             metadata = doc_info["metadata"]
-            results.append({
-                "source": "hunt",
-                "hunt_id": doc_info["hunt_id"],
-                "similarity_score": round(score, 4),
-                "title": metadata.get("title", "Unknown"),
-                "status": metadata.get("status", "unknown"),
-                "tactics": metadata.get("tactics", []),
-                "techniques": metadata.get("techniques", []),
-                "platform": metadata.get("platform", []),
-                "session_count": doc_info.get("session_count", 0),
-            })
+            results.append(
+                {
+                    "source": "hunt",
+                    "hunt_id": doc_info["hunt_id"],
+                    "similarity_score": round(score, 4),
+                    "title": metadata.get("title", "Unknown"),
+                    "status": metadata.get("status", "unknown"),
+                    "tactics": metadata.get("tactics", []),
+                    "techniques": metadata.get("techniques", []),
+                    "platform": metadata.get("platform", []),
+                    "session_count": doc_info.get("session_count", 0),
+                }
+            )
         else:
             # Session result
             sess_meta = doc_info.get("metadata", {})
@@ -264,15 +257,19 @@ def _find_similar_hunts(
             if len(doc_info["searchable_text"]) > 60:
                 title = title.rsplit(" ", 1)[0] + "..."
 
-            results.append({
-                "source": "session",
-                "session_id": doc_info["session_id"],
-                "hunt_id": doc_info["hunt_id"],
-                "similarity_score": round(score, 4),
-                "title": title,
-                "decision_count": len(sess_meta.get("decisions", [])) if isinstance(sess_meta.get("decisions"), list) else 0,
-                "query_count": sess_meta.get("query_count", 0),
-            })
+            results.append(
+                {
+                    "source": "session",
+                    "session_id": doc_info["session_id"],
+                    "hunt_id": doc_info["hunt_id"],
+                    "similarity_score": round(score, 4),
+                    "title": title,
+                    "decision_count": (
+                        len(sess_meta.get("decisions", [])) if isinstance(sess_meta.get("decisions"), list) else 0
+                    ),
+                    "query_count": sess_meta.get("query_count", 0),
+                }
+            )
 
     results.sort(key=lambda x: x["similarity_score"], reverse=True)
     return results[:limit]
@@ -440,12 +437,14 @@ def _load_session_data(sessions_dir: Path, hunt_id: str) -> List[Dict[str, Any]]
             except (yaml.YAMLError, OSError):
                 pass
 
-        sessions.append({
-            "session_id": session_id,
-            "hunt_id": hunt_id,
-            "searchable_text": searchable_text,
-            "metadata": metadata,
-        })
+        sessions.append(
+            {
+                "session_id": session_id,
+                "hunt_id": hunt_id,
+                "searchable_text": searchable_text,
+                "metadata": metadata,
+            }
+        )
 
     return sessions
 

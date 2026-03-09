@@ -9,12 +9,31 @@ from athf.agents.base import AgentResult, LLMAgent
 
 
 @dataclass
+class ResearchContext:
+    """Structured research context for hypothesis generation."""
+
+    research_id: str
+    topic: str
+    mitre_techniques: List[str]
+    recommended_hypothesis: Optional[str]
+    gaps_identified: List[str]
+    data_source_availability: Dict[str, bool]
+    estimated_hunt_complexity: str
+    adversary_tradecraft_findings: List[str]
+    telemetry_mapping_findings: List[str]
+    system_research_summary: str
+    adversary_tradecraft_summary: str
+    telemetry_mapping_summary: str
+
+
+@dataclass
 class HypothesisGenerationInput:
     """Input for hypothesis generation."""
 
     threat_intel: str  # User-provided threat context
     past_hunts: List[Dict[str, Any]]  # Similar past hunts for context
     environment: Dict[str, Any]  # Data sources, platforms, etc.
+    research: Optional[ResearchContext] = None
 
 
 @dataclass
@@ -162,7 +181,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 **Available Environment:**
 {json.dumps(input_data.environment, indent=2)}
 
-Generate a hypothesis following this format:
+{self._build_research_section(input_data.research)}Generate a hypothesis following this format:
 - Hypothesis: "Adversaries use [behavior] to [goal] on [target]"
 - Justification: Why this hypothesis is valuable
 - MITRE Techniques: Relevant ATT&CK techniques (e.g., T1003.001)
@@ -183,6 +202,60 @@ Generate a hypothesis following this format:
 }}
 """
 
+    def _build_research_section(self, research: Optional[ResearchContext]) -> str:
+        """Build the research context section for the prompt.
+
+        Args:
+            research: Optional research context
+
+        Returns:
+            Formatted research section string, or empty string if no research
+        """
+        if research is None:
+            return ""
+
+        lines = [
+            "**Research Context:**",
+            f"- Research ID: {research.research_id}",
+            f"- Topic: {research.topic}",
+            f"- Techniques: {', '.join(research.mitre_techniques)}",
+            "",
+            f"Adversary Tradecraft: {research.adversary_tradecraft_summary}",
+        ]
+
+        if research.adversary_tradecraft_findings:
+            lines.append("Key findings:")
+            for finding in research.adversary_tradecraft_findings:
+                lines.append(f"  - {finding}")
+
+        lines.append("")
+        lines.append(f"Telemetry Mapping: {research.telemetry_mapping_summary}")
+
+        if research.telemetry_mapping_findings:
+            lines.append("Key fields:")
+            for finding in research.telemetry_mapping_findings:
+                lines.append(f"  - {finding}")
+
+        if research.data_source_availability:
+            lines.append("")
+            lines.append("Data Source Availability:")
+            for source, available in research.data_source_availability.items():
+                status = "Available" if available else "Unavailable"
+                lines.append(f"  - {source}: {status}")
+
+        if research.gaps_identified:
+            lines.append("")
+            lines.append("Gaps Identified:")
+            for gap in research.gaps_identified:
+                lines.append(f"  - {gap}")
+
+        if research.recommended_hypothesis:
+            lines.append("")
+            lines.append(f"Recommended Hypothesis from Research: {research.recommended_hypothesis}")
+
+        lines.append("")
+        return "\n".join(lines) + "\n"
+
     def _template_generate(
         self, input_data: HypothesisGenerationInput, error: Optional[str] = None
     ) -> AgentResult[HypothesisGenerationOutput]:
@@ -195,11 +268,19 @@ Generate a hypothesis following this format:
         Returns:
             AgentResult with template-generated hypothesis
         """
+        # Use research recommended hypothesis if available
+        if input_data.research and input_data.research.recommended_hypothesis:
+            hypothesis = input_data.research.recommended_hypothesis
+            mitre_techniques = list(input_data.research.mitre_techniques)
+        else:
+            hypothesis = f"Investigate suspicious activity related to: {input_data.threat_intel[:100]}"
+            mitre_techniques = []
+
         # Simple template logic
         output = HypothesisGenerationOutput(
-            hypothesis=f"Investigate suspicious activity related to: {input_data.threat_intel[:100]}",
+            hypothesis=hypothesis,
             justification="Template-generated hypothesis (LLM disabled or failed)",
-            mitre_techniques=[],
+            mitre_techniques=mitre_techniques,
             data_sources=["EDR telemetry", "SIEM logs"],
             expected_observables=["Process execution", "Network connections"],
             known_false_positives=["Legitimate software updates", "Administrative tools"],

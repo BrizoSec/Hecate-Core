@@ -235,32 +235,31 @@ def run(  # noqa: C901
             # Try to load past hunts and environment data if available
             past_hunts: List[dict[str, Any]] = []
             environment = {}
-            research_context = None
+            research_ctx = None
 
-            # Load research document if provided
-            if research:
-                try:
-                    from pathlib import Path
+            # Load research context (explicit ID or auto-discover by technique)
+            try:
+                from pathlib import Path
 
-                    from athf.core.research_manager import ResearchManager
+                from athf.core.research_manager import ResearchManager
 
-                    research_mgr = ResearchManager(Path.cwd())
+                research_mgr = ResearchManager(Path.cwd())
+
+                if research:
                     research_doc = research_mgr.get_research(research)
-
                     if research_doc:
-                        # Extract relevant research context
-                        research_context = {
-                            "research_id": research_doc.get("metadata", {}).get("research_id"),
-                            "topic": research_doc.get("metadata", {}).get("topic"),
-                            "recommended_hypothesis": research_doc.get("synthesis", {}).get("recommended_hypothesis"),
-                            "gaps": research_doc.get("synthesis", {}).get("gaps_identified", []),
-                            "key_findings": research_doc.get("synthesis", {}).get("key_findings", []),
-                        }
+                        research_ctx = research_mgr.extract_research_context(research_doc)
                         console.print(f"[green]✓ Loaded research context from {research}[/green]\n")
                     else:
                         console.print(f"[yellow]⚠ Research document {research} not found[/yellow]\n")
-                except Exception as e:
-                    console.print(f"[yellow]⚠ Could not load research document: {e}[/yellow]\n")
+                elif technique:
+                    research_doc = research_mgr.find_by_technique(technique)
+                    if research_doc:
+                        rid = research_doc.get("frontmatter", {}).get("research_id", technique)
+                        research_ctx = research_mgr.extract_research_context(research_doc)
+                        console.print(f"[green]✓ Auto-discovered research {rid} for {technique}[/green]\n")
+            except Exception as e:
+                console.print(f"[yellow]⚠ Could not load research context: {e}[/yellow]\n")
 
             # Try to load environment.md if it exists
             try:
@@ -269,7 +268,6 @@ def run(  # noqa: C901
                 env_file = Path("environment.md")
                 if env_file.exists():
                     # Parse basic environment info (data sources, platforms)
-                    # TODO: Parse actual content from environment.md
                     environment = {
                         "data_sources": ["EDR telemetry", "SIEM logs", "Cloud logs"],
                         "platforms": ["Windows", "macOS", "Linux"],
@@ -281,24 +279,13 @@ def run(  # noqa: C901
                     "platforms": ["Windows", "macOS", "Linux"],
                 }
 
-            # If research context is provided, append it to threat intel
-            threat_intel_with_research = threat_intel
-            if research_context:
-                threat_intel_with_research = (
-                    f"{threat_intel}\n\n"
-                    f"Research Context from {research_context['research_id']}:\n"
-                    f"- Topic: {research_context['topic']}\n"
-                    f"- Recommended Hypothesis: {research_context.get('recommended_hypothesis', 'N/A')}\n"
-                )
-                if research_context.get("gaps"):
-                    threat_intel_with_research += f"- Gaps: {', '.join(research_context['gaps'][:3])}\n"
-
             # Execute agent
             hypothesis_result = hypothesis_agent.execute(
                 HypothesisGenerationInput(
-                    threat_intel=threat_intel_with_research,
+                    threat_intel=threat_intel,
                     past_hunts=past_hunts,
                     environment=environment,
+                    research=research_ctx,
                 )
             )
 
