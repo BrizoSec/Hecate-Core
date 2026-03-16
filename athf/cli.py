@@ -12,6 +12,7 @@ load_dotenv()
 from athf.__version__ import __version__  # noqa: E402
 from athf.commands import context, env, hunt, init, investigate, research, similar, splunk  # noqa: E402
 from athf.commands.agent import agent  # noqa: E402
+from athf.commands.mcp import mcp  # noqa: E402
 from athf.plugin_system import PluginRegistry  # noqa: E402
 
 console = Console()
@@ -95,6 +96,9 @@ cli.add_command(similar)
 
 # Agent commands
 cli.add_command(agent)
+
+# MCP server command
+cli.add_command(mcp)
 
 # Integration commands (optional, requires additional dependencies)
 if splunk is not None:
