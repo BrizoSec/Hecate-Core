@@ -324,32 +324,38 @@ class TestHuntListCommand:
         )
 
     def test_hunt_list_all(self, runner, temp_workspace):
-        """Test listing all hunts."""
+        """Test listing all hunts (uses JSON output for reliable assertions)."""
+        self.setup_test_hunts(runner, temp_workspace)
+
+        result = runner.invoke(hunt, ["list", "--output", "json"])
+
+        assert result.exit_code == 0
+        assert "Test Hunt 1" in result.output
+        assert "Test Hunt 2" in result.output
+
+    def test_hunt_list_table_has_date(self, runner, temp_workspace):
+        """Test that table output includes a Date column header."""
         self.setup_test_hunts(runner, temp_workspace)
 
         result = runner.invoke(hunt, ["list"])
 
         assert result.exit_code == 0
-        # Sample hunts may be copied, so just check our test hunts are listed
-        assert "Test Hunt 1" in result.output
-        assert "Test Hunt 2" in result.output
+        assert "Date" in result.output
 
     def test_hunt_list_filter_by_status(self, runner, temp_workspace):
-        """Test filtering hunts by status."""
+        """Test filtering hunts by status (uses JSON output for reliable assertions)."""
         self.setup_test_hunts(runner, temp_workspace)
 
-        result = runner.invoke(hunt, ["list", "--status", "planning"])
+        result = runner.invoke(hunt, ["list", "--status", "planning", "--output", "json"])
 
         assert result.exit_code == 0
-        # Created test hunts should be in planning status by default
-        # (sample hunts may have different statuses)
         assert "Test Hunt 1" in result.output or "Test Hunt 2" in result.output
 
     def test_hunt_list_filter_by_technique(self, runner, temp_workspace):
-        """Test filtering hunts by technique."""
+        """Test filtering hunts by technique (uses JSON output for reliable assertions)."""
         self.setup_test_hunts(runner, temp_workspace)
 
-        result = runner.invoke(hunt, ["list", "--technique", "T1003.001"])
+        result = runner.invoke(hunt, ["list", "--technique", "T1003.001", "--output", "json"])
 
         assert result.exit_code == 0
         assert "T1003.001" in result.output
@@ -513,8 +519,8 @@ class TestCLIIntegration:
         result = runner.invoke(hunt, ["validate", hunt_id])
         assert result.exit_code == 0
 
-        # Step 4: List hunts
-        result = runner.invoke(hunt, ["list"])
+        # Step 4: List hunts (JSON for reliable assertion)
+        result = runner.invoke(hunt, ["list", "--output", "json"])
         assert result.exit_code == 0
         assert hunt_id in result.output
 
@@ -535,8 +541,8 @@ class TestCLIIntegration:
             result = runner.invoke(hunt, ["new", "--title", f"Hunt {i}", "--technique", f"T100{i}.001", "--non-interactive"])
             assert result.exit_code == 0
 
-        # List should show all 3
-        result = runner.invoke(hunt, ["list"])
+        # List should show all 3 (JSON for reliable assertion)
+        result = runner.invoke(hunt, ["list", "--output", "json"])
         assert result.exit_code == 0
         assert "H-0001" in result.output
         assert "H-0002" in result.output

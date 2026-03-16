@@ -1,10 +1,12 @@
 """Render hunt templates with metadata."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from jinja2 import Template
 
+# Default bundled template - used when no custom template exists
 HUNT_TEMPLATE = """---
 hunt_id: {{ hunt_id }}
 title: {{ title }}
@@ -161,6 +163,27 @@ tags: {{ tags }}
 """
 
 
+def _load_hunt_template() -> str:
+    """Load hunt template, preferring workspace custom template over bundled default.
+
+    Checks for a Jinja2 template at ./templates/HUNT_TEMPLATE.j2 first.
+    Falls back to the bundled HUNT_TEMPLATE constant.
+
+    Returns:
+        Jinja2 template string
+    """
+    custom_template = Path("templates") / "HUNT_TEMPLATE.j2"
+    if custom_template.exists():
+        try:
+            content = custom_template.read_text(encoding="utf-8")
+            # Basic sanity check: must contain Jinja2 syntax
+            if "{{" in content and "}}" in content:
+                return content
+        except (OSError, UnicodeDecodeError):
+            pass  # Fall through to default
+    return HUNT_TEMPLATE
+
+
 def render_hunt_template(
     hunt_id: str,
     title: str,
@@ -207,7 +230,7 @@ def render_hunt_template(
     data_sources_str = f"[{', '.join(data_sources)}]" if data_sources else "[]"
     tags_str = "[]"
 
-    template = Template(HUNT_TEMPLATE)
+    template = Template(_load_hunt_template())
 
     return template.render(
         hunt_id=hunt_id,

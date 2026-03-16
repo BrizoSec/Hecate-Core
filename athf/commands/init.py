@@ -110,6 +110,11 @@ def init(path: str, non_interactive: bool) -> None:
         _create_hunt_template(templates_path / "HUNT_LOCK.md")
         console.print("  ✓ Created [cyan]templates/HUNT_LOCK.md[/cyan]")
 
+    # Create customizable Jinja2 template for athf hunt new
+    if not (templates_path / "HUNT_TEMPLATE.j2").exists():
+        _create_jinja2_hunt_template(templates_path / "HUNT_TEMPLATE.j2")
+        console.print("  ✓ Created [cyan]templates/HUNT_TEMPLATE.j2[/cyan] (customizable hunt template)")
+
     # Copy reference files from package data
     _copy_reference_files(base_path)
 
@@ -415,6 +420,27 @@ tags: []
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def _create_jinja2_hunt_template(path: Path) -> None:
+    """Create customizable Jinja2 hunt template for athf hunt new.
+
+    This template is used by `athf hunt new` to generate hunt files.
+    Users can modify it to customize the structure of new hunts.
+    """
+    from athf.core.template_engine import HUNT_TEMPLATE
+
+    header = (
+        "{#- Customizable Jinja2 template for 'athf hunt new' -#}\n"
+        "{#- Edit this file to change the structure of new hunt files -#}\n"
+        "{#- Available variables: hunt_id, title, status, date, hunter, platform, -#}\n"
+        "{#-   tactics, techniques, data_sources, tags, hypothesis, threat_context, -#}\n"
+        "{#-   actor, behavior, location, evidence, spawned_from -#}\n"
+    )
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(header)
+        f.write(HUNT_TEMPLATE)
 
 
 def _copy_reference_files(base_path: Path) -> None:

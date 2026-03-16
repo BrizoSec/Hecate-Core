@@ -381,16 +381,19 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
 
     table = Table(box=box.ROUNDED)
     table.add_column("Hunt ID", style="cyan", no_wrap=True)
-    table.add_column("Title", style="white")
-    table.add_column("Status", style="yellow")
+    table.add_column("Title", style="white", no_wrap=True, max_width=30)
+    table.add_column("Date", style="dim", no_wrap=True)
+    table.add_column("Status", style="yellow", no_wrap=True)
     table.add_column("Env", style="blue", no_wrap=True)
-    table.add_column("Technique", style="magenta")
-    table.add_column("Findings", style="green")
+    table.add_column("Technique", style="magenta", no_wrap=True)
+    table.add_column("Findings", style="green", no_wrap=True)
 
     for hunt in hunts:
         hunt_id = hunt.get("hunt_id", "")
         title_full = hunt.get("title") or ""
         title = title_full[:30] + ("..." if len(title_full) > 30 else "")
+        date_val = hunt.get("date") or "-"
+        date_str = str(date_val) if date_val != "-" else "-"
         status_val = hunt.get("status", "")
         environment = hunt.get("environment", "-")
         env_display = environment if environment else "-"
@@ -401,7 +404,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         fp = hunt.get("false_positives", 0)
         findings_str = f"{tp + fp} ({tp} TP)" if (tp + fp) > 0 else "-"
 
-        table.add_row(hunt_id, title, status_val, env_display, technique_str, findings_str)
+        table.add_row(hunt_id, title, date_str, status_val, env_display, technique_str, findings_str)
 
     console.print(table)
     console.print()
