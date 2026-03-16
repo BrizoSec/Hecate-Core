@@ -185,6 +185,27 @@ athf hunt coverage                  # MITRE ATT&CK coverage
 athf research stats                 # Research metrics
 ```
 
+### ATT&CK Data Management (NEW in v0.11.0)
+
+```bash
+# Install STIX support (optional)
+pip install 'athf[attack]'
+
+# Download live ATT&CK data (835+ techniques with full metadata)
+athf attack update
+
+# Check provider status
+athf attack status
+
+# Look up technique metadata
+athf attack lookup T1003.001
+
+# List techniques for a tactic
+athf attack techniques credential-access
+```
+
+Without `mitreattack-python`, ATHF uses a hardcoded v14 fallback (14 tactics, approximate counts). With it, you get full technique metadata: platforms, data sources, sub-techniques, and accurate counts.
+
 ### MCP Server (NEW in v0.11.0)
 
 ```bash

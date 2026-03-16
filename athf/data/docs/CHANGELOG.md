@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `athf mcp serve` CLI command and `athf-mcp` standalone entry point
   - Auto-detect workspace from cwd or `ATHF_WORKSPACE` env var
   - Install with: `pip install 'athf[mcp]'`
+- **ATT&CK STIX Integration** — Replace hardcoded ATT&CK dictionary with live STIX data via `mitreattack-python`
+  - Provider abstraction: `StixProvider` (835+ techniques with full metadata) and `FallbackProvider` (hardcoded v14)
+  - Auto-selects STIX when `mitreattack-python` is installed and data is cached; graceful fallback otherwise
+  - New CLI commands: `athf attack update`, `athf attack status`, `athf attack lookup`, `athf attack techniques`
+  - Technique metadata: platforms, data sources, tactics, sub-techniques, descriptions, URLs
+  - STIX cache: configurable via `ATHF_STIX_CACHE` env var, workspace-local, or `~/.athf/stix-data/`
+  - Fully backward compatible — existing `ATTACK_TACTICS`, `TOTAL_TECHNIQUES`, and all functions work identically
+  - Install with: `pip install 'athf[attack]'`
 
 ## [0.10.0] - 2026-03-16
 
