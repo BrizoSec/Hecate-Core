@@ -161,7 +161,13 @@ def register_hunt_tools(mcp: FastMCP) -> None:
             spawned_from=research_id,
         )
 
-        hunt_file = manager.hunts_dir / "{}.md".format(hunt_id)
+        from datetime import datetime
+
+        now = datetime.now()
+        quarter = "Q{}".format((now.month - 1) // 3 + 1)
+        hunt_dir = workspace / "hunts" / "production" / str(now.year) / quarter
+        hunt_dir.mkdir(parents=True, exist_ok=True)
+        hunt_file = hunt_dir / "{}.md".format(hunt_id)
         hunt_file.write_text(content, encoding="utf-8")
 
         return _json_result({

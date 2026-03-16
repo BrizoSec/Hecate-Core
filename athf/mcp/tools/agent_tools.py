@@ -41,11 +41,20 @@ def register_agent_tools(mcp: FastMCP) -> None:
             if doc:
                 research = rm.extract_research_context(doc)
 
+        # Load past hunts and environment context from workspace
+        from athf.core.hunt_manager import HuntManager
+
+        manager = HuntManager(hunts_dir=workspace / "hunts")
+        past_hunts = manager.list_hunts()
+
+        env_file = workspace / "environment.md"
+        environment = {"environment_md": env_file.read_text(encoding="utf-8")} if env_file.exists() else {}
+
         agent = HypothesisGeneratorAgent(llm_enabled=use_llm)
         input_data = HypothesisGenerationInput(
             threat_intel=threat_intel,
-            past_hunts=[],
-            environment={},
+            past_hunts=past_hunts,
+            environment=environment,
             research=research,
         )
 

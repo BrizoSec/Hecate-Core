@@ -55,7 +55,7 @@ def register_search_tools(mcp: FastMCP) -> None:
                 text_parts = [
                     fm.get("title", ""),
                     fm.get("technique", ""),
-                    " ".join(fm.get("tactic", []) if isinstance(fm.get("tactic"), list) else [str(fm.get("tactic", ""))]),
+                    " ".join(fm.get("tactics", []) if isinstance(fm.get("tactics"), list) else [str(fm.get("tactics", ""))]),
                     parsed.get("content", ""),
                 ]
                 corpus_texts.append(" ".join(str(p) for p in text_parts))
