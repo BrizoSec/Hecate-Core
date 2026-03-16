@@ -44,7 +44,7 @@ def create_server(workspace_path: Optional[str] = None) -> FastMCP:
     """
     global _workspace
     _workspace = find_workspace(workspace_path)
-    config = load_workspace_config(_workspace)
+    load_workspace_config(_workspace)
 
     mcp = FastMCP(
         name="athf",
