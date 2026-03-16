@@ -275,11 +275,11 @@ class TestCachePaths:
         monkeypatch.setenv("ATHF_STIX_CACHE", str(tmp_path / "custom"))
         assert _get_stix_cache_dir() == tmp_path / "custom"
 
-    def test_global_default(self, monkeypatch):
+    def test_global_default(self, monkeypatch, tmp_path):
         from athf.core.attack_matrix import _get_stix_cache_dir
 
         monkeypatch.delenv("ATHF_STIX_CACHE", raising=False)
         # Ensure no .athfconfig.yaml in cwd
-        monkeypatch.chdir("/tmp")
+        monkeypatch.chdir(tmp_path)
         cache_dir = _get_stix_cache_dir()
         assert "stix-data" in str(cache_dir)
