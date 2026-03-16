@@ -4,6 +4,8 @@ import json
 import pytest
 from pathlib import Path
 
+pytest.importorskip("mcp", reason="MCP optional dependency not installed")
+
 from athf.mcp.server import create_server
 
 

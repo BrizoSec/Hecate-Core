@@ -6,6 +6,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 
+pytest.importorskip("mcp", reason="MCP optional dependency not installed")
+
 from athf.mcp.utils import find_workspace, load_workspace_config
 
 
