@@ -67,27 +67,33 @@ async function runCycle(config: ReturnType<typeof loadConfig>): Promise<void> {
       const comment = config.draftCommentTemplate.replace('{reasoning}', classification.reasoning);
       if (!dryRun) postComment(config.repo, issue.number, comment);
       else console.log(`  [DRY RUN] Would post not-ready comment to #${issue.number}`);
-      state.issues[issue.number] = { status: 'not-ready', processedAt: now };
-      saveState(state);
+      if (!dryRun) {
+        state.issues[issue.number] = { status: 'not-ready', processedAt: now };
+        saveState(state);
+      }
       continue;
     }
 
-    state.issues[issue.number] = { status: 'implementing', processedAt: now };
-    saveState(state);
+    if (!dryRun) {
+      state.issues[issue.number] = { status: 'implementing', processedAt: now };
+      saveState(state);
+    }
 
     try {
       const { branchName, prNumber } = implement(issue, config, dryRun);
-      state.issues[issue.number] = { status: 'implemented', prNumber, branchName, processedAt: now };
-      if (prNumber > 0) {
-        state.prs[prNumber] = { issueNumber: issue.number, lastCheckedAt: now, lastCommentId: 0 };
+      if (!dryRun) {
+        state.issues[issue.number] = { status: 'implemented', prNumber, branchName, processedAt: now };
+        if (prNumber > 0) {
+          state.prs[prNumber] = { issueNumber: issue.number, lastCheckedAt: now, lastCommentId: 0 };
+        }
       }
       console.log(`  #${issue.number}: implemented → ${branchName}${prNumber ? ` / PR #${prNumber}` : ''}`);
     } catch (err) {
       console.error(`  #${issue.number}: implementation failed:`, err);
-      state.issues[issue.number] = { status: 'failed', processedAt: now };
+      if (!dryRun) state.issues[issue.number] = { status: 'failed', processedAt: now };
     }
 
-    saveState(state);
+    if (!dryRun) saveState(state);
   }
 
   // ── Phase 2: Handle PR review comments ─────────────────────────────────
@@ -113,16 +119,20 @@ async function runCycle(config: ReturnType<typeof loadConfig>): Promise<void> {
     try {
       const branch = getPRBranch(config.repo, prNumber);
       implementFeedback(prNumber, branch, newComments, config, dryRun);
-      prState.lastCheckedAt = now;
-      prState.lastCommentId = Math.max(...newComments.map(c => c.id));
-      saveState(state);
+      if (!dryRun) {
+        prState.lastCheckedAt = now;
+        prState.lastCommentId = Math.max(...newComments.map(c => c.id));
+        saveState(state);
+      }
     } catch (err) {
       console.error(`  PR #${prNumber}: feedback failed:`, err);
     }
   }
 
-  state.lastRun = now;
-  saveState(state);
+  if (!dryRun) {
+    state.lastRun = now;
+    saveState(state);
+  }
   console.log(`[${new Date().toISOString()}] Cycle complete.\n`);
 }
 
