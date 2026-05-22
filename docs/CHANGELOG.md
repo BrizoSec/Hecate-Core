@@ -5,6 +5,18 @@ All notable changes to the Agentic Threat Hunting Framework (ATHF) will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - Unreleased
+
+### Added
+- **Hypothesis persistence on research docs** — `athf_agent_run_hypothesis` MCP tool now appends generated hypotheses directly onto the source `R-XXXX` research document under a `## Generated Hypothesis` section, with structured metadata in the YAML frontmatter (`generated_hypothesis: { hypothesis, mitre_techniques, data_sources, generated_at }`). When a `research_id` is supplied, the MCP response collapses to a preview-only payload (`research_id`, `file_path`, `mitre_techniques`, `data_sources`, ~200-char preview), reducing inline payload size and helping prevent autocompact thrash on long hunt orchestration conversations.
+- `ResearchManager.append_hypothesis()` — idempotent helper that creates or replaces the `## Generated Hypothesis` section and updates frontmatter.
+
+### Changed
+- `athf_agent_run_hypothesis` MCP response now includes a `persisted` boolean. Without `research_id`, behavior is unchanged (full inline payload, `persisted=false`). With a valid `research_id`, the hypothesis is written to disk and only a preview is returned (`persisted=true`).
+
+### Notes
+- Hunt orchestration conversations are sensitive to large LLM-emitted artifacts. Smaller models with tighter effective working windows (e.g. Haiku-class) can autocompact-thrash when an inline hypothesis is followed by tool calls that re-include it. This release moves the hypothesis to disk so subsequent turns reference it by ID. For hunt orchestration over MCP, prefer Sonnet-class models when available; the persistence pattern reduces the dependency.
+
 ## [0.11.0] - Unreleased
 
 ### Added

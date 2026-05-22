@@ -17,7 +17,13 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
             "Generate a threat hunting hypothesis from threat intelligence. "
             "Uses an LLM to produce a structured hypothesis with MITRE techniques, "
             "data sources, and ABLE framework scoping. "
-            "Requires an LLM provider to be configured (falls back to template-based output without one)."
+            "When research_id is supplied, the hypothesis is appended to that "
+            "research document (R-XXXX) under a ## Generated Hypothesis section "
+            "and the response shrinks to a preview-only payload (id, file_path, "
+            "techniques, sources, ~200-char preview) to keep agent context lean. "
+            "Without research_id, behavior is unchanged: the full hypothesis is "
+            "returned inline. Requires an LLM provider (falls back to "
+            "template-based output without one)."
         ),
     )
     def agent_run_hypothesis(
@@ -29,15 +35,15 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
             HypothesisGeneratorAgent,
             HypothesisGenerationInput,
         )
+        from athf.core.research_manager import ResearchManager
 
         workspace = get_workspace()
+
+        rm = ResearchManager(research_dir=workspace / "research")
 
         # Load research context if provided
         research = None
         if research_id:
-            from athf.core.research_manager import ResearchManager
-
-            rm = ResearchManager(research_dir=workspace / "research")
             doc = rm.get_research(research_id)
             if doc:
                 research = rm.extract_research_context(doc)
@@ -67,11 +73,48 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
         if output is None:
             return _json_result({"error": "No output from hypothesis generator"})
 
+        if research_id and research is not None:
+            file_path = rm.append_hypothesis(
+                research_id=research_id,
+                hypothesis=output.hypothesis,
+                mitre_techniques=output.mitre_techniques,
+                data_sources=output.data_sources,
+                justification=output.justification,
+                expected_observables=output.expected_observables,
+                known_false_positives=output.known_false_positives,
+                time_range_suggestion=output.time_range_suggestion,
+            )
+
+            if file_path is not None:
+                preview = output.hypothesis.strip()
+                if len(preview) > 200:
+                    preview = preview[:197].rstrip() + "..."
+
+                return _json_result({
+                    "research_id": research_id,
+                    "file_path": str(file_path),
+                    "hypothesis_preview": preview,
+                    "mitre_techniques": output.mitre_techniques,
+                    "data_sources": output.data_sources,
+                    "persisted": True,
+                    "metadata": result.metadata,
+                })
+
+            return _json_result({
+                "research_id": research_id,
+                "persisted": False,
+                "error": "persistence_failed",
+                "mitre_techniques": output.mitre_techniques,
+                "data_sources": output.data_sources,
+                "metadata": result.metadata,
+            })
+
         return _json_result({
             "hypothesis": output.hypothesis,
             "mitre_techniques": output.mitre_techniques,
             "data_sources": output.data_sources,
             "justification": output.justification,
+            "persisted": False,
             "metadata": result.metadata,
         })
 
