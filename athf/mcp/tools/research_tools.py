@@ -74,10 +74,17 @@ def register_research_tools(mcp: "FastMCP") -> None:  # type: ignore[name-define
     def research_new(
         topic: str,
         technique: Optional[str] = None,
-        depth: str = "advanced",
+        depth: Optional[str] = "advanced",
     ) -> str:
         from athf.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
         from athf.core.research_manager import ResearchManager
+
+        if not topic or not topic.strip():
+            return _json_result({"error": "topic is required and must be a non-empty string"})
+
+        depth = depth or "advanced"
+        if depth not in {"basic", "advanced"}:
+            return _json_result({"error": f"depth must be 'basic' or 'advanced' (got {depth!r})"})
 
         workspace = get_workspace()
         manager = ResearchManager(research_dir=workspace / "research")
