@@ -148,11 +148,25 @@ def build_envelope(
             "persist_dir and artifact_name were not both supplied"
         )
 
+    artifact_rel = Path(artifact_name)
+    if artifact_rel.is_absolute():
+        raise ValueError(
+            "build_envelope: artifact_name must be a relative filename"
+        )
+
     persist_path = Path(persist_dir).expanduser()
     persist_path.mkdir(parents=True, exist_ok=True)
-    artifact_path = persist_path / artifact_name
+    persist_path_resolved = persist_path.resolve()
+    artifact_path = (persist_path_resolved / artifact_rel).resolve()
+    try:
+        artifact_path.relative_to(persist_path_resolved)
+    except ValueError:
+        raise ValueError(
+            "build_envelope: artifact_name escapes persist_dir"
+        ) from None
+
     artifact_path.write_text(rendered, encoding="utf-8")
-    absolute = str(artifact_path.resolve())
+    absolute = str(artifact_path)
 
     return {
         "preview": preview_text,

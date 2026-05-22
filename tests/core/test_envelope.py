@@ -146,3 +146,45 @@ def test_non_string_payload_is_json_serialized(tmp_path: Path) -> None:
     body = Path(env["path"]).read_text(encoding="utf-8")
     assert '"rows"' in body
     assert env["byte_count"] == len(body.encode("utf-8"))
+
+
+def test_gate_b_rejects_absolute_artifact_name(tmp_path: Path) -> None:
+    payload = "x" * 3000
+    with pytest.raises(ValueError, match="must be a relative filename"):
+        build_envelope(
+            payload,
+            threshold=2048,
+            persist_dir=tmp_path,
+            artifact_name="/etc/passwd",
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_gate_b_rejects_parent_segment_traversal(tmp_path: Path) -> None:
+    persist_dir = tmp_path / "scratch"
+    persist_dir.mkdir()
+    sibling_target = tmp_path / "escaped.txt"
+
+    payload = "x" * 3000
+    with pytest.raises(ValueError, match="escapes persist_dir"):
+        build_envelope(
+            payload,
+            threshold=2048,
+            persist_dir=persist_dir,
+            artifact_name="../escaped.txt",
+        )
+    assert not sibling_target.exists()
+
+
+def test_gate_b_rejects_deep_traversal(tmp_path: Path) -> None:
+    persist_dir = tmp_path / "a" / "b"
+    persist_dir.mkdir(parents=True)
+
+    payload = "x" * 3000
+    with pytest.raises(ValueError, match="escapes persist_dir"):
+        build_envelope(
+            payload,
+            threshold=2048,
+            persist_dir=persist_dir,
+            artifact_name="../../../tmp/pwned.txt",
+        )
