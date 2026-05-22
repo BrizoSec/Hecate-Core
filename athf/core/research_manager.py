@@ -523,6 +523,115 @@ class ResearchManager:
         except Exception:
             return False
 
+    def append_hypothesis(
+        self,
+        research_id: str,
+        hypothesis: str,
+        mitre_techniques: Optional[List[str]] = None,
+        data_sources: Optional[List[str]] = None,
+        justification: Optional[str] = None,
+        expected_observables: Optional[List[str]] = None,
+        known_false_positives: Optional[List[str]] = None,
+        time_range_suggestion: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Append a generated hypothesis to a research document.
+
+        Adds (or replaces) a ``## Generated Hypothesis`` section at the end of
+        the markdown body, and records ``generated_hypothesis`` metadata in the
+        YAML frontmatter for quick lookup. Idempotent: re-running with new
+        content overwrites the prior section in place.
+
+        Args:
+            research_id: Research ID (e.g., R-0001)
+            hypothesis: Hypothesis statement
+            mitre_techniques: Linked MITRE ATT&CK techniques
+            data_sources: Suggested data sources
+            justification: Reasoning the hypothesis is worth hunting
+            expected_observables: What we expect to see in telemetry
+            known_false_positives: Common benign patterns
+            time_range_suggestion: Recommended hunt time window
+
+        Returns:
+            Path to the updated file, or None if research_id not found.
+        """
+        research_data = self.get_research(research_id)
+        if not research_data:
+            return None
+
+        file_path = Path(research_data["file_path"])
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except OSError:
+            return None
+
+        # Update frontmatter with structured hypothesis metadata
+        new_frontmatter = dict(research_data.get("frontmatter", {}))
+        new_frontmatter["generated_hypothesis"] = {
+            "hypothesis": hypothesis,
+            "mitre_techniques": list(mitre_techniques or []),
+            "data_sources": list(data_sources or []),
+            "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
+        body = research_data.get("content", "")
+        body = self._strip_generated_hypothesis_section(body)
+        body = body.rstrip()
+
+        section_lines: List[str] = ["", "", "## Generated Hypothesis", "", f"> {hypothesis}", ""]
+        if justification:
+            section_lines.extend(["**Justification:**", "", justification, ""])
+        if mitre_techniques:
+            section_lines.append("**MITRE Techniques:** " + ", ".join(mitre_techniques))
+            section_lines.append("")
+        if data_sources:
+            section_lines.append("**Data Sources:** " + ", ".join(data_sources))
+            section_lines.append("")
+        if expected_observables:
+            section_lines.append("**Expected Observables:**")
+            section_lines.append("")
+            section_lines.extend(f"- {item}" for item in expected_observables)
+            section_lines.append("")
+        if known_false_positives:
+            section_lines.append("**Known False Positives:**")
+            section_lines.append("")
+            section_lines.extend(f"- {item}" for item in known_false_positives)
+            section_lines.append("")
+        if time_range_suggestion:
+            section_lines.append(f"**Time Range:** {time_range_suggestion}")
+            section_lines.append("")
+
+        new_body = body + "\n".join(section_lines).rstrip() + "\n"
+
+        yaml_content = yaml.dump(new_frontmatter, default_flow_style=False, sort_keys=False)
+        new_content = f"---\n{yaml_content}---\n\n{new_body}"
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+        except OSError:
+            return None
+
+        return file_path
+
+    @staticmethod
+    def _strip_generated_hypothesis_section(body: str) -> str:
+        """Remove an existing ``## Generated Hypothesis`` section if present.
+
+        Args:
+            body: Markdown body (after frontmatter)
+
+        Returns:
+            Body with the section removed (everything from the heading through
+            the next ``## `` heading or end of document).
+        """
+        pattern = re.compile(
+            r"\n##\s+Generated\s+Hypothesis\b.*?(?=\n##\s+(?!#)|\Z)",
+            re.DOTALL | re.IGNORECASE,
+        )
+        return pattern.sub("", body)
+
     def create_research_file(
         self,
         research_id: str,
