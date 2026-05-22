@@ -82,6 +82,8 @@ def register_research_tools(mcp: "FastMCP") -> None:  # type: ignore[name-define
         if not topic or not topic.strip():
             return _json_result({"error": "topic is required and must be a non-empty string"})
 
+        if isinstance(depth, str):
+            depth = depth.strip()
         depth = depth or "advanced"
         if depth not in {"basic", "advanced"}:
             return _json_result({"error": f"depth must be 'basic' or 'advanced' (got {depth!r})"})
