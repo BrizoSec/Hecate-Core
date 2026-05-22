@@ -148,14 +148,23 @@ def test_non_string_payload_is_json_serialized(tmp_path: Path) -> None:
     assert env["byte_count"] == len(body.encode("utf-8"))
 
 
-def test_gate_b_rejects_absolute_artifact_name(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "artifact_name",
+    [
+        "/etc/passwd",       # POSIX absolute
+        "\\Windows\\System32\\evil.txt",  # Windows-style backslash absolute
+    ],
+)
+def test_gate_b_rejects_absolute_artifact_name(
+    tmp_path: Path, artifact_name: str
+) -> None:
     payload = "x" * 3000
     with pytest.raises(ValueError, match="must be a relative filename"):
         build_envelope(
             payload,
             threshold=2048,
             persist_dir=tmp_path,
-            artifact_name="/etc/passwd",
+            artifact_name=artifact_name,
         )
     assert list(tmp_path.iterdir()) == []
 

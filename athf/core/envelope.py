@@ -149,7 +149,10 @@ def build_envelope(
         )
 
     artifact_rel = Path(artifact_name)
-    if artifact_rel.is_absolute():
+    # Reject anything that looks absolute on ANY platform — including
+    # POSIX paths supplied to a Windows runtime, which Path.is_absolute()
+    # alone would miss because Windows requires a drive letter.
+    if artifact_rel.is_absolute() or artifact_name.startswith(("/", "\\")):
         raise ValueError(
             "build_envelope: artifact_name must be a relative filename"
         )
