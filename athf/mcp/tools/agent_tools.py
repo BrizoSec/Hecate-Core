@@ -3,6 +3,7 @@
 import logging
 from typing import Optional
 
+from athf.core.envelope import build_envelope
 from athf.mcp.server import get_workspace, _json_result
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,20 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
                 if len(preview) > 200:
                     preview = preview[:197].rstrip() + "..."
 
+                envelope = build_envelope(
+                    payload=output.hypothesis,
+                    parent_artifact=research_id,
+                    path=str(file_path),
+                    preview=preview,
+                    metadata=result.metadata,
+                )
+
+                # Existing PR #30 shape (research_id, file_path, hypothesis_preview,
+                # mitre_techniques, data_sources, persisted, metadata) is preserved
+                # verbatim; the contract's core fields (preview, path, persisted,
+                # byte_count, metadata) are layered on as a superset. Existing
+                # consumers reading file_path/hypothesis_preview keep working;
+                # contract-aware consumers read path/preview.
                 return _json_result({
                     "research_id": research_id,
                     "file_path": str(file_path),
@@ -97,6 +112,9 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
                     "mitre_techniques": output.mitre_techniques,
                     "data_sources": output.data_sources,
                     "persisted": True,
+                    "preview": envelope["preview"],
+                    "path": envelope["path"],
+                    "byte_count": envelope["byte_count"],
                     "metadata": result.metadata,
                 })
 
