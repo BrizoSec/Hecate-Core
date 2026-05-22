@@ -100,6 +100,15 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
                     "metadata": result.metadata,
                 })
 
+            return _json_result({
+                "research_id": research_id,
+                "persisted": False,
+                "error": "persistence_failed",
+                "mitre_techniques": output.mitre_techniques,
+                "data_sources": output.data_sources,
+                "metadata": result.metadata,
+            })
+
         return _json_result({
             "hypothesis": output.hypothesis,
             "mitre_techniques": output.mitre_techniques,

@@ -1,7 +1,7 @@
 """Manage research files and operations."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -572,7 +572,7 @@ class ResearchManager:
             "hypothesis": hypothesis,
             "mitre_techniques": list(mitre_techniques or []),
             "data_sources": list(data_sources or []),
-            "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
         body = research_data.get("content", "")
