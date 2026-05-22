@@ -5,7 +5,20 @@ All notable changes to the Agentic Threat Hunting Framework (ATHF) will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.0] - Unreleased
+## [0.15.0] - Unreleased
+
+### Added
+- **Envelope-reduction response contract** — formal spec at [docs/envelope-reduction-contract.md](envelope-reduction-contract.md) describing the canonical shape MCP tools and CLI commands use to keep tool-result payloads off the cached prefix. Core fields: `preview`, `path`, `persisted`, `byte_count`, plus a producer-defined `metadata` extension. Two persistence gates: parent-artifact (e.g. `research_id` → write to that artifact) or byte-threshold (default 2048 bytes → write to scratch dir).
+- `athf.core.envelope.build_envelope()` — reference Python implementation. Accepts a payload plus gate parameters and returns a contract-compliant dict. Idempotent; emits absolute paths.
+- `tests/core/test_envelope.py` — full coverage of both gates, the threshold boundary, metadata pass-through, error cases, and idempotent absolute-path output.
+
+### Changed
+- `athf_agent_run_hypothesis` MCP response (PR #30 shape) now carries the contract's core fields (`preview`, `path`, `byte_count`) **in addition to** its existing fields (`research_id`, `file_path`, `hypothesis_preview`, `mitre_techniques`, `data_sources`, `persisted`, `metadata`). PR #30's regression test (`tests/core/test_research_manager_hypothesis.py`) passes unchanged. The shape is now described as a strict superset of the contract.
+
+### Notes
+- The contract names the field shape, not the location of the bytes. Each producer picks its own env var for its scratch dir (this repo uses the existing `ATHF_HUNTS_DIR`; the `athf clickhouse query` CLI in hunt-vault adopts its own `ATHF_QUERY_RESULTS_DIR` separately).
+
+## [0.14.0] - 2026-05-22
 
 ### Added
 - **Hypothesis persistence on research docs** — `athf_agent_run_hypothesis` MCP tool now appends generated hypotheses directly onto the source `R-XXXX` research document under a `## Generated Hypothesis` section, with structured metadata in the YAML frontmatter (`generated_hypothesis: { hypothesis, mitre_techniques, data_sources, generated_at }`). When a `research_id` is supplied, the MCP response collapses to a preview-only payload (`research_id`, `file_path`, `mitre_techniques`, `data_sources`, ~200-char preview), reducing inline payload size and helping prevent autocompact thrash on long hunt orchestration conversations.
