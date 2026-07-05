@@ -1,0 +1,159 @@
+{#- Customizable Jinja2 template for 'athf hunt new' -#}
+{#- Edit this file to change the structure of new hunt files -#}
+{#- Available variables: hunt_id, title, status, date, hunter, platform, -#}
+{#-   tactics, techniques, data_sources, tags, hypothesis, threat_context, -#}
+{#-   actor, behavior, location, evidence, spawned_from -#}
+---
+hunt_id: {{ hunt_id }}
+title: {{ title }}
+status: {{ status }}
+date: {{ date }}
+hunter: {{ hunter }}
+platform: {{ platform }}
+tactics: {{ tactics }}
+techniques: {{ techniques }}
+data_sources: {{ data_sources }}
+related_hunts: []
+{% if spawned_from %}spawned_from: {{ spawned_from }}
+{% endif %}{% if hypothesis_duration_minutes %}hypothesis_duration_minutes: {{ hypothesis_duration_minutes }}
+{% endif %}findings_count: 0
+true_positives: 0
+false_positives: 0
+customer_deliverables: []
+tags: {{ tags }}
+---
+
+# {{ hunt_id }}: {{ title }}
+
+**Hunt Metadata**
+
+- **Date:** {{ date }}
+- **Hunter:** {{ hunter }}
+- **Status:** {{ status }}
+- **MITRE ATT&CK:** {{ techniques[0] if techniques else '[Primary Technique]' }}
+
+---
+
+## LEARN: Prepare the Hunt
+
+### Hypothesis Statement
+
+{{ hypothesis if hypothesis else '[What behavior are you looking for? What will you observe if the hypothesis is true?]' }}
+
+### Threat Context
+
+{{ threat_context if threat_context else '[What threat actor/malware/TTP motivates this hunt?]' }}
+
+### ABLE Scoping
+
+| **Field**   | **Your Input** |
+|-------------|----------------|
+| **Actor** *(Optional)* | {{ actor if actor else '[Threat actor or malware family]' }} |
+| **Behavior** | {{ behavior if behavior else '[TTP or behavior pattern]' }} |
+| **Location** | {{ location if location else '[Systems, networks, or environments to hunt]' }} |
+| **Evidence** | {{ evidence if evidence else '[Data sources and key fields to examine]' }} |
+
+### Threat Intel & Research
+
+- **MITRE ATT&CK Techniques:** {{ ', '.join(techniques) if techniques else '[List relevant techniques]' }}
+- **CTI Sources & References:** [Links to reports, blogs, etc.]
+{% if spawned_from %}- **Research Document:** See [{{ spawned_from }}](../research/{{ spawned_from }}.md) for detailed pre-hunt research
+{% endif %}
+
+### Related Tickets
+
+| **Team** | **Ticket/Details** |
+|----------|-------------------|
+| **SOC/IR** | [Ticket numbers or N/A] |
+
+---
+
+## OBSERVE: Expected Behaviors
+
+### What Normal Looks Like
+
+[Describe legitimate activity that should not trigger alerts]
+
+### What Suspicious Looks Like
+
+[Describe adversary behavior patterns to hunt for]
+
+### Expected Observables
+
+- **Processes:** [Process names, command lines]
+- **Network:** [Connections, protocols, domains]
+- **Files:** [File paths, extensions, sizes]
+- **Registry:** [Registry keys if applicable]
+- **Authentication:** [Login patterns if applicable]
+
+---
+
+## CHECK: Execute & Analyze
+
+### Data Source Information
+
+- **Index/Data Source:** {{ data_sources[0] if data_sources else '[SIEM index or data source]' }}
+- **Time Range:** [Date range for hunt]
+- **Events Analyzed:** [Approximate count]
+- **Data Quality:** [Assessment of data completeness]
+
+### Hunting Queries
+
+#### Initial Query
+
+```
+[Your initial query]
+```
+
+**Query Notes:**
+- [What did this query return?]
+- [What worked? What didn't?]
+
+### Query Performance
+
+**What Worked Well:**
+- [Effective filters or techniques]
+
+**What Didn't Work:**
+- [Challenges or limitations]
+
+**Iterations Made:**
+- [Document query evolution]
+
+---
+
+## KEEP: Findings & Response
+
+### Executive Summary
+
+[Concise summary of hunt results and key findings]
+
+### Findings
+
+| **Finding** | **Ticket** | **Description** |
+|-------------|-----------|-----------------|
+| [Type] | [Ticket] | [Description] |
+
+**True Positives:** 0
+**False Positives:** 0
+
+### Lessons Learned
+
+**What Worked Well:**
+- [Successes]
+
+**What Could Be Improved:**
+- [Areas for improvement]
+
+**Telemetry Gaps Identified:**
+- [Missing data sources or visibility gaps]
+
+### Follow-up Actions
+
+- [ ] [Action item 1]
+- [ ] [Action item 2]
+
+---
+
+**Hunt Completed:** [Date]
+**Next Review:** [Date for recurring hunt if applicable]
