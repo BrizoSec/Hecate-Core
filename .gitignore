@@ -89,3 +89,8 @@ automation/config.json
 automation/state.json
 automation/state.json.tmp
 automation/loop.log
+
+# sec7669 orchestrator (local runtime state — never commit)
+.orchestrator_state.json
+logs/
+cti_queue/
