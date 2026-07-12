@@ -92,5 +92,7 @@ automation/loop.log
 
 # sec7669 orchestrator (local runtime state — never commit)
 .orchestrator_state.json
+.otx_cursor_state.json
+.pending_queries/
 logs/
 cti_queue/
