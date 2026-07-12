@@ -641,10 +641,13 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
     # Layer 2: environment variables
     env_provider = os.getenv("ATHF_LLM_PROVIDER")
     env_model = os.getenv("ATHF_LLM_MODEL")
+    env_base_url = os.getenv("ATHF_LLM_BASE_URL")
     if env_provider:
         effective["provider"] = env_provider
     if env_model:
         effective["model"] = env_model
+    if env_base_url:
+        effective["base_url"] = env_base_url
 
     # Layer 3: explicit config dict (highest priority)
     if config:
@@ -685,8 +688,8 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
             region=effective.get("region"),
         )
 
-    # Ollama running locally
-    ollama_url = effective.get("base_url", "http://localhost:11434")
+    # Ollama running locally or at OLLAMA_HOST (e.g. a Docker service)
+    ollama_url = effective.get("base_url") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
     if _ollama_is_running(ollama_url):
         detected_model = model or "llama3"
         logger.info("Auto-detected local Ollama -> using Ollama provider with model %s", detected_model)
@@ -745,9 +748,10 @@ def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> 
         )
 
     if name == "ollama":
+        base_url = config.get("base_url") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         return OllamaProvider(
             model=model or "llama3",
-            base_url=config.get("base_url", "http://localhost:11434"),
+            base_url=base_url,
             timeout_sec=_ollama_timeout_sec(config),
         )
 

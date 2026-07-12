@@ -119,10 +119,10 @@ def similar(
     # Format and display results
     if output_format == "json":
         output = json.dumps(results, indent=2)
-        console.print(output)
+        click.echo(output)
     elif output_format == "yaml":
         output = yaml.dump(results, default_flow_style=False, sort_keys=False)
-        console.print(output)
+        click.echo(output)
     else:  # table
         _display_results_table(results, query_text=query_text, reference_hunt=hunt, include_sessions=sessions)
 

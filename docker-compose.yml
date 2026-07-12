@@ -1,41 +1,84 @@
+# Agentic Threat Hunting Framework - Docker Compose
+#
+# ── Quick start (you have an API key) ───────────────────────────────────────
+#   cp config/.env.example .env      # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   docker compose up -d
+#   docker compose exec athf bash
+#
+# ── Quick start (no API key – uses local Ollama) ────────────────────────────
+#   docker compose --profile ollama up -d
+#   docker compose exec athf bash
+#   # First run pulls the model (~2 GB); wait for ollama-pull to finish.
+#   # Override model: OLLAMA_MODEL=llama3.2:1b docker compose --profile ollama up -d
+#
+# ── AWS Bedrock ──────────────────────────────────────────────────────────────
+#   Uncomment the ~/.aws volume mount below and set AWS_PROFILE in your .env.
+
 services:
-  athf-test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: athf:test
-    container_name: athf-test-container
-    user: sydney
+  athf:
+    build: .
+    image: athf:latest
+    container_name: athf
     volumes:
-      # Mount current directory for live code changes (optional)
-      - .:/app
-      # Persist workspace between container runs
-      - athf-workspace:/workspace
-      # Mount AWS credentials and config (for SSO)
-      # Note: Read-write mount required for AWS CLI cache (~/.aws/cli/cache/)
-      - ${HOME}/.aws:/home/sydney/.aws
-      # Claude Code config - isolated from host
-      - claude-config:/home/sydney/.claude
+      - workspace:/workspace
+      # Optional: mount AWS credentials for Bedrock
+      # - ${HOME}/.aws:/home/hunter/.aws:ro
     environment:
-      # Set terminal for better CLI output
       - TERM=xterm-256color
-      # AWS profile (override with: AWS_PROFILE=myprofile docker-compose up)
-      - AWS_PROFILE=${AWS_PROFILE:-default}
-      # AWS region (override with: AWS_REGION=us-west-2 docker-compose up)
+      # ── LLM provider (auto-detected from whichever key is present) ──────
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # ── Explicit overrides (optional) ────────────────────────────────────
+      - ATHF_LLM_PROVIDER=${ATHF_LLM_PROVIDER:-}
+      - ATHF_LLM_MODEL=${ATHF_LLM_MODEL:-}
+      - ATHF_LLM_BASE_URL=${ATHF_LLM_BASE_URL:-}
+      # ── Ollama ────────────────────────────────────────────────────────────
+      # Default points to native macOS Ollama (runs with Metal/GPU acceleration).
+      # Change to http://ollama:11434 if using --profile ollama instead.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # ── AWS Bedrock ───────────────────────────────────────────────────────
+      - AWS_PROFILE=${AWS_PROFILE:-}
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      # Claude Code CLI Bedrock configuration (for Claude Code, not ATHF agents)
-      - CLAUDE_CODE_USE_BEDROCK=1
-      # ATHF LLM provider (auto-detected from API keys; uncomment to override)
-      # - ATHF_LLM_PROVIDER=openai
-      # - ATHF_LLM_MODEL=gpt-4o
-      # - ANTHROPIC_API_KEY=
-      # - OPENAI_API_KEY=
+      # ── Web search (research agent) ───────────────────────────────────────
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
     stdin_open: true
     tty: true
     command: /bin/bash
 
+  # ── Local LLM via Ollama (no API key needed) ─────────────────────────────
+  # Activate with: docker compose --profile ollama up -d
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    profiles: [ollama]
+
+  # Pulls the default model once on first start, then exits
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull ${OLLAMA_MODEL:-llama3.1:14b}"]
+    restart: "no"
+    profiles: [ollama]
+
 volumes:
-  athf-workspace:
+  workspace:
     driver: local
-  claude-config:
+  ollama-models:
     driver: local
