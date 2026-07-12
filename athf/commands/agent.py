@@ -295,7 +295,7 @@ def run(  # noqa: C901
             duration_min = round(duration_ms / 60000, 1)
 
             if output_format == "json":
-                console.print(json.dumps(hypothesis_result.metadata, indent=2))
+                console.print(json.dumps(hypothesis_result.metadata, indent=2), soft_wrap=True)
             else:
                 _display_hypothesis_generator_result(hypothesis_result)
                 if duration_ms > 0:
@@ -357,7 +357,7 @@ def run(  # noqa: C901
                 raise click.Abort()
 
             if output_format == "json":
-                console.print(json.dumps(research_result.metadata, indent=2))
+                console.print(json.dumps(research_result.metadata, indent=2), soft_wrap=True)
             else:
                 _display_research_result(research_result)
 

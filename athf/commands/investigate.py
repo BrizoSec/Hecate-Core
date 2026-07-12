@@ -440,7 +440,7 @@ def list_investigations(
 
     # Output format
     if output == "json":
-        console.print(json.dumps(filtered_investigations, indent=2))
+        console.print(json.dumps(filtered_investigations, indent=2), soft_wrap=True)
         return
 
     if output == "yaml":

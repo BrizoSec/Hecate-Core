@@ -405,7 +405,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
     if output == "json":
         import json
 
-        console.print(json.dumps(hunts, indent=2))
+        console.print(json.dumps(hunts, indent=2), soft_wrap=True)
         return
 
     if output == "yaml":

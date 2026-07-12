@@ -196,7 +196,7 @@ def list_research(
         return
 
     if output_format == "json":
-        console.print(json.dumps(research_list, indent=2))
+        console.print(json.dumps(research_list, indent=2), soft_wrap=True)
         return
 
     # Table output
@@ -244,7 +244,7 @@ def view(research_id: str, output_format: str) -> None:
         raise click.Abort()
 
     if output_format == "json":
-        console.print(json.dumps(research_data, indent=2, default=str))
+        console.print(json.dumps(research_data, indent=2, default=str), soft_wrap=True)
         return
 
     # Display markdown content
@@ -272,7 +272,7 @@ def search(query: str, output_format: str) -> None:
         return
 
     if output_format == "json":
-        console.print(json.dumps(results, indent=2))
+        console.print(json.dumps(results, indent=2), soft_wrap=True)
         return
 
     # Table output
@@ -302,7 +302,7 @@ def stats(output_format: str) -> None:
     statistics = manager.calculate_stats()
 
     if output_format == "json":
-        console.print(json.dumps(statistics, indent=2))
+        console.print(json.dumps(statistics, indent=2), soft_wrap=True)
         return
 
     # Display stats
@@ -527,4 +527,4 @@ def _display_json_output(output: ResearchOutput) -> None:
             "cost_usd": output.total_cost_usd,
         },
     }
-    console.print(json.dumps(data, indent=2))
+    console.print(json.dumps(data, indent=2), soft_wrap=True)

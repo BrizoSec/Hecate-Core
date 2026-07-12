@@ -339,14 +339,22 @@ class OllamaProvider(LLMProvider):
     Args:
         model: Ollama model name (e.g. ``"llama3"``).
         base_url: Ollama HTTP API base URL.
+        timeout_sec: Per-request HTTP timeout. Larger local models (e.g.
+            14B+ quantized models that spill past GPU VRAM) can take well
+            over a minute to complete a single 2048-token generation, so
+            this defaults higher than a typical API timeout. Override via
+            the ``ATHF_OLLAMA_TIMEOUT_SEC`` env var or the ``timeout_sec``
+            config key.
     """
 
     def __init__(
         self,
         model: str = "llama3",
         base_url: str = "http://localhost:11434",
+        timeout_sec: int = 180,
     ):
         self.model = model
+        self.timeout_sec = timeout_sec
         self.base_url = base_url.rstrip("/")
 
     @property
@@ -391,7 +399,12 @@ class OllamaProvider(LLMProvider):
 
         start = time.monotonic()
         try:
-            resp = urllib.request.urlopen(req, timeout=30)
+            resp = urllib.request.urlopen(req, timeout=self.timeout_sec)
+        except TimeoutError:
+            raise ConnectionError(
+                "Ollama request timed out after {}s (model={}). Larger local models "
+                "may need a higher ATHF_OLLAMA_TIMEOUT_SEC.".format(self.timeout_sec, self.model)
+            )
         except urllib.error.URLError as exc:
             raise ConnectionError(
                 "Cannot reach Ollama at {}. Is it running? Error: {}".format(self.base_url, exc)
@@ -677,7 +690,11 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
     if _ollama_is_running(ollama_url):
         detected_model = model or "llama3"
         logger.info("Auto-detected local Ollama -> using Ollama provider with model %s", detected_model)
-        return OllamaProvider(model=detected_model, base_url=ollama_url)
+        return OllamaProvider(
+            model=detected_model,
+            base_url=ollama_url,
+            timeout_sec=_ollama_timeout_sec(effective),
+        )
 
     raise RuntimeError(
         "No LLM provider could be determined. Set one of: "
@@ -685,6 +702,16 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
         "AWS_PROFILE/AWS_ACCESS_KEY_ID, or start a local Ollama instance. "
         "Alternatively, add an 'llm' section to .athfconfig.yaml."
     )
+
+
+def _ollama_timeout_sec(config: Dict[str, Any]) -> int:
+    """Resolve the Ollama per-request timeout: config key, then env var, then default."""
+    if "timeout_sec" in config:
+        return int(config["timeout_sec"])
+    env_value = os.getenv("ATHF_OLLAMA_TIMEOUT_SEC")
+    if env_value:
+        return int(env_value)
+    return 180
 
 
 def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> LLMProvider:
@@ -721,6 +748,7 @@ def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> 
         return OllamaProvider(
             model=model or "llama3",
             base_url=config.get("base_url", "http://localhost:11434"),
+            timeout_sec=_ollama_timeout_sec(config),
         )
 
     if name == "openai":
