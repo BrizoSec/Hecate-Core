@@ -45,7 +45,9 @@ FIXTURES: List[Fixture] = [
         id="T1053.005",
         category="mitre-technique",
         prompt="What is MITRE ATT&CK technique T1053.005? Answer in one sentence.",
-        keywords=["scheduled task"],
+        # "any" of these: models correctly describe this as "Task Scheduler" /
+        # "schtasks" as often as the literal phrase "scheduled task".
+        keywords=["scheduled task", "task scheduler", "schtasks"],
         description="Scheduled Task/Job: Scheduled Task",
     ),
     Fixture(
@@ -99,6 +101,54 @@ FIXTURES: List[Fixture] = [
         description="Living-off-the-land binary",
     ),
 ]
+
+
+def build_grounded_fixtures(fixtures: Optional[List[Fixture]] = None) -> List[Fixture]:
+    """STIX-grounded variants of the mitre-technique fixtures.
+
+    The default fixtures test cold recall: "what is T1003.001?" answered
+    from the model's own training data, with nothing to check its work
+    against. This variant instead supplies MITRE's own technique name and
+    description (via ``athf attack lookup``'s data source, no LLM involved)
+    as context and asks the model to summarize it in one sentence.
+
+    The point isn't to make the eval easier — it's to separate two different
+    questions that "athf eval" collapses into one score: (1) does the model
+    *know* this fact unaided, and (2) can the model correctly *use* a fact
+    it's been handed. A hunt pipeline that looks up known technique IDs via
+    STIX before prompting (rather than trusting the model's memory) only
+    needs a model that's good at (2). If grounded fixtures score dramatically
+    higher than cold ones on the same model, that is a strong argument for
+    fixing the prompt/retrieval path rather than chasing a bigger model.
+    """
+    from athf.core.attack_matrix import get_technique
+
+    source = fixtures if fixtures is not None else FIXTURES
+    grounded: List[Fixture] = []
+    for base in source:
+        if base.category != "mitre-technique":
+            continue
+        info = get_technique(base.id)
+        if info is None:
+            continue  # no STIX data for this ID (e.g. fallback provider) — skip rather than fake it
+        description = (info.get("description") or "").strip()[:400]
+        name = info.get("name", base.id)
+        prompt = (
+            f'Here is MITRE ATT&CK technique {base.id} ("{name}"):\n'
+            f'"{description}"\n\n'
+            "Summarize what this technique is in one sentence."
+        )
+        grounded.append(
+            Fixture(
+                id=f"{base.id}-grounded",
+                category="mitre-technique-grounded",
+                prompt=prompt,
+                keywords=base.keywords,
+                match_mode=base.match_mode,
+                description=base.description,
+            )
+        )
+    return grounded
 
 
 @dataclass

@@ -127,6 +127,39 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 pass
         return self._search_client
 
+    def _technique_grounding(self, technique: Optional[str]) -> str:
+        """Ground truth for a technique ID from local STIX data, if available.
+
+        Skill prompts used to hand the model a bare technique ID (e.g.
+        "T1053.005") and ask it to reason about it from memory. An eval
+        harness spot check (``athf eval``) measured that cold recall gets
+        MITRE technique identity right only ~30% of the time; handing the
+        model the real name/description from ``athf attack lookup`` instead
+        of asking it to recall them raised that to 100% on the same model in
+        the same check. This is that fix, applied to the research prompts.
+
+        Returns an empty string (not an error) if there's no technique, no
+        STIX data installed, or the ID isn't found — callers already handle
+        an empty technique_str/context gracefully.
+        """
+        if not technique:
+            return ""
+        try:
+            from athf.core.attack_matrix import get_technique
+
+            info = get_technique(technique)
+        except Exception:
+            return ""
+        if info is None:
+            return ""
+
+        name = info.get("name", technique)
+        description = (info.get("description") or "").strip()[:400]
+        return (
+            f'MITRE ATT&CK ground truth for {technique}: officially named "{name}". '
+            f"{description}\n\n"
+        )
+
     def execute(
         self, input_data: ResearchInput,
     ) -> AgentResult[ResearchOutput]:
@@ -622,10 +655,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             technique_str = (
                 " ({})".format(technique) if technique else ""
             )
+            grounding = self._technique_grounding(technique)
 
             prompt = (
                 "You are a threat intelligence analyst studying"
                 " adversary techniques.\n\n"
+                "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
                 "Research Context:\n{context}\n\n"
                 "Based on this context, provide:\n"
@@ -638,6 +673,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '  "key_findings": ["finding1", "finding2",'
                 ' "finding3", "finding4"]\n}}'
             ).format(
+                grounding=grounding,
                 topic=topic,
                 technique_str=technique_str,
                 context=context,
@@ -667,10 +703,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             technique_str = (
                 " ({})".format(technique) if technique else ""
             )
+            grounding = self._technique_grounding(technique)
 
             prompt = (
                 "You are a detection engineer mapping attack"
                 " behaviors to telemetry.\n\n"
+                "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
                 "OCSF Schema Reference (partial):\n"
                 "{ocsf_schema}\n\n"
@@ -685,6 +723,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '  "key_findings": ["field1 (X% populated):'
                 ' description", "field2: description"]\n}}'
             ).format(
+                grounding=grounding,
                 topic=topic,
                 technique_str=technique_str,
                 ocsf_schema=ocsf_schema[:3000],
@@ -724,10 +763,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             technique_str = (
                 " ({})".format(technique) if technique else ""
             )
+            grounding = self._technique_grounding(technique)
 
             prompt = (
                 "You are a senior threat hunter synthesizing"
                 " research for a hunt.\n\n"
+                "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
                 "Research Findings:\n{context}\n\n"
                 "Based on all research findings, provide:\n"
@@ -747,6 +788,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '    "Focus: ..."\n'
                 "  ]\n}}"
             ).format(
+                grounding=grounding,
                 topic=topic,
                 technique_str=technique_str,
                 context=context,

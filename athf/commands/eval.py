@@ -27,6 +27,11 @@ Examples:
   athf eval --model qwen2.5:7b-instruct-q4_K_M --output json > 7b.json
   athf eval --model qwen2.5:14b-instruct-q4_K_M --output json > 14b.json
 
+  # Isolate "does the model know this fact" from "can it use a fact it's
+  # handed" — grounds the same technique fixtures with real STIX data
+  # instead of asking the model to recall them cold
+  athf eval --grounded
+
 \b
 What it checks:
   A small set of unambiguous, known-answer fixtures (mostly MITRE ATT&CK
@@ -46,9 +51,21 @@ What it checks:
     default=0.0,
     help="Sampling temperature. Defaults to 0.0 (deterministic) so results are reproducible run to run.",
 )
-def eval_cmd(provider: Optional[str], model: Optional[str], output_format: str, temperature: float) -> None:
+@click.option(
+    "--grounded",
+    is_flag=True,
+    help=(
+        "Test STIX-grounded MITRE technique fixtures instead of cold recall — hands the model "
+        "the real technique name/description and asks it to summarize, instead of asking it to "
+        "recall the fact unaided. Separates 'does the model know this' from 'can it use a fact "
+        "it's given', which points at whether to fix retrieval/prompting vs. chase a bigger model."
+    ),
+)
+def eval_cmd(
+    provider: Optional[str], model: Optional[str], output_format: str, temperature: float, grounded: bool
+) -> None:
     """Run known-answer fixtures against an LLM provider and score the result."""
-    from athf.core.eval_harness import run_eval
+    from athf.core.eval_harness import build_grounded_fixtures, run_eval
     from athf.core.llm_provider import create_provider
 
     config = {}
@@ -63,11 +80,17 @@ def eval_cmd(provider: Optional[str], model: Optional[str], output_format: str, 
         console.print(f"[red]Could not create LLM provider: {exc}[/red]")
         raise click.Abort()
 
+    fixtures = build_grounded_fixtures() if grounded else None
+
     if output_format == "table":
-        console.print(f"\n[bold cyan]Running eval:[/bold cyan] {llm_provider.provider_name} / {getattr(llm_provider, 'model', 'unknown')}")
+        mode = "grounded (STIX-fed)" if grounded else "cold recall"
+        console.print(
+            f"\n[bold cyan]Running eval:[/bold cyan] {llm_provider.provider_name} / "
+            f"{getattr(llm_provider, 'model', 'unknown')} [dim]({mode})[/dim]"
+        )
         console.print("[dim]This makes one LLM call per fixture — may take a few minutes on a local model.[/dim]\n")
 
-    report = run_eval(llm_provider, temperature=temperature)
+    report = run_eval(llm_provider, fixtures=fixtures, temperature=temperature)
 
     if output_format == "json":
         console.print(json.dumps(report.to_dict(), indent=2), soft_wrap=True)

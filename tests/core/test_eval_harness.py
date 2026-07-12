@@ -1,10 +1,11 @@
 """Tests for athf.core.eval_harness - known-answer model spot checks."""
 
 from typing import Dict, List, Optional
+from unittest.mock import patch
 
 import pytest
 
-from athf.core.eval_harness import Fixture, run_eval
+from athf.core.eval_harness import FIXTURES, Fixture, build_grounded_fixtures, run_eval
 from athf.core.llm_provider import LLMProvider, LLMResponse
 
 
@@ -117,11 +118,75 @@ def test_eval_report_to_dict_is_json_serializable() -> None:
 
 @pytest.mark.unit
 def test_default_fixtures_are_well_formed() -> None:
-    from athf.core.eval_harness import FIXTURES
-
     assert len(FIXTURES) > 0
     ids = [f.id for f in FIXTURES]
     assert len(ids) == len(set(ids)), "fixture ids must be unique"
     for fixture in FIXTURES:
         assert fixture.prompt.strip()
         assert len(fixture.keywords) > 0
+
+
+# ---------------------------------------------------------------------------
+# build_grounded_fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_grounded_fixture_embeds_stix_description() -> None:
+    fake_info = {
+        "id": "T1003.001",
+        "name": "LSASS Memory",
+        "description": "Adversaries dump LSASS process memory to harvest credentials.",
+    }
+    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+        grounded = build_grounded_fixtures([LSASS_FIXTURE])
+
+    assert len(grounded) == 1
+    fixture = grounded[0]
+    assert fixture.id == "T1003.001-grounded"
+    assert fixture.category == "mitre-technique-grounded"
+    assert "LSASS Memory" in fixture.prompt
+    assert "harvest credentials" in fixture.prompt
+    assert fixture.keywords == LSASS_FIXTURE.keywords
+
+
+@pytest.mark.unit
+def test_grounded_fixtures_skip_missing_stix_data() -> None:
+    with patch("athf.core.attack_matrix.get_technique", return_value=None):
+        grounded = build_grounded_fixtures([LSASS_FIXTURE])
+
+    assert grounded == []
+
+
+@pytest.mark.unit
+def test_grounded_fixtures_exclude_non_technique_categories() -> None:
+    concept_fixture = Fixture(
+        id="lolbin", category="concept", prompt="What is a LOLBin?", keywords=["living off the land"]
+    )
+    fake_info = {"id": "T1003.001", "name": "LSASS Memory", "description": "..."}
+    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+        grounded = build_grounded_fixtures([LSASS_FIXTURE, concept_fixture])
+
+    # Only the mitre-technique fixture should produce a grounded variant.
+    assert len(grounded) == 1
+    assert grounded[0].id == "T1003.001-grounded"
+
+
+@pytest.mark.unit
+def test_grounded_fixtures_preserve_match_mode() -> None:
+    fake_info = {"id": "T1566.001", "name": "Spearphishing Attachment", "description": "Phishing via attachment."}
+    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+        grounded = build_grounded_fixtures([MULTI_KEYWORD_FIXTURE])
+
+    assert grounded[0].match_mode == "all"
+    assert grounded[0].keywords == MULTI_KEYWORD_FIXTURE.keywords
+
+
+@pytest.mark.unit
+def test_grounded_fixtures_default_to_module_fixtures_when_none_given() -> None:
+    fake_info = {"id": "x", "name": "x", "description": "x"}
+    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+        grounded = build_grounded_fixtures()
+
+    mitre_technique_count = sum(1 for f in FIXTURES if f.category == "mitre-technique")
+    assert len(grounded) == mitre_technique_count
