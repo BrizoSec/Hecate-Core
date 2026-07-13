@@ -73,6 +73,16 @@ class TestAttackTechniques:
 class TestAttackUpdate:
     """Test 'athf attack update' command."""
 
+    def setup_method(self):
+        from athf.core import attack_matrix
+
+        attack_matrix.reset_provider(attack_matrix.FallbackProvider())
+
+    def teardown_method(self):
+        from athf.core import attack_matrix
+
+        attack_matrix.reset_provider(attack_matrix.FallbackProvider())
+
     def test_update_without_mitreattack_installed(self, monkeypatch):
         """update should error gracefully when mitreattack-python is not installed."""
         import builtins
