@@ -689,7 +689,7 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
         )
 
     # Ollama running locally or at OLLAMA_HOST (e.g. a Docker service)
-    ollama_url = effective.get("base_url") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    ollama_url: str = str(effective.get("base_url") or os.getenv("OLLAMA_HOST") or "http://localhost:11434")
     if _ollama_is_running(ollama_url):
         detected_model = model or "llama3"
         logger.info("Auto-detected local Ollama -> using Ollama provider with model %s", detected_model)
@@ -748,7 +748,7 @@ def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> 
         )
 
     if name == "ollama":
-        base_url = config.get("base_url") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        base_url: str = str(config.get("base_url") or os.getenv("OLLAMA_HOST") or "http://localhost:11434")
         return OllamaProvider(
             model=model or "llama3",
             base_url=base_url,

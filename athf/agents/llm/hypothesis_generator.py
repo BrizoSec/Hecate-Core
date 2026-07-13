@@ -3,7 +3,7 @@
 import json
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from athf.agents.base import AgentResult, LLMAgent
 
@@ -175,7 +175,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 
         return re.findall(r"\bT\d{4}(?:\.\d{3})?\b", text)
 
-    def _validate_techniques(self, techniques: List[str]) -> tuple:  # type: ignore[type-arg]
+    def _validate_techniques(self, techniques: List[str]) -> Tuple[List[str], List[str]]:
         """Check each technique ID against the real ATT&CK matrix.
 
         Returns (valid_techniques, invalid_techniques).
