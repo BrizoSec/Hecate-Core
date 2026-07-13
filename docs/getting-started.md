@@ -4,6 +4,8 @@ This guide walks you through setting up the Agentic Threat Hunting Framework, fr
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
+> **Configuration reference:** For a complete list of API keys, environment variables, `.athfconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Step 1: Choose Your Setup Path
 
 ATHF offers two paths to get started:
