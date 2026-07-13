@@ -58,6 +58,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "flake8>=6.0.0",
+    "flake8-pyproject>=1.2.0",
     "mypy>=1.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
@@ -257,6 +258,32 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.flake8]
+max-line-length = 127
+max-complexity = 10
+exclude = [
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "*.egg-info",
+]
+ignore = [
+    "E203",  # whitespace before ':' (conflicts with black)
+    "W503",  # line break before binary operator (conflicts with black)
+    "E501",  # line too long (handled by max-line-length)
+]
+select = ["E", "W", "F", "C"]
+show-source = true
+show-pep8 = true
+count = true
+statistics = true
 
 [tool.bandit]
 exclude_dirs = ["tests", "test_*.py", "*/tests/*"]
