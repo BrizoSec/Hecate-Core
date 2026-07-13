@@ -98,6 +98,25 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             output_data = self._parse_json_response(output_text)
             output = HypothesisGenerationOutput(**output_data)
 
+            # Validate technique IDs against the real ATT&CK matrix
+            warnings: List[str] = []
+            valid_techniques, invalid_techniques = self._validate_techniques(output.mitre_techniques)
+            if invalid_techniques:
+                warnings.append(
+                    "Removed {} unrecognised ATT&CK ID(s): {}".format(
+                        len(invalid_techniques), ", ".join(invalid_techniques)
+                    )
+                )
+                output = HypothesisGenerationOutput(
+                    hypothesis=output.hypothesis,
+                    justification=output.justification,
+                    mitre_techniques=valid_techniques,
+                    data_sources=output.data_sources,
+                    expected_observables=output.expected_observables,
+                    known_false_positives=output.known_false_positives,
+                    time_range_suggestion=output.time_range_suggestion,
+                )
+
             provider = self._get_provider()
             model_name = getattr(
                 provider,
@@ -115,7 +134,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 success=True,
                 data=output,
                 error=None,
-                warnings=[],
+                warnings=warnings,
                 metadata=metadata,
             )
 
@@ -124,6 +143,61 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             elapsed_ms = int((time.monotonic() - start) * 1000)
             result.metadata["duration_ms"] = elapsed_ms
             return result
+
+    def _technique_grounding(self, techniques: List[str]) -> str:
+        """Inject real ATT&CK names and descriptions for a list of technique IDs.
+
+        Prevents the model from recalling technique identity from memory, which
+        has a ~30% error rate on smaller models (measured via eval harness).
+        Returns an empty string if STIX data is unavailable or no IDs given.
+        """
+        if not techniques:
+            return ""
+        lines = []
+        try:
+            from athf.core.attack_matrix import get_technique
+
+            for tid in techniques:
+                info = get_technique(tid)
+                if info:
+                    name = info.get("name", tid)
+                    desc = (info.get("description") or "").strip()[:300]
+                    lines.append('  {}: "{}" — {}'.format(tid, name, desc))
+        except Exception:
+            return ""
+        if not lines:
+            return ""
+        return "**ATT&CK Ground Truth (use these exact names):**\n" + "\n".join(lines) + "\n\n"
+
+    def _extract_techniques_from_text(self, text: str) -> List[str]:
+        """Extract T-code strings from free text."""
+        import re
+
+        return re.findall(r"\bT\d{4}(?:\.\d{3})?\b", text)
+
+    def _validate_techniques(self, techniques: List[str]) -> tuple:  # type: ignore[type-arg]
+        """Check each technique ID against the real ATT&CK matrix.
+
+        Returns (valid_techniques, invalid_techniques).
+        Skips validation and passes through unchanged when STIX data is not
+        installed (FallbackProvider has no technique data).
+        """
+        valid: List[str] = []
+        invalid: List[str] = []
+        try:
+            from athf.core.attack_matrix import _get_provider, get_technique
+
+            provider = _get_provider()
+            # FallbackProvider has no technique data — skip validation rather
+            # than incorrectly flagging every ID as invalid.
+            if not provider.is_stix():
+                return techniques, []
+
+            for tid in techniques:
+                (valid if get_technique(tid) is not None else invalid).append(tid)
+        except Exception:
+            return techniques, []
+        return valid, invalid
 
     def _build_prompt(self, input_data: HypothesisGenerationInput) -> str:
         """Build LLM prompt for hypothesis generation.
@@ -134,9 +208,16 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         Returns:
             Formatted prompt string
         """
+        # Collect any T-codes mentioned in inputs and inject real ATT&CK context
+        mentioned = self._extract_techniques_from_text(input_data.threat_intel)
+        if input_data.research:
+            mentioned += list(input_data.research.mitre_techniques)
+        grounding = self._technique_grounding(list(dict.fromkeys(mentioned)))
+
         return (
             "You are a threat hunting expert. Generate a hunt hypothesis "
             "based on the following:\n\n"
+            "{grounding}"
             "**Threat Intel:**\n"
             "{threat_intel}\n\n"
             "**Past Similar Hunts:**\n"
@@ -147,7 +228,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "Generate a hypothesis following this format:\n"
             '- Hypothesis: "Adversaries use [behavior] to [goal] on [target]"\n'
             "- Justification: Why this hypothesis is valuable\n"
-            "- MITRE Techniques: Relevant ATT&CK techniques (e.g., T1003.001)\n"
+            "- MITRE Techniques: Only include real ATT&CK technique IDs you are certain exist.\n"
             "- Data Sources: Which data sources to query\n"
             "- Expected Observables: What we expect to find\n"
             "- Known False Positives: Common benign patterns\n"
@@ -167,6 +248,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '  "time_range_suggestion": "7 days (justification)"\n'
             "}}\n"
         ).format(
+            grounding=grounding,
             threat_intel=input_data.threat_intel,
             past_hunts=json.dumps(input_data.past_hunts, indent=2),
             environment=json.dumps(input_data.environment, indent=2),

@@ -425,6 +425,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         # Load OCSF schema reference
         ocsf_schema = self._load_ocsf_schema()
+        schema_available = ocsf_schema != "OCSF schema reference not found"
         environment_data = self._load_environment()
 
         # Generate telemetry mapping using LLM
@@ -451,17 +452,23 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             "snippet": (
                 "Internal schema documentation with field population"
                 " rates"
+                if schema_available
+                else "Schema file not found — field findings are based on model recall"
             ),
         })
 
         duration_ms = int((time.time() - start_time) * 1000)
+
+        # Confidence is high only when backed by the local schema file;
+        # without it the LLM is reasoning from memory alone.
+        confidence = 0.9 if schema_available else 0.4
 
         return ResearchSkillOutput(
             skill_name="telemetry_mapping",
             summary=summary,
             key_findings=key_findings,
             sources=sources,
-            confidence=0.9,  # High confidence - based on internal schema
+            confidence=confidence,
             duration_ms=duration_ms,
         )
 
@@ -600,6 +607,13 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     source["title"], source["snippet"],
                 )
 
+            if not context:
+                context = (
+                    "No external sources are available. "
+                    "Rely only on well-established, widely-documented knowledge. "
+                    "Clearly flag any claims you are uncertain about with [UNCERTAIN]."
+                )
+
             prompt = (
                 "You are a security researcher studying system"
                 " internals.\n\n"
@@ -650,6 +664,13 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             for source in sources[:7]:
                 context += "- {}: {}\n".format(
                     source["title"], source["snippet"],
+                )
+
+            if not context:
+                context = (
+                    "No external sources are available. "
+                    "Rely only on well-established, widely-documented adversary techniques. "
+                    "Clearly flag any claims you are uncertain about with [UNCERTAIN]."
                 )
 
             technique_str = (

@@ -262,23 +262,17 @@ def run(  # noqa: C901
             except Exception as e:
                 console.print(f"[yellow]⚠ Could not load research context: {e}[/yellow]\n")
 
-            # Try to load environment.md if it exists
+            # Load environment.md content if it exists
             try:
                 from pathlib import Path
 
                 env_file = Path("environment.md")
                 if env_file.exists():
-                    # Parse basic environment info (data sources, platforms)
-                    environment = {
-                        "data_sources": ["EDR telemetry", "SIEM logs", "Cloud logs"],
-                        "platforms": ["Windows", "macOS", "Linux"],
-                    }
+                    environment = {"environment_md": env_file.read_text(encoding="utf-8")}
+                else:
+                    environment = {}
             except Exception:
-                # Use defaults if environment.md not found
-                environment = {
-                    "data_sources": ["EDR telemetry", "SIEM logs"],
-                    "platforms": ["Windows", "macOS", "Linux"],
-                }
+                environment = {}
 
             # Execute agent
             hypothesis_result = hypothesis_agent.execute(
