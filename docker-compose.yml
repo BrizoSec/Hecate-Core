@@ -31,10 +31,10 @@ services:
       # ── Explicit overrides (optional) ────────────────────────────────────
       - ATHF_LLM_PROVIDER=${ATHF_LLM_PROVIDER:-}
       - ATHF_LLM_MODEL=${ATHF_LLM_MODEL:-}
-      - ATHF_LLM_BASE_URL=${ATHF_LLM_BASE_URL:-}
+      # Overrides .athfconfig.yaml base_url so Docker reaches host Ollama
+      - ATHF_LLM_BASE_URL=${ATHF_LLM_BASE_URL:-http://host.docker.internal:11434}
       # ── Ollama ────────────────────────────────────────────────────────────
-      # Default points to native macOS Ollama (runs with Metal/GPU acceleration).
-      # Change to http://ollama:11434 if using --profile ollama instead.
+      # When using --profile ollama, override with: ATHF_LLM_BASE_URL=http://ollama:11434
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       # ── AWS Bedrock ───────────────────────────────────────────────────────
       - AWS_PROFILE=${AWS_PROFILE:-}
@@ -55,11 +55,11 @@ services:
     ports:
       - "11434:11434"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/version || exit 1"]
+      test: ["CMD", "ollama", "list"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 12
-      start_period: 20s
+      start_period: 30s
     profiles: [ollama]
 
   # Pulls the default model once on first start, then exits
@@ -73,7 +73,7 @@ services:
     environment:
       - OLLAMA_HOST=http://ollama:11434
     entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull ${OLLAMA_MODEL:-llama3.1:14b}"]
+    command: ["ollama pull ${OLLAMA_MODEL:-qwen2.5:14b}"]
     restart: "no"
     profiles: [ollama]
 
