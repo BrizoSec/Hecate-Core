@@ -5,7 +5,81 @@ All notable changes to the Agentic Threat Hunting Framework (ATHF) will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.0] - Unreleased
+## [0.16.0] - 2026-07-12
+
+### Added
+- **Docker containerization** — Full `Dockerfile` + `docker-compose.yml` for running ATHF without a local Python install
+  - `athf` service always active; `ollama` + `ollama-pull` services gated behind `--profile ollama`
+  - `ATHF_LLM_BASE_URL` env var overrides workspace config at runtime (useful for Docker → host Ollama)
+  - `OLLAMA_HOST` env var respected for Ollama service discovery inside containers
+  - Default model for `ollama-pull`: `qwen2.5:14b`
+  - See `docker-compose.yml` for quick-start comments
+
+### Changed
+- **Test suite reorganized** — Flat `tests/` files moved into `tests/commands/`, `tests/core/`, `tests/utils/` subdirectories for clarity
+- **Config consolidation** — `[tool.flake8]` and `flake8-pyproject` dependency absorbed into `pyproject.toml`; standalone `.flake8` file deleted
+- **Architectural cleanup** — `config/` directory eliminated; `.env.example`, `.markdownlint.json`, `.markdown-link-check.json` moved to project root; `docs/` reorganized
+
+### Fixed
+- **Test isolation bug** — `TestAttackUpdate` now resets global `attack_matrix` provider in `setup_method`/`teardown_method`, preventing contamination of subsequent tests
+- **JSON output line wrapping** — `athf similar --format json` used `rich.console.print()` which inserted literal newlines into JSON string values at terminal width; replaced with `click.echo()` for JSON and YAML output paths
+
+### Removed
+- `automation/` directory (TypeScript GitHub Issues automation loop) — to be re-implemented differently
+
+## [0.15.0] - 2026-06-15
+
+### Added
+- **Eval harness** — Known-answer model spot-check framework (`athf eval`) for validating LLM output quality
+  - Structured test cases with expected outputs and pass/fail scoring
+- **Envelope-reduction response contract** — MCP tools now return compact, structured responses to reduce token overhead in AI assistant workflows
+  - Cross-platform path normalization (Windows absolute-name detection)
+  - Path traversal protection in Gate B persistence layer
+
+### Changed
+- **Research prompts grounded in ATT&CK data** — Replaced model-recall-based research prompts with prompts that reference real ATT&CK STIX data, improving hypothesis accuracy
+
+## [0.14.0] - 2026-05-28
+
+### Added
+- **Hypothesis persistence on research docs** — `athf agent run hypothesis-generator` now writes the generated hypothesis back to the linked `R-XXXX.md` research document
+  - UTC timestamp recorded on each hypothesis write
+  - Explicit error response if persistence fails (non-fatal)
+
+## [0.13.1] - 2026-05-22
+
+### Fixed
+- **MCP `athf_research_new` null depth** — Tool now tolerates `null` depth and empty topic gracefully instead of raising a validation error; whitespace stripped from depth parameter
+
+## [0.13.0] - 2026-05-21
+
+### Added
+- **MCP `athf_research_new` tool** — Trigger pre-hunt research from any MCP-connected AI assistant (Claude, Copilot, Cursor)
+- **MCP `athf_investigate_new` tool** — Create investigation documents via MCP for Nova chat integration
+
+### Fixed
+- Missing `attack_tools` module reference in `server.py`
+- Added return type annotation to `_discover_plugin_tools`
+
+## [0.12.0] - 2026-04-29
+
+### Added
+- **MCP streamable-HTTP transport** — `athf mcp serve --transport streamable-http` for HTTP-based MCP connections
+- **MCP plugin discovery** — `athf.mcp_tools` entry point lets third-party packages expose additional MCP tools without modifying ATHF core
+  - Plugin integration tests added
+
+### Fixed
+- `athf-mcp` standalone entry point now includes CLI argument parser
+- `athf attack update` — replaced `stix_store_to_file` with direct urllib download; sanitized STIX bundle loading
+- `athf hunt new` — auto-derives tactics from technique ID when `--tactic` is omitted
+- Ollama provider: added `timeout=30` to `urlopen` calls to prevent indefinite hangs
+
+## [0.11.1] - 2026-04-12
+
+### Added
+- **Hypothesis generation duration tracking** — `athf agent run hypothesis-generator` now reports wall-clock time for each generation run
+
+## [0.11.0] - 2026-04-05
 
 ### Added
 - **MCP Server** — Expose ATHF operations as MCP tools for AI assistants (Claude Code, Copilot, Cursor)
