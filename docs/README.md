@@ -27,5 +27,5 @@ Complete documentation for the Agentic Threat Hunting Framework.
 
 - [Main README](../README.md)
 - [AGENTS.md](../AGENTS.md) - AI assistant context
-- [Example Hunts](../SHOWCASE.md)
-- [Using ATHF](../USING_ATHF.md) - Adoption guide
+- [Example Hunts](SHOWCASE.md)
+- [Using ATHF](USING_ATHF.md) - Adoption guide

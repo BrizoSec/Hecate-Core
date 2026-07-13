@@ -220,7 +220,7 @@ export ATHF_LLM_PROVIDER=openai
 export ATHF_LLM_MODEL=gpt-4o
 ```
 
-See [`config/.env.example`](../config/.env.example) for all supported variables.
+See [`.env.example`](../.env.example) for all supported variables.
 
 ### Test AI Integration and Agent Framework (v0.3.0+)
 

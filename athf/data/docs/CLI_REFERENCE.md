@@ -2022,7 +2022,7 @@ status: completed
   - `OPENAI_API_KEY`: OpenAI or compatible endpoint
   - `AWS_PROFILE` or `AWS_ACCESS_KEY_ID`: AWS Bedrock
   - `OLLAMA_HOST`: Local Ollama instance
-  - Override with `ATHF_LLM_PROVIDER` and `ATHF_LLM_MODEL` (see `config/.env.example`)
+  - Override with `ATHF_LLM_PROVIDER` and `ATHF_LLM_MODEL` (see `.env.example`)
   - Without LLM: Falls back to template-based research
   - With LLM: Enhanced analysis using your configured model
 

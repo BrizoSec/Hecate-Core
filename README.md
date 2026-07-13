@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers)
 
-**[Quick Start](#-quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/SHOWCASE.md)**
+**[Quick Start](#-quick-start)** • **[Installation](#installation)** • **[Documentation](#documentation)** • **[Examples](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/SHOWCASE.md)**
 
 *Give your threat hunting program memory and agency.*
 
@@ -238,7 +238,7 @@ Exposes 17 tools: hunt management, semantic search, ATT&CK coverage, research, i
 
 Watch ATHF in action: initialize a workspace, create hunts, and explore your threat hunting catalog in under 60 seconds.
 
-**[View example hunts →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/SHOWCASE.md)**
+**[View example hunts →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/SHOWCASE.md)**
 
 ## Installation
 
@@ -269,7 +269,7 @@ See the [Quick Start](#-quick-start) section above for installation options (PyP
 - [Installation & Development](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/INSTALL.md) - Setup, fork customization, testing
 - [MCP Catalog](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/integrations/MCP_CATALOG.md) - Available tool integrations
 - [Quickstart Guides](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/tree/main/integrations/quickstart/) - Setup for specific tools
-- [Using ATHF](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/USING_ATHF.md) - Adoption and customization
+- [Using ATHF](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/USING_ATHF.md) - Adoption and customization
 
 ## 🎖️ Featured Hunts
 
@@ -280,7 +280,7 @@ Detected Atomic Stealer collecting Safari cookies via AppleScript.
 
 **Key Insight:** Behavior-based detection outperformed signature-based approaches. Process signature validation identified unsigned malware attempting data collection.
 
-[View full hunt →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/hunts/H-0001.md) | [See more examples →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/SHOWCASE.md)
+[View full hunt →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/hunts/H-0001.md) | [See more examples →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/SHOWCASE.md)
 
 ## Why This Matters
 
@@ -300,7 +300,7 @@ When your framework has memory, you stop losing knowledge to turnover or forgott
 - **Issues:** [Report bugs or request features](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
 - **LinkedIn:** [Nebulock Inc.](https://www.linkedin.com/company/nebulock-inc) - Follow for updates
 
-**Using ATHF in Your Organization:** ATHF is a framework to internalize, not a platform to extend. Fork it, customize it, make it yours. See [USING_ATHF.md](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/USING_ATHF.md) for adoption guidance. Your hunts stay yours—sharing back is optional but appreciated.
+**Using ATHF in Your Organization:** ATHF is a framework to internalize, not a platform to extend. Fork it, customize it, make it yours. See [USING_ATHF.md](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/USING_ATHF.md) for adoption guidance. Your hunts stay yours—sharing back is optional but appreciated.
 
 **Repository:** [https://github.com/Nebulock-Inc/agentic-threat-hunting-framework](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework)
 

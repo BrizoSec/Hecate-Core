@@ -1,7 +1,7 @@
 # Agentic Threat Hunting Framework - Docker Compose
 #
 # ── Quick start (you have an API key) ───────────────────────────────────────
-#   cp config/.env.example .env      # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   cp .env.example .env              # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   docker compose up -d
 #   docker compose exec athf bash
 #

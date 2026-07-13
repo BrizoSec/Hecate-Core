@@ -107,7 +107,7 @@ Next iteration: expand to include remote registry and PSExec telemetry for broad
 - [H-0001: macOS Information Stealer Detection](../hunts/production/2026/Q1/H-0001.md) - Complete hunt with YAML frontmatter, detailed LOCK sections, query evolution, and results
 - [H-0002: Linux Crontab Persistence Detection](../hunts/production/2026/Q1/H-0002.md) - Multi-query approach with behavioral analysis
 - [H-0003: AWS Lambda Persistence Detection](../hunts/production/2026/Q1/H-0003.md) - Cloud hunting with CloudTrail correlation
-- [Hunt Showcase](../SHOWCASE.md) - Side-by-side comparison of all three hunts
+- [Hunt Showcase](SHOWCASE.md) - Side-by-side comparison of all three hunts
 
 ## Best Practices
 
