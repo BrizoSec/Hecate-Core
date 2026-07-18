@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from athf.core.attack_matrix import ATTACK_TACTICS, TOTAL_TECHNIQUES, get_sorted_tactics
+from athf.core.attack_matrix import get_sorted_tactics, get_tactic_technique_count, get_total_techniques
 from athf.core.hunt_parser import parse_hunt_file
 from athf.utils.validation import validate_file_path, validate_hunt_id
 
@@ -318,7 +318,7 @@ class HuntManager:
                 "hunt_count": 0,
                 "hunt_ids": set(),
                 "techniques": {},
-                "total_techniques": ATTACK_TACTICS[tactic_key]["technique_count"],
+                "total_techniques": get_tactic_technique_count(tactic_key),
             }
 
         all_unique_techniques: Set[str] = set()
@@ -358,7 +358,8 @@ class HuntManager:
 
         # Calculate overall coverage
         tactics_with_hunts = len([t for t in coverage_by_tactic.values() if t["hunt_count"] > 0])
-        overall_coverage_pct = (len(all_unique_techniques) / TOTAL_TECHNIQUES * 100) if TOTAL_TECHNIQUES > 0 else 0.0
+        total_techniques = get_total_techniques()
+        overall_coverage_pct = (len(all_unique_techniques) / total_techniques * 100) if total_techniques > 0 else 0.0
 
         # Build summary
         summary = {
@@ -366,7 +367,7 @@ class HuntManager:
             "completed_hunts": len([h for h in hunts if h.get("status") == "completed"]),
             "unique_techniques": len(all_unique_techniques),
             "tactics_covered": tactics_with_hunts,
-            "total_techniques": TOTAL_TECHNIQUES,
+            "total_techniques": total_techniques,
             "overall_coverage_pct": overall_coverage_pct,
         }
 

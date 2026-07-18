@@ -279,7 +279,7 @@ class StixProvider(AttackDataProvider):
 
             # Count techniques for this tactic
             techniques = self._attack_data.get_techniques_by_tactic(
-                stix_tactic["id"], "enterprise-attack", remove_revoked_deprecated=True
+                shortname, "enterprise-attack", remove_revoked_deprecated=True
             )
 
             tactics[shortname] = TacticInfo(
@@ -491,6 +491,15 @@ def get_sorted_tactics() -> List[str]:
         List of tactic keys in matrix order
     """
     return _get_provider().get_sorted_tactic_keys()
+
+
+def get_total_techniques() -> int:
+    """Get the total technique count across all tactics.
+
+    Returns:
+        Total technique count
+    """
+    return _get_provider().get_total_techniques()
 
 
 # ---------------------------------------------------------------------------

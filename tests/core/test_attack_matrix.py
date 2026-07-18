@@ -97,13 +97,19 @@ class TestFallbackProvider:
 
 @pytest.mark.unit
 class TestBackwardCompatibility:
-    """Verify that existing imports and APIs still work."""
+    """Verify that existing imports and APIs still work.
+
+    Pinned to FallbackProvider: these assertions encode the hardcoded v14
+    dataset's shape, which would drift under whatever STIX data happens to
+    be cached on the machine running the tests (see StixProvider tests for
+    live-data behavior).
+    """
 
     def setup_method(self):
         """Reset the provider singleton before each test."""
         from athf.core import attack_matrix
 
-        attack_matrix.reset_provider()
+        attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
     def test_import_attack_tactics(self):
         """ATTACK_TACTICS can still be imported via __getattr__."""
@@ -164,6 +170,44 @@ class TestBackwardCompatibility:
             from athf.core import attack_matrix
 
             attack_matrix.__getattr__("NONEXISTENT_THING")
+
+
+# ---------------------------------------------------------------------------
+# StixProvider tests (mocked MitreAttackData, no network/cache dependency)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestStixProvider:
+    """Test StixProvider's STIX-object-to-TacticInfo mapping against a mock client."""
+
+    def test_build_tactics_passes_shortname_not_stix_id(self, tmp_path):
+        """get_techniques_by_tactic must be called with the tactic shortname.
+
+        Regression test: the STIX id (e.g. 'x-mitre-tactic--...') was being
+        passed instead of the shortname (e.g. 'credential-access'), which
+        silently made every tactic's technique_count come back as 0.
+        """
+        from athf.core.attack_matrix import StixProvider
+
+        provider = StixProvider(stix_path=tmp_path / "enterprise-attack.json")
+        mock_attack_data = MagicMock()
+        mock_attack_data.get_tactics.return_value = [
+            {
+                "x_mitre_shortname": "credential-access",
+                "id": "x-mitre-tactic--aaaaaaaa-0000-0000-0000-000000000000",
+                "name": "Credential Access",
+            },
+        ]
+        mock_attack_data.get_techniques_by_tactic.return_value = [MagicMock(), MagicMock()]
+        provider._attack_data = mock_attack_data  # bypass file-backed _ensure_loaded
+
+        tactics = provider.get_tactics()
+
+        mock_attack_data.get_techniques_by_tactic.assert_called_once_with(
+            "credential-access", "enterprise-attack", remove_revoked_deprecated=True
+        )
+        assert tactics["credential-access"]["technique_count"] == 2
 
 
 # ---------------------------------------------------------------------------
