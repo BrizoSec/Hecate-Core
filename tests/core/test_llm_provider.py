@@ -156,6 +156,10 @@ class TestOllamaProvider:
             }
         ).encode("utf-8")
         mock_resp.status = 200
+        # complete() uses `with urlopen(...) as resp:` -- a real HTTPResponse's
+        # __enter__ returns itself, so the mock must too (MagicMock's default
+        # __enter__ return value is a *different* auto-generated mock).
+        mock_resp.__enter__.return_value = mock_resp
 
         with patch("urllib.request.urlopen", return_value=mock_resp):
             provider = OllamaProvider(model="llama3")
@@ -180,6 +184,7 @@ class TestOllamaProvider:
             }
         ).encode("utf-8")
         mock_resp.status = 200
+        mock_resp.__enter__.return_value = mock_resp  # see comment in test_ollama_provider_complete
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
             provider = OllamaProvider(model="llama3")

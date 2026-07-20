@@ -4,8 +4,11 @@ Provides fuzzy model name matching and per-token cost calculation
 across Anthropic, OpenAI, Google, and local/free model providers.
 """
 
+import logging
 import re
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 # Pricing per 1K tokens (as of early 2026)
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
@@ -29,6 +32,16 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "mistral": {"input": 0.0, "output": 0.0},
     "qwen": {"input": 0.0, "output": 0.0},
 }
+
+# Used only when a model can't be matched against MODEL_PRICING above. A
+# model we don't recognize is far more likely to be a new/unlisted *paid*
+# cloud model than a new free one -- local/free providers are covered by the
+# explicit zero-priced entries above, and OllamaProvider.complete() in
+# llm_provider.py never even calls estimate_cost() (it hardcodes cost_usd=0.0
+# directly). Silently returning 0.0 here would make real paid usage look
+# free and be indistinguishable from a genuinely free model; a mid-tier
+# paid-model estimate, clearly logged as a fallback, is safer than that.
+_UNKNOWN_MODEL_FALLBACK_PRICING: Dict[str, float] = {"input": 0.003, "output": 0.015}
 
 
 def _normalize_bedrock_model_id(model: str) -> str:
@@ -76,21 +89,13 @@ def _resolve_pricing(model: str) -> Optional[Dict[str, float]]:
     # Helper: find best match from candidates using a match function
     def _best_match(name: str) -> Optional[Dict[str, float]]:
         # Prefix match (longest key wins)
-        prefix_matches = [
-            (key, pricing)
-            for key, pricing in MODEL_PRICING.items()
-            if name.startswith(key)
-        ]
+        prefix_matches = [(key, pricing) for key, pricing in MODEL_PRICING.items() if name.startswith(key)]
         if prefix_matches:
             best = max(prefix_matches, key=lambda kv: len(kv[0]))
             return best[1]
 
         # Substring match (longest key wins)
-        substr_matches = [
-            (key, pricing)
-            for key, pricing in MODEL_PRICING.items()
-            if key in name
-        ]
+        substr_matches = [(key, pricing) for key, pricing in MODEL_PRICING.items() if key in name]
         if substr_matches:
             best = max(substr_matches, key=lambda kv: len(kv[0]))
             return best[1]
@@ -127,12 +132,22 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
         output_tokens: Number of output (completion) tokens.
 
     Returns:
-        Estimated cost in USD, rounded to 6 decimal places.
-        Returns 0.0 if the model is not recognized.
+        Estimated cost in USD, rounded to 6 decimal places. Falls back to a
+        mid-tier paid-model estimate (logged as a warning) if the model
+        isn't recognized, rather than silently reporting 0.0 -- which would
+        look identical to a genuinely free local model.
     """
     pricing = _resolve_pricing(model)
     if pricing is None:
-        return 0.0
+        logger.warning(
+            "No pricing entry for model %r; using a fallback estimate (Claude "
+            "Sonnet-tier pricing) instead of reporting $0.00, which would be "
+            "indistinguishable from a genuinely free local model. Add this "
+            "model to MODEL_PRICING in athf/core/cost_tracker.py for an "
+            "accurate cost.",
+            model,
+        )
+        pricing = _UNKNOWN_MODEL_FALLBACK_PRICING
 
     input_cost = (input_tokens / 1000.0) * pricing["input"]
     output_cost = (output_tokens / 1000.0) * pricing["output"]

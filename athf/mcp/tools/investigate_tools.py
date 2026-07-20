@@ -1,6 +1,7 @@
 """Investigation management MCP tools."""
 
 import logging
+import re
 from typing import Optional
 
 from athf.mcp.server import get_workspace, _json_result
@@ -89,15 +90,21 @@ def register_investigate_tools(mcp: "FastMCP") -> None:  # type: ignore[name-def
             if result.returncode != 0:
                 return _json_result({"error": result.stderr.strip() or "Investigation creation failed"})
 
-            from athf.core.investigation_parser import get_all_investigations
-            investigations = get_all_investigations(workspace / "investigations")
-            if investigations:
-                latest = sorted(investigations, key=lambda i: i.get("investigation_id", ""))[-1]
+            # Parse the ID `athf investigate new` itself just created and
+            # printed (e.g. "Created I-0042: some title"), rather than
+            # re-scanning the directory afterward and guessing the highest
+            # sorted ID is "the one we just made" -- under a concurrent
+            # investigate_new call finishing in between our subprocess exiting
+            # and this re-scan running, that guess could return a DIFFERENT
+            # caller's investigation ID as if it were our own.
+            match = re.search(r"Created (I-\d+):\s*(.*)", result.stdout)
+            if match:
+                investigation_id = match.group(1)
                 return _json_result({
                     "status": "created",
-                    "investigation_id": latest.get("investigation_id"),
-                    "title": latest.get("title"),
-                    "path": f"investigations/{latest.get('investigation_id')}.md",
+                    "investigation_id": investigation_id,
+                    "title": match.group(2).strip(),
+                    "path": f"investigations/{investigation_id}.md",
                 })
             return _json_result({"status": "created", "output": result.stdout.strip()})
         except subprocess.TimeoutExpired:

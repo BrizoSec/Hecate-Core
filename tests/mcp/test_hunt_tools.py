@@ -142,7 +142,17 @@ class TestHuntCoverage:
         assert "by_tactic" in result
         assert "summary" in result
         assert result["summary"]["total_techniques"] > 0
-        assert len(result["by_tactic"]) == 14
+        # Derived from the same source of truth the code itself uses, not a
+        # hardcoded tactic count -- a hardcoded "14" here went stale the
+        # moment the cached ATT&CK STIX data was updated to a version with a
+        # 15th tactic (MITRE has changed the tactic count before, e.g.
+        # adding Reconnaissance/Resource Development in ATT&CK v8), and it
+        # was only passing before because an unrelated test-isolation bug
+        # (see tests/conftest.py::_reset_attack_matrix_provider) was leaking
+        # the smaller hardcoded FallbackProvider tactic list into this test.
+        from athf.core.attack_matrix import get_sorted_tactics
+
+        assert len(result["by_tactic"]) == len(get_sorted_tactics())
 
     def test_filter_by_tactic(self, server):
         result = _call_tool(server, "athf_hunt_coverage", {"tactic": "credential-access"})
@@ -162,10 +172,14 @@ class TestHuntValidate:
 
 class TestHuntNew:
     def test_creates_hunt(self, server, workspace):
-        result = _call_tool(server, "athf_hunt_new", {
-            "title": "Test Hunt Creation",
-            "technique": "T1059.001",
-        })
+        result = _call_tool(
+            server,
+            "athf_hunt_new",
+            {
+                "title": "Test Hunt Creation",
+                "technique": "T1059.001",
+            },
+        )
         assert "hunt_id" in result
         assert result["technique"] == "T1059.001"
         # Verify file exists

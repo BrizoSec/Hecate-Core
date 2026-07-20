@@ -9,7 +9,6 @@ from athf.core.cost_tracker import (
     estimate_cost,
 )
 
-
 # ---------------------------------------------------------------------------
 # _resolve_pricing tests
 # ---------------------------------------------------------------------------
@@ -41,9 +40,7 @@ class TestResolvePricing:
 
     def test_bedrock_model_id(self):
         """Full Bedrock ARN-style IDs resolve after normalization."""
-        pricing = _resolve_pricing(
-            "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-        )
+        pricing = _resolve_pricing("us.anthropic.claude-sonnet-4-5-20250929-v1:0")
         assert pricing is not None
         # After stripping prefix and version suffix the normalized form
         # "claude-sonnet-4-5-20250929" should prefix-match "claude-sonnet-4".
@@ -83,9 +80,7 @@ class TestNormalizeBedrockModelId:
 
     def test_normalize_bedrock_strips_both(self):
         """Both prefix and version suffix are removed together."""
-        result = _normalize_bedrock_model_id(
-            "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-        )
+        result = _normalize_bedrock_model_id("us.anthropic.claude-sonnet-4-5-20250929-v1:0")
         assert result == "claude-sonnet-4-5-20250929"
 
     def test_normalize_bedrock_noop(self):
@@ -119,16 +114,18 @@ class TestEstimateCost:
         cost = estimate_cost("claude-sonnet-4", input_tokens, output_tokens)
         assert cost == expected
 
-    def test_unknown_model_returns_zero(self):
-        """An unrecognized model returns 0.0 cost."""
+    def test_unknown_model_uses_fallback_pricing_not_zero(self):
+        """An unrecognized model must NOT silently report 0.0 -- that's
+        indistinguishable from a genuinely free local model and makes real
+        paid usage look free. It should fall back to a non-zero estimate."""
         cost = estimate_cost("some-random-model", 1000, 1000)
-        assert cost == 0.0
+        assert cost > 0.0
+        expected = round((1000 / 1000.0) * 0.003 + (1000 / 1000.0) * 0.015, 6)
+        assert cost == expected
 
     def test_bedrock_id_cost(self):
         """Full Bedrock model IDs still produce a non-zero cost."""
-        cost = estimate_cost(
-            "us.anthropic.claude-sonnet-4-5-20250929-v1:0", 1000, 500
-        )
+        cost = estimate_cost("us.anthropic.claude-sonnet-4-5-20250929-v1:0", 1000, 500)
         assert cost > 0.0
 
     def test_ollama_free_cost(self):

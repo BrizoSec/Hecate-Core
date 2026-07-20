@@ -29,77 +29,51 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
         if not query and not hunt_id:
             return _json_result({"error": "Provide either 'query' text or 'hunt_id' to search."})
 
+        # Delegates to the same TF-IDF similarity search `athf similar` (the
+        # CLI) and the hunt-researcher agent's related-work skill both use,
+        # rather than maintaining a second, independently-drifted
+        # implementation here. The version that used to live in this file
+        # directly was missing session-text folding (a hunt's linked session
+        # decisions/findings, which the canonical version weights into the
+        # corpus) and never excluded the query hunt itself from its own
+        # corpus when searching by hunt_id -- trivially matching itself at
+        # ~1.0 similarity and crowding out real matches.
+        #
+        # Passes workspace explicitly rather than os.chdir()-ing into it for
+        # the call's duration: chdir is process-wide, and if this server
+        # ever runs sync tool calls on separate threads (as e.g. FastMCP's
+        # asyncio.to_thread dispatch would), two concurrent athf_similar
+        # calls chdir-ing into place could race each other's cwd.
         workspace = get_workspace()
-        from athf.core.hunt_manager import HuntManager
+        from athf.commands.similar import _find_similar_hunts, _get_hunt_text
 
-        manager = HuntManager(hunts_dir=workspace / "hunts")
-        hunt_files = manager.find_all_hunt_files()
-
-        if not hunt_files:
-            return _json_result({"count": 0, "results": [], "message": "No hunts found in workspace."})
-
-        try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.metrics.pairwise import cosine_similarity
-        except ImportError:
-            return _json_result({"error": "scikit-learn is required for similarity search. Install with: pip install 'athf[similarity]'"})
-
-        # Build corpus
-        from athf.core.hunt_parser import parse_hunt_file
-
-        corpus_texts = []
-        corpus_hunts = []
-        for f in hunt_files:
-            try:
-                parsed = parse_hunt_file(f)
-                fm = parsed.get("frontmatter", {})
-                text_parts = [
-                    fm.get("title", ""),
-                    fm.get("technique", ""),
-                    " ".join(fm.get("tactics", []) if isinstance(fm.get("tactics"), list) else [str(fm.get("tactics", ""))]),
-                    parsed.get("content", ""),
-                ]
-                corpus_texts.append(" ".join(str(p) for p in text_parts))
-                corpus_hunts.append({
-                    "hunt_id": fm.get("hunt_id", f.stem),
-                    "title": fm.get("title", ""),
-                    "technique": fm.get("technique", ""),
-                    "status": fm.get("status", ""),
-                })
-            except Exception as e:
-                logger.debug("Skipping %s: %s", f.name, e)
-                continue
-
-        if not corpus_texts:
-            return _json_result({"count": 0, "results": []})
-
-        # Build query text
         if hunt_id:
-            hunt = manager.get_hunt(hunt_id)
-            if hunt is None:
+            query_text = _get_hunt_text(hunt_id, workspace=workspace)
+            if query_text is None:
                 return _json_result({"error": f"Hunt not found: {hunt_id}"})
-            fm = hunt.get("frontmatter", {})
-            query_text = " ".join([fm.get("title", ""), fm.get("technique", ""), hunt.get("content", "")])
         else:
             query_text = query or ""
 
-        # TF-IDF similarity
-        vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
-        tfidf_matrix = vectorizer.fit_transform(corpus_texts + [query_text])
-        query_vec = tfidf_matrix[-1]
-        corpus_matrix = tfidf_matrix[:-1]
-        similarities = cosine_similarity(query_vec, corpus_matrix).flatten()
+        import click
 
-        # Rank and filter
-        results = []
-        for idx, score in enumerate(similarities):
-            if score >= threshold:
-                entry = corpus_hunts[idx].copy()
-                entry["similarity_score"] = round(float(score), 4)
-                results.append(entry)
-
-        results.sort(key=lambda x: x["similarity_score"], reverse=True)
-        results = results[:limit]
+        try:
+            results = _find_similar_hunts(
+                query_text,
+                limit=limit,
+                threshold=threshold,
+                exclude_hunt=hunt_id,
+                workspace=workspace,
+            )
+        except (ImportError, click.Abort):
+            # _find_similar_hunts prints a click-flavored error and raises
+            # click.Abort (not ImportError) when scikit-learn is missing --
+            # it was only ever called from CLI/click contexts before this
+            # tool. Catch both so a missing optional dependency degrades to
+            # a normal JSON error response here instead of an unhandled
+            # click exception with no meaning outside a Click app.
+            return _json_result(
+                {"error": "scikit-learn is required for similarity search. Install with: pip install 'athf[similarity]'"}
+            )
 
         return _json_result({"count": len(results), "results": results})
 
@@ -143,12 +117,22 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
             result["hunts"] = hunts
             result["hunt_count"] = len(hunts)
 
-        # Load domain knowledge if tactic specified
+        # Load domain knowledge if tactic specified. Reuses the CLI's own
+        # tactic->file mapping (athf context --tactic ...) rather than
+        # maintaining a second implementation here -- the substring match
+        # this used to do (`tactic.replace("-", " ") in f.stem.replace("-", " ")`)
+        # never actually matched anything for a real tactic against this
+        # project's documented domain-file naming convention (e.g.
+        # "credential access" is never a substring of "iam-security"), so it
+        # silently returned no domain_knowledge for every real call -- a
+        # second, correct implementation already existed in
+        # athf/commands/context.py and had simply drifted out of sync.
         if tactic:
-            knowledge_dir = workspace / "knowledge" / "domains"
-            if knowledge_dir.is_dir():
-                for f in knowledge_dir.glob("*.md"):
-                    if tactic.replace("-", " ") in f.stem.replace("-", " "):
-                        result.setdefault("domain_knowledge", {})[f.stem] = f.read_text(encoding="utf-8")
+            from athf.commands.context import _get_relevant_domain_files
+
+            for relative_path in _get_relevant_domain_files(tactic):
+                domain_file = workspace / relative_path
+                if domain_file.exists() and domain_file.name != "hunting-knowledge.md":
+                    result.setdefault("domain_knowledge", {})[domain_file.stem] = domain_file.read_text(encoding="utf-8")
 
         return _json_result(result)

@@ -100,7 +100,16 @@ class HuntParser:
             "learn": r"##\s+LEARN[:\s].*?(?=##\s+OBSERVE|$)",
             "observe": r"##\s+OBSERVE[:\s].*?(?=##\s+CHECK|$)",
             "check": r"##\s+CHECK[:\s].*?(?=##\s+KEEP|$)",
-            "keep": r"##\s+KEEP[:\s].*?(?=##\s+[A-Z]|$)",
+            # KEEP is the last LOCK section, so there's no known next-section
+            # keyword to anchor on (unlike learn/observe/check above) -- the
+            # lookahead has to stop at the next *top-level* "## " heading.
+            # `[A-Z]` alone isn't enough: it also matches inside "### ", since
+            # the last two of its three hashes plus the following space and
+            # capital letter satisfy `##\s+[A-Z]` too, silently truncating
+            # keep to just its own heading whenever it contains a "###"
+            # subsection -- which real hunt files always do. `(?!#)` rules
+            # that out by requiring exactly two hashes, not three-or-more.
+            "keep": r"##\s+KEEP[:\s].*?(?=\n##(?!#)\s+[A-Z]|\Z)",
         }
 
         for section_name, pattern in section_patterns.items():

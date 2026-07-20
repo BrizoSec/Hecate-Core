@@ -2168,6 +2168,56 @@ Use Diamond Model to structure pivots:
 
 **Current ATHF User:** Likely Level 1-2 (using this knowledge base = Level 2 capability)
 
+### PEAK Threat Hunting Framework (David J. Bianco, Splunk SURGe)
+
+**Purpose:** A three-phase hunting process model — Prepare, Execute, Act with Knowledge — that names three distinct *types* of hunt within Execute, not just one. PEAK complements LOCK rather than replacing it: LOCK is ATHF's execution method for PEAK's hypothesis-driven hunt type.
+
+**The Three Phases:**
+
+#### Prepare
+
+Scope and prioritize the hunt before touching data: define the goal, apply ABLE (Actor, Behavior, Location, Evidence) scoping, and rank candidate hunts by feasibility and impact.
+
+**ATHF Equivalent:** LOCK's Learn phase already does this — hypothesis statement, threat context, and the ABLE table are the same ABLE framework ATHF already uses.
+
+#### Execute
+
+Run the hunt. PEAK names three distinct hunt types here — most hunting programs (and ATHF today) only do the first:
+
+| Hunt Type | Approach | ATHF Support |
+|-----------|----------|---------------|
+| **Hypothesis-Driven Hunting** | Start from a specific, testable hypothesis about adversary behavior; query to confirm or refute it | Full support — this is what LOCK's Observe/Check phases are |
+| **Baseline Hunting (EDA)** | No hypothesis; characterize "what's normal" for a dataset (frequency counts, cardinality, rare values) and flag outliers as candidate leads for later hypothesis-driven hunts | Full support — `athf hunt new-baseline` (`hunt_type: baseline`), reuses LOCK's headings with baseline-specific subsections; filter with `athf hunt list --type baseline` |
+| **Model-Assisted Threat Hunting (M-ATH)** | Use statistical or ML models (clustering, rarity/frequency analysis, z-score/IQR outliers) over data to surface anomalies at scale, faster than manual EDA | Not supported — `athf similar` uses scikit-learn for text similarity, not anomaly detection over telemetry |
+
+**When to reach for Baseline or M-ATH instead of hypothesis-driven:** when there isn't yet a specific TTP in mind but ground truth for a dataset is needed first, or when data volume makes a manual hypothesis-first approach impractical (e.g. "what does normal parent-child process activity look like across 50,000 endpoints" isn't a hypothesis, it's a baseline).
+
+#### Act with Knowledge
+
+Turn hunt results into lasting value — sometimes called "the ABCs of Act":
+
+- **Answer** the original hypothesis — confirmed, refuted, or inconclusive
+- **Brief** stakeholders on findings, in language they can act on
+- **Automate** — turn confirmed detections into standing detection logic
+- **Document** lessons learned so the *next* hunt benefits, closing the loop back into Prepare
+
+**ATHF Equivalent:** LOCK's Keep phase already covers Answer (Findings), Automate (Detection Logic), and Document (Lessons Learned). Brief is the one piece without a dedicated artifact — `athf hunt export` produces machine-readable JSON, not a stakeholder-facing summary. Use `athf hunt brief H-XXXX` for that: it renders hypothesis, executive summary, findings, detection outcome, and follow-up actions as a condensed markdown brief, deliberately dropping internal-only content like query iteration detail and lessons learned.
+
+**ATHF Alignment:**
+
+| PEAK Phase | LOCK Equivalent | Gap |
+|-----------|-----------------|-----|
+| Prepare | Learn | None — same ABLE framework |
+| Execute (Hypothesis-Driven) | Observe + Check | None |
+| Execute (Baseline / EDA) | Learn/Observe/Check (baseline subsections) | None — `athf hunt new-baseline` |
+| Execute (Model-Assisted / M-ATH) | — | No ATHF support yet |
+| Act → Answer | Keep (Findings) | None |
+| Act → Automate | Keep (Detection Logic) | None |
+| Act → Brief | Keep (condensed) | None — `athf hunt brief` |
+| Act → Document | Keep (Lessons Learned) | None |
+
+**When to reach for PEAK vocabulary:** when scoping which of the three Execute-phase hunt types actually fits a given hunt idea before writing it up (most hunt ideas are hypothesis-driven and belong in a normal LOCK hunt file; an idea that's really "let's see what's normal here first" is a baseline-hunt candidate — use `athf hunt new-baseline` for those instead of forcing a hypothesis that doesn't exist yet), or when reporting to a PEAK-literate audience.
+
 ### Data Quality Dimensions
 
 **Purpose:** Assess data quality for hunting. Poor data quality = unreliable findings.

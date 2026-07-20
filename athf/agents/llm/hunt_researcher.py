@@ -8,13 +8,48 @@ Implements a structured 5-skill research methodology:
 5. Synthesis - Key findings, gaps, recommended focus areas
 """
 
+import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from athf.agents.base import AgentResult, LLMAgent
+
+logger = logging.getLogger(__name__)
+
+# Sentinel key_findings value each _llm_* method's except-block returns on
+# failure (see e.g. _llm_summarize_tradecraft below). Every _skill_N_* caller
+# used to compute confidence purely from whether *sources* existed (web
+# search results), completely blind to whether the LLM call itself
+# succeeded -- so a failed call whose "summary" is literally an error
+# message could still be reported at 0.8-0.95 confidence. Checking for this
+# sentinel lets the skill methods force confidence down on a real failure.
+_LLM_ERROR_KEY_FINDING = "Error during LLM analysis"
+
+
+def _llm_call_failed(key_findings: List[str]) -> bool:
+    return key_findings == [_LLM_ERROR_KEY_FINDING]
+
+
+# Keyword presence (lowercased, substring match) used to derive data-source
+# availability from skill 3's free-text telemetry-mapping output. See
+# _extract_data_sources.
+# Match the label at the start of a synthesis key_finding, tolerating
+# markdown bold markers and the phrasing variations models actually produce
+# ("Hypothesis:", "**Recommended Hypothesis:**", "Hunt Hypothesis:", ...).
+# See _extract_hypothesis/_extract_gaps.
+_HYPOTHESIS_PREFIX_RE = re.compile(r"^\**\s*(recommended\s+|hunt\s+)?hypothesis\s*:?\**\s*", re.IGNORECASE)
+_GAP_PREFIX_RE = re.compile(r"^\**\s*(knowledge\s+|coverage\s+)?gaps?\s*:?\**\s*", re.IGNORECASE)
+
+_DATA_SOURCE_KEYWORDS: Dict[str, List[str]] = {
+    "process_execution": ["process.name", "process execution", "process creation", "command_line", "process.cmd_line"],
+    "file_operations": ["file operation", "file.path", "file.name", "file write", "file creation", "file access"],
+    "network_connections": ["network connection", "network.", "dst_endpoint", "src_endpoint", "connection_info"],
+    "registry_events": ["registry", "reg_key"],
+}
 
 
 @dataclass
@@ -155,13 +190,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         name = info.get("name", technique)
         description = (info.get("description") or "").strip()[:400]
-        return (
-            f'MITRE ATT&CK ground truth for {technique}: officially named "{name}". '
-            f"{description}\n\n"
-        )
+        return f'MITRE ATT&CK ground truth for {technique}: officially named "{name}". ' f"{description}\n\n"
 
     def execute(
-        self, input_data: ResearchInput,
+        self,
+        input_data: ResearchInput,
     ) -> AgentResult[ResearchOutput]:
         """Execute complete research workflow.
 
@@ -184,28 +217,32 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             research_id = manager.get_next_research_id()
 
             # Determine search depth based on input
-            search_depth = (
-                "basic" if input_data.depth == "basic" else "advanced"
-            )
+            search_depth = "basic" if input_data.depth == "basic" else "advanced"
 
             # Execute skills 1-4 in parallel (they are independent)
             from concurrent.futures import ThreadPoolExecutor
 
             with ThreadPoolExecutor(max_workers=4) as executor:
                 future_1 = executor.submit(
-                    self._skill_1_system_research, input_data.topic, search_depth,
+                    self._skill_1_system_research,
+                    input_data.topic,
+                    search_depth,
                 )
                 future_2 = executor.submit(
                     self._skill_2_adversary_tradecraft,
-                    input_data.topic, input_data.mitre_technique,
-                    search_depth, input_data.web_search_enabled,
+                    input_data.topic,
+                    input_data.mitre_technique,
+                    search_depth,
+                    input_data.web_search_enabled,
                 )
                 future_3 = executor.submit(
                     self._skill_3_telemetry_mapping,
-                    input_data.topic, input_data.mitre_technique,
+                    input_data.topic,
+                    input_data.mitre_technique,
                 )
                 future_4 = executor.submit(
-                    self._skill_4_related_work, input_data.topic,
+                    self._skill_4_related_work,
+                    input_data.topic,
                 )
 
                 skill_1 = future_1.result()
@@ -221,11 +258,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             )
 
             # Extract synthesis outputs
-            mitre_techniques = (
-                [input_data.mitre_technique]
-                if input_data.mitre_technique
-                else []
-            )
+            mitre_techniques = [input_data.mitre_technique] if input_data.mitre_technique else []
 
             # Build output
             total_duration_ms = int((time.time() - start_time) * 1000)
@@ -244,7 +277,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     skill_3,
                 ),
                 estimated_hunt_complexity=self._estimate_complexity(
-                    skill_2, skill_3,
+                    skill_2,
+                    skill_3,
                 ),
                 gaps_identified=self._extract_gaps(skill_5),
                 total_duration_ms=total_duration_ms,
@@ -299,7 +333,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         if search_client:
             try:
                 search_results = search_client.search_system_internals(
-                    topic, search_depth,
+                    topic,
+                    search_depth,
                 )
                 self._web_searches += 1
 
@@ -307,34 +342,39 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     snippet = result.content
                     if len(snippet) > 200:
                         snippet = snippet[:200] + "..."
-                    sources.append({
-                        "title": result.title,
-                        "url": result.url,
-                        "snippet": snippet,
-                    })
+                    sources.append(
+                        {
+                            "title": result.title,
+                            "url": result.url,
+                            "snippet": snippet,
+                        }
+                    )
             except Exception:
                 pass
 
         # Generate summary using LLM
         if self.llm_enabled:
             summary, key_findings = self._llm_summarize_system_research(
-                topic, sources, search_results,
+                topic,
+                sources,
+                search_results,
             )
         else:
-            summary = (
-                "System research for {} - requires LLM for detailed"
-                " analysis".format(topic)
-            )
+            summary = "System research for {} - requires LLM for detailed" " analysis".format(topic)
             key_findings = ["LLM disabled - manual research required"]
 
         duration_ms = int((time.time() - start_time) * 1000)
+
+        confidence = 0.8 if sources else 0.5
+        if _llm_call_failed(key_findings):
+            confidence = 0.1  # summary is an error message, not a finding
 
         return ResearchSkillOutput(
             skill_name="system_research",
             summary=summary,
             key_findings=key_findings,
             sources=sources,
-            confidence=0.8 if sources else 0.5,
+            confidence=confidence,
             duration_ms=duration_ms,
         )
 
@@ -364,10 +404,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         search_client = self._get_search_client()
         if search_client and web_search_enabled:
             try:
-                search_results = (
-                    search_client.search_adversary_tradecraft(
-                        topic, technique, search_depth,
-                    )
+                search_results = search_client.search_adversary_tradecraft(
+                    topic,
+                    technique,
+                    search_depth,
                 )
                 self._web_searches += 1
 
@@ -375,34 +415,40 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     snippet = result.content
                     if len(snippet) > 200:
                         snippet = snippet[:200] + "..."
-                    sources.append({
-                        "title": result.title,
-                        "url": result.url,
-                        "snippet": snippet,
-                    })
+                    sources.append(
+                        {
+                            "title": result.title,
+                            "url": result.url,
+                            "snippet": snippet,
+                        }
+                    )
             except Exception:
                 pass
 
         # Generate summary using LLM
         if self.llm_enabled:
             summary, key_findings = self._llm_summarize_tradecraft(
-                topic, technique, sources, search_results,
+                topic,
+                technique,
+                sources,
+                search_results,
             )
         else:
-            summary = (
-                "Adversary tradecraft for {} - requires LLM for"
-                " detailed analysis".format(topic)
-            )
+            summary = "Adversary tradecraft for {} - requires LLM for" " detailed analysis".format(topic)
             key_findings = ["LLM disabled - manual research required"]
 
         duration_ms = int((time.time() - start_time) * 1000)
+
+        confidence = 0.85 if sources else 0.4
+        if _llm_call_failed(key_findings):
+            confidence = 0.1  # summary is an error message, not a finding
 
         return ResearchSkillOutput(
             skill_name="adversary_tradecraft",
             summary=summary,
             key_findings=key_findings,
             sources=sources,
-            confidence=0.85 if sources else 0.4,
+            confidence=confidence,
             duration_ms=duration_ms,
         )
 
@@ -431,37 +477,38 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         # Generate telemetry mapping using LLM
         if self.llm_enabled:
             summary, key_findings = self._llm_map_telemetry(
-                topic, technique, ocsf_schema, environment_data,
+                topic,
+                technique,
+                ocsf_schema,
+                environment_data,
             )
         else:
-            summary = (
-                "Telemetry mapping for {} - requires LLM for"
-                " detailed analysis".format(topic)
-            )
+            summary = "Telemetry mapping for {} - requires LLM for" " detailed analysis".format(topic)
             key_findings = [
-                "Common fields: process.name, process.command_line,"
-                " actor.user.name",
-                "Check OCSF_SCHEMA_REFERENCE.md for field population"
-                " rates",
+                "Common fields: process.name, process.command_line," " actor.user.name",
+                "Check OCSF_SCHEMA_REFERENCE.md for field population" " rates",
             ]
 
         # Add schema reference as source
-        sources.append({
-            "title": "OCSF Schema Reference",
-            "url": "knowledge/OCSF_SCHEMA_REFERENCE.md",
-            "snippet": (
-                "Internal schema documentation with field population"
-                " rates"
-                if schema_available
-                else "Schema file not found — field findings are based on model recall"
-            ),
-        })
+        sources.append(
+            {
+                "title": "OCSF Schema Reference",
+                "url": "knowledge/OCSF_SCHEMA_REFERENCE.md",
+                "snippet": (
+                    "Internal schema documentation with field population" " rates"
+                    if schema_available
+                    else "Schema file not found — field findings are based on model recall"
+                ),
+            }
+        )
 
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Confidence is high only when backed by the local schema file;
         # without it the LLM is reasoning from memory alone.
         confidence = 0.9 if schema_available else 0.4
+        if _llm_call_failed(key_findings):
+            confidence = 0.1  # summary is an error message, not a finding
 
         return ResearchSkillOutput(
             skill_name="telemetry_mapping",
@@ -473,7 +520,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         )
 
     def _skill_4_related_work(
-        self, topic: str,
+        self,
+        topic: str,
     ) -> ResearchSkillOutput:
         """Skill 4: Find related past hunts and investigations.
 
@@ -492,19 +540,25 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             from athf.commands.similar import _find_similar_hunts
 
             similar_hunts = _find_similar_hunts(
-                topic, limit=5, threshold=0.1,
+                topic,
+                limit=5,
+                threshold=0.1,
             )
 
             for hunt in similar_hunts:
-                sources.append({
-                    "title": "{}: {}".format(
-                        hunt["hunt_id"], hunt["title"],
-                    ),
-                    "url": "hunts/{}.md".format(hunt["hunt_id"]),
-                    "snippet": "Status: {}, Score: {:.3f}".format(
-                        hunt["status"], hunt["similarity_score"],
-                    ),
-                })
+                sources.append(
+                    {
+                        "title": "{}: {}".format(
+                            hunt["hunt_id"],
+                            hunt["title"],
+                        ),
+                        "url": "hunts/{}.md".format(hunt["hunt_id"]),
+                        "snippet": "Status: {}, Score: {:.3f}".format(
+                            hunt["status"],
+                            hunt["similarity_score"],
+                        ),
+                    }
+                )
                 key_findings.append(
                     "{}: {} (similarity: {:.2f})".format(
                         hunt["hunt_id"],
@@ -514,29 +568,21 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 )
 
         except Exception:
-            key_findings.append(
-                "No similar hunts found or similarity search unavailable"
-            )
+            key_findings.append("No similar hunts found or similarity search unavailable")
 
         summary = "Found {} related hunts for {}".format(
-            len(sources), topic,
+            len(sources),
+            topic,
         )
         if not sources:
-            summary = (
-                "No related hunts found for {} - this may be a new"
-                " research area".format(topic)
-            )
+            summary = "No related hunts found for {} - this may be a new" " research area".format(topic)
 
         duration_ms = int((time.time() - start_time) * 1000)
 
         return ResearchSkillOutput(
             skill_name="related_work",
             summary=summary,
-            key_findings=(
-                key_findings
-                if key_findings
-                else ["No related past hunts found"]
-            ),
+            key_findings=(key_findings if key_findings else ["No related past hunts found"]),
             sources=sources,
             confidence=0.95,  # High confidence - based on internal search
             duration_ms=duration_ms,
@@ -563,7 +609,9 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         # Generate synthesis using LLM
         if self.llm_enabled:
             summary, key_findings = self._llm_synthesize(
-                topic, technique, skills,
+                topic,
+                technique,
+                skills,
             )
         else:
             summary = "Research synthesis for {}".format(topic)
@@ -574,12 +622,16 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         duration_ms = int((time.time() - start_time) * 1000)
 
+        confidence = 0.8
+        if _llm_call_failed(key_findings):
+            confidence = 0.1  # summary is an error message, not a finding
+
         return ResearchSkillOutput(
             skill_name="synthesis",
             summary=summary,
             key_findings=key_findings,
             sources=[],  # Synthesis doesn't have external sources
-            confidence=0.8,
+            confidence=confidence,
             duration_ms=duration_ms,
         )
 
@@ -593,18 +645,15 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         try:
             # Build context from sources
             context = ""
-            if (
-                search_results
-                and hasattr(search_results, "answer")
-                and search_results.answer
-            ):
+            if search_results and hasattr(search_results, "answer") and search_results.answer:
                 context = "Web search summary: {}\n\n".format(
                     search_results.answer,
                 )
 
             for source in sources[:5]:
                 context += "- {}: {}\n".format(
-                    source["title"], source["snippet"],
+                    source["title"],
+                    source["snippet"],
                 )
 
             if not context:
@@ -636,9 +685,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         except Exception as e:
             return (
                 "System research for {} (LLM error: {})".format(
-                    topic, str(e)[:50],
+                    topic,
+                    str(e)[:50],
                 ),
-                ["Error during LLM analysis"],
+                [_LLM_ERROR_KEY_FINDING],
             )
 
     def _llm_summarize_tradecraft(
@@ -652,18 +702,15 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         try:
             # Build context from sources
             context = ""
-            if (
-                search_results
-                and hasattr(search_results, "answer")
-                and search_results.answer
-            ):
+            if search_results and hasattr(search_results, "answer") and search_results.answer:
                 context = "Web search summary: {}\n\n".format(
                     search_results.answer,
                 )
 
             for source in sources[:7]:
                 context += "- {}: {}\n".format(
-                    source["title"], source["snippet"],
+                    source["title"],
+                    source["snippet"],
                 )
 
             if not context:
@@ -673,9 +720,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     "Clearly flag any claims you are uncertain about with [UNCERTAIN]."
                 )
 
-            technique_str = (
-                " ({})".format(technique) if technique else ""
-            )
+            technique_str = " ({})".format(technique) if technique else ""
             grounding = self._technique_grounding(technique)
 
             prompt = (
@@ -707,9 +752,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         except Exception as e:
             return (
                 "Adversary tradecraft for {} (LLM error: {})".format(
-                    topic, str(e)[:50],
+                    topic,
+                    str(e)[:50],
                 ),
-                ["Error during LLM analysis"],
+                [_LLM_ERROR_KEY_FINDING],
             )
 
     def _llm_map_telemetry(
@@ -721,9 +767,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
     ) -> Tuple[str, List[str]]:
         """Use LLM to map topic to OCSF telemetry fields."""
         try:
-            technique_str = (
-                " ({})".format(technique) if technique else ""
-            )
+            technique_str = " ({})".format(technique) if technique else ""
             grounding = self._technique_grounding(technique)
 
             prompt = (
@@ -758,9 +802,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         except Exception as e:
             return (
                 "Telemetry mapping for {} (LLM error: {})".format(
-                    topic, str(e)[:50],
+                    topic,
+                    str(e)[:50],
                 ),
-                ["Error during LLM analysis"],
+                [_LLM_ERROR_KEY_FINDING],
             )
 
     def _llm_synthesize(
@@ -781,9 +826,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 for finding in skill.key_findings[:4]:
                     context += "- {}\n".format(finding)
 
-            technique_str = (
-                " ({})".format(technique) if technique else ""
-            )
+            technique_str = " ({})".format(technique) if technique else ""
             grounding = self._technique_grounding(technique)
 
             prompt = (
@@ -795,7 +838,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "Based on all research findings, provide:\n"
                 "1. An executive summary (2-3 sentences)"
                 " synthesizing all findings\n"
-                '2. A recommended hypothesis statement in the'
+                "2. A recommended hypothesis statement in the"
                 ' format: "Adversaries use [behavior] to [goal]'
                 ' on [target]"\n'
                 "3. 2-3 gaps identified in current coverage or"
@@ -822,16 +865,15 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         except Exception as e:
             return (
                 "Research synthesis for {} (LLM error: {})".format(
-                    topic, str(e)[:50],
+                    topic,
+                    str(e)[:50],
                 ),
-                ["Error during LLM analysis"],
+                [_LLM_ERROR_KEY_FINDING],
             )
 
     def _load_ocsf_schema(self) -> str:
         """Load OCSF schema reference content."""
-        schema_path = (
-            Path.cwd() / "knowledge" / "OCSF_SCHEMA_REFERENCE.md"
-        )
+        schema_path = Path.cwd() / "knowledge" / "OCSF_SCHEMA_REFERENCE.md"
         if schema_path.exists():
             return schema_path.read_text()[:5000]  # Limit size
         return "OCSF schema reference not found"
@@ -844,30 +886,55 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         return "Environment file not found"
 
     def _extract_hypothesis(
-        self, synthesis: ResearchSkillOutput,
+        self,
+        synthesis: ResearchSkillOutput,
     ) -> Optional[str]:
-        """Extract recommended hypothesis from synthesis."""
+        """Extract recommended hypothesis from synthesis's key_findings.
+
+        Matches phrasing variations (optional markdown bold markers,
+        "Recommended Hypothesis:", "Hunt Hypothesis:") instead of only the
+        exact literal prefix "hypothesis:" the prompt's own JSON example
+        happens to use -- the model doesn't reliably echo that exact
+        wording (e.g. "**Recommended Hypothesis:** Adversaries use..." was
+        silently dropped by a strict `.startswith("hypothesis:")` check),
+        and a research doc missing its hypothesis with no warning is a
+        bigger problem than either extra false-positive matching or a
+        slightly noisier warning log.
+        """
         for finding in synthesis.key_findings:
-            if finding.lower().startswith("hypothesis:"):
-                return (
-                    finding
-                    .replace("Hypothesis:", "")
-                    .replace("hypothesis:", "")
-                    .strip()
-                )
+            match = _HYPOTHESIS_PREFIX_RE.match(finding)
+            if match:
+                extracted = finding[match.end() :].strip()
+                if extracted:
+                    return extracted
+        if not _llm_call_failed(synthesis.key_findings):
+            logger.warning("Could not extract a recommended hypothesis from synthesis key_findings: %r", synthesis.key_findings)
         return None
 
     def _extract_data_sources(
-        self, telemetry: ResearchSkillOutput,
+        self,
+        telemetry: ResearchSkillOutput,
     ) -> Dict[str, bool]:
-        """Extract data source availability from telemetry mapping."""
-        # Default data sources based on environment
-        return {
-            "process_execution": True,
-            "file_operations": True,
-            "network_connections": False,
-            "registry_events": False,
-        }
+        """Derive data source availability from skill 3's actual telemetry
+        mapping (summary + key_findings), not a fixed stub.
+
+        This used to unconditionally return the same hardcoded dict for
+        every research document regardless of topic, environment, or what
+        skill 3 actually found -- the `telemetry` parameter was accepted but
+        never read. Keyword presence in the LLM-generated text is a coarse
+        signal, not a full structured extraction, but it's genuinely derived
+        from the analysis rather than fabricated -- consistent with the
+        substring-based extraction already used elsewhere in this module
+        (_extract_hypothesis/_extract_gaps below).
+        """
+        if _llm_call_failed(telemetry.key_findings):
+            # The "mapping" is an error message -- nothing to derive, and
+            # claiming any availability here would be fabricating from a
+            # failure, the exact problem this fix exists to avoid.
+            return dict.fromkeys(_DATA_SOURCE_KEYWORDS, False)
+
+        text = " ".join([telemetry.summary, *telemetry.key_findings]).lower()
+        return {category: any(kw in text for kw in keywords) for category, keywords in _DATA_SOURCE_KEYWORDS.items()}
 
     def _estimate_complexity(
         self,
@@ -875,9 +942,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         telemetry: ResearchSkillOutput,
     ) -> str:
         """Estimate hunt complexity based on research."""
-        total_findings = (
-            len(tradecraft.key_findings) + len(telemetry.key_findings)
-        )
+        total_findings = len(tradecraft.key_findings) + len(telemetry.key_findings)
 
         if total_findings <= 4:
             return "low"
@@ -887,16 +952,18 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             return "high"
 
     def _extract_gaps(
-        self, synthesis: ResearchSkillOutput,
+        self,
+        synthesis: ResearchSkillOutput,
     ) -> List[str]:
-        """Extract identified gaps from synthesis."""
+        """Extract identified gaps from synthesis's key_findings. See
+        _extract_hypothesis for why this matches phrasing variations
+        (optional bold markers, "Knowledge Gap:", "Coverage Gap:") rather
+        than only an exact "gap:" prefix."""
         gaps = []
         for finding in synthesis.key_findings:
-            if finding.lower().startswith("gap:"):
-                gaps.append(
-                    finding
-                    .replace("Gap:", "")
-                    .replace("gap:", "")
-                    .strip()
-                )
+            match = _GAP_PREFIX_RE.match(finding)
+            if match:
+                extracted = finding[match.end() :].strip()
+                if extracted:
+                    gaps.append(extracted)
         return gaps

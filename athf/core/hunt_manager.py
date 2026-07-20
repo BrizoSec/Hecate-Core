@@ -2,9 +2,9 @@
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from athf.core.attack_matrix import get_sorted_tactics, get_tactic_technique_count, get_total_techniques
+from athf.core.attack_matrix import get_sorted_tactics, get_tactic_technique_count, get_technique, get_total_techniques
 from athf.core.hunt_parser import parse_hunt_file
 from athf.utils.validation import validate_file_path, validate_hunt_id
 
@@ -14,6 +14,25 @@ EXCLUDED_DOC_FILES = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.m
 
 class HuntManager:
     """Manage hunt files and operations."""
+
+    # Class-level (shared across instances), keyed by resolved hunts_dir.
+    # Every call site constructs a *fresh* HuntManager (grep confirms no
+    # caller reuses one across calls -- both CLI commands and MCP tools
+    # instantiate a new one per invocation/tool-call), so a per-instance
+    # cache would help nothing: list_hunts()/calculate_stats()/
+    # calculate_attack_coverage() each re-read and re-parse every hunt
+    # file's frontmatter *and* full LOCK-section markdown from disk, every
+    # single call, with no memoization -- O(n) full-file I/O and YAML/regex
+    # parsing that scales linearly with hunt count and is paid repeatedly
+    # within a single long-lived process (the MCP server calls one of these
+    # per tool invocation, often several times per session against the same
+    # unchanged directory).
+    #
+    # Keyed on a cheap fingerprint (file count + max mtime) rather than
+    # time-based expiry so it can never serve stale data for longer than an
+    # `os.stat()` scan takes to notice a change -- any hunt created, edited,
+    # or removed invalidates it on the very next call, automatically.
+    _parse_cache: Dict[Path, Tuple[Tuple[int, float], List[Tuple[Path, Dict]]]] = {}
 
     def __init__(self, hunts_dir: Optional[Path] = None):
         """Initialize hunt manager.
@@ -58,6 +77,37 @@ class HuntManager:
         """
         return sorted(f for f in self.hunts_dir.rglob("*.md") if f.name not in EXCLUDED_DOC_FILES)
 
+    def _cached_parsed_hunt_data(self) -> List[Tuple[Path, Dict]]:
+        """Return (file_path, parsed_data) for every hunt file, reusing the
+        class-level cache when nothing in the directory has changed since
+        the last call (see the cache field's docstring for why this is
+        class-level, not per-instance).
+
+        A parse failure for an individual file is swallowed here (matching
+        list_hunts()'s prior per-file try/except) so one malformed hunt file
+        doesn't take down the whole cache entry.
+        """
+        hunt_files = self.find_all_hunt_files()
+        fingerprint = (
+            len(hunt_files),
+            max((f.stat().st_mtime for f in hunt_files), default=0.0),
+        )
+
+        cache_key = self.hunts_dir.resolve()
+        cached = HuntManager._parse_cache.get(cache_key)
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1]
+
+        parsed: List[Tuple[Path, Dict]] = []
+        for hunt_file in hunt_files:
+            try:
+                parsed.append((hunt_file, parse_hunt_file(hunt_file)))
+            except Exception:
+                continue
+
+        HuntManager._parse_cache[cache_key] = (fingerprint, parsed)
+        return parsed
+
     def list_hunts(
         self,
         status: Optional[str] = None,
@@ -65,6 +115,7 @@ class HuntManager:
         technique: Optional[str] = None,
         platform: Optional[str] = None,
         directory: Optional[str] = None,
+        hunt_type: Optional[str] = None,
     ) -> List[Dict]:
         """List all hunts with optional filters.
 
@@ -74,16 +125,21 @@ class HuntManager:
             technique: Filter by MITRE technique (e.g., T1003.001)
             platform: Filter by platform (Windows, Linux, macOS, Cloud)
             directory: Filter by environment directory (test or production)
+            hunt_type: Filter by hunt type (hypothesis-driven, baseline). Hunts
+                without an explicit `hunt_type` frontmatter field are treated
+                as "hypothesis-driven" -- every hunt created before baseline
+                hunts existed is one, so this keeps them all filterable/countable
+                without needing to backfill the field onto old hunt files.
 
         Returns:
             List of hunt metadata dicts
         """
         hunts = []
 
-        for hunt_file in self.find_all_hunt_files():
+        for hunt_file, hunt_data in self._cached_parsed_hunt_data():
             try:
-                hunt_data = parse_hunt_file(hunt_file)
                 frontmatter = hunt_data.get("frontmatter", {})
+                hunt_type_val = frontmatter.get("hunt_type") or "hypothesis-driven"
 
                 # Determine environment from file path
                 hunt_file_parts = hunt_file.parts
@@ -109,6 +165,9 @@ class HuntManager:
                 if directory and environment != directory:
                     continue
 
+                if hunt_type and hunt_type_val != hunt_type:
+                    continue
+
                 # Extract summary info
                 date_val = frontmatter.get("date")
                 # Convert date objects to strings for JSON serialization
@@ -131,6 +190,7 @@ class HuntManager:
                         "false_positives": frontmatter.get("false_positives", 0),
                         "file_path": str(hunt_file),
                         "environment": environment,
+                        "hunt_type": hunt_type_val,
                     }
                 )
 
@@ -241,6 +301,13 @@ class HuntManager:
     def calculate_stats(self) -> Dict:
         """Calculate hunt program statistics.
 
+        Baseline hunts (hunt_type: baseline) are counted in total_hunts and
+        completed_hunts -- they're real hunting activity -- but excluded from
+        the success_rate denominator: a baseline hunt has no hypothesis to
+        confirm, so true_positives is always 0 by construction, and including
+        them would silently drag down the org's success rate for hunts that
+        were never trying to produce a true positive in the first place.
+
         Returns:
             Dict with success rates, TP/FP ratios, coverage metrics
         """
@@ -250,6 +317,7 @@ class HuntManager:
             return {
                 "total_hunts": 0,
                 "completed_hunts": 0,
+                "baseline_hunts": 0,
                 "total_findings": 0,
                 "true_positives": 0,
                 "false_positives": 0,
@@ -259,14 +327,16 @@ class HuntManager:
 
         total_hunts = len(hunts)
         completed_hunts = len([h for h in hunts if h.get("status") == "completed"])
+        baseline_hunts = len([h for h in hunts if h.get("hunt_type") == "baseline"])
 
         total_findings = sum(h.get("findings_count", 0) for h in hunts)
         total_tp = sum(h.get("true_positives", 0) for h in hunts)
         total_fp = sum(h.get("false_positives", 0) for h in hunts)
 
-        # Calculate success rate (hunts with TP / completed hunts)
-        hunts_with_tp = len([h for h in hunts if h.get("true_positives", 0) > 0])
-        success_rate = (hunts_with_tp / completed_hunts * 100) if completed_hunts > 0 else 0.0
+        # Success rate is scoped to hypothesis-driven hunts only (see docstring).
+        hypothesis_driven_completed = [h for h in hunts if h.get("status") == "completed" and h.get("hunt_type") != "baseline"]
+        hunts_with_tp = len([h for h in hypothesis_driven_completed if h.get("true_positives", 0) > 0])
+        success_rate = (hunts_with_tp / len(hypothesis_driven_completed) * 100) if hypothesis_driven_completed else 0.0
 
         # Calculate TP/FP ratio
         tp_fp_ratio = (total_tp / total_fp) if total_fp > 0 else float("inf")
@@ -274,6 +344,7 @@ class HuntManager:
         return {
             "total_hunts": total_hunts,
             "completed_hunts": completed_hunts,
+            "baseline_hunts": baseline_hunts,
             "total_findings": total_findings,
             "true_positives": total_tp,
             "false_positives": total_fp,
@@ -336,11 +407,32 @@ class HuntManager:
                 if tactic not in coverage_by_tactic:
                     continue
 
-                # Track hunt IDs for this tactic
+                # Track hunt IDs for this tactic (the hunter's own declared
+                # scope for this hunt -- kept as-is even where a technique
+                # below turns out to be mistagged, since the hunt itself may
+                # still be legitimately about this tactic).
                 coverage_by_tactic[tactic]["hunt_ids"].add(hunt_id)
 
-                # Track which hunts cover each technique under this tactic
+                # Track which hunts cover each technique under this tactic --
+                # only when the technique actually belongs to this tactic per
+                # ATT&CK. Previously every technique on a hunt was credited to
+                # every tactic listed on that same hunt with no check, so e.g.
+                # tactics: [credential-access], techniques: [T1053.005, T1204]
+                # (Scheduled Task/Persistence and User Execution/Execution --
+                # neither is a credential-access technique) inflated
+                # credential-access coverage while crediting nothing to the
+                # tactics those techniques actually belong to.
                 for technique in techniques:
+                    info = get_technique(technique)
+                    technique_tactics = info.get("tactic_shortnames") if info else None
+                    # None means "couldn't verify" (unknown technique ID, or
+                    # the hardcoded fallback ATT&CK provider with no
+                    # per-technique tactic data) -- fall back to trusting the
+                    # hunt's own declared tactic rather than dropping the
+                    # data point entirely. An empty/non-empty list means we
+                    # *can* verify, so only credit a real match.
+                    if technique_tactics is not None and tactic not in technique_tactics:
+                        continue
                     if technique not in coverage_by_tactic[tactic]["techniques"]:
                         coverage_by_tactic[tactic]["techniques"][technique] = []
                     coverage_by_tactic[tactic]["techniques"][technique].append(hunt_id)

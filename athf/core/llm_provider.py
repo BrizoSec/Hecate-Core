@@ -399,7 +399,9 @@ class OllamaProvider(LLMProvider):
 
         start = time.monotonic()
         try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout_sec)
+            with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
+                duration_ms = int((time.monotonic() - start) * 1000)
+                body = json.loads(resp.read().decode("utf-8"))
         except TimeoutError:
             raise ConnectionError(
                 "Ollama request timed out after {}s (model={}). Larger local models "
@@ -409,9 +411,7 @@ class OllamaProvider(LLMProvider):
             raise ConnectionError(
                 "Cannot reach Ollama at {}. Is it running? Error: {}".format(self.base_url, exc)
             )
-        duration_ms = int((time.monotonic() - start) * 1000)
 
-        body = json.loads(resp.read().decode("utf-8"))
         text = body.get("message", {}).get("content", "")
 
         # Ollama may report token counts in eval_count / prompt_eval_count
@@ -597,8 +597,8 @@ def _ollama_is_running(base_url: str = "http://localhost:11434") -> bool:
 
     try:
         req = urllib.request.Request("{}/api/version".format(base_url))
-        resp = urllib.request.urlopen(req, timeout=2)
-        return bool(resp.status == 200)
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return bool(resp.status == 200)
     except Exception:
         return False
 

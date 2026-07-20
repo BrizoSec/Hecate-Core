@@ -55,6 +55,25 @@ PsExec enables remote command execution.
 """
     (hunts_dir / "H-0002.md").write_text(hunt2_content)
 
+    hunt3_content = """---
+hunt_id: H-0003
+title: "LSASS Memory Access via Comsvcs.dll"
+technique: T1003.001
+tactics:
+  - credential-access
+platform:
+  - Windows
+status: completed
+date: 2026-01-03
+---
+
+# H-0003: LSASS Memory Access via Comsvcs.dll
+
+## Learn
+LSASS process memory contains credentials that adversaries dump via comsvcs.dll MiniDump.
+"""
+    (hunts_dir / "H-0003.md").write_text(hunt3_content)
+
     # environment.md
     (tmp_path / "environment.md").write_text("# Environment\nSIEM: Splunk\nEDR: CrowdStrike\n")
 
@@ -90,8 +109,16 @@ class TestSimilar:
         assert result["results"][0]["hunt_id"] == "H-0001"
 
     def test_similar_with_hunt_id(self, server):
+        """H-0001 must match H-0003 (both real LSASS credential-dumping
+        hunts), but never match itself: the old implementation excluded
+        nothing, so a hunt_id query always trivially matched itself at
+        ~1.0 similarity, crowding out or masking genuine matches like this
+        one."""
         result = _call_tool(server, "athf_similar", {"hunt_id": "H-0001"})
         assert result["count"] >= 1
+        hunt_ids = [r["hunt_id"] for r in result["results"]]
+        assert "H-0001" not in hunt_ids
+        assert "H-0003" in hunt_ids
 
     def test_similar_no_params(self, server):
         result = _call_tool(server, "athf_similar")
@@ -121,3 +148,34 @@ class TestContext:
     def test_context_includes_environment(self, server):
         result = _call_tool(server, "athf_context", {"hunt_id": "H-0001"})
         assert "Splunk" in result["environment"]
+
+    def test_context_includes_matching_domain_knowledge_for_tactic(self, server, workspace):
+        """Regression test: the domain-knowledge lookup used to do
+        `tactic.replace("-", " ") in f.stem.replace("-", " ")` -- a substring
+        match that never actually matched anything, since this project's
+        real domain files (iam-security.md, endpoint-security.md, ...) don't
+        contain the tactic name as a substring. It silently returned no
+        domain_knowledge for every real call. Now reuses the CLI's own
+        (correct, already-tested) tactic->file mapping instead of a second,
+        drifted implementation."""
+        domains_dir = workspace / "knowledge" / "domains"
+        domains_dir.mkdir(parents=True)
+        (domains_dir / "iam-security.md").write_text("# IAM Security\nPassword spraying patterns.\n")
+        (domains_dir / "insider-threat.md").write_text("# Insider Threat\nData exfiltration patterns.\n")
+
+        result = _call_tool(server, "athf_context", {"tactic": "credential-access"})
+
+        assert "domain_knowledge" in result
+        assert "iam-security" in result["domain_knowledge"]
+        assert "Password spraying" in result["domain_knowledge"]["iam-security"]
+        # collection's domain file (insider-threat), not credential-access's
+        assert "insider-threat" not in result["domain_knowledge"]
+
+    def test_context_domain_knowledge_absent_for_unmapped_tactic(self, server, workspace):
+        domains_dir = workspace / "knowledge" / "domains"
+        domains_dir.mkdir(parents=True)
+        (domains_dir / "iam-security.md").write_text("# IAM Security\n")
+
+        result = _call_tool(server, "athf_context", {"tactic": "discovery"})
+
+        assert "domain_knowledge" not in result or result.get("domain_knowledge") == {}

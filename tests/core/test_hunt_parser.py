@@ -111,6 +111,60 @@ class TestHuntParser:
         finally:
             os.unlink(temp_path)
 
+    def test_parse_keep_section_with_subheadings_not_truncated(self):
+        """Regression test: KEEP's lookahead used to match the "##" inside any
+        "### Subheading" (since `[A-Z]` isn't anchored to line start), which
+        silently truncated `keep` to just its own heading line -- the case
+        every real hunt file hits, since the bundled template always puts
+        "### Executive Summary" directly under "## KEEP"."""
+        hunt_with_keep_subsections = """---
+hunt_id: H-0001
+title: Test Hunt
+status: completed
+date: 2025-12-02
+---
+
+## LEARN: Prepare the Hunt
+
+Content here.
+
+## OBSERVE: Expected Behaviors
+
+Content here.
+
+## CHECK: Execute & Analyze
+
+Content here.
+
+## KEEP: Findings & Response
+
+### Executive Summary
+
+Two hosts were confirmed compromised.
+
+### Findings
+
+Finding detail here.
+
+### Follow-up Actions
+
+- [ ] Rotate credentials
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(hunt_with_keep_subsections)
+            temp_path = f.name
+
+        try:
+            parser = HuntParser(Path(temp_path))
+            hunt_data = parser.parse()
+
+            keep = hunt_data["lock_sections"]["keep"]
+            assert "Two hosts were confirmed compromised" in keep
+            assert "Finding detail here" in keep
+            assert "Rotate credentials" in keep
+        finally:
+            os.unlink(temp_path)
+
     def test_parse_missing_lock_sections(self):
         """Test detection of missing LOCK sections."""
         incomplete_hunt = """---

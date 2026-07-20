@@ -2,6 +2,7 @@
 
 import json
 import random
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,7 +17,7 @@ from rich.table import Table
 from athf.core.attack_matrix import get_technique
 from athf.core.hunt_manager import HuntManager
 from athf.core.hunt_parser import validate_hunt_file
-from athf.core.template_engine import render_hunt_template
+from athf.core.template_engine import render_baseline_template, render_hunt_template
 from athf.utils.validation import validate_hunt_id, validate_research_id
 
 console = Console()
@@ -348,14 +349,131 @@ def new(
     console.print("  3. View all hunts: [cyan]athf hunt list[/cyan]")
 
 
+@hunt.command(name="new-baseline")
+@click.option("--title", help="Baseline hunt title")
+@click.option("--dimension", help="Field or behavior being characterized (e.g. 'parent-child process pairs')")
+@click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
+@click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
+@click.option("--objective", help="Why this baseline matters / what it's establishing")
+@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+def new_baseline(
+    title: Optional[str],
+    dimension: Optional[str],
+    platform: Tuple[str, ...],
+    data_source: Tuple[str, ...],
+    objective: Optional[str],
+    hunter: Optional[str],
+    test: bool,
+    non_interactive: bool,
+) -> None:
+    """Create a new baseline (EDA) hunt -- PEAK's hypothesis-free hunt type.
+
+    \b
+    Unlike `hunt new`, a baseline hunt has no hypothesis: it characterizes
+    "what's normal" for a dimension (a field, a behavior pattern) so
+    candidate anomalies can be identified and spun into hypothesis-driven
+    follow-up hunts later. Uses the same H-XXXX ID sequence and LOCK section
+    headings as regular hunts (so `hunt list`, `hunt validate`, `hunt export`,
+    and `hunt brief` all work on it unchanged) -- filter to just this type
+    with `hunt list --type baseline`.
+
+    \b
+    Examples:
+      athf hunt new-baseline --title "Parent-Child Process Baseline" \\
+          --dimension "parent_process -> child_process pairs" \\
+          --platform Windows --data-source EDR --non-interactive
+
+    \b
+    After creation:
+      1. Run frequency/cardinality/rarity queries and document "what's normal"
+      2. Record candidate anomalies in the KEEP section
+      3. For anomalies worth pursuing: athf hunt new --hypothesis "..." then
+         set spawned_from to this baseline's hunt_id, and add the new hunt's
+         ID to this baseline's related_hunts
+    """
+    console.print("\n[bold cyan]📊 Creating new baseline hunt[/bold cyan]\n")
+
+    config_path = get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {"hunt_prefix": "H-"}
+
+    hunt_prefix = config.get("hunt_prefix", "H-")
+
+    manager = HuntManager()
+    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
+
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    if non_interactive:
+        if not title:
+            console.print("[red]Error: --title required in non-interactive mode[/red]")
+            return
+        baseline_title = title
+        baseline_dimension = dimension
+        baseline_platforms = list(platform) if platform else ["Windows"]
+        baseline_data_sources = list(data_source) if data_source else ["SIEM", "EDR"]
+    else:
+        console.print("\n[bold]📊 Let's scope your baseline:[/bold]")
+
+        baseline_dimension = Prompt.ask(
+            "1. Dimension being characterized (e.g. 'parent-child process pairs')", default=dimension or ""
+        )
+        baseline_title = Prompt.ask("2. Baseline Title", default=title or f"Baseline: {baseline_dimension}")
+
+        console.print("\n3. Target Platform(s) (comma-separated):")
+        console.print("   Options: [cyan]Windows, Linux, macOS, Cloud, Network[/cyan]")
+        platform_input = Prompt.ask("   Platforms", default=",".join(platform) if platform else "Windows")
+        baseline_platforms = [p.strip() for p in platform_input.split(",")]
+
+        console.print("\n4. Data Sources (comma-separated):")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
+        baseline_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    baseline_content = render_baseline_template(
+        hunt_id=hunt_id,
+        title=baseline_title,
+        dimension=baseline_dimension,
+        platform=baseline_platforms,
+        data_sources=baseline_data_sources,
+        hunter=hunter or "AI Assistant",
+        objective=objective,
+    )
+
+    hunt_dir = get_hunt_directory(is_test=test)
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
+
+    try:
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
+    except (ValueError, OSError):
+        console.print("[red]Error: Invalid hunt file path[/red]")
+        return
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(baseline_content)
+
+    console.print(f"\n[bold green]✅ Created {hunt_id}: {baseline_title}[/bold green]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to run baseline queries and document what's normal")
+    console.print("  2. Record candidate anomalies in the KEEP section")
+    console.print("  3. Spin worthwhile anomalies into hypothesis-driven hunts: [cyan]athf hunt new[/cyan]")
+
+
 @hunt.command(name="list")
 @click.option("--status", help="Filter by status (planning, active, completed)")
 @click.option("--tactic", help="Filter by MITRE tactic")
 @click.option("--technique", help="Filter by MITRE technique (e.g., T1003.001)")
 @click.option("--platform", help="Filter by platform")
 @click.option("--directory", type=click.Choice(["test", "production"]), help="Filter by environment directory")
+@click.option("--type", "hunt_type", type=click.Choice(["hypothesis-driven", "baseline"]), help="Filter by hunt type")
 @click.option("--output", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
-def list_hunts(status: str, tactic: str, technique: str, platform: str, directory: str, output: str) -> None:
+def list_hunts(status: str, tactic: str, technique: str, platform: str, directory: str, hunt_type: str, output: str) -> None:
     """List all hunts with filtering and formatting options.
 
     \b
@@ -386,6 +504,9 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
       # JSON output for scripting
       athf hunt list --output json
 
+      # Show only baseline (EDA) hunts
+      athf hunt list --type baseline
+
     \b
     Output formats:
       • table (default): Human-readable table with colors
@@ -395,7 +516,9 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
     Note: Use --output instead of --format for specifying output format.
     """
     manager = HuntManager()
-    hunts = manager.list_hunts(status=status, tactic=tactic, technique=technique, platform=platform, directory=directory)
+    hunts = manager.list_hunts(
+        status=status, tactic=tactic, technique=technique, platform=platform, directory=directory, hunt_type=hunt_type
+    )
 
     if not hunts:
         console.print("[yellow]No hunts found.[/yellow]")
@@ -421,6 +544,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
     table.add_column("Date", style="dim", no_wrap=True)
     table.add_column("Status", style="yellow", no_wrap=True)
     table.add_column("Env", style="blue", no_wrap=True)
+    table.add_column("Type", style="cyan", no_wrap=True)
     table.add_column("Technique", style="magenta", no_wrap=True)
     table.add_column("Findings", style="green", no_wrap=True)
 
@@ -433,6 +557,9 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         status_val = hunt.get("status", "")
         environment = hunt.get("environment", "-")
         env_display = environment if environment else "-"
+        # Only baseline hunts stand out here -- hypothesis-driven is the
+        # overwhelmingly common case, so keep the column quiet for it.
+        type_display = "baseline" if hunt.get("hunt_type") == "baseline" else "-"
         techniques = hunt.get("techniques", [])
         technique_str = techniques[0] if techniques else "-"
 
@@ -440,7 +567,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         fp = hunt.get("false_positives", 0)
         findings_str = f"{tp + fp} ({tp} TP)" if (tp + fp) > 0 else "-"
 
-        table.add_row(hunt_id, title, date_str, status_val, env_display, technique_str, findings_str)
+        table.add_row(hunt_id, title, date_str, status_val, env_display, type_display, technique_str, findings_str)
 
     console.print(table)
     console.print()
@@ -581,10 +708,11 @@ def stats() -> None:
 
     table.add_row("Total Hunts", str(stats["total_hunts"]))
     table.add_row("Completed Hunts", str(stats["completed_hunts"]))
+    table.add_row("Baseline Hunts", str(stats["baseline_hunts"]))
     table.add_row("Total Findings", str(stats["total_findings"]))
     table.add_row("True Positives", str(stats["true_positives"]))
     table.add_row("False Positives", str(stats["false_positives"]))
-    table.add_row("Success Rate", f"{stats['success_rate']}%")
+    table.add_row("Success Rate (hypothesis-driven)", f"{stats['success_rate']}%")
     table.add_row("TP/FP Ratio", str(stats["tp_fp_ratio"]))
 
     console.print(table)
@@ -1173,3 +1301,225 @@ def _build_export_dict(
         export["sessions"] = _load_sessions_for_hunt(hunt_id, sessions_dir)
 
     return export
+
+
+@hunt.command(name="brief")
+@click.argument("hunt_id")
+@click.option("--output", "output_file", type=click.Path(), help="Write to file instead of stdout")
+def brief(hunt_id: str, output_file: Optional[str]) -> None:
+    """Render a condensed, stakeholder-facing summary of a hunt.
+
+    \b
+    This is the PEAK framework's "Brief" step: hypothesis, executive
+    summary, findings, and detection/automation outcome -- without the
+    internal query-iteration or lessons-learned detail meant for the
+    hunter, not the audience.
+
+    \b
+    Examples:
+      athf hunt brief H-0027
+      athf hunt brief H-0027 --output brief-0027.md
+    """
+    if not validate_hunt_id(hunt_id):
+        console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+        console.print("[dim]Example: athf hunt brief H-0027[/dim]")
+        raise click.Abort()
+
+    manager = HuntManager()
+    hunt_data = manager.get_hunt(hunt_id)
+    if not hunt_data:
+        console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+        raise click.Abort()
+
+    brief_text = _build_brief(hunt_data)
+
+    if output_file:
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(brief_text)
+        console.print(f"[green]Brief written to {output_path}[/green]")
+    else:
+        click.echo(brief_text)
+
+
+def _extract_subsection(section_text: str, heading: str) -> str:
+    """Extract a ``### heading`` subsection's body from a LOCK section's markdown text.
+
+    Args:
+        section_text: Raw markdown for a whole LOCK section (e.g. lock_sections["keep"]).
+        heading: The ``###`` subsection heading to find (e.g. "Executive Summary").
+
+    Returns:
+        The subsection body, or empty string if the heading isn't present.
+    """
+    pattern = rf"###\s+{re.escape(heading)}\s*\n(.*?)(?=\n###\s+|\Z)"
+    match = re.search(pattern, section_text, re.DOTALL | re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+
+def _is_unfilled(text: str) -> bool:
+    """True if every line of a subsection is blank, a markdown table separator
+    row, a bold table header row, or contains only bracketed template
+    placeholders like ``[TBD]`` -- covers plain placeholder prose (Executive
+    Summary) as well as placeholder table rows (``| [Type] | [Ticket] |``)
+    and checklist items (``- [ ] [Action item]``), which don't fullmatch a
+    single ``[...]`` span the way a simple placeholder line does.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return True
+
+    for line in stripped.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if re.fullmatch(r"[|\-:\s]+", line):  # table separator row, e.g. "|---|---|"
+            continue
+        if re.fullmatch(r"(\|\s*\*\*[^*]+\*\*\s*)+\|?", line):  # bold table header row
+            continue
+        line = re.sub(r"^-\s*\[\s?\]\s*", "", line)  # strip a leading checklist checkbox
+        cells = [c.strip() for c in line.split("|") if c.strip()] or [line]
+        for cell in cells:
+            if not re.fullmatch(r"\[.*\]", cell, re.DOTALL):
+                return False
+    return True
+
+
+_STAT_LINE_RE = re.compile(r"\*\*(True Positives|False Positives|Candidate Anomalies Found):\*\*")
+
+
+def _strip_stat_lines(text: str) -> str:
+    """Drop redundant ``**True/False Positives:**``/``**Candidate Anomalies Found:**``
+    lines that are shown as their own stat line elsewhere in the brief (the
+    header, for TP/FP) or would otherwise be the only "content" keeping a
+    placeholder-only table from being recognized as unfilled by _is_unfilled.
+    """
+    kept = [line for line in text.splitlines() if not _STAT_LINE_RE.match(line.strip())]
+    return "\n".join(kept).strip()
+
+
+def _as_text(value: Any) -> str:
+    """Coerce a frontmatter scalar field to a clean display string.
+
+    Frontmatter fields like ``hunter`` are meant to be plain strings, but a
+    stray YAML flow-sequence (``hunter: [Your Name]`` instead of a quoted
+    string) parses as a one-element list -- shown as-is, that renders as the
+    Python repr ``['Your Name']`` instead of the intended text.
+    """
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    return str(value) if value is not None else ""
+
+
+def _build_brief(hunt_data: Dict[str, Any]) -> str:
+    """Build a condensed, stakeholder-facing markdown brief for a hunt.
+
+    Baseline hunts (hunt_type: baseline) have no hypothesis, so they get a
+    different set of subsections -- see _build_baseline_brief_body vs.
+    _build_hypothesis_brief_body. Both skip internal hunter-only detail
+    (query iteration, lessons learned).
+
+    Args:
+        hunt_data: Parsed hunt data from HuntManager.get_hunt().
+
+    Returns:
+        Markdown text of the brief.
+    """
+    frontmatter = hunt_data.get("frontmatter", {})
+    lock_sections = hunt_data.get("lock_sections", {})
+    is_baseline = frontmatter.get("hunt_type") == "baseline"
+
+    lines = _build_brief_header(frontmatter, is_baseline=is_baseline)
+    if is_baseline:
+        lines += _build_baseline_brief_body(frontmatter, lock_sections)
+    else:
+        lines += _build_hypothesis_brief_body(frontmatter, lock_sections)
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _build_brief_header(frontmatter: Dict[str, Any], *, is_baseline: bool) -> List[str]:
+    """Build the title/status/type line(s) common to both brief variants."""
+    hunt_id = _as_text(frontmatter.get("hunt_id", ""))
+    title = _as_text(frontmatter.get("title", ""))
+    status = _as_text(frontmatter.get("status", ""))
+    hunt_date = _as_text(frontmatter.get("date", ""))
+    hunter = _as_text(frontmatter.get("hunter", ""))
+
+    lines = [f"# Hunt Brief: {hunt_id} — {title}", ""]
+    lines.append(f"**Status:** {status}  |  **Date:** {hunt_date}  |  **Hunter:** {hunter}")
+
+    if is_baseline:
+        dimension = _as_text(frontmatter.get("dimension", ""))
+        if dimension:
+            lines.append(f"**Type:** Baseline (EDA)  |  **Dimension:** {dimension}")
+    else:
+        tactics = ", ".join(frontmatter.get("tactics", []) or [])
+        techniques = ", ".join(frontmatter.get("techniques", []) or [])
+        if tactics or techniques:
+            separator = " / " if tactics and techniques else ""
+            lines.append(f"**MITRE ATT&CK:** {tactics}{separator}{techniques}")
+
+    lines.append("")
+    return lines
+
+
+def _build_baseline_brief_body(frontmatter: Dict[str, Any], lock_sections: Dict[str, str]) -> List[str]:
+    """Build the objective/normal/anomalies/spawned-hunts body for a baseline hunt brief."""
+    learn = lock_sections.get("learn", "")
+    check = lock_sections.get("check", "")
+    keep = lock_sections.get("keep", "")
+
+    objective = _extract_subsection(learn, "Baseline Objective")
+    established_normal = _extract_subsection(check, "Results: What Normal Actually Looks Like")
+    anomalies = _strip_stat_lines(_extract_subsection(keep, "Candidate Anomalies"))
+    spawned_hunts = _extract_subsection(keep, "Spawned Hunts")
+
+    lines: List[str] = []
+    if not _is_unfilled(objective):
+        lines += ["## Baseline Objective", objective, ""]
+
+    if not _is_unfilled(established_normal):
+        lines += ["## What Normal Looks Like", established_normal, ""]
+
+    lines += ["## Candidate Anomalies", ""]
+    lines += [anomalies if not _is_unfilled(anomalies) else "None identified yet.", ""]
+
+    if not _is_unfilled(spawned_hunts):
+        lines += ["## Spawned Hunts", spawned_hunts, ""]
+
+    return lines
+
+
+def _build_hypothesis_brief_body(frontmatter: Dict[str, Any], lock_sections: Dict[str, str]) -> List[str]:
+    """Build the hypothesis/summary/findings/detection body for a hypothesis-driven hunt brief."""
+    learn = lock_sections.get("learn", "")
+    keep = lock_sections.get("keep", "")
+
+    true_positives = frontmatter.get("true_positives", 0)
+    false_positives = frontmatter.get("false_positives", 0)
+    hypothesis = _extract_subsection(learn, "Hypothesis Statement")
+    exec_summary = _extract_subsection(keep, "Executive Summary")
+    findings = _strip_stat_lines(_extract_subsection(keep, "Findings"))
+    detection = _extract_subsection(keep, "Detection Logic")
+    follow_up = _extract_subsection(keep, "Follow-up Actions")
+
+    lines: List[str] = []
+    if not _is_unfilled(hypothesis):
+        lines += ["## Hypothesis", hypothesis, ""]
+
+    if not _is_unfilled(exec_summary):
+        lines += ["## Summary", exec_summary, ""]
+
+    lines += ["## Findings", f"**True Positives:** {true_positives}  |  **False Positives:** {false_positives}", ""]
+    if not _is_unfilled(findings):
+        lines += [findings, ""]
+
+    if not _is_unfilled(detection):
+        lines += ["## Detection & Automation", detection, ""]
+
+    if not _is_unfilled(follow_up):
+        lines += ["## Follow-up Actions", follow_up, ""]
+
+    return lines

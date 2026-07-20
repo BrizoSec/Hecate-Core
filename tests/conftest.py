@@ -8,6 +8,50 @@ from pathlib import Path
 
 import pytest
 
+from athf.core import attack_matrix
+
+
+@pytest.fixture(autouse=True)
+def _reset_attack_matrix_provider(monkeypatch):
+    """Undo a test's explicit `attack_matrix.reset_provider(...)` call, if it
+    made one, after that test finishes.
+
+    Several tests call `attack_matrix.reset_provider(FallbackProvider())` to
+    exercise fallback behavior, with no corresponding teardown -- since the
+    singleton is a plain module global (not test-scoped), that mutation
+    otherwise leaks into every test that runs afterward in the same pytest
+    session, silently swapping the real STIX-backed technique/tactic data
+    for the fallback provider (which has no per-technique data at all) for
+    any test that happens to run later and assumes the real provider is
+    active. Order-dependent test pollution, caught when a real-data-dependent
+    test (ATT&CK coverage misattribution) started failing only when run as
+    part of the full suite, never in isolation.
+
+    Deliberately does NOT snapshot-and-restore `_provider` unconditionally
+    around every test -- an earlier version of this fixture did exactly
+    that, and it was itself a bug: it also undid a test's first-ever
+    *organic* cache warm (e.g. simply calling calculate_attack_coverage()),
+    discarding the freshly-built singleton and forcing the next test to
+    pay the multi-second STIX parse all over again. Repeated ~20x across
+    the suite, that turned a 15s run into 156s. Only reset_provider() itself
+    -- the deliberate, test-scoped mutation -- should be undone; normal
+    lazy-loading must be left alone so the singleton stays warm and shared
+    for the rest of the session, same as it is in production.
+    """
+    original = attack_matrix._provider
+    mutated_via_reset_provider = False
+    real_reset_provider = attack_matrix.reset_provider
+
+    def tracking_reset_provider(provider: object = None) -> None:
+        nonlocal mutated_via_reset_provider
+        mutated_via_reset_provider = True
+        real_reset_provider(provider)
+
+    monkeypatch.setattr(attack_matrix, "reset_provider", tracking_reset_provider)
+    yield
+    if mutated_via_reset_provider:
+        attack_matrix._provider = original
+
 
 @pytest.fixture
 def temp_dir():

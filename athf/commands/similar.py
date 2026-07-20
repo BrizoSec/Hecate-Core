@@ -127,11 +127,16 @@ def similar(
         _display_results_table(results, query_text=query_text, reference_hunt=hunt, include_sessions=sessions)
 
 
-def _get_hunt_text(hunt_id: str) -> Optional[str]:
-    """Get full text content of a hunt."""
+def _get_hunt_text(hunt_id: str, workspace: Optional[Path] = None) -> Optional[str]:
+    """Get full text content of a hunt.
+
+    Args:
+        workspace: See _find_similar_hunts's `workspace` param -- same
+            cwd-relative-by-default, explicit-path-when-provided contract.
+    """
     from athf.core.hunt_manager import HuntManager
 
-    hunt_file = HuntManager().find_hunt_file(hunt_id)
+    hunt_file = HuntManager(hunts_dir=(workspace / "hunts") if workspace else None).find_hunt_file(hunt_id)
     if not hunt_file:
         return None
     return hunt_file.read_text(encoding="utf-8")
@@ -143,12 +148,25 @@ def _find_similar_hunts(
     threshold: float = 0.1,
     exclude_hunt: Optional[str] = None,
     include_sessions: bool = False,
+    workspace: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
     """Find similar hunts using TF-IDF similarity.
 
     Sessions are always folded into their parent hunt's searchable text
     at 0.75x weight. When include_sessions=True, sessions are also added
     as separate documents in the corpus.
+
+    Args:
+        workspace: Workspace root to search under. Defaults to None, which
+            preserves this function's original behavior of resolving
+            hunts/sessions relative to the current working directory (the
+            CLI's own convention -- a command always runs with cwd set to
+            the workspace). Pass this explicitly from callers that can't
+            rely on cwd being the right workspace, e.g. a long-lived MCP
+            server thread -- an explicit path is race-free where temporarily
+            os.chdir()-ing for the duration of the call would not be,
+            since chdir is process-wide and this server may run tool calls
+            on separate threads.
     """
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
@@ -161,12 +179,12 @@ def _find_similar_hunts(
     # Load all hunts (HuntManager handles recursive search + deduplication)
     from athf.core.hunt_manager import HuntManager
 
-    hunt_files = HuntManager().find_all_hunt_files()
+    hunt_files = HuntManager(hunts_dir=(workspace / "hunts") if workspace else None).find_all_hunt_files()
 
     if not hunt_files:
         return []
 
-    sessions_dir = Path("sessions")
+    sessions_dir = (workspace / "sessions") if workspace else Path("sessions")
 
     # Extract hunt content and metadata, fold sessions in
     hunt_data = []
