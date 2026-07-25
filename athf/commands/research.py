@@ -250,7 +250,7 @@ def view(research_id: str, output_format: str) -> None:
     # Display markdown content
     file_path = research_data.get("file_path")
     if file_path:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         console.print(content)
     else:

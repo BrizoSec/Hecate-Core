@@ -77,7 +77,7 @@ def load_workspace_config(workspace: Path) -> dict:
     """
     for candidate in [workspace / ".athfconfig.yaml", workspace / "config" / ".athfconfig.yaml"]:
         if candidate.is_file():
-            with open(str(candidate), "r") as fh:
+            with open(str(candidate), "r", encoding="utf-8") as fh:
                 data = yaml.safe_load(fh)
                 return data if isinstance(data, dict) else {}
     return {}
