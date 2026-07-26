@@ -2,14 +2,6 @@
 
 ![ATHF Logo](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_logo.png)
 
-[![PyPI version](https://img.shields.io/pypi/v/agentic-threat-hunting-framework)](https://pypi.org/project/agentic-threat-hunting-framework/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/agentic-threat-hunting-framework)](https://pypi.org/project/agentic-threat-hunting-framework/)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/Nebulock-Inc/agentic-threat-hunting-framework?style=social)](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/stargazers)
-
-**[Quick Start](#-quick-start)** • **[How It Works](#how-it-works)** • **[Capabilities](#capabilities)** • **[Local Setup](#running-locally)** • **[Docker](#running-in-a-container)** • **[Perpetual/Agentic Operation](#running-perpetually--agentically)** • **[Documentation](#documentation)**
-
 *Give your threat hunting program memory and agency.*
 
 The **Agentic Threat Hunting Framework (ATHF)** is the memory and automation layer for your threat hunting program. It gives your hunts structure, persistence, and context - making every past investigation accessible to both humans and AI.
@@ -45,15 +37,15 @@ Each hunt/investigation/research file is Markdown with YAML frontmatter (ID, sta
 
 **Core subsystems** (`athf/core/`):
 
-| Subsystem | File | Purpose |
-|---|---|---|
-| Hunt lifecycle | `hunt_manager.py` | Create/list/search/validate hunts, compute ATT&CK coverage |
-| Hunt/investigation parsing | `hunt_parser.py`, `investigation_parser.py` | YAML frontmatter + Markdown section parsing |
-| ATT&CK data | `attack_matrix.py` | Provider abstraction: hardcoded v14 fallback, or live STIX data via `mitreattack-python` (835+ techniques) |
-| LLM provider | `llm_provider.py` | Model-agnostic completion interface — Anthropic, OpenAI, AWS Bedrock, Ollama, or any LiteLLM-supported backend, selected by whichever API key/env var is present |
-| Research | `research_manager.py` | Drives the 5-skill pre-hunt research methodology (system research, adversary tradecraft via Tavily web search, OCSF telemetry mapping, related-hunt correlation, synthesis) |
-| Eval harness | `eval_harness.py` | Known-answer fixtures (mostly ATT&CK technique-ID recall) that spot-check an LLM provider/model before you swap it into production use |
-| Templates | `template_engine.py` | Jinja2 rendering for hunt/investigation/research file scaffolding |
+| Subsystem                  | File                                        | Purpose                                                                                                                                                                     |
+|----------------------------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Hunt lifecycle             | `hunt_manager.py`                           | Create/list/search/validate hunts, compute ATT&CK coverage                                                                                                                  |
+| Hunt/investigation parsing | `hunt_parser.py`, `investigation_parser.py` | YAML frontmatter + Markdown section parsing                                                                                                                                 |
+| ATT&CK data                | `attack_matrix.py`                          | Provider abstraction: hardcoded v14 fallback, or live STIX data via `mitreattack-python` (835+ techniques)                                                                  |
+| LLM provider               | `llm_provider.py`                           | Model-agnostic completion interface — Anthropic, OpenAI, AWS Bedrock, Ollama, or any LiteLLM-supported backend, selected by whichever API key/env var is present            |
+| Research                   | `research_manager.py`                       | Drives the 5-skill pre-hunt research methodology (system research, adversary tradecraft via Tavily web search, OCSF telemetry mapping, related-hunt correlation, synthesis) |
+| Eval harness               | `eval_harness.py`                           | Known-answer fixtures (mostly ATT&CK technique-ID recall) that spot-check an LLM provider/model before you swap it into production use                                      |
+| Templates                  | `template_engine.py`                        | Jinja2 rendering for hunt/investigation/research file scaffolding                                                                                                           |
 
 **Agents** (`athf/agents/llm/`) are thin, single-purpose wrappers around the LLM provider — `hypothesis-generator` (turns threat intel into a structured LOCK hypothesis) and `hunt-researcher` (runs the 5-skill research workflow). They're invoked one-shot via `athf agent run <name>`; there is no persistent agent process.
 
@@ -94,13 +86,13 @@ ATHF defines a simple maturity model. Each level builds on the previous one.
 
 ![The Five Levels](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_fivelevels.png)
 
-| Level | Capability | What You Get |
-|-------|-----------|--------------|
-| **0** | Ad-hoc | Hunts exist in Slack, tickets, or analyst notes |
-| **1** | Documented | Persistent hunt records using LOCK |
-| **2** | Searchable | AI reads and recalls your hunts |
-| **3** | Generative | AI executes queries via MCP tools, conducts research |
-| **4** | Agentic | Autonomous agents monitor and act, generate hypotheses |
+| Level | Capability | What You Get                                           |
+|-------|------------|--------------------------------------------------------|
+| **0** | Ad-hoc     | Hunts exist in Slack, tickets, or analyst notes        |
+| **1** | Documented | Persistent hunt records using LOCK                     |
+| **2** | Searchable | AI reads and recalls your hunts                        |
+| **3** | Generative | AI executes queries via MCP tools, conducts research   |
+| **4** | Agentic    | Autonomous agents monitor and act, generate hypotheses |
 
 **Level 1:** Operational within a day
 **Level 2:** Operational within a week
@@ -278,7 +270,7 @@ athf mcp serve --workspace /path/to/hunts
 ```
 
 ```json
-// ~/.claude/mcp-servers.json
+
 {
   "athf": {
     "command": "athf-mcp",
@@ -462,114 +454,4 @@ The standalone `athf-mcp` entry point auto-detects your workspace from cwd or `A
 
 Exposes 17 tools: hunt management, semantic search, ATT&CK coverage, research, investigations, and AI-powered hypothesis generation — all accessible directly from your AI coding assistant.
 
-**Full documentation:** [CLI Reference](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/CLI_REFERENCE.md)
-
-## 📺 See It In Action
-
-![ATHF Demo](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf-cli-workflow.gif)
-
-Watch ATHF in action: initialize a workspace, create hunts, and explore your threat hunting catalog in under 60 seconds.
-
-**[View example hunts →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/SHOWCASE.md)**
-
-## Installation
-
-See the [Quick Start](#-quick-start), [Running Locally](#running-locally), and [Running in a Container](#running-in-a-container) sections above for installation options.
-
-**Prerequisites:**
-- Python 3.8-3.13 (for CLI option), or Docker
-- Your favorite AI code assistant
-
-## Documentation
-
-### Core Concepts
-
-- [Why ATHF Exists](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/why-athf.md) - The problem and solution
-- [The LOCK Pattern](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/lock-pattern.md) - Structure for all hunts
-- [Maturity Model](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/maturity-model.md) - The five levels explained
-- [Getting Started](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/getting-started.md) - Step-by-step onboarding
-
-### Level-Specific Guides
-
-- [Level 1: Documented Hunts](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/maturity-model.md#level-1-documented-hunts)
-- [Level 2: Searchable Memory](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/maturity-model.md#level-2-searchable-memory)
-- [Level 3: Generative Capabilities](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/level4-agentic-workflows.md)
-- [Level 4: Agentic Workflows](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/level4-agentic-workflows.md)
-
-### Integration & Customization
-
-- [Installation & Development](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/INSTALL.md) - Setup, fork customization, testing
-- [Configuration Reference](docs/CONFIGURATION.md) - LLM providers, API keys, `.athfconfig.yaml`
-- [MCP Catalog](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/integrations/MCP_CATALOG.md) - Available tool integrations
-- [Quickstart Guides](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/tree/main/integrations/quickstart/) - Setup for specific tools
-- [Using ATHF](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/USING_ATHF.md) - Adoption and customization
-
-## 🎖️ Featured Hunts
-
-### H-0001: macOS Information Stealer Detection
-
-Detected Atomic Stealer collecting Safari cookies via AppleScript.
-**Result:** 1 true positive, host isolated before exfiltration.
-
-**Key Insight:** Behavior-based detection outperformed signature-based approaches. Process signature validation identified unsigned malware attempting data collection.
-
-[View full hunt →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/hunts/H-0001.md) | [See more examples →](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/SHOWCASE.md)
-
-## Why This Matters
-
-You might wonder how this interacts with frameworks like [PEAK](https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html). PEAK gives you a solid method for how to hunt. ATHF builds on that foundation by giving you structure, memory, and continuity. PEAK guides the work. ATHF ensures you capture the work, organize it, and reuse it across future hunts.
-
-Agentic threat hunting is not about replacing analysts. It's about building systems that can:
-
-- Remember what has been done before
-- Learn from past successes and mistakes
-- Support human judgment with contextual recall
-
-When your framework has memory, you stop losing knowledge to turnover or forgotten notes. When your AI assistant can reference that memory, it becomes a force multiplier.
-
-## 💬 Community & Adoption
-
-- **GitHub Discussions:** [Ask questions, share hunts](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions)
-- **Issues:** [Report bugs or request features](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
-- **LinkedIn:** [Nebulock Inc.](https://www.linkedin.com/company/nebulock-inc) - Follow for updates
-
-**Using ATHF in Your Organization:** ATHF is a framework to internalize, not a platform to extend. Fork it, customize it, make it yours. See [USING_ATHF.md](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/USING_ATHF.md) for adoption guidance. Your hunts stay yours—sharing back is optional but appreciated.
-
-**Repository:** [https://github.com/Nebulock-Inc/agentic-threat-hunting-framework](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework)
-
-The goal is to help every threat hunting team move from ad-hoc memory to structured, agentic capability.
-
 ---
-
-## 🛠️ Development & Customization
-
-ATHF is designed to be forked and customized for your organization.
-
-**See [docs/INSTALL.md#development--customization](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/INSTALL.md#development--customization) for:**
-- Setting up your fork for development
-- Pre-commit hooks for code quality
-- Testing and type checking
-- Customization examples
-- CI/CD integration
-
-Quick start:
-```bash
-pip install -e ".[dev]"       # Install dev dependencies
-pre-commit install            # Set up quality checks
-pytest tests/ -v              # Run tests
-```
-
----
-
-## 👤 Author
-
-Created by **Sydney Marrone** © 2025
-
----
-
-**Start small. Document one hunt. Add structure. Build memory.**
-
-Memory is the multiplier. Agency is the force.
-Once your program can remember, everything else becomes possible.
-
-Happy hunting!
