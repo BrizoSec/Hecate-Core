@@ -53,8 +53,6 @@ Documentation:
 \b
 Need help? Run 'athf COMMAND --help' for command-specific help.
 
-\b
-Created by Sydney Marrone © 2025
 """
 
 
@@ -65,7 +63,7 @@ Created by Sydney Marrone © 2025
     message="%(prog)s version %(version)s\nAgentic Threat Hunting Framework\nCreated by Sydney Marrone © 2025",
 )
 def cli() -> None:
-    """Agentic Threat Hunting Framework (ATHF) - Hunt management CLI
+    r"""Agentic Threat Hunting Framework (ATHF) - Hunt management CLI.
 
     \b
     ATHF gives your threat hunting program memory and agency by:
@@ -141,19 +139,19 @@ def wisdom() -> None:
         "Document the hunt that found nothing—it eliminates hypotheses for everyone who comes after you.",
     ]
 
-    console.print(f"\n💭 [italic]{random.choice(quotes)}[/italic]\n")
+    console.print(f"\n💭 [italic]{random.choice(quotes)}[/italic]\n")  # nosec B311
 
 
 @cli.command(hidden=True)
 def thrunt() -> None:
-    """The real command all along."""
+    """Activate the secret thrunt mode."""
     console.print("\n[bold cyan]🎯 THRUNT MODE ACTIVATED[/bold cyan]\n")
     console.print("[italic]You've discovered the secret: threat hunting has always been 'thrunting'.[/italic]")
     console.print("[italic]Welcome to the club. Now go hunt some threats.[/italic]\n")
 
 
 def main() -> None:
-    """Main entry point for the CLI."""
+    """Run the CLI."""
     cli()
 
 

@@ -142,7 +142,7 @@ packages = ["athf", "athf.agents", "athf.agents.llm", "athf.commands", "athf.cor
 
 [tool.black]
 line-length = 127
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -169,7 +169,7 @@ use_parentheses = true
 ensure_newline_before_comments = true
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -185,6 +185,10 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "athf.commands"
+warn_unused_ignores = false
 
 # Ignore missing imports for optional dependencies
 [[tool.mypy.overrides]]

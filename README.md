@@ -1,13 +1,5 @@
 # Agentic Threat Hunting Framework (ATHF)
 
-![ATHF Logo](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_logo.png)
-
-*Give your threat hunting program memory and agency.*
-
-The **Agentic Threat Hunting Framework (ATHF)** is the memory and automation layer for your threat hunting program. It gives your hunts structure, persistence, and context - making every past investigation accessible to both humans and AI.
-
-ATHF works with any hunting methodology (PEAK, TaHiTI, or your own process). It's not a replacement; it's the layer that makes your existing process AI-ready.
-
 ## What is ATHF?
 
 ATHF provides structure and persistence for threat hunting programs. It's a markdown-based framework, wrapped in a Python CLI, that:
