@@ -4,6 +4,8 @@ This guide walks you through setting up the Agentic Threat Hunting Framework, fr
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
+> **Configuration reference:** For a complete list of API keys, environment variables, `.athfconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Step 1: Choose Your Setup Path
 
 ATHF offers two paths to get started:
@@ -67,7 +69,7 @@ agentic-threat-hunting-framework/
 
 - [templates/](../templates/) - Ready-to-use LOCK hunt templates
 - [hunts/](../hunts/) - Example hunts showing the LOCK pattern
-- [AGENTS.md](../../../AGENTS.md) - Template for AI context (customize later)
+- [AGENTS.md](../AGENTS.md) - Template for AI context (customize later)
 
 ## Step 3: Document Your First Hunt (Level 1)
 
@@ -120,7 +122,7 @@ athf hunt list
 
 ### Example Structure
 
-See [hunts/H-0001.md](../hunts/production/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
+See [hunts/H-0001.md](../hunts/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
 
 ```markdown
 # H-0001: SSH Brute Force Detection
@@ -155,7 +157,7 @@ To make your hunts AI-accessible, add context files that describe your environme
 
 ### Customize AGENTS.md
 
-1. Open [AGENTS.md](../../../AGENTS.md)
+1. Open [AGENTS.md](../AGENTS.md)
 2. Update the following sections:
    - **Data Sources:** Replace placeholders with your actual SIEM indexes, EDR platforms, etc.
    - **Technology Stack:** List your security tools
@@ -190,6 +192,37 @@ The repository includes [knowledge/hunting-knowledge.md](../knowledge/hunting-kn
 - Analytical rigor best practices
 
 **No changes needed** - this file provides universal hunting expertise that AI assistants will apply to your environment.
+
+### Configure an LLM Provider (Optional)
+
+ATHF agents and research commands can use any LLM provider. Without one, they fall back to template-based output — still useful, but without AI-enhanced analysis.
+
+Set **one** of the following environment variables and ATHF auto-detects your provider:
+
+| Provider | Environment Variable | Install Extra |
+|----------|---------------------|---------------|
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `pip install 'athf[anthropic]'` |
+| OpenAI (GPT) | `OPENAI_API_KEY` | `pip install 'athf[openai]'` |
+| AWS Bedrock | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` | `pip install 'athf[bedrock]'` |
+| Ollama (local) | `OLLAMA_HOST` (default: `localhost:11434`) | `pip install 'athf[ollama]'` |
+| Any via LiteLLM | varies | `pip install 'athf[litellm]'` |
+
+```bash
+# Example: configure OpenAI
+export OPENAI_API_KEY=sk-...
+
+# Example: configure a local Ollama instance
+export OLLAMA_HOST=http://localhost:11434
+```
+
+To override auto-detection and explicitly set a provider and model:
+
+```bash
+export ATHF_LLM_PROVIDER=openai
+export ATHF_LLM_MODEL=gpt-4o
+```
+
+See [`.env.example`](../.env.example) for all supported variables.
 
 ### Test AI Integration and Agent Framework (v0.3.0+)
 

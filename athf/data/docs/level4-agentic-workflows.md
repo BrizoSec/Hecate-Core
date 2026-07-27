@@ -103,11 +103,64 @@ At Level 4, multiple specialized agents work together, coordinating through your
 3. Send email summary to security team
 4. Update hunt tracking dashboard
 
+#### Baseline Profiling Agent
+
+**Role:** Establish behavioral norms and flag statistical deviations (PEAK: Baseline hunt type)
+
+Unlike the CTI Monitor, this agent does not depend on external threat intelligence. It generates hunts from **internal environmental change** — deviations from what your own telemetry says is normal.
+
+**Triggers:**
+
+- Scheduled: Daily or weekly per scope (host role, account type, subnet)
+- Configuration: New baseline scope added by analyst
+
+**Actions:**
+
+1. Query telemetry to profile normal behavior for a defined scope (e.g., process execution frequency by host role, service account login patterns, DNS query volume by subnet)
+2. Store versioned baselines as artifacts (e.g., `baselines/B-XXXX.json`)
+3. Compare current observations against the most recent baseline for the same scope
+4. If deviation exceeds configured threshold → generate draft investigation (I-XXXX) with deviation details
+5. If deviation is severe or recurring → escalate to Hypothesis Generator Agent for a formal hunt
+6. Trigger Notifier Agent for significant anomalies
+
+**Guardrails:**
+
+- Baselines must have a minimum sample period (e.g., 14 days) before deviations are flagged
+- Deviation thresholds are configurable per scope to avoid noise
+- Seasonal and known-maintenance windows are excluded from comparison
+
+#### Adversary Simulation Validation Agent
+
+**Role:** Track whether hunts and detections have been validated against known-good attack simulations
+
+A successful hunt hypothesis that has never been tested against a controlled simulation is an assumption, not a validated detection. This agent closes that gap by mapping hunts to test cases and tracking validation coverage.
+
+**Triggers:**
+
+- Event: Hunt status changes to `completed` with true positives
+- Event: New detection rule created from a hunt
+- Scheduled: Monthly validation sweep
+
+**Actions:**
+
+1. Map existing hunts and derived detection rules to atomic tests (Atomic Red Team test IDs, MITRE Caldera campaigns)
+2. Track which hunts have been validated by purple team exercises vs. untested
+3. Score validation coverage per MITRE technique (validated / total hunts)
+4. Flag high-priority hunts with no simulation coverage
+5. Propose validation exercises for untested hunts, prioritized by technique severity and detection age
+6. Trigger Notifier Agent with a validation gaps report
+
+**Guardrails:**
+
+- Never executes simulations autonomously — proposes exercises for human scheduling
+- Validation mappings require analyst confirmation before being marked as "covered"
+- Prioritization weights are configurable (technique severity, hunt age, business impact)
+
 ---
 
-## Example Multi-Agent Workflow
+## Example Multi-Agent Workflows
 
-### Scenario: New Qakbot Campaign Detected
+### Scenario A: New Qakbot Campaign Detected
 
 **1. CTI Monitor Agent (Autonomous - 06:00 UTC)**
 
@@ -124,21 +177,16 @@ At Level 4, multiple specialized agents work together, coordinating through your
 
 ```
 [Triggered by CTI Monitor]
-- Runs: athf agent run similarity-scorer --query "cmd.exe process execution" --limit 5
 - Reviews similar hunts: H-0042 (PowerShell), H-0089 (Process Execution)
-- Runs: athf research new --topic "Qakbot cmd.exe execution" --technique T1059.003 --depth basic
 - Extracts lessons: "Include parent-child process chains", "Filter System32 parents"
-- Runs: athf agent run hypothesis-generator --threat-intel "Qakbot T1059.003 campaign" --technique T1059.003
 - Generates LOCK hypothesis:
 
-  Learn: Qakbot campaign using T1059.003 detected in CTI. Research document R-0042 created.
+  Learn: Qakbot campaign using T1059.003 detected in CTI
   Observe: Adversaries spawn cmd.exe from suspicious parents (Office, browsers)
   Check: [Generated Splunk query with bounds and limits]
   Keep: [Placeholder for execution results]
 
-- Runs: athf hunt new --technique T1059.003 --title "Qakbot cmd.exe Detection" --research R-0042 --non-interactive
 - Creates: hunts/H-0156.md
-- Runs: athf agent run query-validator --sql "[generated query]"
 - Validates query syntax
 - Decision: Draft ready, trigger Validator
 ```
@@ -147,15 +195,12 @@ At Level 4, multiple specialized agents work together, coordinating through your
 
 ```
 [Triggered by Hypothesis Generator]
-- Runs: athf hunt validate H-0156
 - Reads AGENTS.md for data source availability
 - Checks: index=sysmon exists ✓
 - Checks: EventCode=1 available ✓
 - Validates: MITRE technique T1059.003 format ✓
-- Runs: athf agent run query-validator --sql "[generated query from H-0156]"
 - Reviews: Query has time bounds ✓
 - Reviews: Query has result limits ✓
-- Runs: athf agent run coverage-analyzer --tactic initial-access
 - Decision: Hunt validated, trigger Notifier
 ```
 
@@ -196,6 +241,83 @@ Claude: [Runs via Splunk MCP, finds 2 suspicious events, creates tickets]
 ```
 
 **Result:** From threat detection to actionable investigation in under 3 hours, most of it automated.
+
+### Scenario B: Service Account Baseline Deviation
+
+This scenario demonstrates a hunt that originates **without any external threat intelligence** — purely from internal behavioral change.
+
+**1. Baseline Profiling Agent (Autonomous - 02:00 UTC, weekly schedule)**
+
+```
+[Agent runs scheduled baseline job for scope: "service accounts"]
+- Queries authentication logs for past 7 days
+- Profiles: login count, unique destination hosts, login hours, auth protocols per service account
+- Compares against stored baseline (B-0034.json, established over 30-day sample)
+- Detects: svc_deploy logged into 14 unique hosts (baseline: 3 ± 1)
+- Detects: svc_deploy active at 03:12 UTC (baseline hours: 09:00-17:00 UTC)
+- Deviation score: 4.2 standard deviations above norm
+- Decision: Severe deviation, trigger Hypothesis Generator + Notifier
+```
+
+**2. Hypothesis Generator Agent (02:01 UTC)**
+
+```
+[Triggered by Baseline Profiling Agent]
+- Receives deviation context: svc_deploy, 14 hosts, off-hours
+- Searches past hunts: finds H-0031 (lateral movement via service accounts)
+- Extracts lessons: "Service accounts on >5 unique hosts in 24h warrants investigation"
+- Generates LOCK hypothesis:
+
+  Learn: Baseline deviation detected — svc_deploy accessed 14 hosts (norm: 3)
+         during off-hours. Consistent with credential compromise or lateral movement.
+  Observe: Compromised service accounts may authenticate to atypical hosts
+           outside normal operating windows.
+  Check: [Generated query scoped to svc_deploy, last 7 days, auth logs]
+  Keep: [Placeholder for execution results]
+
+- Creates: hunts/H-0201.md
+- Decision: Draft ready, trigger Validator
+```
+
+**3. Validator Agent (02:02 UTC)**
+
+```
+[Triggered by Hypothesis Generator]
+- Reads AGENTS.md for data source availability
+- Checks: Authentication logs available ✓
+- Checks: Service account inventory accessible ✓
+- Validates: Query has time bounds (7 days) ✓
+- Validates: Query has LIMIT clause ✓
+- Cross-references: svc_deploy is not in known maintenance window ✓
+- Decision: Hunt validated, trigger Notifier
+```
+
+**4. Notifier Agent (02:03 UTC)**
+
+```
+[Triggered by Validator]
+- Posts to Slack #threat-hunting:
+  "⚠️ Baseline deviation: svc_deploy on 14 hosts (norm: 3), off-hours activity
+  - Draft hunt H-0201 ready for review
+  - Deviation score: 4.2σ
+  - No matching CTI — triggered by internal baseline"
+
+- Creates GitHub issue #201:
+  Title: "Review hunt H-0201: svc_deploy baseline deviation"
+  Labels: hunt-review, baseline-deviation, auto-generated
+```
+
+**5. You Review (08:00 UTC)**
+
+```
+- H-0201 was generated without any threat intel feed — purely from behavioral data
+- Deviation is significant and not explained by maintenance windows
+- Approve and execute hunt
+- Result: svc_deploy credentials were used from an unauthorized jump box
+  following a phishing compromise of the deploy team lead
+```
+
+**Result:** Detected credential compromise that no CTI feed would have surfaced. The hunt originated entirely from internal behavioral deviation.
 
 ---
 
@@ -260,6 +382,40 @@ agents:
       - send_email_summary(recipients=security_team)
     guardrails:
       - rate_limit: "max 20 notifications per day"
+
+  - name: baseline_profiler
+    role: Establish behavioral norms and flag deviations
+    triggers:
+      - schedule: "weekly per scope"
+      - config_event: "new baseline scope added"
+    actions:
+      - query_telemetry(scope)  # Profile normal behavior
+      - store_baseline(scope, version)  # Versioned artifact
+      - compare_against_baseline(scope, current_data)
+      - trigger_agent("hypothesis_generator") if deviation > threshold
+      - trigger_agent("notifier") if severe_deviation
+    guardrails:
+      - minimum_sample_period_days: 14
+      - exclude_maintenance_windows: true
+      - deviation_thresholds_per_scope: true
+      - max_investigations_per_day: 5
+
+  - name: adversary_simulation_validator
+    role: Track hunt validation coverage against attack simulations
+    triggers:
+      - hunt_event: "status changed to completed with true positives"
+      - detection_event: "new rule created from hunt"
+      - schedule: "monthly"
+    actions:
+      - map_hunts_to_atomic_tests()  # Atomic Red Team, Caldera
+      - score_validation_coverage(technique_id)
+      - flag_untested_high_priority_hunts()
+      - propose_validation_exercises()
+      - trigger_agent("notifier") with validation_gaps_report
+    guardrails:
+      - never_execute_simulations: true  # Propose only, never run
+      - require_analyst_confirmation: true
+      - prioritization_weights_configurable: true
 
 # Global Guardrails
 guardrails:
@@ -469,6 +625,22 @@ Track these metrics to measure Level 4 success:
 **Flow:** Daily Schedule → Review Old Hunts → Re-execute Queries → Update Results
 
 **Agents:** Scheduler + Hunt Executor + Results Analyzer + Documentation Updater
+
+### Pattern 4: Baseline Deviation Hunting
+
+**Flow:** Scheduled Profiling → Baseline Storage → Deviation Detection → Draft Investigation or Hunt
+
+**Agents:** Baseline Profiler + Hypothesis Generator + Validator + Notifier
+
+**Key difference from Patterns 1-3:** No external trigger required. Hunts originate from internal behavioral change — deviations in authentication patterns, process execution frequency, network traffic volumes, or other telemetry norms. This addresses the PEAK "Baseline" hunt type, which is absent from CTI-driven pipelines.
+
+### Pattern 5: Hunt Validation via Adversary Simulation
+
+**Flow:** Hunt/Detection Inventory → Simulation Mapping → Coverage Gap Analysis → Validation Proposal
+
+**Agents:** Adversary Simulation Validator + Notifier
+
+**Key difference from Patterns 1-4:** This pattern does not produce hunts. It validates them. It answers: "Of all the hunts we've completed and detections we've deployed, which ones have actually been tested against a controlled simulation?" Untested hunts are assumptions; validated hunts are detections.
 
 ---
 
