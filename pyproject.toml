@@ -283,6 +283,9 @@ ignore = [
     "W503",  # line break before binary operator (conflicts with black)
     "E501",  # line too long (handled by max-line-length)
 ]
+per-file-ignores = [
+    "tests/*:D100,D101,D102,D103,D104,D105,D106,D107",
+]
 select = ["E", "W", "F", "C"]
 show-source = true
 show-pep8 = true
