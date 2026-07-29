@@ -214,10 +214,24 @@ class LLMAgent(Agent[InputT, OutputT]):
         try:
             parsed: Dict[str, Any] = json.loads(cleaned)
             return parsed
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError as first_error:
+            # Smaller local models (e.g. via Ollama) often prepend chatty
+            # preamble ("Sure, here's the JSON:") or trailing commentary
+            # instead of returning bare JSON despite the prompt. Fall back
+            # to slicing out the outermost {...} span and retrying once
+            # before giving up.
+            brace_start = cleaned.find("{")
+            brace_end = cleaned.rfind("}")
+            if brace_start != -1 and brace_end > brace_start:
+                try:
+                    parsed = json.loads(cleaned[brace_start : brace_end + 1])
+                    return parsed
+                except json.JSONDecodeError:
+                    pass
+
             raise ValueError(
                 "Failed to parse JSON from LLM response. Error: {}. "
-                "Response text (first 500 chars): {}".format(e, cleaned[:500])
+                "Response text (first 500 chars): {}".format(first_error, cleaned[:500])
             )
 
     def _log_llm_metrics(

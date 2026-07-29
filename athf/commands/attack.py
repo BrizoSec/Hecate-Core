@@ -190,7 +190,8 @@ def _display_technique_fields(tech: "TechniqueInfo") -> None:
 
 @attack.command()
 @click.argument("technique_id")
-def lookup(technique_id: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="Print technique metadata as JSON instead of a formatted table.")
+def lookup(technique_id: str, as_json: bool) -> None:
     """Look up an ATT&CK technique by ID.
 
     Shows technique metadata including name, platforms,
@@ -200,17 +201,39 @@ def lookup(technique_id: str) -> None:
     Examples:
       athf attack lookup T1003
       athf attack lookup T1003.001
+      athf attack lookup T1003.001 --json
     """
     from athf.core.attack_matrix import get_sub_techniques, get_technique, is_using_stix
 
     if not is_using_stix():
-        console.print("[yellow]STIX data not available. Technique lookup requires STIX.[/yellow]")
-        console.print("[dim]Install and update: pip install 'athf[attack]' && athf attack update[/dim]")
+        if as_json:
+            print(json.dumps({"error": "stix_unavailable", "technique_id": technique_id}))
+        else:
+            console.print("[yellow]STIX data not available. Technique lookup requires STIX.[/yellow]")
+            console.print("[dim]Install and update: pip install 'athf[attack]' && athf attack update[/dim]")
         return
 
     tech = get_technique(technique_id)
     if tech is None:
-        console.print(f"[yellow]Technique {technique_id} not found.[/yellow]")
+        if as_json:
+            print(json.dumps({"error": "not_found", "technique_id": technique_id}))
+        else:
+            console.print(f"[yellow]Technique {technique_id} not found.[/yellow]")
+        return
+
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "id": tech.get("id", ""),
+                    "name": tech.get("name", ""),
+                    "tactics": tech.get("tactic_shortnames", []),
+                    "platforms": tech.get("platforms", []),
+                    "is_subtechnique": tech.get("is_subtechnique", False),
+                    "parent_id": tech.get("parent_id"),
+                }
+            )
+        )
         return
 
     console.print(f"\n[bold]{tech.get('id', '')} - {tech.get('name', '')}[/bold]\n")

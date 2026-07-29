@@ -52,6 +52,50 @@ class TestAttackLookup:
         assert result.exit_code == 0
         assert "not available" in result.output.lower() or "requires" in result.output.lower()
 
+    def test_lookup_json_without_stix_emits_error_json(self):
+        runner = CliRunner()
+        result = runner.invoke(attack, ["lookup", "T1003", "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload == {"error": "stix_unavailable", "technique_id": "T1003"}
+
+    def test_lookup_json_returns_tactics_and_platforms(self, monkeypatch):
+        def fake_get_technique(technique_id):
+            return {
+                "id": "T1098",
+                "name": "Account Manipulation",
+                "tactic_shortnames": ["persistence", "privilege-escalation"],
+                "platforms": ["Windows", "Linux"],
+                "is_subtechnique": False,
+                "parent_id": None,
+            }
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_technique", fake_get_technique)
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["lookup", "T1098", "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload == {
+            "id": "T1098",
+            "name": "Account Manipulation",
+            "tactics": ["persistence", "privilege-escalation"],
+            "platforms": ["Windows", "Linux"],
+            "is_subtechnique": False,
+            "parent_id": None,
+        }
+
+    def test_lookup_json_not_found_emits_error_json(self, monkeypatch):
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_technique", lambda technique_id: None)
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["lookup", "T9999", "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload == {"error": "not_found", "technique_id": "T9999"}
+
 
 @pytest.mark.unit
 class TestAttackTechniques:
