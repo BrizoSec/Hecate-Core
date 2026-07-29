@@ -1,7 +1,14 @@
 {
-  "last_seen_id": {
-    "https://unit42.paloaltonetworks.com/feed/": "https://unit42.paloaltonetworks.com/?p=182713",
-    "https://www.crowdstrike.com/blog/feed/": "https://www.crowdstrike.com/?p=354595",
-    "https://www.huntress.com/blog/rss.xml": "https://www.huntress.com/blog/mimikatz-credential-dumping-defence-impairment"
+  "seen_ids": {
+    "https://unit42.paloaltonetworks.com/feed/": [
+      "https://unit42.paloaltonetworks.com/?p=182713"
+    ],
+    "https://www.crowdstrike.com/blog/feed/": [
+      "https://www.crowdstrike.com/?p=354595"
+    ],
+    "https://www.huntress.com/blog/rss.xml": [
+      "https://www.huntress.com/blog/mimikatz-credential-dumping-defence-impairment",
+      "https://www.huntress.com/blog/insider-threat-claims"
+    ]
   }
 }
