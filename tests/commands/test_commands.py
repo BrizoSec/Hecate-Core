@@ -405,10 +405,10 @@ class TestHuntNewBaselineCommand:
         assert "Created" in result.output
 
         hunt_files = list((temp_workspace / "hunts").rglob("H-*.md"))
-        matching = [f for f in hunt_files if "Parent-Child" in f.read_text()]
+        matching = [f for f in hunt_files if "Parent-Child" in f.read_text(encoding="utf-8")]
         assert len(matching) == 1
 
-        content = matching[0].read_text()
+        content = matching[0].read_text(encoding="utf-8")
         assert "hunt_type: baseline" in content
         assert "dimension: parent_process -> child_process pairs" in content
         assert "Hypothesis Statement" not in content

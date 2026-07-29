@@ -570,7 +570,7 @@ def _load_config_file() -> Dict[str, Any]:
             try:
                 import yaml
 
-                with open(str(path), "r") as fh:
+                with open(str(path), "r", encoding="utf-8") as fh:
                     data = yaml.safe_load(fh) or {}
                 result: Dict[str, Any] = data.get("llm", {})
                 return result

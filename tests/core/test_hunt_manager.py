@@ -138,6 +138,30 @@ class TestCalculateAttackCoverage:
     misattribution -- requires real ATT&CK data (STIX cache or bundled fallback)
     to resolve technique->tactic mappings, same as the CLI itself."""
 
+    # Minimal technique->tactic map covering exactly the techniques used in
+    # the tests below. Injected via setup_method so the tests always run
+    # (no dependency on a cached STIX file or optional mitreattack-python).
+    _TECHNIQUE_MAP = {
+        "T1053.005": {"id": "T1053.005", "name": "Scheduled Task/Job: Scheduled Task",
+                      "tactic_shortnames": ["execution", "persistence", "privilege-escalation"]},
+        "T1204":     {"id": "T1204", "name": "User Execution",
+                      "tactic_shortnames": ["execution"]},
+        "T1003.001": {"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory",
+                      "tactic_shortnames": ["credential-access"]},
+    }
+
+    def setup_method(self):
+        from athf.core import attack_matrix
+        from athf.core.attack_matrix import FallbackProvider
+
+        technique_map = self._TECHNIQUE_MAP
+
+        class _MockProvider(FallbackProvider):
+            def get_technique_by_id(self, technique_id):
+                return technique_map.get(technique_id.upper())
+
+        attack_matrix.reset_provider(_MockProvider())
+
     def test_technique_not_credited_to_a_tactic_it_does_not_belong_to(self, tmp_path):
         """Regression test, reproduced from this repo's real H-0016: a hunt
         tagged tactics=[credential-access] with techniques=[T1053.005, T1204]

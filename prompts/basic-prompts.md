@@ -1,15 +1,8 @@
 # Basic Hunt Prompts
 
-**Level:** 0-1 (Manual/Documented)
-**Purpose:** Copy-paste prompts for ChatGPT, Claude, or other AI assistants
-
-Use these prompts when you're working outside of an AI-enabled IDE and need quick assistance with hypothesis generation, query building, or documentation.
-
 ---
 
 ## Section 1: Generate Hypothesis
-
-Use this when you have context (CTI, alerts, anomalies) but need help forming a testable hypothesis.
 
 ### Prompt Template
 
@@ -44,32 +37,9 @@ Why Now: Recent CTI shows APT29 using this technique; baseline shows low histori
 Generate hypothesis now:
 ```
 
-### Tips
-
-- **Be specific with context** - More details = better hypotheses
-- **Ask for alternatives** - "Give me 3 different approaches"
-- **Iterate** - Refine based on what data you actually have
-- **Test for specificity** - Can you write a query from this hypothesis?
-
-### Refining Hypotheses
-
-If too broad:
-
-- Add "on [specific target]" (e.g., "on domain controllers")
-- Add time constraints (e.g., "during business hours")
-- Add environmental context (e.g., "in production network")
-
-If too narrow:
-
-- Remove overly specific indicators
-- Focus on behavior pattern, not single event
-- Generalize target or timeframe
-
 ---
 
 ## Section 2: Build Query
-
-Use this when you have a hypothesis and need help drafting a safe, bounded query.
 
 ### Prompt Template
 
@@ -133,58 +103,9 @@ YourTable
 | take 1000
 | extend HuntId="H-####", AttackTechnique="T####"
 ```
-
-### Query Best Practices
-
-**Performance:**
-
-- Use data models (Splunk) or summarize (KQL) when possible
-- Filter early - most restrictive conditions first
-- Limit fields - only return what you need
-- Set sensible time ranges - start with 24h, expand if needed
-
-**Safety:**
-
-- Always bound time - never open-ended searches
-- Always cap results - protect your SIEM
-- Test on small timeframes first - 1 hour before 24 hours
-- Use lookups for enrichment - don't join large datasets inline
-
-**Signal Quality:**
-
-- Filter known good - baseline automation, admin tools
-- Add context - enrich with asset inventory, user roles
-- Look for anomalies - rare processes, unusual times, unexpected hosts
-- Use stats wisely - count, distinct count, rare events
-
-### Troubleshooting
-
-**Too many results?**
-
-- Add more specific filters
-- Shorten time range
-- Filter out known benign activity
-- Use rare() or unusual patterns
-
-**Too few results?**
-
-- Broaden conditions
-- Check field names and values
-- Verify data is actually indexed
-- Expand time range
-
-**Query too slow?**
-
-- Use data models/accelerated searches
-- Reduce time range
-- Remove expensive operations (regex, complex joins)
-- Add index= constraints
-
 ---
 
 ## Section 3: Document Results
-
-Use this after executing a hunt to help write concise findings in LOCK format.
 
 ### Prompt Template
 
@@ -219,98 +140,3 @@ Keep it to 5-8 sentences total.
 
 Generate summary now:
 ```
-
-### What Makes Good Documentation
-
-**Be Concise:**
-
-- 5-8 sentences total for findings
-- 3 bullet points max per section
-- Focus on signal, not every detail
-
-**Be Honest:**
-
-- Accept = Found useful signal or suspicious activity
-- Reject = Benign, false positive, or baseline noise
-- Needs Changes = Interesting but query needs refinement
-
-Don't be afraid to reject! Useful negatives teach us what's normal.
-
-**Be Specific:**
-
-- ❌ "Found some suspicious stuff, need to investigate"
-- ✅ "Found 3 hosts with encoded PowerShell outside business hours; 2 match known deployment patterns, 1 requires IR escalation"
-
-**Capture Lessons:**
-This is the most important part - it's what makes the system smarter.
-
-Good lessons:
-
-- "Baseline automation reduced signal-to-noise by 80%"
-- "Time-of-day filtering eliminated weekend maintenance jobs"
-- "Parent process context critical for distinguishing admin vs adversary"
-
-Avoid vague lessons:
-
-- "Queries should be better"
-- "Need more data"
-- "This was hard"
-
----
-
-## Usage Notes
-
-### Workflow
-
-1. **Generate Hypothesis** - Use Section 1 with your context
-2. **Build Query** - Use Section 2 with your hypothesis
-3. **Execute Hunt** - Run query in your SIEM (test small timeframes first!)
-4. **Document Results** - Use Section 3 to capture findings
-
-### Safety Reminders
-
-- **Always review** AI-generated hypotheses for feasibility
-- **Always test** AI-generated queries on small timeframes first
-- **Always validate** that queries are safe and bounded
-- **Use your judgment** - You know your environment better than AI
-
-### Platform-Specific Tips
-
-**Splunk:**
-
-- Mention "Splunk SPL" in your prompt
-- Specify data models when available
-- AI knows common Splunk patterns
-
-**KQL (Sentinel/Defender):**
-
-- Mention "KQL for Sentinel" or "KQL for Defender"
-- Specify table names (SecurityEvent, DeviceProcessEvents, etc.)
-- AI understands Sentinel-specific syntax
-
-**Elastic:**
-
-- Mention "Elastic EQL" or "Lucene query"
-- Specify index patterns
-- Note which Elastic stack version
-
----
-
-## Next Steps
-
-Once you're comfortable with these basic prompts:
-
-1. **Build your hunt repository** - Document hunts using [templates/HUNT_LOCK.md](../templates/HUNT_LOCK.md)
-2. **Progress to Level 2** - Use [ai-workflow.md](ai-workflow.md) for AI tools with repository access
-3. **See real examples** - Review [H-0001.md](../hunts/production/2026/Q1/H-0001.md) and [H-0002.md](../hunts/production/2026/Q1/H-0002.md)
-
----
-
-## Customizing for Your Environment
-
-Feel free to modify these prompts:
-
-- Add your organization's specific data sources
-- Include your ATT&CK coverage gaps
-- Reference your baseline automation
-- Add your threat model priorities
