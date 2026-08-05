@@ -1,6 +1,7 @@
 """Tests for ResearchManager.calculate_stats(), specifically linked-hunt counting."""
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -11,7 +12,7 @@ def _write_research(
     research_dir: Path,
     research_id: str,
     *,
-    linked_hunts: list | None = None,
+    linked_hunts: Optional[list] = None,
 ) -> None:
     """Write a minimal but structurally valid research file directly to disk."""
     linked_hunts_line = f"linked_hunts: {linked_hunts!r}".replace("'", "") if linked_hunts is not None else "linked_hunts: []"
@@ -39,7 +40,7 @@ def _write_hunt(
     hunts_dir: Path,
     hunt_id: str,
     *,
-    spawned_from: str | None = None,
+    spawned_from: Optional[str] = None,
 ) -> None:
     """Write a minimal but structurally valid hunt file directly to disk."""
     spawned_from_line = f"spawned_from: {spawned_from}\n" if spawned_from else ""

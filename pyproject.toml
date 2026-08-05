@@ -101,14 +101,14 @@ llm = [
 ]
 # MCP server
 mcp = [
-    "mcp[cli]>=1.0.0",
+    "mcp[cli]>=1.0.0,<2.0.0",  # 2.0.0 removed mcp.server.fastmcp (athf/mcp/server.py's import path); unverified against it
 ]
 all = [
     "litellm>=1.30.0",
     "scikit-learn>=1.0.0",
     "requests>=2.25.0",
     "tavily-python>=0.3.0",
-    "mcp[cli]>=1.0.0",
+    "mcp[cli]>=1.0.0,<2.0.0",  # 2.0.0 removed mcp.server.fastmcp (athf/mcp/server.py's import path); unverified against it
     "mitreattack-python>=5.0.0",
 ]
 
