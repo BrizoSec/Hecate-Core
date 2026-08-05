@@ -1,14 +1,105 @@
 {
   "seen_ids": {
     "https://unit42.paloaltonetworks.com/feed/": [
-      "https://unit42.paloaltonetworks.com/?p=182713"
+      "https://unit42.paloaltonetworks.com/?p=182713",
+      "https://unit42.paloaltonetworks.com/?p=183096",
+      "https://unit42.paloaltonetworks.com/?p=183236",
+      "https://unit42.paloaltonetworks.com/?p=183287",
+      "https://unit42.paloaltonetworks.com/?p=183458",
+      "https://unit42.paloaltonetworks.com/?p=183516",
+      "https://unit42.paloaltonetworks.com/?p=179395",
+      "https://unit42.paloaltonetworks.com/?p=183816",
+      "https://unit42.paloaltonetworks.com/?p=183790"
     ],
     "https://www.crowdstrike.com/blog/feed/": [
-      "https://www.crowdstrike.com/?p=354595"
+      "https://www.crowdstrike.com/?p=354595",
+      "https://www.crowdstrike.com/?p=938063",
+      "https://www.crowdstrike.com/?p=194295",
+      "https://www.crowdstrike.com/?p=614041",
+      "https://www.crowdstrike.com/?p=873363",
+      "https://www.crowdstrike.com/?p=106030",
+      "https://www.crowdstrike.com/?p=182925",
+      "https://www.crowdstrike.com/?p=871949",
+      "https://www.crowdstrike.com/?p=752509",
+      "https://www.crowdstrike.com/?p=579163",
+      "https://www.crowdstrike.com/?p=624450",
+      "https://www.crowdstrike.com/?p=163608",
+      "https://www.crowdstrike.com/?p=688523",
+      "https://www.crowdstrike.com/?p=312154",
+      "https://www.crowdstrike.com/?p=100655",
+      "https://www.crowdstrike.com/?p=391717",
+      "https://www.crowdstrike.com/?p=356221",
+      "https://www.crowdstrike.com/?p=200104",
+      "https://www.crowdstrike.com/?p=854846",
+      "https://www.crowdstrike.com/?p=241386",
+      "https://www.crowdstrike.com/?p=293340",
+      "https://www.crowdstrike.com/?p=733098",
+      "https://www.crowdstrike.com/?p=624707",
+      "https://www.crowdstrike.com/?p=494299",
+      "https://www.crowdstrike.com/?p=200102",
+      "https://www.crowdstrike.com/?p=330789",
+      "https://www.crowdstrike.com/?p=703946",
+      "https://www.crowdstrike.com/?p=658514",
+      "https://www.crowdstrike.com/?p=431487",
+      "https://www.crowdstrike.com/?p=155627"
     ],
     "https://www.huntress.com/blog/rss.xml": [
       "https://www.huntress.com/blog/mimikatz-credential-dumping-defence-impairment",
-      "https://www.huntress.com/blog/insider-threat-claims"
+      "https://www.huntress.com/blog/insider-threat-claims",
+      "https://www.huntress.com/blog/hacker-tactics-2026-dark-web-playbook",
+      "https://www.huntress.com/blog/microsoft-365-identity-security-five-minute-admin",
+      "https://www.huntress.com/blog/lshiy-password-spray-attack",
+      "https://www.huntress.com/blog/how-the-raas-business-model-actually-works",
+      "https://www.huntress.com/blog/how-huntress-addresses-lateral-movement",
+      "https://www.huntress.com/blog/canada-localized-managed-phishing",
+      "https://www.huntress.com/blog/cloud-application-security",
+      "https://www.huntress.com/blog/dangers-of-storing-unencrypted-passwords",
+      "https://www.huntress.com/blog/ai-arms-race-in-recruiting",
+      "https://www.huntress.com/blog/cybersecurity-lessons-taylor-swift-wedding",
+      "https://www.huntress.com/blog/meta-business-manager-phishing",
+      "https://www.huntress.com/blog/lotl-abuse-warning-signs",
+      "https://www.huntress.com/blog/ai-coded-malware-vibe-coding-active-directory",
+      "https://www.huntress.com/blog/conditional-access-misconfigurations",
+      "https://www.huntress.com/blog/citrixbleed-2-dragonforce-ransomware",
+      "https://www.huntress.com/blog/what-is-a-security-awareness-training-program",
+      "https://www.huntress.com/blog/system-hardening-checklist",
+      "https://www.huntress.com/blog/sql-injection-attacker-persistence",
+      "https://www.huntress.com/blog/patch-management-strategy"
+    ],
+    "https://thedfirreport.com/feed/": [
+      "https://thedfirreport.com/?p=50310"
+    ],
+    "https://redcanary.com/blog/feed/": [
+      "https://redcanary.com/?p=48078"
+    ],
+    "https://blog.talosintelligence.com/rss/": [
+      "6a3c05648d8d330001fb7d45",
+      "6a45614e90dd380001fb081d",
+      "6a3950a51157ca0001c2a7db",
+      "6a4e9186501b2f00010617d0",
+      "6a4bad178287de00015bb3d1",
+      "6a5518b52d1d8700012364fc",
+      "6a54e4072d1d8700012364ee",
+      "6a5699a03080bb0001373651",
+      "6a511e0b501b2f00010617e7",
+      "6a579ecd22de2d000108847b",
+      "6a58c99722de2d00010884e0"
+    ],
+    "https://www.sentinelone.com/blog/feed/": [
+      "https://www.sentinelone.com/?p=141142",
+      "https://www.sentinelone.com/?p=141230",
+      "https://www.sentinelone.com/?p=140953"
+    ],
+    "https://www.elastic.co/security-labs/rss/feed.xml": [
+      "alert-triage-agentic-soc-elastic-workflows",
+      "mexican-banking-fraud-scmbanker-ref6045",
+      "telepuz-maas-malware-clickfix",
+      "contagious-interview-malware-svg-steganography"
+    ],
+    "https://www.microsoft.com/en-us/security/blog/feed/": [
+      "https://www.microsoft.com/en-us/security/blog/2026/07/16/least-privilege-for-ai-agents-identity-access-and-tool-binding/",
+      "https://www.microsoft.com/en-us/security/blog/?p=148744",
+      "https://www.microsoft.com/en-us/security/blog/?p=148627"
     ]
   }
 }

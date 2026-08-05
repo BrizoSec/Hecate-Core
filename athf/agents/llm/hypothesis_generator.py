@@ -47,6 +47,16 @@ class HypothesisGenerationOutput:
     expected_observables: List[str]
     known_false_positives: List[str]
     time_range_suggestion: str
+    # ABLE scoping (see templates/HUNT_LOCK.md) -- defaulted to "" rather
+    # than required so a model that omits one of these four (unlike the
+    # longer-established fields above, which every provider we've tested
+    # against reliably returns) degrades to an empty field a human fills
+    # in, not a TypeError that discards an otherwise-good hypothesis and
+    # forces the low-quality template fallback for the whole response.
+    actor: str = ""
+    behavior: str = ""
+    location: str = ""
+    evidence: str = ""
 
 
 class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGenerationOutput]):
@@ -103,9 +113,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             valid_techniques, invalid_techniques = self._validate_techniques(output.mitre_techniques)
             if invalid_techniques:
                 warnings.append(
-                    "Removed {} unrecognised ATT&CK ID(s): {}".format(
-                        len(invalid_techniques), ", ".join(invalid_techniques)
-                    )
+                    "Removed {} unrecognised ATT&CK ID(s): {}".format(len(invalid_techniques), ", ".join(invalid_techniques))
                 )
                 output = HypothesisGenerationOutput(
                     hypothesis=output.hypothesis,
@@ -115,6 +123,10 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                     expected_observables=output.expected_observables,
                     known_false_positives=output.known_false_positives,
                     time_range_suggestion=output.time_range_suggestion,
+                    actor=output.actor,
+                    behavior=output.behavior,
+                    location=output.location,
+                    evidence=output.evidence,
                 )
 
             provider = self._get_provider()
@@ -233,6 +245,24 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "- Expected Observables: What we expect to find\n"
             "- Known False Positives: Common benign patterns\n"
             "- Time Range: Suggested time window with justification\n\n"
+            "Also provide ABLE scoping (Actor, Behavior, Location, Evidence) "
+            "-- ATHF's standard hunt-scoping framework. Base every ABLE field "
+            "strictly on the threat intel and research context given above; "
+            'leave a field empty ("") rather than invent specifics -- a '
+            "named actor, a specific system, a fabricated log field -- that "
+            "isn't actually supported by what you were given:\n"
+            "- Actor: The threat actor or malware family this hunt targets "
+            "(optional -- empty string if the intel doesn't name one).\n"
+            "- Behavior: The specific TTP or behavior pattern to hunt for, "
+            "more concrete/actionable than the hypothesis's own [behavior] "
+            "clause.\n"
+            "- Location: The systems, networks, or environments to hunt in "
+            '(e.g. "Windows domain-joined endpoints", "AWS CloudTrail '
+            'across all accounts") -- must be consistent with the '
+            "environment/data sources given above, not a platform absent "
+            "from them.\n"
+            "- Evidence: The specific data sources and key fields a hunter "
+            "would actually query to test this hypothesis.\n\n"
             "**IMPORTANT:** Return your response as a JSON object matching "
             "this schema:\n"
             "{{\n"
@@ -245,7 +275,11 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '["Process execution", "Network connections"],\n'
             '  "known_false_positives": '
             '["Legitimate software", "Administrative tools"],\n'
-            '  "time_range_suggestion": "7 days (justification)"\n'
+            '  "time_range_suggestion": "7 days (justification)",\n'
+            '  "actor": "string (or empty string if unknown)",\n'
+            '  "behavior": "string",\n'
+            '  "location": "string",\n'
+            '  "evidence": "string"\n'
             "}}\n"
         ).format(
             grounding=grounding,

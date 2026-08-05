@@ -415,6 +415,29 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
 
     console.print(f"[bold cyan]Time Range:[/bold cyan] {data.time_range_suggestion}\n")
 
+    # ABLE scoping — each field gets its own top-level header (rather than
+    # nesting all four under one "ABLE Scoping:" block) so it parses the
+    # same way Hypothesis/Justification above already do: a header line
+    # followed by an indented value. A caller parsing this console output
+    # line-by-line (see sec7669's _parse_hypothesis_output) has no other way
+    # to tell four sibling fields apart from one nested block without
+    # bespoke parsing just for this section.
+    if data.actor:
+        console.print("[bold cyan]Actor:[/bold cyan]")
+        console.print(f"  {data.actor}\n")
+
+    if data.behavior:
+        console.print("[bold cyan]Behavior:[/bold cyan]")
+        console.print(f"  {data.behavior}\n")
+
+    if data.location:
+        console.print("[bold cyan]Location:[/bold cyan]")
+        console.print(f"  {data.location}\n")
+
+    if data.evidence:
+        console.print("[bold cyan]Evidence:[/bold cyan]")
+        console.print(f"  {data.evidence}\n")
+
     if result.warnings:
         console.print("[bold yellow]Warnings:[/bold yellow]")
         for warning in result.warnings:

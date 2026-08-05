@@ -674,6 +674,29 @@ class ResearchManager:
 
         return file_path
 
+    def _hunts_spawned_from(self) -> Dict[str, set]:
+        """Map research_id -> set of hunt_ids whose `spawned_from` names it.
+
+        `linked_hunts` on the research doc is meant to be the inverse of a
+        hunt's `spawned_from`, but nothing keeps them in sync -- a hunt
+        creator (CLI or an external orchestrator) that sets `spawned_from`
+        has no obligation, and often no code path, to also write back to
+        the research doc's `linked_hunts`. Scanning hunts directly makes
+        stats correct regardless of whether that write-back ever happened.
+        """
+        from athf.core.hunt_manager import HuntManager  # local import: avoid a module-level cycle
+
+        hunts_dir = self.research_dir.parent / "hunts"
+        mapping: Dict[str, set] = {}
+        if not hunts_dir.exists():
+            return mapping
+        for hunt in HuntManager(hunts_dir).list_hunts():
+            research_id = hunt.get("spawned_from")
+            if not research_id:
+                continue
+            mapping.setdefault(research_id, set()).add(hunt.get("hunt_id"))
+        return mapping
+
     def calculate_stats(self) -> Dict[str, Any]:
         """Calculate research program statistics.
 
@@ -706,8 +729,14 @@ class ResearchManager:
             status = research.get("status", "unknown")
             by_status[status] = by_status.get(status, 0) + 1
 
-        # Count linked hunts
-        total_linked_hunts = sum(len(r.get("linked_hunts", [])) for r in research_list)
+        # Count linked hunts. Unions each research doc's own `linked_hunts`
+        # frontmatter with hunts discovered via their `spawned_from` field,
+        # so a hunt creator that only ever sets `spawned_from` (never calls
+        # back to update the research doc) still counts here.
+        spawned_from = self._hunts_spawned_from()
+        total_linked_hunts = sum(
+            len(set(r.get("linked_hunts", [])) | spawned_from.get(r.get("research_id", ""), set())) for r in research_list
+        )
 
         return {
             "total_research": total_research,

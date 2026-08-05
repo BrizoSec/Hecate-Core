@@ -191,6 +191,7 @@ class HuntManager:
                         "file_path": str(hunt_file),
                         "environment": environment,
                         "hunt_type": hunt_type_val,
+                        "spawned_from": frontmatter.get("spawned_from"),
                     }
                 )
 
