@@ -48,6 +48,27 @@ VALID_HYPOTHESIS_JSON_WITHOUT_ABLE = json.dumps(
     }
 )
 
+# A vendor blog post with no adversary behavior described -- the model
+# should self-flag rather than let a confident-sounding speculative
+# hypothesis pass as if it were grounded in a real incident.
+LOW_CONFIDENCE_HYPOTHESIS_JSON = json.dumps(
+    {
+        "hypothesis": "Adversaries exploit delayed patch application to find unpatched systems",
+        "justification": "Speculative: source is a product announcement, not an incident report",
+        "mitre_techniques": ["T1595"],
+        "data_sources": ["EDR telemetry"],
+        "expected_observables": ["Scanning activity"],
+        "known_false_positives": ["Legitimate vulnerability scanners"],
+        "time_range_suggestion": "7 days (standard baseline)",
+        "actor": "",
+        "behavior": "",
+        "location": "",
+        "evidence": "",
+        "is_threat_report": False,
+        "low_confidence_reason": "Source is a vendor compliance/product announcement; no adversary behavior is described",
+    }
+)
+
 
 class MockProvider(LLMProvider):
     """A deterministic mock provider for testing."""
@@ -175,6 +196,66 @@ class TestHypothesisGeneratorAgent:
         assert result.data.location == "Test location"
         assert result.data.evidence == "Test evidence"
 
+    def test_execute_flags_low_confidence_source(self):
+        """A response that self-assesses as not a real threat report
+        surfaces is_threat_report=False and the reason, rather than
+        presenting a speculative hypothesis with the same confidence as a
+        genuinely grounded one."""
+        mock = MockProvider(LOW_CONFIDENCE_HYPOTHESIS_JSON)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data.is_threat_report is False
+        assert "vendor compliance/product announcement" in result.data.low_confidence_reason
+
+    def test_execute_defaults_is_threat_report_true_when_model_omits_it(self):
+        """A model response that doesn't include is_threat_report (didn't
+        follow the new instruction, or predates it) must default to True --
+        not flag every unrelated past hunt as low-confidence just because
+        the field was absent."""
+        mock = MockProvider(VALID_HYPOTHESIS_JSON_WITHOUT_ABLE)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data.is_threat_report is True
+        assert result.data.low_confidence_reason == ""
+
+    def test_execute_preserves_low_confidence_flag_after_invalid_technique_rebuild(self):
+        """Regression test: same rebuild-after-technique-validation path as
+        ABLE fields above -- is_threat_report/low_confidence_reason must
+        survive it too, not silently reset to the True default."""
+        response = json.dumps(
+            {
+                "hypothesis": "Adversaries exploit delayed patches",
+                "justification": "test",
+                "mitre_techniques": ["T9999.999"],  # doesn't exist
+                "data_sources": [],
+                "expected_observables": [],
+                "known_false_positives": [],
+                "time_range_suggestion": "7 days",
+                "is_threat_report": False,
+                "low_confidence_reason": "Vendor announcement, no adversary described",
+            }
+        )
+        mock = MockProvider(response)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+            mock_stix = MagicMock()
+            mock_stix.is_stix.return_value = True
+            mock_get_provider.return_value = mock_stix
+            with patch("athf.core.attack_matrix.get_technique") as mock_get_technique:
+                mock_get_technique.return_value = None
+                result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data.is_threat_report is False
+        assert result.data.low_confidence_reason == "Vendor announcement, no adversary described"
+
     def test_execute_invalid_json_retries(self):
         """Provider returns garbage first, valid JSON second -- retry works."""
         call_count = 0
@@ -239,6 +320,9 @@ class TestHypothesisGeneratorAgent:
         assert result.data.behavior == ""
         assert result.data.location == ""
         assert result.data.evidence == ""
+        # No basis to claim low confidence either -- defaults to True
+        # (assumed legitimate), same reasoning as the ABLE fields above.
+        assert result.data.is_threat_report is True
 
     def test_build_prompt_includes_threat_intel(self):
         """The built prompt contains the threat_intel text."""
@@ -263,6 +347,19 @@ class TestHypothesisGeneratorAgent:
         assert '"behavior":' in prompt
         assert '"location":' in prompt
         assert '"evidence":' in prompt
+
+    def test_build_prompt_includes_low_confidence_instructions(self):
+        """The prompt instructs the model to self-assess whether the intel
+        actually describes adversary behavior, and includes the
+        is_threat_report/low_confidence_reason fields in the JSON schema."""
+        mock = MockProvider(VALID_HYPOTHESIS_JSON)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        prompt = agent._build_prompt(_make_input())
+
+        assert "vendor/product marketing" in prompt
+        assert '"is_threat_report":' in prompt
+        assert '"low_confidence_reason":' in prompt
 
     def test_build_prompt_includes_research_context(self):
         """When ResearchContext is provided, it appears in the prompt."""

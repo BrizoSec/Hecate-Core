@@ -293,8 +293,17 @@ def run(  # noqa: C901
             else:
                 _display_hypothesis_generator_result(hypothesis_result)
                 if duration_ms > 0:
-                    console.print(f"[dim]Hypothesis generated in {duration_min} minutes[/dim]")
-                    console.print(f"[dim]Use: athf hunt new --hypothesis-duration {duration_min} ...[/dim]\n")
+                    # stderr, not stdout: this is an interactive-use hint, not
+                    # part of the structured output. A caller line-parsing
+                    # stdout for the ABLE fields above (Evidence is the last
+                    # section _display_hypothesis_generator_result prints, and
+                    # its prose accumulator has no way to know where the
+                    # section actually ends other than the next recognized
+                    # header) would otherwise have this text silently
+                    # appended onto Evidence's value.
+                    hint_console = Console(stderr=True)
+                    hint_console.print(f"[dim]Hypothesis generated in {duration_min} minutes[/dim]")
+                    hint_console.print(f"[dim]Use: athf hunt new --hypothesis-duration {duration_min} ...[/dim]\n")
 
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
@@ -437,6 +446,15 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
     if data.evidence:
         console.print("[bold cyan]Evidence:[/bold cyan]")
         console.print(f"  {data.evidence}\n")
+
+    if not data.is_threat_report:
+        # No emoji/decoration in the header text itself, same as every
+        # other header above -- a caller line-parsing this output (see
+        # sec7669's _parse_hypothesis_output) matches on the exact header
+        # string, and an emoji is a literal character rich's markup
+        # stripping won't remove, unlike the [bold red] tags.
+        console.print("[bold red]Low Confidence Source:[/bold red]")
+        console.print(f"  {data.low_confidence_reason or 'Source does not appear to describe observed adversary behavior.'}\n")
 
     if result.warnings:
         console.print("[bold yellow]Warnings:[/bold yellow]")

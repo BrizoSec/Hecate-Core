@@ -57,6 +57,15 @@ class HypothesisGenerationOutput:
     behavior: str = ""
     location: str = ""
     evidence: str = ""
+    # Self-assessed grounding: does the threat intel actually describe
+    # observed/reported adversary behavior, or is it vendor/product
+    # marketing, compliance news, or other non-incident content the model
+    # still produced a plausible-sounding hypothesis and "Adversary
+    # Tradecraft"-shaped narrative for anyway? Defaults to True (assume
+    # legitimate) so a model that doesn't support this field -- or omits it
+    # -- doesn't retroactively flag every prior hunt as low-confidence.
+    is_threat_report: bool = True
+    low_confidence_reason: str = ""
 
 
 class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGenerationOutput]):
@@ -127,6 +136,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                     behavior=output.behavior,
                     location=output.location,
                     evidence=output.evidence,
+                    is_threat_report=output.is_threat_report,
+                    low_confidence_reason=output.low_confidence_reason,
                 )
 
             provider = self._get_provider()
@@ -263,6 +274,20 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "from them.\n"
             "- Evidence: The specific data sources and key fields a hunter "
             "would actually query to test this hypothesis.\n\n"
+            "**Before generating the hypothesis, assess the threat intel "
+            "itself:** does it actually describe adversary behavior that "
+            "was observed or reported -- an attack, campaign, TTP, or IOC "
+            "-- or is it vendor/product marketing, a compliance "
+            "announcement, a feature release, or other content that "
+            "doesn't describe anything an adversary did? If it's the "
+            "latter, still produce your best-effort hypothesis (mark it as "
+            "speculative in the justification), but set "
+            '"is_threat_report" to false and give a one-sentence '
+            '"low_confidence_reason" explaining what kind of content it '
+            "actually is. Do not let a well-written vendor blog post read "
+            "as a genuine incident report just because it uses security "
+            "terminology -- if no adversary is described doing something, "
+            "it isn't a threat report.\n\n"
             "**IMPORTANT:** Return your response as a JSON object matching "
             "this schema:\n"
             "{{\n"
@@ -279,7 +304,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '  "actor": "string (or empty string if unknown)",\n'
             '  "behavior": "string",\n'
             '  "location": "string",\n'
-            '  "evidence": "string"\n'
+            '  "evidence": "string",\n'
+            '  "is_threat_report": true,\n'
+            '  "low_confidence_reason": "string (only if is_threat_report is false)"\n'
             "}}\n"
         ).format(
             grounding=grounding,
