@@ -266,7 +266,7 @@ def run(  # noqa: C901
             try:
                 from pathlib import Path
 
-                env_file = Path("environment.md")
+                env_file = Path("knowledge") / "environment.md"
                 if env_file.exists():
                     environment = {"environment_md": env_file.read_text(encoding="utf-8")}
                 else:

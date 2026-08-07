@@ -97,7 +97,7 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
         result: Dict[str, Any] = {}
 
         # Load environment.md
-        env_file = workspace / "environment.md"
+        env_file = workspace / "knowledge" / "environment.md"
         if env_file.exists():
             result["environment"] = env_file.read_text(encoding="utf-8")
 

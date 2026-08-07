@@ -156,7 +156,7 @@ def _build_context(  # noqa: C901
     }
 
     # Always include environment.md
-    env_path = Path("environment.md")
+    env_path = Path("knowledge") / "environment.md"
     if env_path.exists():
         context["environment"] = _read_and_optimize(env_path)
 

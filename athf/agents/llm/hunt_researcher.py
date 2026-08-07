@@ -880,7 +880,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
     def _load_environment(self) -> str:
         """Load environment.md content."""
-        env_path = Path.cwd() / "environment.md"
+        env_path = Path.cwd() / "knowledge" / "environment.md"
         if env_path.exists():
             return env_path.read_text(encoding="utf-8")[:2000]  # Limit size
         return "Environment file not found"

@@ -55,7 +55,7 @@ def register_agent_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined] 
         manager = HuntManager(hunts_dir=workspace / "hunts")
         past_hunts = manager.list_hunts()
 
-        env_file = workspace / "environment.md"
+        env_file = workspace / "knowledge" / "environment.md"
         environment = {"environment_md": env_file.read_text(encoding="utf-8")} if env_file.exists() else {}
 
         agent = HypothesisGeneratorAgent(llm_enabled=use_llm)
