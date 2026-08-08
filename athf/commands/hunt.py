@@ -53,9 +53,10 @@ def get_hunt_directory(is_test: bool = False) -> Path:
     year = now.year
     quarter = f"Q{(now.month - 1) // 3 + 1}"
 
-    environment = "test" if is_test else "production"
+    if is_test:
+        return Path("hunts") / "test" / str(year) / quarter
 
-    return Path("hunts") / environment / str(year) / quarter
+    return Path("hunts") / str(year) / quarter
 
 
 def get_config_path() -> Path:
