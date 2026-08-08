@@ -2188,7 +2188,7 @@ Run the hunt. PEAK names three distinct hunt types here — most hunting program
 |-----------|----------|---------------|
 | **Hypothesis-Driven Hunting** | Start from a specific, testable hypothesis about adversary behavior; query to confirm or refute it | Full support — this is what LOCK's Observe/Check phases are |
 | **Baseline Hunting (EDA)** | No hypothesis; characterize "what's normal" for a dataset (frequency counts, cardinality, rare values) and flag outliers as candidate leads for later hypothesis-driven hunts | Full support — `athf hunt new-baseline` (`hunt_type: baseline`), reuses LOCK's headings with baseline-specific subsections; filter with `athf hunt list --type baseline` |
-| **Model-Assisted Threat Hunting (M-ATH)** | Use statistical or ML models (clustering, rarity/frequency analysis, z-score/IQR outliers) over data to surface anomalies at scale, faster than manual EDA | Not supported — `athf similar` uses scikit-learn for text similarity, not anomaly detection over telemetry |
+| **Model-Assisted Threat Hunting (M-ATH)** | Use statistical or ML models (clustering, rarity/frequency analysis, z-score/IQR outliers) over data to surface anomalies at scale, faster than manual EDA | Full support — `athf hunt new-model-assisted` (`hunt_type: model-assisted`), reuses LOCK headings with M-ATH-specific subsections (model design, anomaly scoring, candidate leads); filter with `athf hunt list --type model-assisted` |
 
 **When to reach for Baseline or M-ATH instead of hypothesis-driven:** when there isn't yet a specific TTP in mind but ground truth for a dataset is needed first, or when data volume makes a manual hypothesis-first approach impractical (e.g. "what does normal parent-child process activity look like across 50,000 endpoints" isn't a hypothesis, it's a baseline).
 
@@ -2210,7 +2210,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 | Prepare | Learn | None — same ABLE framework |
 | Execute (Hypothesis-Driven) | Observe + Check | None |
 | Execute (Baseline / EDA) | Learn/Observe/Check (baseline subsections) | None — `athf hunt new-baseline` |
-| Execute (Model-Assisted / M-ATH) | — | No ATHF support yet |
+| Execute (Model-Assisted / M-ATH) | LEARN/OBSERVE/CHECK/KEEP (M-ATH subsections) | None — `athf hunt new-model-assisted` |
 | Act → Answer | Keep (Findings) | None |
 | Act → Automate | Keep (Detection Logic) | None |
 | Act → Brief | Keep (condensed) | None — `athf hunt brief` |

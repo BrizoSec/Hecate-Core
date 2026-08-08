@@ -319,6 +319,7 @@ class HuntManager:
                 "total_hunts": 0,
                 "completed_hunts": 0,
                 "baseline_hunts": 0,
+                "model_assisted_hunts": 0,
                 "total_findings": 0,
                 "true_positives": 0,
                 "false_positives": 0,
@@ -329,13 +330,20 @@ class HuntManager:
         total_hunts = len(hunts)
         completed_hunts = len([h for h in hunts if h.get("status") == "completed"])
         baseline_hunts = len([h for h in hunts if h.get("hunt_type") == "baseline"])
+        model_assisted_hunts = len([h for h in hunts if h.get("hunt_type") == "model-assisted"])
 
         total_findings = sum(h.get("findings_count", 0) for h in hunts)
         total_tp = sum(h.get("true_positives", 0) for h in hunts)
         total_fp = sum(h.get("false_positives", 0) for h in hunts)
 
         # Success rate is scoped to hypothesis-driven hunts only (see docstring).
-        hypothesis_driven_completed = [h for h in hunts if h.get("status") == "completed" and h.get("hunt_type") != "baseline"]
+        # Baseline and model-assisted hunts have no hypothesis to confirm, so
+        # including them would silently drag down the org's success rate.
+        _non_hypothesis_types = {"baseline", "model-assisted"}
+        hypothesis_driven_completed = [
+            h for h in hunts
+            if h.get("status") == "completed" and h.get("hunt_type") not in _non_hypothesis_types
+        ]
         hunts_with_tp = len([h for h in hypothesis_driven_completed if h.get("true_positives", 0) > 0])
         success_rate = (hunts_with_tp / len(hypothesis_driven_completed) * 100) if hypothesis_driven_completed else 0.0
 
@@ -346,6 +354,7 @@ class HuntManager:
             "total_hunts": total_hunts,
             "completed_hunts": completed_hunts,
             "baseline_hunts": baseline_hunts,
+            "model_assisted_hunts": model_assisted_hunts,
             "total_findings": total_findings,
             "true_positives": total_tp,
             "false_positives": total_fp,

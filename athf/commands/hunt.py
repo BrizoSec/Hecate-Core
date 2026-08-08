@@ -17,7 +17,7 @@ from rich.table import Table
 from athf.core.attack_matrix import get_technique
 from athf.core.hunt_manager import HuntManager
 from athf.core.hunt_parser import validate_hunt_file
-from athf.core.template_engine import render_baseline_template, render_hunt_template
+from athf.core.template_engine import render_baseline_template, render_hunt_template, render_math_template
 from athf.utils.validation import validate_hunt_id, validate_research_id
 
 console = Console()
@@ -465,13 +465,151 @@ def new_baseline(
     console.print("  3. Spin worthwhile anomalies into hypothesis-driven hunts: [cyan]athf hunt new[/cyan]")
 
 
+@hunt.command(name="new-model-assisted")
+@click.option("--title", help="Hunt title")
+@click.option("--model-type", "model_type", help="Statistical/ML model type (clustering, z-score, IQR, isolation-forest, other)")
+@click.option("--features", help="Comma-separated list of fields/dimensions fed into the model")
+@click.option("--anomaly-threshold", "anomaly_threshold", help="Anomaly score cutoff value")
+@click.option("--dataset", help="Table, index, or data source being modeled")
+@click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
+@click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
+@click.option("--objective", help="Why model-assisted over manual EDA")
+@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+def new_model_assisted(
+    title: Optional[str],
+    model_type: Optional[str],
+    features: Optional[str],
+    anomaly_threshold: Optional[str],
+    dataset: Optional[str],
+    platform: Tuple[str, ...],
+    data_source: Tuple[str, ...],
+    objective: Optional[str],
+    hunter: Optional[str],
+    test: bool,
+    non_interactive: bool,
+) -> None:
+    """Create a new model-assisted (M-ATH) hunt -- PEAK's third Execute-phase hunt type.
+
+    \b
+    Unlike hypothesis-driven or baseline hunts, a model-assisted hunt uses
+    statistical or ML models (clustering, z-score, IQR, isolation forest) over
+    telemetry to surface anomalies at scale -- useful when data volume makes
+    manual EDA impractical. Anomalies surfaced here become leads for
+    hypothesis-driven follow-up hunts. Uses the same H-XXXX ID sequence and
+    LOCK section headings as other hunt types -- filter with
+    `hunt list --type model-assisted`.
+
+    \b
+    Examples:
+      athf hunt new-model-assisted --title "Process Execution Clustering" \\
+          --model-type clustering --features "process.name,parent.process.name,user.name" \\
+          --dataset "endpoint_events" --platform Windows --data-source EDR --non-interactive
+
+    \b
+    After creation:
+      1. Extract feature vectors and run model, document anomaly score distribution
+      2. Record candidate leads in the KEEP section
+      3. For leads worth pursuing: athf hunt new --hypothesis "..." then
+         set spawned_from to this hunt's ID, and add the new hunt's ID to
+         this hunt's related_hunts
+    """
+    console.print("\n[bold cyan]🤖 Creating new model-assisted hunt[/bold cyan]\n")
+
+    config_path = get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {"hunt_prefix": "H-"}
+
+    hunt_prefix = config.get("hunt_prefix", "H-")
+
+    manager = HuntManager()
+    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
+
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    if non_interactive:
+        if not title:
+            console.print("[red]Error: --title required in non-interactive mode[/red]")
+            return
+        math_title = title
+        math_model_type = model_type
+        math_features = [f.strip() for f in features.split(",")] if features else []
+        math_anomaly_threshold = anomaly_threshold
+        math_dataset = dataset
+        math_platforms = list(platform) if platform else ["Windows"]
+        math_data_sources = list(data_source) if data_source else ["SIEM", "EDR"]
+    else:
+        console.print("\n[bold]🤖 Let's scope your model-assisted hunt:[/bold]")
+
+        math_model_type = Prompt.ask(
+            "1. Model type (clustering, z-score, IQR, isolation-forest, other)",
+            default=model_type or "z-score",
+        )
+        math_title = Prompt.ask("2. Hunt Title", default=title or f"Model-Assisted: {math_model_type}")
+
+        features_input = Prompt.ask(
+            "3. Features/fields to analyze (comma-separated)",
+            default=features or "",
+        )
+        math_features = [f.strip() for f in features_input.split(",") if f.strip()]
+
+        math_dataset = Prompt.ask("4. Dataset/index being modeled", default=dataset or "")
+        math_anomaly_threshold = Prompt.ask("5. Anomaly threshold", default=anomaly_threshold or "")
+
+        console.print("\n6. Target Platform(s) (comma-separated):")
+        console.print("   Options: [cyan]Windows, Linux, macOS, Cloud, Network[/cyan]")
+        platform_input = Prompt.ask("   Platforms", default=",".join(platform) if platform else "Windows")
+        math_platforms = [p.strip() for p in platform_input.split(",")]
+
+        console.print("\n7. Data Sources (comma-separated):")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
+        math_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    math_content = render_math_template(
+        hunt_id=hunt_id,
+        title=math_title,
+        model_type=math_model_type,
+        features=math_features,
+        anomaly_threshold=math_anomaly_threshold,
+        dataset=math_dataset,
+        platform=math_platforms,
+        data_sources=math_data_sources,
+        hunter=hunter or "AI Assistant",
+        objective=objective,
+    )
+
+    hunt_dir = get_hunt_directory(is_test=test)
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
+
+    try:
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
+    except (ValueError, OSError):
+        console.print("[red]Error: Invalid hunt file path[/red]")
+        return
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(math_content)
+
+    console.print(f"\n[bold green]✅ Created {hunt_id}: {math_title}[/bold green]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to run the model and document anomalies surfaced")
+    console.print("  2. Record candidate leads in the KEEP section")
+    console.print("  3. Spin worthwhile leads into hypothesis-driven hunts: [cyan]athf hunt new[/cyan]")
+
+
 @hunt.command(name="list")
 @click.option("--status", help="Filter by status (planning, active, completed)")
 @click.option("--tactic", help="Filter by MITRE tactic")
 @click.option("--technique", help="Filter by MITRE technique (e.g., T1003.001)")
 @click.option("--platform", help="Filter by platform")
 @click.option("--directory", type=click.Choice(["test", "production"]), help="Filter by environment directory")
-@click.option("--type", "hunt_type", type=click.Choice(["hypothesis-driven", "baseline"]), help="Filter by hunt type")
+@click.option("--type", "hunt_type", type=click.Choice(["hypothesis-driven", "baseline", "model-assisted"]), help="Filter by hunt type")
 @click.option("--output", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
 def list_hunts(status: str, tactic: str, technique: str, platform: str, directory: str, hunt_type: str, output: str) -> None:
     """List all hunts with filtering and formatting options.
@@ -557,9 +695,10 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         status_val = hunt.get("status", "")
         environment = hunt.get("environment", "-")
         env_display = environment if environment else "-"
-        # Only baseline hunts stand out here -- hypothesis-driven is the
-        # overwhelmingly common case, so keep the column quiet for it.
-        type_display = "baseline" if hunt.get("hunt_type") == "baseline" else "-"
+        # Only non-hypothesis-driven types stand out here -- hypothesis-driven
+        # is the overwhelmingly common case, so keep the column quiet for it.
+        _ht = hunt.get("hunt_type")
+        type_display = "baseline" if _ht == "baseline" else ("model-asst" if _ht == "model-assisted" else "-")
         techniques = hunt.get("techniques", [])
         technique_str = techniques[0] if techniques else "-"
 
@@ -709,6 +848,7 @@ def stats() -> None:
     table.add_row("Total Hunts", str(stats["total_hunts"]))
     table.add_row("Completed Hunts", str(stats["completed_hunts"]))
     table.add_row("Baseline Hunts", str(stats["baseline_hunts"]))
+    table.add_row("Model-Assisted Hunts", str(stats["model_assisted_hunts"]))
     table.add_row("Total Findings", str(stats["total_findings"]))
     table.add_row("True Positives", str(stats["true_positives"]))
     table.add_row("False Positives", str(stats["false_positives"]))
@@ -1428,19 +1568,21 @@ def _build_brief(hunt_data: Dict[str, Any]) -> str:
     """
     frontmatter = hunt_data.get("frontmatter", {})
     lock_sections = hunt_data.get("lock_sections", {})
-    is_baseline = frontmatter.get("hunt_type") == "baseline"
+    hunt_type = frontmatter.get("hunt_type")
 
-    lines = _build_brief_header(frontmatter, is_baseline=is_baseline)
-    if is_baseline:
+    lines = _build_brief_header(frontmatter, hunt_type=hunt_type)
+    if hunt_type == "baseline":
         lines += _build_baseline_brief_body(frontmatter, lock_sections)
+    elif hunt_type == "model-assisted":
+        lines += _build_math_brief_body(frontmatter, lock_sections)
     else:
         lines += _build_hypothesis_brief_body(frontmatter, lock_sections)
 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _build_brief_header(frontmatter: Dict[str, Any], *, is_baseline: bool) -> List[str]:
-    """Build the title/status/type line(s) common to both brief variants."""
+def _build_brief_header(frontmatter: Dict[str, Any], *, hunt_type: Optional[str] = None, is_baseline: bool = False) -> List[str]:
+    """Build the title/status/type line(s) common to all brief variants."""
     hunt_id = _as_text(frontmatter.get("hunt_id", ""))
     title = _as_text(frontmatter.get("title", ""))
     status = _as_text(frontmatter.get("status", ""))
@@ -1450,10 +1592,21 @@ def _build_brief_header(frontmatter: Dict[str, Any], *, is_baseline: bool) -> Li
     lines = [f"# Hunt Brief: {hunt_id} — {title}", ""]
     lines.append(f"**Status:** {status}  |  **Date:** {hunt_date}  |  **Hunter:** {hunter}")
 
-    if is_baseline:
+    _ht = hunt_type or ("baseline" if is_baseline else None)
+    if _ht == "baseline":
         dimension = _as_text(frontmatter.get("dimension", ""))
         if dimension:
             lines.append(f"**Type:** Baseline (EDA)  |  **Dimension:** {dimension}")
+    elif _ht == "model-assisted":
+        model_type = _as_text(frontmatter.get("model_type", ""))
+        features = frontmatter.get("features", [])
+        features_str = ", ".join(features) if isinstance(features, list) else _as_text(features)
+        type_line = "**Type:** Model-Assisted (M-ATH)"
+        if model_type:
+            type_line += f"  |  **Model:** {model_type}"
+        if features_str:
+            type_line += f"  |  **Features:** {features_str}"
+        lines.append(type_line)
     else:
         tactics = ", ".join(frontmatter.get("tactics", []) or [])
         techniques = ", ".join(frontmatter.get("techniques", []) or [])
@@ -1485,6 +1638,37 @@ def _build_baseline_brief_body(frontmatter: Dict[str, Any], lock_sections: Dict[
 
     lines += ["## Candidate Anomalies", ""]
     lines += [anomalies if not _is_unfilled(anomalies) else "None identified yet.", ""]
+
+    if not _is_unfilled(spawned_hunts):
+        lines += ["## Spawned Hunts", spawned_hunts, ""]
+
+    return lines
+
+
+def _build_math_brief_body(frontmatter: Dict[str, Any], lock_sections: Dict[str, str]) -> List[str]:
+    """Build the objective/anomalies/leads/spawned-hunts body for a model-assisted hunt brief."""
+    learn = lock_sections.get("learn", "")
+    check = lock_sections.get("check", "")
+    keep = lock_sections.get("keep", "")
+
+    objective = _extract_subsection(learn, "Model Objective")
+    anomalies_surfaced = _extract_subsection(check, "Results: Anomalies Surfaced")
+    candidate_leads = _strip_stat_lines(_extract_subsection(keep, "Candidate Leads"))
+    model_params = _extract_subsection(keep, "Model Parameters to Reuse")
+    spawned_hunts = _extract_subsection(keep, "Spawned Hunts")
+
+    lines: List[str] = []
+    if not _is_unfilled(objective):
+        lines += ["## Model Objective", objective, ""]
+
+    if not _is_unfilled(anomalies_surfaced):
+        lines += ["## Anomalies Surfaced", anomalies_surfaced, ""]
+
+    lines += ["## Candidate Leads", ""]
+    lines += [candidate_leads if not _is_unfilled(candidate_leads) else "None identified yet.", ""]
+
+    if not _is_unfilled(model_params):
+        lines += ["## Model Parameters", model_params, ""]
 
     if not _is_unfilled(spawned_hunts):
         lines += ["## Spawned Hunts", spawned_hunts, ""]

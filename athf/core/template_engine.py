@@ -296,6 +296,230 @@ tags: {{ tags }}
 """
 
 
+MATH_TEMPLATE = """---
+hunt_id: {{ hunt_id }}
+title: {{ title }}
+hunt_type: model-assisted
+status: {{ status }}
+date: {{ date }}
+hunter: {{ hunter }}
+platform: {{ platform }}
+data_sources: {{ data_sources }}
+model_type: {{ model_type if model_type else '[clustering|z-score|IQR|isolation-forest|other]' }}
+features: {{ features if features else '[]' }}
+anomaly_threshold: {{ anomaly_threshold if anomaly_threshold else '[value]' }}
+related_hunts: []
+findings_count: 0
+true_positives: 0
+false_positives: 0
+customer_deliverables: []
+tags: {{ tags }}
+---
+
+# {{ hunt_id }}: {{ title }}
+
+**Hunt Metadata**
+
+- **Type:** Model-Assisted (M-ATH) — statistical/ML model over telemetry to surface anomalies at scale
+- **Date:** {{ date }}
+- **Hunter:** {{ hunter }}
+- **Status:** {{ status }}
+- **Model Type:** {{ model_type if model_type else '[clustering|z-score|IQR|isolation-forest|other]' }}
+- **Features:** {{ features if features else '[Key fields/dimensions being analyzed]' }}
+
+---
+
+## LEARN: Prepare the Model Run
+
+### Model Objective
+
+{{ objective if objective else '[What anomaly pattern are we trying to surface, and why does volume or complexity make manual EDA insufficient here?]' }}
+
+### Scope
+
+| **Field**       | **Your Input** |
+|-----------------|----------------|
+| **Dataset**     | {{ dataset if dataset else '[Table, index, or data source]' }} |
+| **Features**    | {{ features if features else '[Fields/dimensions fed into the model]' }} |
+| **Time Range**  | [Date range — recommend ≥30 days for stable baselines] |
+| **Location**    | [Systems, networks, or environments in scope] |
+| **Evidence**    | [Data source(s) and key fields] |
+
+### Related Context
+
+[Why model-assisted over manual EDA? Precursor baseline hunt? Volume too high for COUNT-FIRST approach?]
+
+---
+
+## OBSERVE: Model Design
+
+### Model Type & Rationale
+
+**Chosen approach:** {{ model_type if model_type else '[Model type]' }}
+
+[Why this model type for this data? Clustering for unknown groupings? Z-score/IQR for univariate outliers? Isolation Forest for high-dimensional sparse anomalies?]
+
+### Feature Selection Rationale
+
+[Why these fields? What signal do they carry for adversary behavior? What noise might they introduce?]
+
+### Tuning Parameters
+
+| **Parameter**          | **Value** | **Rationale** |
+|------------------------|-----------|---------------|
+| Anomaly threshold      | {{ anomaly_threshold if anomaly_threshold else '[value]' }} | [Why this cutoff?] |
+| [Algorithm parameter]  | [value]   | [Rationale] |
+
+### Expected Anomaly Profile
+
+[What would a true positive look like in the model output? What false positive patterns are anticipated?]
+
+---
+
+## CHECK: Run & Interpret
+
+### Data Source Information
+
+- **Index/Data Source:** {{ data_sources_list[0] if data_sources_list else '[SIEM index or data source]' }}
+- **Time Range:** [Date range for model run]
+- **Events Analyzed:** [Approximate count]
+- **Data Quality:** [Assessment of data completeness and field population rates]
+
+### Model Queries / Code
+
+#### Feature Extraction Query
+
+```
+[Query to extract feature vectors from the data source]
+```
+
+#### Anomaly Scoring
+
+```
+[Model run code or query — e.g., SQL window functions for z-score, Python snippet for isolation forest]
+```
+
+**Notes:**
+- [What did the model return? Score distribution?]
+- [Threshold tuning observations]
+
+### Results: Anomalies Surfaced
+
+[Summary of model output — score distribution, anomaly count above threshold, notable clusters or outliers]
+
+---
+
+## KEEP: Candidate Leads & Follow-up
+
+### Candidate Leads
+
+| **Entity** | **Anomaly Score** | **Description** | **Worth a Hypothesis Hunt?** |
+|------------|-------------------|-----------------|-------------------------------|
+| [Entity]   | [score]           | [What made it anomalous] | [Yes/No/Maybe] |
+
+**Candidate Leads Found:** 0
+
+### Model Parameters to Reuse
+
+[Feature set, threshold, and algorithm settings that produced useful signal — reference for re-runs or related hunts]
+
+### Spawned Hunts
+
+[Hunt IDs created from anomaly leads — keep related_hunts in frontmatter in sync]
+
+### Lessons Learned
+
+**What Worked Well:**
+- [Effective features, thresholds, or approaches]
+
+**What Could Be Improved:**
+- [Noise sources, missing features, data quality issues]
+
+**Telemetry Gaps Identified:**
+- [Missing fields that would improve model signal]
+
+---
+
+**Model Run Completed:** [Date]
+**Next Re-run:** [Date — model-assisted hunts often benefit from periodic re-runs as baselines shift]
+"""
+
+
+def _load_math_template() -> str:
+    """Load model-assisted hunt template, preferring workspace custom template over bundled default.
+
+    Checks for a Jinja2 template at ./templates/MATH_TEMPLATE.j2 first.
+    Falls back to the bundled MATH_TEMPLATE constant.
+
+    Returns:
+        Jinja2 template string
+    """
+    custom_template = Path("templates") / "MATH_TEMPLATE.j2"
+    if custom_template.exists():
+        try:
+            content = custom_template.read_text(encoding="utf-8")
+            if "{{" in content and "}}" in content:
+                return content
+        except (OSError, UnicodeDecodeError):
+            pass
+    return MATH_TEMPLATE
+
+
+def render_math_template(
+    hunt_id: str,
+    title: str,
+    model_type: Optional[str] = None,
+    features: Optional[list] = None,
+    anomaly_threshold: Optional[str] = None,
+    dataset: Optional[str] = None,
+    platform: Optional[list] = None,
+    data_sources: Optional[list] = None,
+    hunter: str = "[Your Name]",
+    objective: Optional[str] = None,
+) -> str:
+    """Render a model-assisted (M-ATH) hunt template with provided metadata.
+
+    Args:
+        hunt_id: Hunt identifier (e.g., H-0001)
+        title: Hunt title
+        model_type: Statistical/ML model type (clustering, z-score, IQR, isolation-forest, other)
+        features: List of fields/dimensions fed into the model
+        anomaly_threshold: Anomaly score cutoff value
+        dataset: Table, index, or data source being modeled
+        platform: List of platforms (Windows, Linux, macOS, Cloud)
+        data_sources: List of data sources
+        hunter: Hunter name
+        objective: Why model-assisted over manual EDA
+
+    Returns:
+        Rendered model-assisted hunt markdown content
+    """
+    platform_str = f"[{', '.join(platform)}]" if platform else "[]"
+    data_sources_str = f"[{', '.join(data_sources)}]" if data_sources else "[]"
+    features_str = f"[{', '.join(features)}]" if features else "[]"
+    tags_str = "[model-assisted]"
+
+    template = Template(_load_math_template())
+
+    result: str = template.render(
+        hunt_id=hunt_id,
+        title=title,
+        status="planning",
+        date=datetime.now().strftime("%Y-%m-%d"),
+        hunter=hunter,
+        platform=platform_str,
+        data_sources=data_sources_str,
+        data_sources_list=data_sources,
+        tags=tags_str,
+        model_type=model_type,
+        features=features_str,
+        anomaly_threshold=anomaly_threshold,
+        dataset=dataset,
+        objective=objective,
+    )
+    return result
+
+
 def _load_baseline_template() -> str:
     """Load baseline hunt template, preferring workspace custom template over bundled default.
 

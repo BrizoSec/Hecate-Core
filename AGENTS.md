@@ -14,7 +14,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 - **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Expert hunting frameworks and analytical methods
 - **Browse past hunts** - Search hunt history before suggesting new hypotheses
 - Reference lessons learned when generating queries
-- Use [environment.md](environment.md) to understand available data sources
+- Use [knowledge/knowledge/environment.md](knowledge/knowledge/environment.md) to understand available data sources
 - **Focus on behaviors and TTPs (top of Pyramid of Pain), not indicators**
 
 ---
@@ -28,6 +28,8 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 | Task Category              | CLI Command                                                | ❌ Never Use                   |
 | -------------------------- | ---------------------------------------------------------- | ----------------------------- |
 | **Hunt creation**          | `athf hunt new --non-interactive`                          | Write tool, Edit tool         |
+| **Baseline hunt creation** | `athf hunt new-baseline --non-interactive`                 | Write tool, Edit tool         |
+| **Model-assisted hunt**    | `athf hunt new-model-assisted --non-interactive`           | Write tool, Edit tool         |
 | **Investigation creation** | `athf investigate new --non-interactive`                   | Write tool, Edit tool         |
 | **Research execution**     | `athf research new --topic "..."`                          | Manual web search, Write tool |
 | **Hypothesis generation**  | `athf agent run hypothesis-generator --threat-intel "..."` | Manual hypothesis drafting    |
@@ -64,7 +66,7 @@ You MAY use Read, Edit, Grep, Glob tools for:
 - Editing hunt file content AFTER creation (query results, findings, lessons learned)
 - Searching file contents (complement to `athf hunt search`)
 - Exploring codebase structure
-- Reading environment.md and knowledge files
+- Reading knowledge/environment.md and knowledge files
 
 **Rule of thumb:** If `athf` has a command for it, use the command. Manual tools are for content, not structure.
 
@@ -131,7 +133,7 @@ athf/                           # CLI source code
 ├── README.md                   # Project overview
 ├── AGENTS.md                   # 🤖 This file - AI context
 ├── .athfconfig.yaml            # Workspace configuration
-├── environment.md              # Data sources and tech stack
+├── knowledge/environment.md              # Data sources and tech stack
 │
 ├── hunts/                      # Hunt investigations (H-XXXX.md)
 │   └── README.md               # Hunt creation guide
@@ -201,7 +203,7 @@ The file [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) contai
 
 ## Data Sources
 
-See [environment.md](environment.md) for documenting your organization's data sources:
+See [knowledge/environment.md](knowledge/environment.md) for documenting your organization's data sources:
 
 - SIEM/log aggregation platforms
 - EDR/endpoint telemetry coverage
@@ -210,7 +212,7 @@ See [environment.md](environment.md) for documenting your organization's data so
 - Identity and authentication logs
 - Known visibility gaps and blind spots
 
-**AI Note:** Always verify data sources exist in the user's environment.md before generating queries or hunt hypotheses.
+**AI Note:** Always verify data sources exist in the user's knowledge/environment.md before generating queries or hunt hypotheses.
 
 **Supported Integrations:** Any data source with query capabilities
 
@@ -302,7 +304,7 @@ Query syntax, field naming, and performance optimization vary by data source. Re
 ### Hypothesis Validation
 
 - **Check if we've hunted this before** - Use `athf similar "hypothesis keywords"` to find duplicate hunts
-- **Verify data source availability** - Reference environment.md
+- **Verify data source availability** - Reference knowledge/environment.md
 - **Ensure hypothesis is testable** - Can be validated with a query
 - **Consider false positive rate** - Will this hunt generate noise?
 
@@ -358,7 +360,7 @@ athf --version
 2. **`athf context --hunt H-XXXX`** - BEFORE executing hunt queries
    - Loads all context in one command (~5 Read operations → 1 command)
    - Saves ~75% token usage
-   - Returns JSON/YAML/Markdown with environment.md + past hunts + domain knowledge
+   - Returns JSON/YAML/Markdown with knowledge/environment.md + past hunts + domain knowledge
    - Example: `athf context --tactic credential-access --format json`
 
 **Failure to use these tools will result in:**
@@ -562,7 +564,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 **When user requests hunt ideas:**
 
 1. **Analyze coverage gaps:** `athf hunt coverage --tactic all` or `athf context --tactic all --format json`
-2. **Validate data sources:** Check user's environment.md for available telemetry
+2. **Validate data sources:** Check user's knowledge/environment.md for available telemetry
 3. **Present Top 3 ranked options** with MITRE technique, data source, priority reason
 4. **Wait for user selection** before creating hunt
 
@@ -577,7 +579,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 1. Review threat model (ransomware, insider threat, nation-state, supply chain, etc.)
 2. Map high-risk TTPs from MITRE ATT&CK framework
 3. Prioritize based on detection coverage gaps and business impact
-4. Document priorities in your workspace environment.md
+4. Document priorities in your workspace knowledge/environment.md
 
 **Example Priorities (Customize for Your Organization):**
 - TA0006 - Credential Access
@@ -586,7 +588,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 - TA0003 - Persistence
 - TA0010 - Exfiltration
 
-**AI Note:** Prioritize hunt suggestions based on org's threat model and TTPs documented in environment.md. High-priority TTPs should guide coverage gap analysis.
+**AI Note:** Prioritize hunt suggestions based on org's threat model and TTPs documented in knowledge/environment.md. High-priority TTPs should guide coverage gap analysis.
 
 ---
 
@@ -613,7 +615,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 - `research/` folder (R-XXXX.md documents) - **NEW**
 - Data sources via integrations (Splunk, etc. - via CLI or MCP)
 - Web search via Tavily API (`athf research new`) - **NEW**
-- User's environment.md
+- User's knowledge/environment.md
 
 **Agent Infrastructure (NEW):**
 
@@ -658,7 +660,7 @@ athf context --full --format json
 ```
 
 **What's included:**
-- User's environment.md - Tech stack, data sources
+- User's knowledge/environment.md - Tech stack, data sources
 - Past hunts - Filtered by hunt ID, tactic, platform, or combinations
 - Domain knowledge - Relevant domain files based on tactic
 
@@ -732,7 +734,7 @@ AI: 1. athf similar "kerberoasting" --format json
 
 1. **Consult Hunting Brain** - Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
 2. **Search Memory First** - **REQUIRED: Use `athf similar "your hypothesis keywords"` to check for duplicate hunts** (saves time, avoids redundant work)
-3. **Validate Environment** - Read user's environment.md to confirm data sources exist
+3. **Validate Environment** - Read user's knowledge/environment.md to confirm data sources exist
 4. **Generate LOCK Hypothesis** - Create testable hypothesis following [templates/HUNT_LOCK.md](templates/HUNT_LOCK.md)
 5. **Apply Quality Criteria** - Use quality checklist (Falsifiable, Scoped, Observable, Actionable, Contextual)
 6. **Suggest Next Steps** - Offer to create hunt file or draft query
@@ -742,7 +744,7 @@ AI: 1. athf similar "kerberoasting" --format json
 - **Focus on behaviors/TTPs (top of Pyramid of Pain)** - Never build hypothesis around hashes or IPs alone
 - Match hypothesis format: "Adversaries use [behavior] to [goal] on [target]"
 - Reference past hunts by ID (e.g., "Building on H-0022 lessons...")
-- Specify data sources from user's environment.md
+- Specify data sources from user's knowledge/environment.md
 - Include bounded time range with justification
 - Consider false positives from similar past hunts
 - Apply hypothesis quality rubric from hunting-knowledge.md
@@ -756,8 +758,8 @@ AI: 1. athf similar "kerberoasting" --format json
 ## Maintenance
 
 **Review this file when:**
-- Adding new data sources (update "Data Sources" section or user's environment.md)
-- Changing priority TTPs (update "Priority TTPs" section or user's environment.md)
+- Adding new data sources (update "Data Sources" section or user's knowledge/environment.md)
+- Changing priority TTPs (update "Priority TTPs" section or user's knowledge/environment.md)
 - Discovering AI generates incorrect assumptions (add to "Guardrails" or "Common Mistakes")
 - New integrations or MCP servers added (update "Memory and Search")
 - Team practices change (update CLI workflow or hunt execution steps)
