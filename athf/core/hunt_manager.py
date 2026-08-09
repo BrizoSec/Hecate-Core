@@ -11,7 +11,7 @@ from athf.core.attack_matrix import (
     get_technique,
     get_total_techniques,
 )
-from athf.core.hunt_parser import parse_hunt_file
+from athf.core.hunt_parser import parse_hunt_file, parse_hunt_file_fast
 from athf.utils.validation import validate_file_path, validate_hunt_id
 
 
@@ -128,10 +128,13 @@ class HuntManager:
         parsed: List[Tuple[Path, Dict]] = []
         for hunt_file in hunt_files:
             try:
-                parsed.append((hunt_file, parse_hunt_file(hunt_file)))
+                parsed.append((hunt_file, parse_hunt_file_fast(hunt_file)))
             except Exception:
                 continue
 
+        # Evict stale entries (directories that no longer exist) before writing.
+        for stale_key in [k for k in HuntManager._parse_cache if not k.exists()]:
+            del HuntManager._parse_cache[stale_key]
         HuntManager._parse_cache[cache_key] = (fingerprint, parsed)
         return parsed
 
@@ -279,6 +282,11 @@ class HuntManager:
     def search_hunts(self, query: str, directory: Optional[str] = None) -> List[Dict]:
         """Full-text search across all hunt files.
 
+        Uses the class-level parse cache so repeated searches (e.g. from the
+        MCP server) don't re-read files that haven't changed. Searches across
+        the markdown body plus key frontmatter fields (title, hunt_id,
+        techniques, tactics, tags).
+
         Args:
             query: Search query string
             directory: Filter by environment directory (test or production)
@@ -289,7 +297,7 @@ class HuntManager:
         results = []
         query_lower = query.lower()
 
-        for hunt_file in self.find_all_hunt_files():
+        for hunt_file, hunt_data in self._cached_parsed_hunt_data():
             # Determine environment from file path
             hunt_file_parts = hunt_file.parts
             environment = None
@@ -303,14 +311,22 @@ class HuntManager:
                 continue
 
             try:
-                with open(hunt_file, "r", encoding="utf-8") as f:
-                    content = f.read()
+                frontmatter = hunt_data.get("frontmatter", {})
 
-                # Check if query appears in file
-                if query_lower in content.lower():
-                    hunt_data = parse_hunt_file(hunt_file)
-                    frontmatter = hunt_data.get("frontmatter", {})
+                # Build searchable text from cached data — covers the full
+                # markdown body plus all frontmatter list and string fields
+                # that users commonly search for. Avoids re-reading from disk.
+                searchable = " ".join([
+                    hunt_data.get("content", ""),
+                    frontmatter.get("title", "") or "",
+                    frontmatter.get("hunt_id", "") or "",
+                    " ".join(frontmatter.get("techniques", [])),
+                    " ".join(frontmatter.get("tactics", [])),
+                    " ".join(frontmatter.get("tags", [])),
+                    " ".join(frontmatter.get("data_sources", [])),
+                ])
 
+                if query_lower in searchable.lower():
                     results.append(
                         {
                             "hunt_id": frontmatter.get("hunt_id"),

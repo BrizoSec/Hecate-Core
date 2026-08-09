@@ -76,10 +76,18 @@ def setup(python: str, dev: bool, clean: bool) -> None:  # noqa: C901
     """
     venv_path = Path(".venv")
 
-    # Check if we're in the ATHF directory
+    # This command creates a development venv from source (pip install -e .).
+    # It only makes sense when run from the ATHF source repository root.
+    # Users who installed ATHF via pip already have a working environment
+    # and do not need to run this command.
     if not Path("pyproject.toml").exists():
-        console.print("[red]Error: Not in ATHF directory (pyproject.toml not found)[/red]")
-        console.print("[dim]Run this command from the ATHF root directory[/dim]")
+        console.print("[red]Error: pyproject.toml not found in the current directory.[/red]")
+        console.print()
+        console.print("[bold]athf env setup[/bold] is for ATHF source-repo developers only.")
+        console.print("It creates a local .venv by running [cyan]pip install -e .[/cyan] from the repo root.")
+        console.print()
+        console.print("If you installed ATHF via pip, your environment is already set up —")
+        console.print("you can run [cyan]athf[/cyan] commands directly without a separate venv.")
         raise click.Abort()
 
     # Clean existing venv if requested
@@ -355,6 +363,113 @@ def activate() -> None:
     console.print("\n[bold cyan]To activate the virtual environment, run:[/bold cyan]\n")
     console.print(f"  [green]{activate_cmd}[/green]\n")
     console.print("[dim]💡 Tip: Copy the command above and run it in your shell[/dim]\n")
+
+
+@env.command(name="check")
+def check() -> None:  # noqa: C901
+    """Run a dependency health checklist for your ATHF workspace.
+
+    Verifies that all optional and required components are installed
+    and configured correctly. Useful after a fresh install or upgrade.
+
+    \b
+    Checks:
+      • Python version
+      • athf package
+      • scikit-learn (for athf similar)
+      • litellm (for AI agents)
+      • mitreattack-python (for ATT&CK STIX)
+      • STIX data file (for technique lookup)
+      • tavily-python (for web search)
+      • Workspace config (.athfconfig.yaml)
+      • Environment context (knowledge/environment.md)
+
+    \b
+    Example:
+      athf env check
+    """
+    import importlib.util
+
+    console.print("\n[bold cyan]🩺 ATHF Dependency Check[/bold cyan]\n")
+
+    ok = "[bold green]✅[/bold green]"
+    warn = "[bold yellow]⚠️ [/bold yellow]"
+    fail = "[bold red]❌[/bold red]"
+
+    def _check(label: str, status: bool, detail: str = "", optional: bool = False) -> None:
+        icon = ok if status else (warn if optional else fail)
+        line = f"  {icon} {label}"
+        if detail:
+            line += f"  [dim]{detail}[/dim]"
+        console.print(line)
+
+    # Python version
+    ver = sys.version_info
+    py_ok = ver >= (3, 9)
+    _check(f"Python {ver.major}.{ver.minor}.{ver.micro}", py_ok,
+           "" if py_ok else "requires Python 3.9+")
+
+    # athf package
+    try:
+        import athf  # type: ignore
+        athf_version = getattr(athf, "__version__", "unknown")
+        _check(f"athf {athf_version}", True)
+    except ImportError:
+        _check("athf", False, "not importable — installation may be broken")
+
+    # scikit-learn
+    sklearn_ok = importlib.util.find_spec("sklearn") is not None
+    _check("scikit-learn", sklearn_ok,
+           "required for `athf similar`" if not sklearn_ok else "",
+           optional=True)
+
+    # litellm
+    litellm_ok = importlib.util.find_spec("litellm") is not None
+    _check("litellm", litellm_ok,
+           "required for AI agents (`athf agent run`)" if not litellm_ok else "",
+           optional=True)
+
+    # mitreattack-python
+    mitreattack_ok = importlib.util.find_spec("mitreattack") is not None
+    _check("mitreattack-python", mitreattack_ok,
+           "required for STIX technique data (`athf attack update`)" if not mitreattack_ok else "",
+           optional=True)
+
+    # STIX data file
+    if mitreattack_ok:
+        try:
+            from athf.core.attack_matrix import _get_stix_file_path, is_using_stix
+            stix_path = _get_stix_file_path()
+            stix_ok = stix_path.exists() and is_using_stix()
+            _check("ATT&CK STIX data", stix_ok,
+                   str(stix_path) if stix_ok else f"not found at {stix_path} — run `athf attack update`",
+                   optional=True)
+        except Exception:
+            _check("ATT&CK STIX data", False, "could not determine status", optional=True)
+    else:
+        _check("ATT&CK STIX data", False, "mitreattack-python not installed", optional=True)
+
+    # tavily-python
+    tavily_ok = importlib.util.find_spec("tavily") is not None
+    _check("tavily-python", tavily_ok,
+           "required for web search in agents" if not tavily_ok else "",
+           optional=True)
+
+    # Workspace config
+    from athf.commands._hunt_create import get_config_path
+    config_path = get_config_path()
+    config_ok = config_path.exists()
+    _check(".athfconfig.yaml", config_ok,
+           str(config_path) if config_ok else f"not found — run `athf init`")
+
+    # Environment context
+    env_md = Path("knowledge") / "environment.md"
+    env_ok = env_md.exists()
+    _check("knowledge/environment.md", env_ok,
+           "" if env_ok else "create this file to give AI agents context about your environment",
+           optional=True)
+
+    console.print()
 
 
 @env.command(name="deactivate")

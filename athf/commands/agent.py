@@ -8,6 +8,53 @@ from rich.console import Console
 
 console = Console()
 
+# Single source of truth for agent metadata.  Add an entry here when a new
+# agent is added to athf.agents.llm — the list/info/run commands below all
+# derive their output from this dict.
+_AGENT_REGISTRY: dict[str, dict] = {
+    "hypothesis-generator": {
+        "type": "LLM (auto-detect)",
+        "description": "Generates creative hunt hypotheses using threat intelligence",
+        "capabilities": [
+            "LOCK format generation",
+            "ATT&CK mapping",
+            "Environment validation",
+            "Past hunt deduplication",
+            "Fallback to template generation",
+            "Cost tracking",
+            "Multi-provider support (Claude, GPT, Gemini, Ollama)",
+        ],
+        "usage": [
+            'athf agent run hypothesis-generator --threat-intel "APT29 targeting SaaS"',
+            'athf agent run hypothesis-generator --threat-intel "..." --research R-0001',
+        ],
+    },
+    "hunt-researcher": {
+        "type": "LLM (auto-detect)",
+        "description": "Conducts thorough pre-hunt research using 5-skill methodology",
+        "capabilities": [
+            "System internals research (how it normally works)",
+            "Adversary tradecraft research via web search",
+            "Telemetry mapping to OCSF fields",
+            "Related past hunt discovery",
+            "Research synthesis with gaps identification",
+            "Recommended hypothesis generation",
+            "Cost tracking and metrics",
+        ],
+        "research_skills": [
+            "1. System Research - How technology normally works",
+            "2. Adversary Tradecraft - Attack techniques (web search)",
+            "3. Telemetry Mapping - OCSF field availability",
+            "4. Related Work - Past hunt correlation",
+            "5. Synthesis - Key findings and gaps",
+        ],
+        "usage": [
+            'athf agent run hunt-researcher --topic "LSASS dumping"',
+            'athf agent run hunt-researcher --topic "Pass-the-Hash" --technique T1003.002 --depth basic',
+        ],
+    },
+}
+
 AGENT_EPILOG = """
 \b
 Examples:
@@ -55,37 +102,14 @@ def list() -> None:
     """
     from rich.table import Table
 
-    agents = [
-        {
-            "name": "hypothesis-generator",
-            "type": "LLM (auto-detect)",
-            "status": "available",
-            "description": "Generates creative hunt hypotheses using threat intelligence",
-        },
-        {
-            "name": "hunt-researcher",
-            "type": "LLM (auto-detect)",
-            "status": "available",
-            "description": "Conducts thorough pre-hunt research using 5-skill methodology",
-        },
-    ]
-
-    # Create table
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Agent Name", style="cyan", no_wrap=True)
     table.add_column("Type", style="yellow", no_wrap=True, width=15)
     table.add_column("Status", style="green", no_wrap=True, width=12)
     table.add_column("Description", style="white")
 
-    for agent_info in agents:
-        name = agent_info["name"]
-        agent_type = agent_info["type"]
-        status = agent_info["status"]
-        description = agent_info["description"]
-
-        # Status emoji
-        status_display = f"✅ {status}"
-        table.add_row(name, agent_type, status_display, description)
+    for name, meta in _AGENT_REGISTRY.items():
+        table.add_row(name, meta["type"], "✅ available", meta["description"])
 
     console.print("\n[bold]Available Agents:[/bold]\n")
     console.print(table)
@@ -102,70 +126,32 @@ def info(agent_name: str) -> None:
       athf agent info hypothesis-generator
       athf agent info hunt-researcher
     """
-    if agent_name == "hypothesis-generator":
-        # Display agent info
-        console.print("\n[bold cyan]Agent:[/bold cyan] hypothesis-generator")
-        console.print("[bold]Type:[/bold] LLM (multi-provider)")
-        console.print("[bold]Status:[/bold] available")
-        console.print("\n[bold]Description:[/bold]")
-        console.print("  Generates creative hunt hypotheses using threat intelligence")
-
-        console.print("\n[bold]Capabilities:[/bold]")
-        capabilities = [
-            "LOCK format generation",
-            "ATT&CK mapping",
-            "Environment validation",
-            "Past hunt deduplication",
-            "Fallback to template generation",
-            "Cost tracking",
-            "Multi-provider support (Claude, GPT, Gemini, Ollama)",
-        ]
-        for cap in capabilities:
-            console.print(f"  • {cap}")
-
-        console.print("\n[bold]Usage:[/bold]")
-        console.print('  athf agent run hypothesis-generator --threat-intel "APT29 targeting SaaS"')
-        console.print('  athf agent run hypothesis-generator --threat-intel "..." --research R-0001')
-        console.print()
-
-    elif agent_name == "hunt-researcher":
-        console.print("\n[bold cyan]Agent:[/bold cyan] hunt-researcher")
-        console.print("[bold]Type:[/bold] LLM (multi-provider)")
-        console.print("[bold]Status:[/bold] available")
-        console.print("\n[bold]Description:[/bold]")
-        console.print("  Conducts thorough pre-hunt research using 5-skill methodology")
-
-        console.print("\n[bold]Capabilities:[/bold]")
-        capabilities = [
-            "System internals research (how it normally works)",
-            "Adversary tradecraft research via web search",
-            "Telemetry mapping to OCSF fields",
-            "Related past hunt discovery",
-            "Research synthesis with gaps identification",
-            "Recommended hypothesis generation",
-            "Cost tracking and metrics",
-        ]
-        for cap in capabilities:
-            console.print(f"  • {cap}")
-
-        console.print("\n[bold]Research Skills:[/bold]")
-        console.print("  1. System Research - How technology normally works")
-        console.print("  2. Adversary Tradecraft - Attack techniques (web search)")
-        console.print("  3. Telemetry Mapping - OCSF field availability")
-        console.print("  4. Related Work - Past hunt correlation")
-        console.print("  5. Synthesis - Key findings and gaps")
-
-        console.print("\n[bold]Usage:[/bold]")
-        console.print('  athf agent run hunt-researcher --topic "LSASS dumping"')
-        console.print('  athf agent run hunt-researcher --topic "Pass-the-Hash" --technique T1003.002 --depth basic')
-        console.print()
-
-    else:
+    meta = _AGENT_REGISTRY.get(agent_name)
+    if meta is None:
         console.print(f"[red]Error: Agent '{agent_name}' not found[/red]")
         console.print("\n[dim]Available agents:[/dim]")
-        console.print("  • hypothesis-generator")
-        console.print("  • hunt-researcher")
+        for name in _AGENT_REGISTRY:
+            console.print(f"  • {name}")
         raise click.Abort()
+
+    console.print(f"\n[bold cyan]Agent:[/bold cyan] {agent_name}")
+    console.print(f"[bold]Type:[/bold] {meta['type']}")
+    console.print("[bold]Status:[/bold] available")
+    console.print(f"\n[bold]Description:[/bold]\n  {meta['description']}")
+
+    console.print("\n[bold]Capabilities:[/bold]")
+    for cap in meta["capabilities"]:
+        console.print(f"  • {cap}")
+
+    if "research_skills" in meta:
+        console.print("\n[bold]Research Skills:[/bold]")
+        for skill in meta["research_skills"]:
+            console.print(f"  {skill}")
+
+    console.print("\n[bold]Usage:[/bold]")
+    for example in meta["usage"]:
+        console.print(f"  {example}")
+    console.print()
 
 
 @agent.command()
@@ -377,8 +363,8 @@ def run(  # noqa: C901
     else:
         console.print(f"[red]Error: Unknown agent: {agent_name}[/red]")
         console.print("\n[dim]Available agents:[/dim]")
-        console.print("  • hypothesis-generator")
-        console.print("  • hunt-researcher")
+        for name in _AGENT_REGISTRY:
+            console.print(f"  • {name}")
         raise click.Abort()
 
 

@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import yaml
@@ -391,6 +391,120 @@ def _build_brief(hunt_data: Dict[str, Any]) -> str:
         lines += _build_hypothesis_brief_body(frontmatter, lock_sections)
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+@click.command(name="update")
+@click.argument("hunt_id")
+@click.option("--status", help="Set status (planning, active, completed, archived)")
+@click.option("--title", help="Update hunt title")
+@click.option("--hunter", help="Update hunter name")
+@click.option("--true-positives", "true_positives", type=int, help="Set true positives count")
+@click.option("--false-positives", "false_positives", type=int, help="Set false positives count")
+@click.option("--findings-count", "findings_count", type=int, help="Set findings count")
+@click.option("--add-tag", "add_tags", multiple=True, help="Add tag(s) to the hunt")
+@click.option("--remove-tag", "remove_tags", multiple=True, help="Remove tag(s) from the hunt")
+def update_hunt(
+    hunt_id: str,
+    status: Optional[str],
+    title: Optional[str],
+    hunter: Optional[str],
+    true_positives: Optional[int],
+    false_positives: Optional[int],
+    findings_count: Optional[int],
+    add_tags: Tuple,
+    remove_tags: Tuple,
+) -> None:
+    """Update frontmatter fields in a hunt file.
+
+    \b
+    Patches YAML frontmatter in-place without touching the markdown body.
+
+    \b
+    Examples:
+      # Mark a hunt as completed
+      athf hunt update H-0042 --status completed
+
+      # Record findings
+      athf hunt update H-0042 --true-positives 3 --false-positives 1
+
+      # Add tags
+      athf hunt update H-0042 --add-tag lateral-movement --add-tag rdp
+
+      # Combine updates
+      athf hunt update H-0042 --status completed --true-positives 2 --findings-count 5
+    """
+    if not validate_hunt_id(hunt_id):
+        console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+        return
+
+    manager = HuntManager()
+    hunt_file = manager.find_hunt_file(hunt_id)
+    if not hunt_file:
+        console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+        return
+
+    with open(hunt_file, "r", encoding="utf-8") as f:
+        raw = f.read()
+
+    # Split on the closing --- of the frontmatter
+    parts = raw.split("---", 2)
+    if len(parts) < 3:
+        console.print(f"[red]Error: Could not parse frontmatter in {hunt_file.name}[/red]")
+        return
+
+    try:
+        fm = yaml.safe_load(parts[1]) or {}
+    except yaml.YAMLError as e:
+        console.print(f"[red]Error: Invalid YAML frontmatter: {e}[/red]")
+        return
+
+    # Apply updates
+    changed: List[str] = []
+    if status is not None:
+        fm["status"] = status
+        changed.append(f"status → {status}")
+    if title is not None:
+        fm["title"] = title
+        changed.append(f"title → {title}")
+    if hunter is not None:
+        fm["hunter"] = hunter
+        changed.append(f"hunter → {hunter}")
+    if true_positives is not None:
+        fm["true_positives"] = true_positives
+        changed.append(f"true_positives → {true_positives}")
+    if false_positives is not None:
+        fm["false_positives"] = false_positives
+        changed.append(f"false_positives → {false_positives}")
+    if findings_count is not None:
+        fm["findings_count"] = findings_count
+        changed.append(f"findings_count → {findings_count}")
+    if add_tags:
+        current_tags: List[str] = fm.get("tags") or []
+        for tag in add_tags:
+            if tag not in current_tags:
+                current_tags.append(tag)
+        fm["tags"] = current_tags
+        changed.append(f"tags +{list(add_tags)}")
+    if remove_tags:
+        current_tags = fm.get("tags") or []
+        fm["tags"] = [t for t in current_tags if t not in remove_tags]
+        changed.append(f"tags -{list(remove_tags)}")
+
+    if not changed:
+        console.print("[yellow]No updates specified — nothing changed.[/yellow]")
+        console.print("[dim]Use --status, --true-positives, --add-tag, etc.[/dim]")
+        return
+
+    new_fm = yaml.dump(fm, default_flow_style=False, sort_keys=False)
+    updated = f"---\n{new_fm}---{parts[2]}"
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(updated)
+
+    console.print(f"\n[bold green]✅ Updated {hunt_id}[/bold green]")
+    for change in changed:
+        console.print(f"  [dim]{change}[/dim]")
+    console.print()
 
 
 @click.command(name="promote")

@@ -19,18 +19,24 @@ from athf.utils.validation import validate_hunt_id
 console = Console()
 
 
-def _validate_single_hunt(hunt_file: Path) -> None:
-    """Validate a single hunt file."""
-    console.print(f"\n[bold]🔍 Validating {hunt_file.name}...[/bold]\n")
+def _validate_single_hunt(hunt_file: Path) -> tuple:
+    """Validate a single hunt file and display results.
+
+    Returns:
+        (is_valid, errors) — callers use this to avoid a second parse.
+    """
+    console.print(f"\n[bold]Validating {hunt_file.name}...[/bold]\n")
 
     is_valid, errors = validate_hunt_file(hunt_file)
 
     if is_valid:
-        console.print("[green]✅ Hunt is valid![/green]")
+        console.print("[green]Hunt is valid![/green]")
     else:
-        console.print("[red]❌ Hunt has validation errors:[/red]\n")
+        console.print("[red]Hunt has validation errors:[/red]\n")
         for error in errors:
             console.print(f"  - {error}")
+
+    return is_valid, errors
 
 
 def _render_progress_bar(covered: int, total: int, width: int = 20) -> str:
@@ -168,7 +174,8 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
 
 @click.command()
 @click.argument("hunt_id", required=False)
-def validate(hunt_id: str) -> None:
+@click.option("--fail-on-error", is_flag=True, help="Exit with non-zero status if any validation errors are found (useful for CI)")
+def validate(hunt_id: str, fail_on_error: bool) -> None:
     """Validate hunt file structure and metadata.
 
     \b
@@ -186,6 +193,9 @@ def validate(hunt_id: str) -> None:
 
       # Validate all hunts
       athf hunt validate
+
+      # CI-safe: exit non-zero on errors
+      athf hunt validate --fail-on-error
 
     \b
     Use this to:
@@ -219,7 +229,10 @@ def validate(hunt_id: str) -> None:
             console.print("[red]Error: Invalid hunt file path[/red]")
             return
 
-        _validate_single_hunt(hunt_file)
+        is_valid, _ = _validate_single_hunt(hunt_file)
+        if fail_on_error and not is_valid:
+            import sys
+            sys.exit(1)
     else:
         # Validate all hunts
         console.print("\n[bold]🔍 Validating all hunts...[/bold]\n")
@@ -251,10 +264,61 @@ def validate(hunt_id: str) -> None:
                     console.print(f"    - {error}")
 
         console.print(f"\n[bold]Results:[/bold] {valid_count} valid, {invalid_count} invalid")
+        if fail_on_error and invalid_count > 0:
+            import sys
+            sys.exit(1)
+
+
+def _show_trend(manager: HuntManager) -> None:
+    """Print a quarterly breakdown of hunt activity."""
+    from collections import defaultdict
+
+    hunts = manager.list_hunts()
+    if not hunts:
+        return
+
+    quarters: dict = defaultdict(lambda: {"total": 0, "completed": 0, "true_positives": 0})
+
+    for hunt in hunts:
+        date_val = hunt.get("date")
+        if not date_val:
+            continue
+        try:
+            if hasattr(date_val, "year"):
+                year, month = date_val.year, date_val.month
+            else:
+                parsed = datetime.strptime(str(date_val)[:10], "%Y-%m-%d")
+                year, month = parsed.year, parsed.month
+            quarter = f"{year} Q{(month - 1) // 3 + 1}"
+        except (ValueError, AttributeError):
+            continue
+
+        quarters[quarter]["total"] += 1
+        if hunt.get("status") == "completed":
+            quarters[quarter]["completed"] += 1
+        quarters[quarter]["true_positives"] += hunt.get("true_positives", 0)
+
+    if not quarters:
+        return
+
+    console.print("[bold cyan]📈 Quarterly Trend[/bold cyan]\n")
+    trend_table = Table(box=box.SIMPLE, show_header=True, header_style="bold cyan")
+    trend_table.add_column("Quarter", style="cyan")
+    trend_table.add_column("Total", justify="right")
+    trend_table.add_column("Completed", justify="right")
+    trend_table.add_column("True Positives", justify="right")
+
+    for quarter in sorted(quarters.keys()):
+        q = quarters[quarter]
+        trend_table.add_row(quarter, str(q["total"]), str(q["completed"]), str(q["true_positives"]))
+
+    console.print(trend_table)
+    console.print()
 
 
 @click.command()
-def stats() -> None:
+@click.option("--trend", is_flag=True, help="Show quarterly breakdown of hunt activity")
+def stats(trend: bool) -> None:
     """Show hunt program statistics and success metrics.
 
     \b
@@ -266,8 +330,9 @@ def stats() -> None:
     • Hunt velocity metrics
 
     \b
-    Example:
+    Examples:
       athf hunt stats
+      athf hunt stats --trend
 
     \b
     Use this to:
@@ -304,6 +369,9 @@ def stats() -> None:
         console.print(
             "[italic]Every expert threat hunter started here. This confirms your hypothesis was testable, your data was sufficient, and your analytical instincts were sound. Document what worked.[/italic]\n"
         )
+
+    if trend:
+        _show_trend(manager)
 
 
 @click.command()
@@ -364,7 +432,8 @@ def search(query: str, directory: str) -> None:
 @click.command()
 @click.option("--tactic", help="Filter by specific tactic (or 'all' for all tactics)")
 @click.option("--detailed", is_flag=True, help="Show detailed technique coverage with hunt references")
-def coverage(tactic: Optional[str], detailed: bool) -> None:
+@click.option("--output", "output_format", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format (default: table)")
+def coverage(tactic: Optional[str], detailed: bool, output_format: str) -> None:
     """Show MITRE ATT&CK technique coverage across hunts.
 
     \b
@@ -413,6 +482,14 @@ def coverage(tactic: Optional[str], detailed: bool) -> None:
 
     if not coverage_data or not coverage_data.get("by_tactic"):
         console.print("[yellow]No hunt coverage data available.[/yellow]")
+        return
+
+    if output_format == "json":
+        console.print(json.dumps(coverage_data, indent=2), soft_wrap=True)
+        return
+
+    if output_format == "yaml":
+        console.print(yaml.dump(coverage_data, default_flow_style=False))
         return
 
     summary = coverage_data["summary"]

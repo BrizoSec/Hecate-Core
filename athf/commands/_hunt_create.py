@@ -52,7 +52,8 @@ def get_config_path() -> Path:
 @click.option("--behavior", help="Behavior description (for ABLE framework)")
 @click.option("--location", help="Location/scope (for ABLE framework)")
 @click.option("--evidence", help="Evidence description (for ABLE framework)")
-@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--hunter", help="Hunter name (default: from config, then 'Analyst')", default=None)
+@click.option("--clone", "clone_id", help="Clone metadata from an existing hunt (e.g., H-0013)")
 @click.option("--research", help="Research document ID (e.g., R-0001) this hunt is based on")
 @click.option(
     "--hypothesis-duration",
@@ -75,6 +76,7 @@ def new(
     location: Optional[str],
     evidence: Optional[str],
     hunter: Optional[str],
+    clone_id: Optional[str],
     research: Optional[str],
     hypothesis_duration: Optional[float],
 ) -> None:
@@ -122,11 +124,39 @@ def new(
 
     hunt_prefix = config.get("hunt_prefix", "H-")
 
+    # Resolve hunter: CLI flag > config > fallback
+    hunter = hunter or config.get("hunter") or "Analyst"
+
     # Get next hunt ID
     manager = HuntManager()
     hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
 
     console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    # --clone: pre-populate metadata from an existing hunt
+    if clone_id:
+        source_file = manager.find_hunt_file(clone_id)
+        if not source_file:
+            console.print(f"[red]Error: Clone source not found: {clone_id}[/red]")
+            return
+        try:
+            from athf.core.hunt_parser import parse_hunt_file_fast
+            source_data = parse_hunt_file_fast(source_file)
+            source_fm = source_data.get("frontmatter", {})
+            # Pre-populate options from the source hunt (CLI overrides take precedence)
+            if not technique and source_fm.get("techniques"):
+                technique = source_fm["techniques"][0]
+            if not tactic and source_fm.get("tactics"):
+                tactic = tuple(source_fm["tactics"])
+            if not platform and source_fm.get("platform"):
+                platform = tuple(source_fm["platform"])
+            if not data_source and source_fm.get("data_sources"):
+                data_source = tuple(source_fm["data_sources"])
+            if not title and source_fm.get("title"):
+                title = f"[Clone] {source_fm['title']}"
+            console.print(f"[dim]Cloning metadata from {clone_id}...[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not clone from {clone_id}: {e}[/yellow]")
 
     # Validate research document if provided
     if research:
@@ -206,7 +236,7 @@ def new(
         tactics=hunt_tactics,
         platform=hunt_platforms,
         data_sources=hunt_data_sources,
-        hunter=hunter or "AI Assistant",
+        hunter=hunter,
         hypothesis=hypothesis,
         threat_context=threat_context,
         actor=actor,
@@ -266,7 +296,7 @@ def new(
 @click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
 @click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
 @click.option("--objective", help="Why this baseline matters / what it's establishing")
-@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--hunter", help="Hunter name (default: from config, then 'Analyst')", default=None)
 @click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
 @click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
 def new_baseline(
@@ -315,6 +345,9 @@ def new_baseline(
 
     hunt_prefix = config.get("hunt_prefix", "H-")
 
+    # Resolve hunter: CLI flag > config > fallback
+    hunter = hunter or config.get("hunter") or "Analyst"
+
     manager = HuntManager()
     hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
 
@@ -352,7 +385,7 @@ def new_baseline(
         dimension=baseline_dimension,
         platform=baseline_platforms,
         data_sources=baseline_data_sources,
-        hunter=hunter or "AI Assistant",
+        hunter=hunter,
         objective=objective,
     )
 
@@ -385,7 +418,7 @@ def new_baseline(
 @click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
 @click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
 @click.option("--objective", help="Why model-assisted over manual EDA")
-@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--hunter", help="Hunter name (default: from config, then 'Analyst')", default=None)
 @click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
 @click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
 def new_model_assisted(
@@ -436,6 +469,9 @@ def new_model_assisted(
         config = {"hunt_prefix": "H-"}
 
     hunt_prefix = config.get("hunt_prefix", "H-")
+
+    # Resolve hunter: CLI flag > config > fallback
+    hunter = hunter or config.get("hunter") or "Analyst"
 
     manager = HuntManager()
     hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
@@ -490,7 +526,7 @@ def new_model_assisted(
         dataset=math_dataset,
         platform=math_platforms,
         data_sources=math_data_sources,
-        hunter=hunter or "AI Assistant",
+        hunter=hunter,
         objective=objective,
     )
 

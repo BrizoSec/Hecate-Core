@@ -6,6 +6,29 @@ from typing import Dict, List, Tuple
 
 import yaml
 
+# Compiled regex constants — compiled once at import time so HuntParser
+# never recompiles them on every parse() call.
+_RE_FM_EXTRACT = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_RE_FM_STRIP = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+
+# LOCK section patterns.  KEEP uses a negative lookahead so "### Sub" doesn't
+# fool the boundary match — see the in-line comment in _parse_lock_sections.
+_RE_LOCK_LEARN = re.compile(r"##\s+LEARN[:\s].*?(?=##\s+OBSERVE|$)", re.DOTALL | re.IGNORECASE)
+_RE_LOCK_OBSERVE = re.compile(r"##\s+OBSERVE[:\s].*?(?=##\s+CHECK|$)", re.DOTALL | re.IGNORECASE)
+_RE_LOCK_CHECK = re.compile(r"##\s+CHECK[:\s].*?(?=##\s+KEEP|$)", re.DOTALL | re.IGNORECASE)
+# KEEP is the last LOCK section — stop at the next top-level "## " heading only
+# (not "### Sub"), so `(?!#)` ensures exactly two hashes, not three-or-more.
+_RE_LOCK_KEEP = re.compile(r"##\s+KEEP[:\s].*?(?=\n##(?!#)\s+[A-Z]|\Z)", re.DOTALL | re.IGNORECASE)
+
+_LOCK_PATTERNS: List[Tuple[str, re.Pattern]] = [
+    ("learn", _RE_LOCK_LEARN),
+    ("observe", _RE_LOCK_OBSERVE),
+    ("check", _RE_LOCK_CHECK),
+    ("keep", _RE_LOCK_KEEP),
+]
+
+_RE_HUNT_ID_FORMAT = re.compile(r"^[A-Z]+-\d+$")
+
 
 class HuntParser:
     """Parser for ATHF hunt files."""
@@ -27,15 +50,10 @@ class HuntParser:
             raise FileNotFoundError(f"Hunt file not found: {self.file_path}")
 
         with open(self.file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+            raw = f.read()
 
-        # Parse YAML frontmatter
-        self.frontmatter = self._parse_frontmatter(content)
-
-        # Extract main content (after frontmatter)
-        self.content = self._extract_content(content)
-
-        # Parse LOCK sections
+        self.frontmatter = self._parse_frontmatter(raw)
+        self.content = self._extract_content(raw)
         self.lock_sections = self._parse_lock_sections(self.content)
 
         return {
@@ -46,77 +64,59 @@ class HuntParser:
             "lock_sections": self.lock_sections,
         }
 
-    def _parse_frontmatter(self, content: str) -> Dict:
-        """Extract and parse YAML frontmatter.
+    def parse_without_lock_sections(self) -> Dict:
+        """Parse frontmatter and content only — skips the LOCK-section regexes.
 
-        Args:
-            content: Full file content
+        Useful for bulk operations (list, stats, search) that only need
+        frontmatter fields and the raw markdown body.  lock_sections is
+        returned as an empty dict so callers can detect the difference.
 
         Returns:
-            Dict of frontmatter fields
+            Dict with frontmatter and content but empty lock_sections
         """
-        # Match YAML frontmatter between --- delimiters
-        frontmatter_pattern = r"^---\s*\n(.*?)\n---\s*\n"
-        match = re.match(frontmatter_pattern, content, re.DOTALL)
+        if not self.file_path.exists():
+            raise FileNotFoundError(f"Hunt file not found: {self.file_path}")
 
+        with open(self.file_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+
+        self.frontmatter = self._parse_frontmatter(raw)
+        self.content = self._extract_content(raw)
+        self.lock_sections = {}
+
+        return {
+            "file_path": str(self.file_path),
+            "hunt_id": self.frontmatter.get("hunt_id"),
+            "frontmatter": self.frontmatter,
+            "content": self.content,
+            "lock_sections": self.lock_sections,
+        }
+
+    def _parse_frontmatter(self, content: str) -> Dict:
+        """Extract and parse YAML frontmatter."""
+        match = _RE_FM_EXTRACT.match(content)
         if not match:
             return {}
-
-        frontmatter_text = match.group(1)
-
         try:
-            return yaml.safe_load(frontmatter_text) or {}
+            return yaml.safe_load(match.group(1)) or {}
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML frontmatter: {e}")
 
     def _extract_content(self, content: str) -> str:
-        """Extract content after frontmatter.
-
-        Args:
-            content: Full file content
-
-        Returns:
-            Content after frontmatter
-        """
-        # Remove frontmatter
-        frontmatter_pattern = r"^---\s*\n.*?\n---\s*\n"
-        content_without_fm = re.sub(frontmatter_pattern, "", content, count=1, flags=re.DOTALL)
-
-        return content_without_fm.strip()
+        """Extract content after frontmatter."""
+        return _RE_FM_STRIP.sub("", content, count=1).strip()
 
     def _parse_lock_sections(self, content: str) -> Dict[str, str]:
         """Parse LOCK pattern sections from content.
-
-        Args:
-            content: Hunt content (without frontmatter)
 
         Returns:
             Dict with keys: learn, observe, check, keep
         """
         sections = {}
-
-        # Define section patterns (case-insensitive)
-        section_patterns = {
-            "learn": r"##\s+LEARN[:\s].*?(?=##\s+OBSERVE|$)",
-            "observe": r"##\s+OBSERVE[:\s].*?(?=##\s+CHECK|$)",
-            "check": r"##\s+CHECK[:\s].*?(?=##\s+KEEP|$)",
-            # KEEP is the last LOCK section, so there's no known next-section
-            # keyword to anchor on (unlike learn/observe/check above) -- the
-            # lookahead has to stop at the next *top-level* "## " heading.
-            # `[A-Z]` alone isn't enough: it also matches inside "### ", since
-            # the last two of its three hashes plus the following space and
-            # capital letter satisfy `##\s+[A-Z]` too, silently truncating
-            # keep to just its own heading whenever it contains a "###"
-            # subsection -- which real hunt files always do. `(?!#)` rules
-            # that out by requiring exactly two hashes, not three-or-more.
-            "keep": r"##\s+KEEP[:\s].*?(?=\n##(?!#)\s+[A-Z]|\Z)",
-        }
-
-        for section_name, pattern in section_patterns.items():
-            match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+        for section_name, pattern in _LOCK_PATTERNS:
+            match = pattern.search(content)
             if match:
                 sections[section_name] = match.group(0).strip()
-
         return sections
 
     def validate(self) -> Tuple[bool, List[str]]:
@@ -139,8 +139,39 @@ class HuntParser:
 
         # Validate hunt_id format (e.g., H-0001)
         hunt_id = self.frontmatter.get("hunt_id", "")
-        if hunt_id and not re.match(r"^[A-Z]+-\d+$", hunt_id):
+        if hunt_id and not _RE_HUNT_ID_FORMAT.match(hunt_id):
             errors.append(f"Invalid hunt_id format: {hunt_id} (expected format: H-0001)")
+
+        # hunt_id must match the filename so files can't silently diverge
+        # after being copied or renamed (e.g., H-0001.md with hunt_id: H-0042).
+        filename_stem = self.file_path.stem
+        if hunt_id and filename_stem and hunt_id != filename_stem:
+            errors.append(
+                f"hunt_id '{hunt_id}' does not match filename '{filename_stem}.md'"
+            )
+
+        # Validate technique IDs against the ATT&CK matrix when STIX data is
+        # available. Skipped when using the fallback provider (no per-technique
+        # data) to avoid false positives for users who haven't run 'athf attack update'.
+        from athf.core.attack_matrix import get_sorted_tactics, get_technique, is_using_stix
+        if is_using_stix():
+            for technique in self.frontmatter.get("techniques", []):
+                if isinstance(technique, str) and technique:
+                    if get_technique(technique) is None:
+                        errors.append(
+                            f"Unknown MITRE technique: {technique} (not found in ATT&CK matrix — typo?)"
+                        )
+
+        # Validate tactic names against the ATT&CK matrix.
+        # get_sorted_tactics() works with both STIX and the fallback provider,
+        # so this check runs unconditionally.
+        valid_tactics = set(get_sorted_tactics())
+        for tactic in self.frontmatter.get("tactics", []):
+            if isinstance(tactic, str) and tactic and tactic not in valid_tactics:
+                errors.append(
+                    f"Unknown MITRE tactic: '{tactic}' — did you mean one of: "
+                    + ", ".join(sorted(valid_tactics)[:5]) + ", ..."
+                )
 
         # Check LOCK sections present
         lock_sections = ["learn", "observe", "check", "keep"]
@@ -152,7 +183,7 @@ class HuntParser:
 
 
 def parse_hunt_file(file_path: Path) -> Dict:
-    """Convenience function to parse a hunt file.
+    """Convenience function to parse a hunt file (includes LOCK sections).
 
     Args:
         file_path: Path to hunt file
@@ -162,6 +193,22 @@ def parse_hunt_file(file_path: Path) -> Dict:
     """
     parser = HuntParser(file_path)
     return parser.parse()
+
+
+def parse_hunt_file_fast(file_path: Path) -> Dict:
+    """Convenience function to parse a hunt file without LOCK-section extraction.
+
+    Faster than parse_hunt_file() for bulk operations that only need frontmatter
+    and the raw content body (e.g., list, stats, search).
+
+    Args:
+        file_path: Path to hunt file
+
+    Returns:
+        Parsed hunt data with empty lock_sections dict
+    """
+    parser = HuntParser(file_path)
+    return parser.parse_without_lock_sections()
 
 
 def validate_hunt_file(file_path: Path) -> Tuple[bool, List[str]]:

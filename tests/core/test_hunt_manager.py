@@ -315,14 +315,14 @@ class TestParseCache:
 
         import athf.core.hunt_manager as hunt_manager_module
 
-        real_parse = hunt_manager_module.parse_hunt_file
+        real_parse = hunt_manager_module.parse_hunt_file_fast
         call_count = {"n": 0}
 
         def counting_parse(path):
             call_count["n"] += 1
             return real_parse(path)
 
-        monkeypatch.setattr(hunt_manager_module, "parse_hunt_file", counting_parse)
+        monkeypatch.setattr(hunt_manager_module, "parse_hunt_file_fast", counting_parse)
 
         HuntManager(hunts_dir=hunts_dir).list_hunts()
         assert call_count["n"] == 2  # first call: real parse, once per file

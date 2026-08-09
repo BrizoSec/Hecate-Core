@@ -5,7 +5,7 @@ import re
 import time
 import urllib.request
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import click
 from rich.console import Console
@@ -247,6 +247,107 @@ def lookup(technique_id: str, as_json: bool) -> None:
             for sub in subs:
                 console.print(f"    {sub.get('id', '')} - {sub.get('name', '')}")
 
+    console.print()
+
+
+@attack.command()
+@click.option("--tactic", "tactic_filter", help="Limit to one tactic (e.g., credential-access)")
+@click.option("--platform", "platform_filter", help="Only show techniques for this platform")
+@click.option("--no-subtechniques", "no_subs", is_flag=True, help="Exclude sub-techniques")
+@click.option("--output", "output_format", type=click.Choice(["table", "json"]), default="table")
+def gap(
+    tactic_filter: Optional[str],
+    platform_filter: Optional[str],
+    no_subs: bool,
+    output_format: str,
+) -> None:
+    """Show ATT&CK techniques not yet covered by any hunt.
+
+    Requires STIX data (run 'athf attack update' first).
+
+    \b
+    Examples:
+      # Show all uncovered techniques
+      athf attack gap
+
+      # Limit to one tactic
+      athf attack gap --tactic credential-access
+
+      # Filter by platform
+      athf attack gap --tactic persistence --platform Windows
+
+      # JSON output for scripting
+      athf attack gap --output json
+    """
+    from athf.core.attack_matrix import (
+        get_sorted_tactics,
+        get_techniques_for_tactic,
+        is_using_stix,
+    )
+    from athf.core.hunt_manager import HuntManager
+
+    if not is_using_stix():
+        console.print("[yellow]STIX data not available. Gap analysis requires STIX.[/yellow]")
+        console.print("[dim]Install and update: pip install 'athf[attack]' && athf attack update[/dim]")
+        return
+
+    # Build set of covered technique IDs from the hunt corpus
+    manager = HuntManager()
+    coverage_data = manager.calculate_attack_coverage()
+    covered: set = set()
+    for tactic_data in coverage_data.get("by_tactic", {}).values():
+        covered.update(tactic_data.get("techniques", {}).keys())
+
+    # Determine which tactics to inspect
+    tactics = [tactic_filter] if tactic_filter else get_sorted_tactics()
+
+    gaps: list = []
+    for tactic_key in tactics:
+        techs = get_techniques_for_tactic(tactic_key)
+        if not techs:
+            continue
+        for tech in techs:
+            tid = tech.get("id", "")
+            if not tid or tid in covered:
+                continue
+            if no_subs and tech.get("is_subtechnique", False):
+                continue
+            if platform_filter:
+                platforms = [p.lower() for p in tech.get("platforms", [])]
+                if platform_filter.lower() not in platforms:
+                    continue
+            gaps.append({
+                "tactic": tactic_key,
+                "id": tid,
+                "name": tech.get("name", ""),
+                "is_subtechnique": tech.get("is_subtechnique", False),
+                "platforms": tech.get("platforms", []),
+            })
+
+    if not gaps:
+        console.print("[green]No gaps found — all techniques are covered![/green]")
+        return
+
+    if output_format == "json":
+        click.echo(json.dumps(gaps, indent=2))
+        return
+
+    console.print(f"\n[bold]ATT&CK Coverage Gaps ({len(gaps)} uncovered techniques)[/bold]\n")
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Tactic", style="cyan", width=22)
+    table.add_column("ID", style="yellow", width=12)
+    table.add_column("Name", style="white")
+    table.add_column("Sub?", style="dim", width=4)
+
+    current_tactic = None
+    for gap in gaps:
+        if gap["tactic"] != current_tactic:
+            current_tactic = gap["tactic"]
+        sub = "Yes" if gap["is_subtechnique"] else ""
+        table.add_row(gap["tactic"], gap["id"], gap["name"], sub)
+
+    console.print(table)
     console.print()
 
 

@@ -202,21 +202,18 @@ Content here.
         finally:
             os.unlink(temp_path)
 
-    def test_validate_complete_hunt(self):
+    def test_validate_complete_hunt(self, tmp_path):
         """Test validation of a complete, valid hunt."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write(VALID_HUNT)
-            temp_path = f.name
+        # File must be named H-0001.md to match the hunt_id in the frontmatter.
+        hunt_file = tmp_path / "H-0001.md"
+        hunt_file.write_text(VALID_HUNT)
 
-        try:
-            parser = HuntParser(Path(temp_path))
-            parser.parse()
-            is_valid, errors = parser.validate()
+        parser = HuntParser(hunt_file)
+        parser.parse()
+        is_valid, errors = parser.validate()
 
-            assert is_valid is True
-            assert len(errors) == 0
-        finally:
-            os.unlink(temp_path)
+        assert is_valid is True, errors
+        assert len(errors) == 0
 
     def test_validate_missing_required_fields(self):
         """Test validation catches missing required fields."""
@@ -297,19 +294,15 @@ class TestModuleFunctions:
         finally:
             os.unlink(temp_path)
 
-    def test_validate_hunt_file(self):
+    def test_validate_hunt_file(self, tmp_path):
         """Test validate_hunt_file convenience function."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write(VALID_HUNT)
-            temp_path = f.name
+        hunt_file = tmp_path / "H-0001.md"
+        hunt_file.write_text(VALID_HUNT)
 
-        try:
-            is_valid, errors = validate_hunt_file(Path(temp_path))
+        is_valid, errors = validate_hunt_file(hunt_file)
 
-            assert is_valid is True
-            assert len(errors) == 0
-        finally:
-            os.unlink(temp_path)
+        assert is_valid is True, errors
+        assert len(errors) == 0
 
     def test_validate_invalid_hunt_file(self):
         """Test validate_hunt_file with invalid hunt."""

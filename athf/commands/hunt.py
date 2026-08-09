@@ -62,7 +62,7 @@ def hunt() -> None:
 # Register subcommands from split submodules
 from athf.commands._hunt_create import new, new_baseline, new_model_assisted  # noqa: E402
 from athf.commands._hunt_query import coffee, coverage, list_hunts, search, stats, validate  # noqa: E402
-from athf.commands._hunt_lifecycle import brief, export_hunt, promote_hunt  # noqa: E402
+from athf.commands._hunt_lifecycle import brief, export_hunt, promote_hunt, update_hunt  # noqa: E402
 
 hunt.add_command(new)
 hunt.add_command(new_baseline)
@@ -73,6 +73,7 @@ hunt.add_command(stats)
 hunt.add_command(search)
 hunt.add_command(coverage)
 hunt.add_command(coffee)
+hunt.add_command(update_hunt)
 hunt.add_command(promote_hunt)
 hunt.add_command(export_hunt)
 hunt.add_command(brief)

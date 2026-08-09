@@ -129,6 +129,7 @@ def _default_config(base_path: Path) -> dict:
     """Return default configuration."""
     return {
         "workspace_name": base_path.name,
+        "hunter": "Analyst",
         "hunt_prefix": "H-",
         "siem": "Splunk",
         "edr": "CrowdStrike",
@@ -174,6 +175,10 @@ def _interactive_config(base_path: Path) -> dict:
     # Retention
     retention = Prompt.ask("5. Hunt retention (days)", default="365")
     config["hunt_retention_days"] = int(retention) if isinstance(retention, str) else retention
+
+    # Hunter name
+    hunter = Prompt.ask("6. Hunter name (your name or team name, used in new hunt files)", default="Analyst")
+    config["hunter"] = hunter
 
     return config
 
