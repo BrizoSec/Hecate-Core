@@ -17,6 +17,12 @@ from athf.agents.llm.hypothesis_generator import (
     HypothesisGeneratorAgent,
     ResearchContext,
 )
+from athf.agents.llm.pivot_suggester import (
+    PivotInput,
+    PivotOutput,
+    PivotSuggestion,
+    PivotSuggesterAgent,
+)
 
 __all__ = [
     "HypothesisGeneratorAgent",
@@ -27,4 +33,8 @@ __all__ = [
     "ResearchInput",
     "ResearchOutput",
     "ResearchSkillOutput",
+    "PivotSuggesterAgent",
+    "PivotInput",
+    "PivotOutput",
+    "PivotSuggestion",
 ]

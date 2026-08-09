@@ -517,6 +517,224 @@ def update_hunt(
     console.print()
 
 
+def _sigma_logsource(platforms: List[str], data_sources: List[str]) -> dict:
+    """Derive a best-effort Sigma logsource block from hunt metadata."""
+    platform_str = " ".join(platforms).lower()
+    ds_str = " ".join(data_sources).lower()
+
+    product = "windows"
+    if "linux" in platform_str:
+        product = "linux"
+    elif "macos" in platform_str or "mac" in platform_str:
+        product = "macos"
+    elif "cloud" in platform_str or "aws" in platform_str or "azure" in platform_str:
+        product = "aws"  # best guess; hunter should verify
+
+    category = "process_creation"
+    if "network" in ds_str or "proxy" in ds_str or "dns" in ds_str:
+        category = "network_connection"
+    elif "auth" in ds_str or "logon" in ds_str or "login" in ds_str:
+        category = "authentication"
+    elif "file" in ds_str:
+        category = "file_event"
+    elif "registry" in ds_str:
+        category = "registry_event"
+
+    return {"category": category, "product": product}
+
+
+def _sigma_tags(tactics: List[str], techniques: List[str]) -> List[str]:
+    """Build Sigma ATT&CK tag list from hunt tactics and techniques."""
+    tags: List[str] = []
+    for tactic in tactics:
+        tags.append(f"attack.{tactic.replace('-', '_')}")
+    for technique in techniques:
+        tags.append(f"attack.{technique.lower()}")
+    return tags
+
+
+def _extract_check_queries(check_section: str) -> List[str]:
+    """Extract all fenced code blocks from a CHECK section."""
+    import re
+    return re.findall(r"```[^\n]*\n(.*?)```", check_section, re.DOTALL)
+
+
+@click.command(name="operationalize")
+@click.argument("hunt_id")
+@click.option("--query-index", "query_index", type=int, default=None,
+              help="Index (1-based) of the query to use when multiple are found. Skips interactive prompt.")
+@click.option("--output", "output_file", type=click.Path(), default=None,
+              help="Sigma rule output path (default: detections/<hunt_id>.yml)")
+@click.option("--no-patch", is_flag=True,
+              help="Do not update the hunt frontmatter with detection_rule path")
+def operationalize(hunt_id: str, query_index: Optional[int], output_file: Optional[str], no_patch: bool) -> None:
+    """Generate a Sigma detection rule stub from a completed hunt.
+
+    \b
+    Extracts the hunt query from the CHECK section and generates a Sigma
+    YAML stub at detections/<hunt_id>.yml. The detection logic is preserved
+    as a comment — the hunter translates it into proper Sigma field conditions.
+
+    \b
+    Examples:
+      # Interactive — pick a query when multiple are found
+      athf hunt operationalize H-0042
+
+      # Non-interactive — use the first query
+      athf hunt operationalize H-0042 --query-index 1
+
+      # Custom output path
+      athf hunt operationalize H-0042 --output sigma/lsass-dump.yml
+
+    \b
+    After generation:
+      1. Open detections/<hunt_id>.yml
+      2. Replace the placeholder detection.selection block with real Sigma conditions
+      3. Validate with: sigma check detections/<hunt_id>.yml
+    """
+    import uuid
+
+    from athf.core.hunt_manager import HuntManager
+    from athf.core.hunt_parser import parse_hunt_file
+    from athf.utils.validation import validate_hunt_id
+
+    if not validate_hunt_id(hunt_id):
+        console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+        return
+
+    manager = HuntManager()
+    hunt_file = manager.find_hunt_file(hunt_id)
+    if not hunt_file:
+        console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+        return
+
+    hunt_data = parse_hunt_file(hunt_file)
+    frontmatter = hunt_data.get("frontmatter", {})
+    lock_sections = hunt_data.get("lock_sections", {})
+
+    check_section = lock_sections.get("check", "")
+    queries = _extract_check_queries(check_section)
+    queries = [q.strip() for q in queries if q.strip()]
+
+    if not queries:
+        console.print(f"[yellow]No fenced code blocks found in the CHECK section of {hunt_id}.[/yellow]")
+        console.print("[dim]Add your final query inside a fenced code block (``` ... ```) in the CHECK section.[/dim]")
+        return
+
+    # Determine which query to use
+    chosen_query: str
+    if len(queries) == 1:
+        chosen_query = queries[0]
+        console.print(f"[dim]Using the single query found in CHECK section.[/dim]")
+    elif query_index is not None:
+        idx = query_index - 1
+        if not (0 <= idx < len(queries)):
+            console.print(f"[red]Error: --query-index {query_index} out of range (1–{len(queries)})[/red]")
+            return
+        chosen_query = queries[idx]
+    else:
+        console.print(f"\n[bold]{len(queries)} queries found in CHECK section:[/bold]\n")
+        for i, q in enumerate(queries, 1):
+            preview = q[:120].replace("\n", " ")
+            console.print(f"  [cyan]{i}.[/cyan] {preview}{'...' if len(q) > 120 else ''}")
+        console.print()
+        choice = Prompt.ask("Select query to use", choices=[str(i) for i in range(1, len(queries) + 1)], default="1")
+        chosen_query = queries[int(choice) - 1]
+
+    # Build Sigma YAML
+    title = frontmatter.get("title") or hunt_id
+    hunter = frontmatter.get("hunter") or "unknown"
+    today = datetime.now().strftime("%Y/%m/%d")
+    rule_id = str(uuid.uuid4())
+
+    tactics: List[str] = frontmatter.get("tactics") or []
+    techniques: List[str] = frontmatter.get("techniques") or []
+    platforms: List[str] = frontmatter.get("platform") or []
+    data_sources: List[str] = frontmatter.get("data_sources") or []
+
+    logsource = _sigma_logsource(platforms, data_sources)
+    tags = _sigma_tags(tactics, techniques)
+
+    # Indent the query as a YAML block comment
+    query_comment = "\n".join(f"    #   {line}" for line in chosen_query.splitlines())
+
+    # Build platforms/data_sources comment lines
+    meta_comment = ""
+    if platforms:
+        meta_comment += f"    # Platform: {', '.join(platforms)}\n"
+    if data_sources:
+        meta_comment += f"    # Data source: {', '.join(data_sources)}\n"
+
+    tags_yaml = "\n".join(f"  - {t}" for t in tags) if tags else "  - attack.unknown"
+
+    sigma_yaml = f"""title: {title}
+id: {rule_id}
+status: experimental
+description: >
+  {title} - extracted from ATHF hunt {hunt_id}.
+  TODO: Translate the hunt query in the detection block into proper Sigma conditions.
+references:
+  - 'athf://hunts/{hunt_id}'
+author: {hunter}
+date: {today}
+tags:
+{tags_yaml}
+logsource:
+{meta_comment}  category: {logsource['category']}
+  product: {logsource['product']}
+detection:
+  selection:
+    # TODO: Replace this placeholder with real Sigma detection conditions.
+    # Hunt query extracted from {hunt_id} CHECK section:
+    #
+{query_comment}
+    #
+    # Example field conditions (delete and replace with real Sigma fields):
+    Image|endswith: '\\\\example.exe'
+  condition: selection
+falsepositives:
+  - Unknown
+level: medium
+"""
+
+    # Write Sigma file
+    dest = Path(output_file) if output_file else Path("detections") / f"{hunt_id}.yml"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(sigma_yaml)
+
+    console.print(f"\n[bold green]Sigma rule stub written to {dest}[/bold green]")
+    console.print(f"  Title:    {title}")
+    console.print(f"  Logsource: {logsource['product']} / {logsource['category']}")
+    if tags:
+        console.print(f"  Tags:     {', '.join(tags)}")
+    console.print()
+
+    # Patch hunt frontmatter unless --no-patch
+    if not no_patch:
+        with open(hunt_file, "r", encoding="utf-8") as f:
+            raw = f.read()
+
+        parts = raw.split("---", 2)
+        if len(parts) >= 3:
+            try:
+                fm = yaml.safe_load(parts[1]) or {}
+                fm["detection_rule"] = str(dest)
+                new_fm = yaml.dump(fm, default_flow_style=False, sort_keys=False)
+                with open(hunt_file, "w", encoding="utf-8") as f:
+                    f.write(f"---\n{new_fm}---{parts[2]}")
+                console.print(f"[dim]Updated {hunt_id} frontmatter: detection_rule → {dest}[/dim]")
+            except yaml.YAMLError:
+                console.print("[yellow]Warning: Could not patch hunt frontmatter (YAML parse error)[/yellow]")
+
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{dest}[/cyan] — replace the placeholder detection block with real Sigma conditions")
+    console.print("  2. Validate: [cyan]sigma check " + str(dest) + "[/cyan]")
+    console.print("  3. Convert to SIEM query: [cyan]sigma convert -t splunk " + str(dest) + "[/cyan]")
+    console.print()
+
+
 @click.command(name="promote")
 @click.argument("hunt_id")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")

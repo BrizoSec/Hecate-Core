@@ -29,6 +29,25 @@ _AGENT_REGISTRY: dict[str, dict] = {
             'athf agent run hypothesis-generator --threat-intel "..." --research R-0001',
         ],
     },
+    "pivot-suggester": {
+        "type": "LLM (auto-detect)",
+        "description": "Suggests next pivot queries given a suspicious finding",
+        "capabilities": [
+            "Finding characterisation and ATT&CK technique mapping",
+            "3-5 prioritised, actionable next pivot queries",
+            "Rationale grounded in adversary behaviour patterns",
+            "Past hunt cross-reference via full-text search",
+            "Environment context from knowledge/environment.md",
+            "Heuristic fallback mode (no LLM required)",
+            "Multi-provider support (Claude, GPT, Gemini, Ollama)",
+        ],
+        "usage": [
+            'athf agent run pivot-suggester --finding \'{"process": "powershell.exe", "parent": "winword.exe"}\'',
+            'athf agent run pivot-suggester --finding "suspicious outbound DNS to rare domain" --hunt H-0042',
+            'athf agent run pivot-suggester --finding \'{"user": "svc_backup", "dst_ip": "10.0.0.99"}\' --technique T1078',
+            "athf agent run pivot-suggester --finding '...' --no-llm  # offline heuristic mode",
+        ],
+    },
     "hunt-researcher": {
         "type": "LLM (auto-detect)",
         "description": "Conducts thorough pre-hunt research using 5-skill methodology",
@@ -159,7 +178,7 @@ def info(agent_name: str) -> None:
 @click.option("--threat-intel", help="Threat intelligence context (for hypothesis-generator)")
 @click.option("--research", help="Research document ID (e.g., R-0001) to load context from")
 @click.option("--topic", help="Research topic (for hunt-researcher)")
-@click.option("--technique", help="MITRE ATT&CK technique (for hunt-researcher)")
+@click.option("--technique", help="MITRE ATT&CK technique (for hunt-researcher / pivot-suggester)")
 @click.option(
     "--depth",
     type=click.Choice(["basic", "advanced"]),
@@ -168,6 +187,8 @@ def info(agent_name: str) -> None:
 )
 @click.option("--no-web-search", is_flag=True, help="Skip web search - offline mode (for hunt-researcher)")
 @click.option("--tactic", help="MITRE tactic filter")
+@click.option("--finding", help="Suspicious finding as JSON or plain text (for pivot-suggester)")
+@click.option("--hunt", "hunt_id", help="Current hunt ID for context (for pivot-suggester)")
 @click.option("--llm/--no-llm", default=True, help="Enable/disable LLM (default: enabled)")
 @click.option(
     "--output-format",
@@ -185,6 +206,8 @@ def run(  # noqa: C901
     depth: str,
     no_web_search: bool,
     tactic: Optional[str],
+    finding: Optional[str],
+    hunt_id: Optional[str],
     llm: bool,
     output_format: str,
 ) -> None:
@@ -360,6 +383,41 @@ def run(  # noqa: C901
             console.print(f"[red]Error: {e}[/red]")
             raise click.Abort()
 
+    elif agent_name == "pivot-suggester":
+        if not finding:
+            console.print("[red]Error: --finding required for pivot-suggester[/red]")
+            console.print('[dim]Example: --finding \'{"process": "powershell.exe", "parent": "winword.exe"}\'[/dim]')
+            raise click.Abort()
+
+        try:
+            from athf.agents.llm.pivot_suggester import PivotInput, PivotSuggesterAgent
+
+            agent_instance = PivotSuggesterAgent(llm_enabled=llm)
+            result = agent_instance.execute(PivotInput(
+                finding=finding,
+                hunt_id=hunt_id,
+                technique=technique,
+            ))
+
+            if not result.is_success:
+                console.print(f"[red]Error: {result.error}[/red]")
+                raise click.Abort()
+
+            if output_format == "json":
+                import dataclasses
+                console.print(json.dumps(dataclasses.asdict(result.data), indent=2), soft_wrap=True)
+            else:
+                _display_pivot_result(result)
+
+        except ImportError as e:
+            console.print(f"[red]Error loading agent: {e}[/red]")
+            console.print("\n[dim]Install an LLM provider:[/dim]")
+            console.print("  pip install 'athf[litellm]'   # All providers via LiteLLM")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+
     else:
         console.print(f"[red]Error: Unknown agent: {agent_name}[/red]")
         console.print("\n[dim]Available agents:[/dim]")
@@ -456,6 +514,38 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
                 f"[dim]Tokens: {result.metadata['prompt_tokens']} input + {result.metadata['completion_tokens']} output[/dim]"
             )
         console.print()
+
+
+def _display_pivot_result(result: Any) -> None:
+    """Display pivot suggester result."""
+    if not result.is_success:
+        console.print(f"[red]Error: {result.error}[/red]\n")
+        return
+
+    data = result.data
+    mode = result.metadata.get("mode", "llm")
+
+    console.print("\n[bold cyan]Pivot Analysis[/bold cyan]\n")
+    console.print(f"[bold]Finding:[/bold] {data.finding_summary}\n")
+
+    if data.technique_matches:
+        console.print(f"[bold]ATT&CK Techniques:[/bold] {', '.join(data.technique_matches)}\n")
+
+    if data.past_hunt_references:
+        console.print(f"[bold]Related Past Hunts:[/bold] {', '.join(data.past_hunt_references)}\n")
+
+    console.print("[bold cyan]Suggested Pivots[/bold cyan]")
+    console.print("─" * 60 + "\n")
+
+    for pivot in sorted(data.pivots, key=lambda p: p.priority):
+        hint = f" [{pivot.technique_hint}]" if pivot.technique_hint else ""
+        console.print(f"[bold yellow]{pivot.priority}.[/bold yellow] {pivot.query}{hint}")
+        console.print(f"   [dim]Data source:[/dim] {pivot.data_source}")
+        console.print(f"   [dim]Why:[/dim] {pivot.rationale}")
+        console.print()
+
+    if mode == "heuristic":
+        console.print("[dim]Note: Generated in heuristic mode (no LLM). Use --llm for richer suggestions.[/dim]\n")
 
 
 def _display_research_result(result: Any) -> None:

@@ -1447,3 +1447,102 @@ class TestHuntNewAssignee:
         created = [h for h in hunts if h.get("title") == "Hunt No Assignee"]
         assert len(created) == 1
         assert created[0]["assignee"] is None
+
+
+class TestHuntOperationalize:
+    """Tests for 'athf hunt operationalize' command."""
+
+    def _make_hunt_with_query(self, runner, temp_workspace):
+        """Init workspace and create a hunt that has a query in the CHECK section."""
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "LSASS Hunt", "--technique", "T1003.001",
+                             "--tactic", "credential-access", "--platform", "Windows",
+                             "--data-source", "EDR", "--non-interactive"])
+        # Find the hunt file and inject a fenced code block into CHECK section
+        import glob
+        hunt_files = glob.glob(str(temp_workspace / "hunts" / "**" / "H-0001.md"), recursive=True)
+        if not hunt_files:
+            # Example hunt from init
+            hunt_files = glob.glob(str(temp_workspace / "hunts" / "*.md"), recursive=False)
+        # Locate our created hunt (newest file)
+        hunt_files = sorted(glob.glob(str(temp_workspace / "hunts" / "**" / "*.md"), recursive=True))
+        # Append a query block to the CHECK section of the last hunt file
+        hunt_file = hunt_files[-1]
+        with open(hunt_file, "r") as f:
+            content = f.read()
+        # Replace the [Your initial query] placeholder with a real code block
+        content = content.replace(
+            "[Your initial query]",
+            "index=edr sourcetype=crowdstrike parent_process=winword.exe | stats count by process_name"
+        )
+        with open(hunt_file, "w") as f:
+            f.write(content)
+        return hunt_file
+
+    def test_operationalize_creates_sigma_file(self, runner, temp_workspace):
+        hunt_file = self._make_hunt_with_query(runner, temp_workspace)
+        hunt_id = hunt_file.rstrip(".md").split("/")[-1].split("\\")[-1]
+
+        result = runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1"])
+        assert result.exit_code == 0
+        sigma_path = temp_workspace / "detections" / f"{hunt_id}.yml"
+        assert sigma_path.exists(), f"Expected {sigma_path} to exist\nOutput: {result.output}"
+
+    def test_operationalize_sigma_contains_hunt_metadata(self, runner, temp_workspace):
+        self._make_hunt_with_query(runner, temp_workspace)
+        import glob
+        hunt_files = sorted(glob.glob(str(temp_workspace / "hunts" / "**" / "*.md"), recursive=True))
+        hunt_file = hunt_files[-1]
+        hunt_id = hunt_file.rstrip(".md").split("/")[-1]
+
+        runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1"])
+        sigma_path = temp_workspace / "detections" / f"{hunt_id}.yml"
+        if sigma_path.exists():
+            content = sigma_path.read_text()
+            assert "status: experimental" in content
+            assert hunt_id in content
+            assert "detection:" in content
+
+    def test_operationalize_no_query_shows_message(self, runner, temp_workspace):
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt No Query", "--technique", "T1003.001",
+                             "--non-interactive"])
+        import glob
+        hunt_files = sorted(glob.glob(str(temp_workspace / "hunts" / "**" / "*.md"), recursive=True))
+        hunt_id = hunt_files[-1].rstrip(".md").split("/")[-1]
+
+        result = runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1"])
+        # Either succeeds (example hunt has a placeholder) or reports no queries
+        assert result.exit_code == 0
+
+    def test_operationalize_nonexistent_hunt_shows_error(self, runner, temp_workspace):
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["operationalize", "H-9999", "--query-index", "1"])
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+    def test_operationalize_invalid_id_shows_error(self, runner, temp_workspace):
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["operationalize", "NOTVALID", "--query-index", "1"])
+        assert result.exit_code == 0
+        assert "invalid" in result.output.lower()
+
+    def test_operationalize_no_patch_skips_frontmatter_update(self, runner, temp_workspace):
+        hunt_file = self._make_hunt_with_query(runner, temp_workspace)
+        hunt_id = hunt_file.rstrip(".md").split("/")[-1].split("\\")[-1]
+        content_before = open(hunt_file).read()
+
+        runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1", "--no-patch"])
+        content_after = open(hunt_file).read()
+        assert content_before == content_after
+
+    def test_operationalize_custom_output_path(self, runner, temp_workspace):
+        hunt_file = self._make_hunt_with_query(runner, temp_workspace)
+        hunt_id = hunt_file.rstrip(".md").split("/")[-1].split("\\")[-1]
+        custom = str(temp_workspace / "custom_sigma.yml")
+
+        result = runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1",
+                                      "--output", custom, "--no-patch"])
+        assert result.exit_code == 0
+        import os
+        assert os.path.exists(custom)

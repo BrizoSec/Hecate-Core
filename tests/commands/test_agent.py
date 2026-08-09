@@ -132,3 +132,83 @@ class TestDisplayHypothesisGeneratorResult:
 
         assert "Warnings:" in output
         assert "T9999.999" in output
+
+
+class TestDisplayPivotResult:
+    """Tests for _display_pivot_result."""
+
+    def test_shows_finding_summary(self):
+        from click.testing import CliRunner
+        from athf.commands.agent import agent
+        from athf.agents.llm.pivot_suggester import PivotOutput, PivotSuggestion
+        from athf.agents.base import AgentResult
+
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "athf.agents.llm.pivot_suggester.PivotSuggesterAgent.execute"
+        ) as mock_exec:
+            mock_exec.return_value = AgentResult(
+                success=True,
+                data=PivotOutput(
+                    finding_summary="PowerShell spawned by Word.",
+                    technique_matches=["T1566.001"],
+                    pivots=[
+                        PivotSuggestion(
+                            query="Check network connections from powershell.exe",
+                            rationale="C2 beaconing",
+                            data_source="EDR",
+                            priority=1,
+                        )
+                    ],
+                    past_hunt_references=["H-0012"],
+                ),
+                metadata={"duration_ms": 10},
+            )
+            runner = CliRunner()
+            result = runner.invoke(
+                agent,
+                ["run", "pivot-suggester", "--finding",
+                 '{"process": "powershell.exe", "parent": "winword.exe"}', "--no-llm"],
+            )
+
+        assert result.exit_code == 0
+        assert "powershell.exe" in result.output or "Pivot" in result.output
+
+    def test_missing_finding_shows_error(self):
+        from click.testing import CliRunner
+        from athf.commands.agent import agent
+
+        runner = CliRunner()
+        result = runner.invoke(agent, ["run", "pivot-suggester"])
+        assert result.exit_code != 0 or "finding" in result.output.lower() or "error" in result.output.lower()
+
+    def test_heuristic_mode_runs_without_llm(self):
+        from click.testing import CliRunner
+        from athf.commands.agent import agent
+
+        runner = CliRunner()
+        result = runner.invoke(
+            agent,
+            ["run", "pivot-suggester", "--no-llm",
+             "--finding", '{"process": "cmd.exe", "parent": "explorer.exe"}'],
+        )
+        assert result.exit_code == 0
+        assert "cmd.exe" in result.output or "Pivot" in result.output
+
+    def test_pivot_suggester_listed_in_agent_list(self):
+        from click.testing import CliRunner
+        from athf.commands.agent import agent
+
+        runner = CliRunner()
+        result = runner.invoke(agent, ["list"])
+        assert result.exit_code == 0
+        assert "pivot-suggester" in result.output
+
+    def test_pivot_suggester_info_shows_capabilities(self):
+        from click.testing import CliRunner
+        from athf.commands.agent import agent
+
+        runner = CliRunner()
+        result = runner.invoke(agent, ["info", "pivot-suggester"])
+        assert result.exit_code == 0
+        assert "pivot" in result.output.lower()
+        assert "finding" in result.output.lower()
