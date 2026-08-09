@@ -45,11 +45,38 @@ Instead of copying queries and results back and forth between Claude and your to
 
 ## Getting Started
 
-Ready to try Level 3? We provide a complete Splunk MCP integration walkthrough:
+We provide two ways to integrate with Splunk:
 
-**[Start the Splunk walkthrough →](MCP_CATALOG.md)**
+### Option 1: Native Splunk API Integration (Python/CLI)
 
-Once you complete it, you'll understand how to integrate MCPs for any security tool.
+Built-in Python integration for direct Splunk REST API access. Best for:
+- CLI-based query execution
+- Python scripts and automation
+- Simpler setup without MCP infrastructure
+- Users who can't install Splunk MCP Server app
+
+**[Start with Native API Integration →](quickstart/splunk-api.md)**
+
+```bash
+# Quick start
+export SPLUNK_HOST="splunk.example.com"
+export SPLUNK_TOKEN="your-token-here"
+athf splunk test
+athf splunk search 'index=thrunt | head 10'  # Use thrunt index for all queries
+```
+
+### Option 2: MCP Integration (AI-Driven)
+
+Official Splunk MCP Server for AI-powered query execution. Best for:
+- Claude Code autonomous query execution
+- AI-assisted query generation and optimization
+- Full integration with Claude's analysis capabilities
+
+**[Start with MCP Integration →](quickstart/splunk.md)**
+
+**Recommendation:** Use both! Native API for scripts, MCP for AI workflows.
+
+Once you complete either integration, you'll understand how to extend ATHF with any security tool.
 
 ## Quick Example
 

@@ -5,7 +5,7 @@ from typing import Optional
 
 import pytest
 
-from athf.core.hunt_manager import HuntManager
+from athf.core.hunt_manager import HuntManager, get_hunt_directory
 
 
 def _write_hunt(
@@ -48,6 +48,82 @@ Content.
 Content.
 """
     (hunts_dir / f"{hunt_id}.md").write_text(content)
+
+
+@pytest.mark.unit
+class TestGetHuntDirectory:
+    """Test the get_hunt_directory function."""
+
+    def test_get_hunt_directory_production(self, monkeypatch):
+        """Test that the production directory is returned."""
+        from datetime import datetime
+        import athf.core.hunt_manager as hm
+        monkeypatch.setattr(hm, 'datetime', type('_FakeDatetime', (), {'now': staticmethod(lambda: datetime(2025, 1, 1))})())
+        assert get_hunt_directory() == Path("hunts/2025/Q1")
+
+    def test_get_hunt_directory_test(self, monkeypatch):
+        """Test that the test directory is returned."""
+        from datetime import datetime
+        import athf.core.hunt_manager as hm
+        monkeypatch.setattr(hm, 'datetime', type('_FakeDatetime', (), {'now': staticmethod(lambda: datetime(2025, 1, 1))})())
+        assert get_hunt_directory(is_test=True) == Path("hunts/test/2025/Q1")
+
+
+@pytest.mark.unit
+class TestFindHuntFile:
+    """Test the find_hunt_file function."""
+
+    def test_find_hunt_file_invalid_id(self, tmp_path):
+        """Test that an invalid hunt ID returns None."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.find_hunt_file("invalid-id") is None
+
+    def test_find_hunt_file_not_found(self, tmp_path):
+        """Test that a non-existent hunt ID returns None."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.find_hunt_file("H-9999") is None
+
+    def test_find_hunt_file_outside_hunts_dir(self, tmp_path):
+        """Test that a hunt file outside the hunts_dir is not found."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+        _write_hunt(outside_dir, "H-0001")
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.find_hunt_file("H-0001") is None
+
+
+@pytest.mark.unit
+class TestGetNextHuntId:
+    """Test the get_next_hunt_id function."""
+
+    def test_get_next_hunt_id_no_hunts(self, tmp_path):
+        """Test that the first hunt ID is correct."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.get_next_hunt_id() == "H-0001"
+
+    def test_get_next_hunt_id_custom_prefix(self, tmp_path):
+        """Test that a custom prefix is handled correctly."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.get_next_hunt_id(prefix="HUNT-") == "HUNT-0001"
+
+    def test_get_next_hunt_id_with_existing_hunts(self, tmp_path):
+        """Test that the next hunt ID is correct when hunts exist."""
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001")
+        _write_hunt(hunts_dir, "H-0002")
+        manager = HuntManager(hunts_dir=hunts_dir)
+        assert manager.get_next_hunt_id() == "H-0003"
 
 
 @pytest.mark.unit
