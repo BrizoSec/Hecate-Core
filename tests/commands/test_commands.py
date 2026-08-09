@@ -1346,3 +1346,104 @@ class TestHuntNewClone:
 
 
 # Run tests with: pytest tests/test_commands.py -v
+
+
+class TestHuntUpdateAssigneeReviewer:
+    """Tests for --assignee and --reviewer in hunt update command."""
+
+    def test_update_assignee_and_reviewer(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
+
+        result = runner.invoke(hunt, ["update", "H-0001", "--assignee", "alice", "--reviewer", "bob"])
+        assert result.exit_code == 0
+        assert "assignee" in result.output.lower()
+        assert "reviewer" in result.output.lower()
+
+        list_result = runner.invoke(hunt, ["list", "--output", "json"])
+        hunts = json.loads(list_result.output)
+        assert hunts[0]["assignee"] == "alice"
+        assert hunts[0]["reviewer"] == "bob"
+
+    def test_update_status_in_review(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
+
+        result = runner.invoke(hunt, ["update", "H-0001", "--status", "in_review"])
+        assert result.exit_code == 0
+
+        list_result = runner.invoke(hunt, ["list", "--output", "json"])
+        hunts = json.loads(list_result.output)
+        assert hunts[0]["status"] == "in_review"
+
+
+class TestHuntListAssignee:
+    """Tests for --assignee filter on hunt list command."""
+
+    def test_list_filter_by_assignee(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Alice Hunt", "--technique", "T1003.001", "--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Bob Hunt", "--technique", "T1003.001", "--non-interactive"])
+        runner.invoke(hunt, ["update", "H-0001", "--assignee", "alice"])
+
+        result = runner.invoke(hunt, ["list", "--assignee", "alice", "--output", "json"])
+        assert result.exit_code == 0
+        hunts = json.loads(result.output)
+        assert len(hunts) == 1
+        assert hunts[0]["assignee"] == "alice"
+
+    def test_list_assignee_shown_in_table(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
+        runner.invoke(hunt, ["update", "H-0001", "--assignee", "carol"])
+
+        # Verify via JSON (Rich may truncate narrow columns in table view)
+        result = runner.invoke(hunt, ["list", "--output", "json"])
+        assert result.exit_code == 0
+        hunts = json.loads(result.output)
+        assert any(h.get("assignee") == "carol" for h in hunts)
+
+    def test_list_status_in_review_filter(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt A", "--technique", "T1003.001", "--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt B", "--technique", "T1003.001", "--non-interactive"])
+        runner.invoke(hunt, ["update", "H-0001", "--status", "in_review"])
+
+        result = runner.invoke(hunt, ["list", "--status", "in_review", "--output", "json"])
+        assert result.exit_code == 0
+        hunts = json.loads(result.output)
+        assert len(hunts) == 1
+        assert hunts[0]["status"] == "in_review"
+
+
+class TestHuntNewAssignee:
+    """Tests for --assignee on hunt new command."""
+
+    def test_new_hunt_with_assignee(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["new", "--title", "Assignee Hunt", "--technique", "T1003.001",
+                                      "--assignee", "dave", "--non-interactive"])
+        assert result.exit_code == 0
+
+        list_result = runner.invoke(hunt, ["list", "--output", "json"])
+        hunts = json.loads(list_result.output)
+        # init copies example hunts too; find the one we just created
+        assert any(h.get("assignee") == "dave" for h in hunts)
+
+    def test_new_hunt_without_assignee(self, runner, temp_workspace):
+        import json
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt No Assignee", "--technique", "T1003.001", "--non-interactive"])
+
+        list_result = runner.invoke(hunt, ["list", "--output", "json"])
+        hunts = json.loads(list_result.output)
+        # The hunt we created should have no assignee
+        created = [h for h in hunts if h.get("title") == "Hunt No Assignee"]
+        assert len(created) == 1
+        assert created[0]["assignee"] is None

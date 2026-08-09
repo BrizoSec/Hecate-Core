@@ -19,6 +19,8 @@ techniques: {{ techniques }}
 data_sources: {{ data_sources }}
 related_hunts: []
 {% if spawned_from %}spawned_from: {{ spawned_from }}
+{% endif %}{% if assignee %}assignee: {{ assignee }}
+{% endif %}{% if reviewer %}reviewer: {{ reviewer }}
 {% endif %}{% if hypothesis_duration_minutes %}hypothesis_duration_minutes: {{ hypothesis_duration_minutes }}
 {% endif %}findings_count: 0
 true_positives: 0
@@ -182,7 +184,9 @@ platform: {{ platform }}
 data_sources: {{ data_sources }}
 dimension: {{ dimension if dimension else '[Field or behavior being characterized]' }}
 related_hunts: []
-findings_count: 0
+{% if assignee %}assignee: {{ assignee }}
+{% endif %}{% if reviewer %}reviewer: {{ reviewer }}
+{% endif %}findings_count: 0
 true_positives: 0
 false_positives: 0
 customer_deliverables: []
@@ -309,7 +313,9 @@ model_type: {{ model_type if model_type else '[clustering|z-score|IQR|isolation-
 features: {{ features if features else '[]' }}
 anomaly_threshold: {{ anomaly_threshold if anomaly_threshold else '[value]' }}
 related_hunts: []
-findings_count: 0
+{% if assignee %}assignee: {{ assignee }}
+{% endif %}{% if reviewer %}reviewer: {{ reviewer }}
+{% endif %}findings_count: 0
 true_positives: 0
 false_positives: 0
 customer_deliverables: []
@@ -476,6 +482,8 @@ def render_math_template(
     data_sources: Optional[list] = None,
     hunter: str = "[Your Name]",
     objective: Optional[str] = None,
+    assignee: Optional[str] = None,
+    reviewer: Optional[str] = None,
 ) -> str:
     """Render a model-assisted (M-ATH) hunt template with provided metadata.
 
@@ -516,6 +524,8 @@ def render_math_template(
         anomaly_threshold=anomaly_threshold,
         dataset=dataset,
         objective=objective,
+        assignee=assignee,
+        reviewer=reviewer,
     )
     return result
 
@@ -548,6 +558,8 @@ def render_baseline_template(
     data_sources: Optional[list] = None,
     hunter: str = "[Your Name]",
     objective: Optional[str] = None,
+    assignee: Optional[str] = None,
+    reviewer: Optional[str] = None,
 ) -> str:
     """Render a baseline (EDA) hunt template with provided metadata.
 
@@ -581,6 +593,8 @@ def render_baseline_template(
         tags=tags_str,
         dimension=dimension,
         objective=objective,
+        assignee=assignee,
+        reviewer=reviewer,
     )
     return result
 
@@ -622,6 +636,8 @@ def render_hunt_template(
     evidence: Optional[str] = None,
     spawned_from: Optional[str] = None,
     hypothesis_duration_minutes: Optional[float] = None,
+    assignee: Optional[str] = None,
+    reviewer: Optional[str] = None,
 ) -> str:
     """Render a hunt template with provided metadata.
 
@@ -676,5 +692,7 @@ def render_hunt_template(
         evidence=evidence,
         spawned_from=spawned_from,
         hypothesis_duration_minutes=hypothesis_duration_minutes,
+        assignee=assignee,
+        reviewer=reviewer,
     )
     return result

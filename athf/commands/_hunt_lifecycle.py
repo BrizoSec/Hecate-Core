@@ -395,9 +395,11 @@ def _build_brief(hunt_data: Dict[str, Any]) -> str:
 
 @click.command(name="update")
 @click.argument("hunt_id")
-@click.option("--status", help="Set status (planning, active, completed, archived)")
+@click.option("--status", help="Set status (planning, active, in_review, completed, archived)")
 @click.option("--title", help="Update hunt title")
 @click.option("--hunter", help="Update hunter name")
+@click.option("--assignee", help="Assign the hunt to a team member")
+@click.option("--reviewer", help="Set the reviewer for the hunt")
 @click.option("--true-positives", "true_positives", type=int, help="Set true positives count")
 @click.option("--false-positives", "false_positives", type=int, help="Set false positives count")
 @click.option("--findings-count", "findings_count", type=int, help="Set findings count")
@@ -408,6 +410,8 @@ def update_hunt(
     status: Optional[str],
     title: Optional[str],
     hunter: Optional[str],
+    assignee: Optional[str],
+    reviewer: Optional[str],
     true_positives: Optional[int],
     false_positives: Optional[int],
     findings_count: Optional[int],
@@ -469,6 +473,12 @@ def update_hunt(
     if hunter is not None:
         fm["hunter"] = hunter
         changed.append(f"hunter → {hunter}")
+    if assignee is not None:
+        fm["assignee"] = assignee
+        changed.append(f"assignee → {assignee}")
+    if reviewer is not None:
+        fm["reviewer"] = reviewer
+        changed.append(f"reviewer → {reviewer}")
     if true_positives is not None:
         fm["true_positives"] = true_positives
         changed.append(f"true_positives → {true_positives}")

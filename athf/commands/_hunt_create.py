@@ -53,6 +53,7 @@ def get_config_path() -> Path:
 @click.option("--location", help="Location/scope (for ABLE framework)")
 @click.option("--evidence", help="Evidence description (for ABLE framework)")
 @click.option("--hunter", help="Hunter name (default: from config, then 'Analyst')", default=None)
+@click.option("--assignee", help="Assign the hunt to a team member", default=None)
 @click.option("--clone", "clone_id", help="Clone metadata from an existing hunt (e.g., H-0013)")
 @click.option("--research", help="Research document ID (e.g., R-0001) this hunt is based on")
 @click.option(
@@ -76,6 +77,7 @@ def new(
     location: Optional[str],
     evidence: Optional[str],
     hunter: Optional[str],
+    assignee: Optional[str],
     clone_id: Optional[str],
     research: Optional[str],
     hypothesis_duration: Optional[float],
@@ -245,6 +247,7 @@ def new(
         evidence=evidence,
         spawned_from=research,
         hypothesis_duration_minutes=hypothesis_duration,
+        assignee=assignee,
     )
 
     # Write hunt file using hierarchical directory structure

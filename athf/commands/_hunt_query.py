@@ -66,14 +66,15 @@ def _render_progress_bar(covered: int, total: int, width: int = 20) -> str:
 
 
 @click.command(name="list")
-@click.option("--status", help="Filter by status (planning, active, completed)")
+@click.option("--status", help="Filter by status (planning, active, in_review, completed)")
 @click.option("--tactic", help="Filter by MITRE tactic")
 @click.option("--technique", help="Filter by MITRE technique (e.g., T1003.001)")
 @click.option("--platform", help="Filter by platform")
 @click.option("--directory", type=click.Choice(["test", "production"]), help="Filter by environment directory")
 @click.option("--type", "hunt_type", type=click.Choice(["hypothesis-driven", "baseline", "model-assisted"]), help="Filter by hunt type")
+@click.option("--assignee", help="Filter by assigned team member")
 @click.option("--output", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
-def list_hunts(status: str, tactic: str, technique: str, platform: str, directory: str, hunt_type: str, output: str) -> None:
+def list_hunts(status: str, tactic: str, technique: str, platform: str, directory: str, hunt_type: str, assignee: str, output: str) -> None:
     """List all hunts with filtering and formatting options.
 
     \b
@@ -117,7 +118,8 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
     """
     manager = HuntManager()
     hunts = manager.list_hunts(
-        status=status, tactic=tactic, technique=technique, platform=platform, directory=directory, hunt_type=hunt_type
+        status=status, tactic=tactic, technique=technique, platform=platform,
+        directory=directory, hunt_type=hunt_type, assignee=assignee,
     )
 
     if not hunts:
@@ -141,6 +143,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
     table.add_column("Title", style="white", no_wrap=True, max_width=30)
     table.add_column("Date", style="dim", no_wrap=True)
     table.add_column("Status", style="yellow", no_wrap=True)
+    table.add_column("Assignee", style="dim", no_wrap=True)
     table.add_column("Env", style="blue", no_wrap=True)
     table.add_column("Type", style="cyan", no_wrap=True)
     table.add_column("Technique", style="magenta", no_wrap=True)
@@ -153,6 +156,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         date_val = hunt.get("date") or "-"
         date_str = str(date_val) if date_val != "-" else "-"
         status_val = hunt.get("status", "")
+        assignee_val = hunt.get("assignee") or "-"
         environment = hunt.get("environment", "-")
         env_display = environment if environment else "-"
         # Only non-hypothesis-driven types stand out here -- hypothesis-driven
@@ -166,7 +170,7 @@ def list_hunts(status: str, tactic: str, technique: str, platform: str, director
         fp = hunt.get("false_positives", 0)
         findings_str = f"{tp + fp} ({tp} TP)" if (tp + fp) > 0 else "-"
 
-        table.add_row(hunt_id, title, date_str, status_val, env_display, type_display, technique_str, findings_str)
+        table.add_row(hunt_id, title, date_str, status_val, assignee_val, env_display, type_display, technique_str, findings_str)
 
     console.print(table)
     console.print()

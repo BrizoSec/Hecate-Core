@@ -146,6 +146,7 @@ class HuntManager:
         platform: Optional[str] = None,
         directory: Optional[str] = None,
         hunt_type: Optional[str] = None,
+        assignee: Optional[str] = None,
     ) -> List[Dict]:
         """List all hunts with optional filters.
 
@@ -198,6 +199,9 @@ class HuntManager:
                 if hunt_type and hunt_type_val != hunt_type:
                     continue
 
+                if assignee and frontmatter.get("assignee") != assignee:
+                    continue
+
                 # Extract summary info
                 date_val = frontmatter.get("date")
                 # Convert date objects to strings for JSON serialization
@@ -222,6 +226,8 @@ class HuntManager:
                         "environment": environment,
                         "hunt_type": hunt_type_val,
                         "spawned_from": frontmatter.get("spawned_from"),
+                        "assignee": frontmatter.get("assignee"),
+                        "reviewer": frontmatter.get("reviewer"),
                     }
                 )
 
