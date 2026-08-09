@@ -1,8 +1,29 @@
 """Manage hunt files and operations."""
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+def get_hunt_directory(is_test: bool = False) -> Path:
+    """Return the dated hunt output directory for new hunt files.
+
+    Args:
+        is_test: If True, returns the test directory; otherwise the dated
+                 production directory.
+
+    Returns:
+        Path of the form ``hunts/{YYYY}/{QX}/`` or ``hunts/test/{YYYY}/{QX}/``.
+    """
+    now = datetime.now()
+    year = str(now.year)
+    quarter = f"Q{(now.month - 1) // 3 + 1}"
+
+    if is_test:
+        return Path("hunts") / "test" / year / quarter
+
+    return Path("hunts") / year / quarter
 
 from athf.core.attack_matrix import get_sorted_tactics, get_tactic_technique_count, get_technique, get_total_techniques
 from athf.core.hunt_parser import parse_hunt_file

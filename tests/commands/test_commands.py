@@ -185,12 +185,12 @@ class TestHuntNewCommand:
         """
         import re
 
-        # Patch the provider lookup used by hunt.py. We patch on the
-        # module object directly because `athf.commands.hunt` has a
-        # click Group named `hunt` that shadows attribute-style lookup.
+        # Patch the provider lookup used by _hunt_create.py. We patch on
+        # the _hunt_create module because get_technique moved there during
+        # the hunt.py split.
         import sys
 
-        hunt_mod = sys.modules["athf.commands.hunt"]
+        create_mod = sys.modules["athf.commands._hunt_create"]
 
         def fake_get_technique(tid):
             if tid == "T1003.001":
@@ -201,7 +201,7 @@ class TestHuntNewCommand:
                 }
             return None
 
-        monkeypatch.setattr(hunt_mod, "get_technique", fake_get_technique)
+        monkeypatch.setattr(create_mod, "get_technique", fake_get_technique)
 
         runner.invoke(init, ["--non-interactive"])
 
@@ -241,8 +241,8 @@ class TestHuntNewCommand:
 
         import sys
 
-        hunt_mod = sys.modules["athf.commands.hunt"]
-        monkeypatch.setattr(hunt_mod, "get_technique", lambda _tid: None)
+        create_mod = sys.modules["athf.commands._hunt_create"]
+        monkeypatch.setattr(create_mod, "get_technique", lambda _tid: None)
 
         runner.invoke(init, ["--non-interactive"])
         result = runner.invoke(
@@ -449,6 +449,61 @@ class TestHuntOutputPath:
         )
         # File must not have moved
         assert len(list((temp_workspace / "hunts").rglob(f"{hunt_id}.md"))) == 1
+
+
+class TestHuntBinaryPath:
+    """Subprocess-level tests that invoke the real athf binary.
+
+    CliRunner runs commands in-process with '' (CWD) first in sys.path, so it
+    always loads local source code.  These tests spawn an actual subprocess to
+    catch the class of bug where a stale editable install in site-packages is
+    picked up by the binary's Python interpreter instead of the local source.
+    """
+
+    def test_binary_hunt_new_path_is_year_quarter(self, tmp_path):
+        """The athf binary must write new hunts to hunts/YYYY/QN/, not hunts/production/."""
+        import re
+        import shutil
+        import subprocess
+        from datetime import datetime
+
+        if not shutil.which("athf"):
+            pytest.skip("athf binary not on PATH")
+
+        subprocess.run(["athf", "init", "--non-interactive"], cwd=tmp_path, check=True, capture_output=True)
+        result = subprocess.run(
+            ["athf", "hunt", "new", "--title", "Binary Smoke Test", "--non-interactive"],
+            cwd=tmp_path, capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+        hunt_files = list((tmp_path / "hunts").rglob("H-*.md"))
+        assert hunt_files, "No hunt file created"
+
+        year = str(datetime.now().year)
+        for f in hunt_files:
+            parts = f.relative_to(tmp_path / "hunts").parts
+            assert "production" not in parts, (
+                f"Binary wrote hunt to 'production' subdirectory: {f}\n"
+                "Check that the installed editable package points to the current source."
+            )
+            assert parts[0] == year, f"Expected year {year} as first path component, got {parts[0]}"
+            assert re.match(r"Q[1-4]", parts[1]), f"Expected Q1-Q4, got {parts[1]}"
+
+    def test_binary_version_matches_source(self, tmp_path):
+        """athf --version must match athf.__version__.__version__."""
+        import shutil
+        import subprocess
+
+        if not shutil.which("athf"):
+            pytest.skip("athf binary not on PATH")
+
+        from athf.__version__ import __version__
+        result = subprocess.run(["athf", "--version"], capture_output=True, text=True)
+        assert __version__ in result.stdout, (
+            f"Binary version output {result.stdout!r} does not contain source version {__version__!r}.\n"
+            "Reinstall the editable package: pip install -e ."
+        )
 
 
 class TestHuntNewBaselineCommand:

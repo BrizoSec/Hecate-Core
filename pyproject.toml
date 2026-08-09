@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-threat-hunting-framework"
-version = "0.17.0"
+dynamic = ["version"]
 description = "Agentic Threat Hunting Framework - Memory and AI for threat hunters"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -65,6 +65,7 @@ dev = [
     "bandit[toml]>=1.7.0",
     "pre-commit>=3.0.0",
     "types-PyYAML>=6.0.0",
+    "mcp[cli]>=1.0.0,<2.0.0",
 ]
 docs = [
     "mkdocs>=1.5.0",
@@ -125,6 +126,9 @@ athf-mcp = "athf.mcp.server:cli"
 
 [tool.setuptools]
 packages = ["athf", "athf.agents", "athf.agents.llm", "athf.commands", "athf.core", "athf.data", "athf.mcp", "athf.mcp.tools", "athf.utils"]
+
+[tool.setuptools.dynamic]
+version = {attr = "athf.__version__.__version__"}
 
 [tool.setuptools.package-data]
 "athf.data" = [

@@ -1,0 +1,514 @@
+"""Hunt creation commands: new, new-baseline, new-model-assisted."""
+
+from pathlib import Path
+from typing import Optional, Tuple
+
+import click
+import yaml
+from rich.console import Console
+from rich.prompt import Prompt
+
+from athf.core.attack_matrix import get_technique
+from athf.core.hunt_manager import HuntManager, get_hunt_directory
+from athf.core.template_engine import render_baseline_template, render_hunt_template, render_math_template
+from athf.utils.validation import validate_hunt_id, validate_research_id
+
+console = Console()
+
+
+def _default_tactics_for_technique(technique_id: str) -> list:
+    """Best-effort tactic auto-derivation from an ATT&CK technique ID."""
+    if not technique_id:
+        return []
+    info = get_technique(technique_id)
+    if info:
+        return list(info.get("tactic_shortnames") or [])
+    return []
+
+
+def get_config_path() -> Path:
+    """Get config file path, checking new location first, then falling back to root."""
+    new_location = Path("config/.athfconfig.yaml")
+    old_location = Path(".athfconfig.yaml")
+
+    if new_location.exists():
+        return new_location
+    if old_location.exists():
+        return old_location
+    return new_location  # Default to new location for creation
+
+
+@click.command()
+@click.option("--technique", help="MITRE ATT&CK technique (e.g., T1003.001)")
+@click.option("--title", help="Hunt title")
+@click.option("--tactic", multiple=True, help="MITRE tactics (can specify multiple)")
+@click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
+@click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
+@click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+@click.option("--hypothesis", help="Full hypothesis statement")
+@click.option("--threat-context", help="Threat intel or context motivating the hunt")
+@click.option("--actor", help="Threat actor (for ABLE framework)")
+@click.option("--behavior", help="Behavior description (for ABLE framework)")
+@click.option("--location", help="Location/scope (for ABLE framework)")
+@click.option("--evidence", help="Evidence description (for ABLE framework)")
+@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--research", help="Research document ID (e.g., R-0001) this hunt is based on")
+@click.option(
+    "--hypothesis-duration",
+    type=float,
+    default=None,
+    help="Hypothesis generation duration in minutes (from athf agent run output)",
+)
+def new(
+    technique: Optional[str],
+    title: Optional[str],
+    tactic: Tuple[str, ...],
+    platform: Tuple[str, ...],
+    data_source: Tuple[str, ...],
+    test: bool,
+    non_interactive: bool,
+    hypothesis: Optional[str],
+    threat_context: Optional[str],
+    actor: Optional[str],
+    behavior: Optional[str],
+    location: Optional[str],
+    evidence: Optional[str],
+    hunter: Optional[str],
+    research: Optional[str],
+    hypothesis_duration: Optional[float],
+) -> None:
+    """Create a new hunt hypothesis with LOCK structure.
+
+    \b
+    Creates a hunt file with:
+    • Auto-generated hunt ID (H-XXXX format)
+    • YAML frontmatter with metadata
+    • LOCK pattern sections (Learn, Observe, Check, Keep)
+    • MITRE ATT&CK mapping
+    • Optional link to research document
+
+    \b
+    Interactive mode (default):
+      Guides you through hunt creation with prompts and suggestions.
+      Example: athf hunt new
+
+    \b
+    Non-interactive mode:
+      Provide all details via options for scripting.
+      Example: athf hunt new --technique T1003.001 --title "LSASS Dumping" \\
+               --tactic credential-access --platform Windows --non-interactive
+
+    \b
+    With research document:
+      Link a pre-hunt research document to the hunt.
+      Example: athf hunt new --research R-0001 --title "Hunt Title" --non-interactive
+
+    \b
+    After creation:
+      1. Edit hunts/H-XXXX.md to flesh out your hypothesis
+      2. Create query in queries/H-XXXX.spl
+      3. Execute hunt and document in runs/H-XXXX_YYYY-MM-DD.md
+    """
+    console.print("\n[bold cyan]🎯 Creating new hunt[/bold cyan]\n")
+
+    # Load config
+    config_path = get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {"hunt_prefix": "H-"}
+
+    hunt_prefix = config.get("hunt_prefix", "H-")
+
+    # Get next hunt ID
+    manager = HuntManager()
+    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
+
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    # Validate research document if provided
+    if research:
+        # Validate research ID format
+        if not validate_research_id(research):
+            console.print(f"[red]Error: Invalid research ID format: {research}[/red]")
+            console.print("[yellow]Expected format: R-0001[/yellow]")
+            return
+
+        research_file = Path("research") / f"{research}.md"
+
+        # Validate path is within research directory (Python 3.8 compatible)
+        try:
+            research_file.resolve().relative_to(Path("research").resolve())
+        except (ValueError, OSError):
+            console.print("[red]Error: Invalid research path[/red]")
+            return
+
+        if not research_file.exists():
+            console.print(f"[yellow]Warning: Research document {research} not found at {research_file}[/yellow]")
+            console.print("[yellow]Hunt will still be created, but research link may be broken.[/yellow]\n")
+
+    # Gather hunt details
+    if non_interactive:
+        if not title:
+            console.print("[red]Error: --title required in non-interactive mode[/red]")
+            return
+        hunt_title = title
+        hunt_technique = technique or "T1005"
+        if tactic:
+            hunt_tactics = list(tactic)
+        else:
+            derived = _default_tactics_for_technique(hunt_technique)
+            hunt_tactics = derived if derived else ["collection"]
+        hunt_platforms = list(platform) if platform else ["Windows"]
+        hunt_data_sources = list(data_source) if data_source else ["SIEM", "EDR"]
+    else:
+        # Interactive prompts
+        console.print("\n[bold]🔍 Let's build your hypothesis:[/bold]")
+
+        # Technique
+        hunt_technique = Prompt.ask("1. MITRE ATT&CK Technique (e.g., T1003.001)", default=technique or "")
+
+        # Title
+        hunt_title = Prompt.ask("2. Hunt Title", default=title or f"Hunt for {hunt_technique}")
+
+        # Tactics — auto-derive from technique when possible, otherwise prompt
+        # with a generic default the user is likely to override anyway.
+        console.print("\n3. Primary Tactic(s) (comma-separated):")
+        console.print("   Common: [cyan]persistence, credential-access, collection, lateral-movement[/cyan]")
+        if tactic:
+            tactic_default = ",".join(tactic)
+        else:
+            derived = _default_tactics_for_technique(hunt_technique)
+            tactic_default = ",".join(derived) if derived else "collection"
+        tactic_input = Prompt.ask("   Tactics", default=tactic_default)
+        hunt_tactics = [t.strip() for t in tactic_input.split(",")]
+
+        # Platform
+        console.print("\n4. Target Platform(s) (comma-separated):")
+        console.print("   Options: [cyan]Windows, Linux, macOS, Cloud, Network[/cyan]")
+        platform_input = Prompt.ask("   Platforms", default=",".join(platform) if platform else "Windows")
+        hunt_platforms = [p.strip() for p in platform_input.split(",")]
+
+        # Data sources
+        console.print("\n5. Data Sources (comma-separated):")
+        console.print(f"   Examples: [cyan]{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}, Network Logs[/cyan]")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
+        hunt_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    # Render template
+    hunt_content = render_hunt_template(
+        hunt_id=hunt_id,
+        title=hunt_title,
+        technique=hunt_technique,
+        tactics=hunt_tactics,
+        platform=hunt_platforms,
+        data_sources=hunt_data_sources,
+        hunter=hunter or "AI Assistant",
+        hypothesis=hypothesis,
+        threat_context=threat_context,
+        actor=actor,
+        behavior=behavior,
+        location=location,
+        evidence=evidence,
+        spawned_from=research,
+        hypothesis_duration_minutes=hypothesis_duration,
+    )
+
+    # Write hunt file using hierarchical directory structure
+    hunt_dir = get_hunt_directory(is_test=test)
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
+
+    # Validate path is within hunts directory (Python 3.8 compatible)
+    try:
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
+    except (ValueError, OSError):
+        console.print("[red]Error: Invalid hunt file path[/red]")
+        return
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(hunt_content)
+
+    console.print(f"\n[bold green]✅ Created {hunt_id}: {hunt_title}[/bold green]")
+
+    # Link hunt back to research document (issue #14)
+    if research:
+        try:
+            from athf.core.research_manager import ResearchManager
+
+            research_mgr = ResearchManager()
+            if research_mgr.link_hunt_to_research(research, hunt_id):
+                console.print(f"[dim]Linked {hunt_id} to research {research}[/dim]")
+            else:
+                console.print(f"[yellow]Warning: Could not link {hunt_id} to research {research}[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not update research document: {e}[/yellow]")
+
+    # Easter egg: Hunt #100 milestone
+    if hunt_id.endswith("0100"):
+        console.print("\n[bold yellow]✨ Milestone Achievement: Hunt #100 ✨[/bold yellow]\n")
+        console.print("[italic]You've built serious hunting muscle memory.")
+        console.print("This is where threat hunting programs transform from reactive to proactive.")
+        console.print("Keep building that institutional knowledge.[/italic]\n")
+
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to flesh out your hypothesis")
+    console.print("  2. Document your hunt using the LOCK pattern")
+    console.print("  3. View all hunts: [cyan]athf hunt list[/cyan]")
+
+
+@click.command(name="new-baseline")
+@click.option("--title", help="Baseline hunt title")
+@click.option("--dimension", help="Field or behavior being characterized (e.g. 'parent-child process pairs')")
+@click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
+@click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
+@click.option("--objective", help="Why this baseline matters / what it's establishing")
+@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+def new_baseline(
+    title: Optional[str],
+    dimension: Optional[str],
+    platform: Tuple[str, ...],
+    data_source: Tuple[str, ...],
+    objective: Optional[str],
+    hunter: Optional[str],
+    test: bool,
+    non_interactive: bool,
+) -> None:
+    """Create a new baseline (EDA) hunt -- PEAK's hypothesis-free hunt type.
+
+    \b
+    Unlike `hunt new`, a baseline hunt has no hypothesis: it characterizes
+    "what's normal" for a dimension (a field, a behavior pattern) so
+    candidate anomalies can be identified and spun into hypothesis-driven
+    follow-up hunts later. Uses the same H-XXXX ID sequence and LOCK section
+    headings as regular hunts (so `hunt list`, `hunt validate`, `hunt export`,
+    and `hunt brief` all work on it unchanged) -- filter to just this type
+    with `hunt list --type baseline`.
+
+    \b
+    Examples:
+      athf hunt new-baseline --title "Parent-Child Process Baseline" \\
+          --dimension "parent_process -> child_process pairs" \\
+          --platform Windows --data-source EDR --non-interactive
+
+    \b
+    After creation:
+      1. Run frequency/cardinality/rarity queries and document "what's normal"
+      2. Record candidate anomalies in the KEEP section
+      3. For anomalies worth pursuing: athf hunt new --hypothesis "..." then
+         set spawned_from to this baseline's hunt_id, and add the new hunt's
+         ID to this baseline's related_hunts
+    """
+    console.print("\n[bold cyan]📊 Creating new baseline hunt[/bold cyan]\n")
+
+    config_path = get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {"hunt_prefix": "H-"}
+
+    hunt_prefix = config.get("hunt_prefix", "H-")
+
+    manager = HuntManager()
+    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
+
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    if non_interactive:
+        if not title:
+            console.print("[red]Error: --title required in non-interactive mode[/red]")
+            return
+        baseline_title = title
+        baseline_dimension = dimension
+        baseline_platforms = list(platform) if platform else ["Windows"]
+        baseline_data_sources = list(data_source) if data_source else ["SIEM", "EDR"]
+    else:
+        console.print("\n[bold]📊 Let's scope your baseline:[/bold]")
+
+        baseline_dimension = Prompt.ask(
+            "1. Dimension being characterized (e.g. 'parent-child process pairs')", default=dimension or ""
+        )
+        baseline_title = Prompt.ask("2. Baseline Title", default=title or f"Baseline: {baseline_dimension}")
+
+        console.print("\n3. Target Platform(s) (comma-separated):")
+        console.print("   Options: [cyan]Windows, Linux, macOS, Cloud, Network[/cyan]")
+        platform_input = Prompt.ask("   Platforms", default=",".join(platform) if platform else "Windows")
+        baseline_platforms = [p.strip() for p in platform_input.split(",")]
+
+        console.print("\n4. Data Sources (comma-separated):")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
+        baseline_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    baseline_content = render_baseline_template(
+        hunt_id=hunt_id,
+        title=baseline_title,
+        dimension=baseline_dimension,
+        platform=baseline_platforms,
+        data_sources=baseline_data_sources,
+        hunter=hunter or "AI Assistant",
+        objective=objective,
+    )
+
+    hunt_dir = get_hunt_directory(is_test=test)
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
+
+    try:
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
+    except (ValueError, OSError):
+        console.print("[red]Error: Invalid hunt file path[/red]")
+        return
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(baseline_content)
+
+    console.print(f"\n[bold green]✅ Created {hunt_id}: {baseline_title}[/bold green]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to run baseline queries and document what's normal")
+    console.print("  2. Record candidate anomalies in the KEEP section")
+    console.print("  3. Spin worthwhile anomalies into hypothesis-driven hunts: [cyan]athf hunt new[/cyan]")
+
+
+@click.command(name="new-model-assisted")
+@click.option("--title", help="Hunt title")
+@click.option("--model-type", "model_type", help="Statistical/ML model type (clustering, z-score, IQR, isolation-forest, other)")
+@click.option("--features", help="Comma-separated list of fields/dimensions fed into the model")
+@click.option("--anomaly-threshold", "anomaly_threshold", help="Anomaly score cutoff value")
+@click.option("--dataset", help="Table, index, or data source being modeled")
+@click.option("--platform", multiple=True, help="Target platforms (can specify multiple)")
+@click.option("--data-source", multiple=True, help="Data sources (can specify multiple)")
+@click.option("--objective", help="Why model-assisted over manual EDA")
+@click.option("--hunter", help="Hunter name", default="AI Assistant")
+@click.option("--test", is_flag=True, help="Create as test hunt (hunts/test/...) instead of production")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive prompts")
+def new_model_assisted(
+    title: Optional[str],
+    model_type: Optional[str],
+    features: Optional[str],
+    anomaly_threshold: Optional[str],
+    dataset: Optional[str],
+    platform: Tuple[str, ...],
+    data_source: Tuple[str, ...],
+    objective: Optional[str],
+    hunter: Optional[str],
+    test: bool,
+    non_interactive: bool,
+) -> None:
+    """Create a new model-assisted (M-ATH) hunt -- PEAK's third Execute-phase hunt type.
+
+    \b
+    Unlike hypothesis-driven or baseline hunts, a model-assisted hunt uses
+    statistical or ML models (clustering, z-score, IQR, isolation forest) over
+    telemetry to surface anomalies at scale -- useful when data volume makes
+    manual EDA impractical. Anomalies surfaced here become leads for
+    hypothesis-driven follow-up hunts. Uses the same H-XXXX ID sequence and
+    LOCK section headings as other hunt types -- filter with
+    `hunt list --type model-assisted`.
+
+    \b
+    Examples:
+      athf hunt new-model-assisted --title "Process Execution Clustering" \\
+          --model-type clustering --features "process.name,parent.process.name,user.name" \\
+          --dataset "endpoint_events" --platform Windows --data-source EDR --non-interactive
+
+    \b
+    After creation:
+      1. Extract feature vectors and run model, document anomaly score distribution
+      2. Record candidate leads in the KEEP section
+      3. For leads worth pursuing: athf hunt new --hypothesis "..." then
+         set spawned_from to this hunt's ID, and add the new hunt's ID to
+         this hunt's related_hunts
+    """
+    console.print("\n[bold cyan]🤖 Creating new model-assisted hunt[/bold cyan]\n")
+
+    config_path = get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {"hunt_prefix": "H-"}
+
+    hunt_prefix = config.get("hunt_prefix", "H-")
+
+    manager = HuntManager()
+    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
+
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
+
+    if non_interactive:
+        if not title:
+            console.print("[red]Error: --title required in non-interactive mode[/red]")
+            return
+        math_title = title
+        math_model_type = model_type
+        math_features = [f.strip() for f in features.split(",")] if features else []
+        math_anomaly_threshold = anomaly_threshold
+        math_dataset = dataset
+        math_platforms = list(platform) if platform else ["Windows"]
+        math_data_sources = list(data_source) if data_source else ["SIEM", "EDR"]
+    else:
+        console.print("\n[bold]🤖 Let's scope your model-assisted hunt:[/bold]")
+
+        math_model_type = Prompt.ask(
+            "1. Model type (clustering, z-score, IQR, isolation-forest, other)",
+            default=model_type or "z-score",
+        )
+        math_title = Prompt.ask("2. Hunt Title", default=title or f"Model-Assisted: {math_model_type}")
+
+        features_input = Prompt.ask(
+            "3. Features/fields to analyze (comma-separated)",
+            default=features or "",
+        )
+        math_features = [f.strip() for f in features_input.split(",") if f.strip()]
+
+        math_dataset = Prompt.ask("4. Dataset/index being modeled", default=dataset or "")
+        math_anomaly_threshold = Prompt.ask("5. Anomaly threshold", default=anomaly_threshold or "")
+
+        console.print("\n6. Target Platform(s) (comma-separated):")
+        console.print("   Options: [cyan]Windows, Linux, macOS, Cloud, Network[/cyan]")
+        platform_input = Prompt.ask("   Platforms", default=",".join(platform) if platform else "Windows")
+        math_platforms = [p.strip() for p in platform_input.split(",")]
+
+        console.print("\n7. Data Sources (comma-separated):")
+        default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
+        ds_input = Prompt.ask("   Data Sources", default=default_sources)
+        math_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    math_content = render_math_template(
+        hunt_id=hunt_id,
+        title=math_title,
+        model_type=math_model_type,
+        features=math_features,
+        anomaly_threshold=math_anomaly_threshold,
+        dataset=math_dataset,
+        platform=math_platforms,
+        data_sources=math_data_sources,
+        hunter=hunter or "AI Assistant",
+        objective=objective,
+    )
+
+    hunt_dir = get_hunt_directory(is_test=test)
+    hunt_dir.mkdir(parents=True, exist_ok=True)
+    hunt_file = hunt_dir / f"{hunt_id}.md"
+
+    try:
+        hunt_file.resolve().relative_to(Path("hunts").resolve())
+    except (ValueError, OSError):
+        console.print("[red]Error: Invalid hunt file path[/red]")
+        return
+
+    with open(hunt_file, "w", encoding="utf-8") as f:
+        f.write(math_content)
+
+    console.print(f"\n[bold green]✅ Created {hunt_id}: {math_title}[/bold green]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{hunt_file}[/cyan] to run the model and document anomalies surfaced")
+    console.print("  2. Record candidate leads in the KEEP section")
+    console.print("  3. Spin worthwhile leads into hypothesis-driven hunts: [cyan]athf hunt new[/cyan]")

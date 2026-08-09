@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from athf.core.hunt_manager import get_hunt_directory
 from athf.mcp.server import get_workspace, _json_result
 
 
@@ -159,11 +160,13 @@ def register_hunt_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]  
             spawned_from=research_id,
         )
 
-        from datetime import datetime
-
-        now = datetime.now()
-        quarter = f"Q{(now.month - 1) // 3 + 1}"
-        hunt_dir = workspace / "hunts" / "production" / str(now.year) / quarter
+        import os
+        _orig_cwd = os.getcwd()
+        try:
+            os.chdir(workspace)
+            hunt_dir = workspace / get_hunt_directory(is_test=False)
+        finally:
+            os.chdir(_orig_cwd)
         hunt_dir.mkdir(parents=True, exist_ok=True)
         hunt_file = hunt_dir / f"{hunt_id}.md"
 

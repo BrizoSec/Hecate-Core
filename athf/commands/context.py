@@ -157,12 +157,8 @@ def _build_context(  # noqa: C901
 
     # Always include environment.md
     env_path = Path("knowledge") / "environment.md"
-    import sys as _sys, os as _os
-    print(f"DEBUG CWD={_os.getcwd()} env_path={env_path.resolve()} exists={env_path.exists()}", file=_sys.stderr)
     if env_path.exists():
-        result = _read_and_optimize(env_path)
-        print(f"DEBUG _read_and_optimize returned len={len(result)}", file=_sys.stderr)
-        context["environment"] = result
+        context["environment"] = _read_and_optimize(env_path)
 
     # Always include hunts/INDEX.md
     index_path = Path("hunts/INDEX.md")
@@ -445,7 +441,3 @@ def _format_as_markdown(context_data: Dict[str, Any]) -> str:
 
     return md
 
-# DEBUG TEMP
-import os as _os
-_debug_env = _os.path.join(_os.getcwd(), "knowledge", "environment.md")
-print(f"DEBUG: CWD={_os.getcwd()}, env_exists={_os.path.exists(_debug_env)}", file=__import__('sys').stderr)

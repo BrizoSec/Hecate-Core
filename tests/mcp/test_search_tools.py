@@ -74,8 +74,10 @@ LSASS process memory contains credentials that adversaries dump via comsvcs.dll 
 """
     (hunts_dir / "H-0003.md").write_text(hunt3_content)
 
-    # environment.md
-    (tmp_path / "environment.md").write_text("# Environment\nSIEM: Splunk\nEDR: CrowdStrike\n")
+    # environment.md — must be at knowledge/environment.md (where context tool reads it)
+    knowledge_dir = tmp_path / "knowledge"
+    knowledge_dir.mkdir(exist_ok=True)
+    (knowledge_dir / "environment.md").write_text("# Environment\nSIEM: Splunk\nEDR: CrowdStrike\n")
 
     return tmp_path
 
