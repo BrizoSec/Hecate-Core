@@ -370,6 +370,87 @@ class TestHuntNewCommand:
         assert "[Threat actor or malware family]" not in content
 
 
+class TestHuntOutputPath:
+    """Ensure hunt files land in hunts/{year}/{quarter}/, never in hunts/production/."""
+
+    def test_hunt_new_path_is_year_quarter(self, runner, temp_workspace):
+        """Production hunts must be written to hunts/{year}/{quarter}/, not hunts/production/."""
+        import re
+        from datetime import datetime
+
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["new", "--title", "Path Check Hunt", "--non-interactive"])
+
+        assert result.exit_code == 0
+        match = re.search(r"Created (H-\d+)", result.output)
+        assert match, f"No hunt ID in output: {result.output}"
+        hunt_id = match.group(1)
+
+        hunt_files = list((temp_workspace / "hunts").rglob(f"{hunt_id}.md"))
+        assert len(hunt_files) == 1, f"Expected exactly 1 hunt file, found {len(hunt_files)}"
+        hunt_file = hunt_files[0]
+
+        parts = hunt_file.relative_to(temp_workspace / "hunts").parts
+        # Must be exactly (year, quarter, filename) — no 'production' prefix
+        assert len(parts) == 3, f"Expected hunts/YYYY/QN/H-XXXX.md, got hunts/{'/'.join(parts)}"
+        year_part, quarter_part, _ = parts
+        assert year_part == str(datetime.now().year), f"Expected year {datetime.now().year}, got {year_part}"
+        assert re.match(r"Q[1-4]", quarter_part), f"Expected Q1-Q4, got {quarter_part}"
+
+    def test_hunt_new_never_creates_production_directory(self, runner, temp_workspace):
+        """The word 'production' must not appear in any part of a new hunt's file path."""
+        import re
+
+        runner.invoke(init, ["--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Anti-Production Hunt", "--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Anti-Production Hunt 2", "--non-interactive"])
+
+        hunt_files = list((temp_workspace / "hunts").rglob("H-*.md"))
+        for f in hunt_files:
+            assert "production" not in f.parts, (
+                f"Hunt file landed in a 'production' directory: {f}\n"
+                "get_hunt_directory() must return hunts/YYYY/QN/, not hunts/production/YYYY/QN/"
+            )
+
+    def test_hunt_new_test_flag_creates_in_test_path(self, runner, temp_workspace):
+        """Hunts created with --test must land in hunts/test/{year}/{quarter}/."""
+        import re
+        from datetime import datetime
+
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["new", "--title", "Test-Flag Hunt", "--test", "--non-interactive"])
+
+        assert result.exit_code == 0
+        match = re.search(r"Created (H-\d+)", result.output)
+        assert match, f"No hunt ID in output: {result.output}"
+        hunt_id = match.group(1)
+
+        hunt_files = list((temp_workspace / "hunts").rglob(f"{hunt_id}.md"))
+        assert len(hunt_files) == 1
+        hunt_file = hunt_files[0]
+
+        parts = hunt_file.relative_to(temp_workspace / "hunts").parts
+        assert parts[0] == "test", f"Expected hunts/test/YYYY/QN/, got hunts/{'/'.join(parts)}"
+        assert parts[1] == str(datetime.now().year)
+        assert re.match(r"Q[1-4]", parts[2])
+
+    def test_promote_rejects_non_test_hunt(self, runner, temp_workspace):
+        """promote must reject a hunt that is not in a test/ directory."""
+        import re
+
+        runner.invoke(init, ["--non-interactive"])
+        result = runner.invoke(hunt, ["new", "--title", "Regular Hunt", "--non-interactive"])
+        match = re.search(r"Created (H-\d+)", result.output)
+        hunt_id = match.group(1)
+
+        promote_result = runner.invoke(hunt, ["promote", hunt_id, "--yes"])
+        assert "not in a test directory" in promote_result.output, (
+            f"Expected 'not in a test directory' message, got: {promote_result.output}"
+        )
+        # File must not have moved
+        assert len(list((temp_workspace / "hunts").rglob(f"{hunt_id}.md"))) == 1
+
+
 class TestHuntNewBaselineCommand:
     """Test suite for athf hunt new-baseline command."""
 

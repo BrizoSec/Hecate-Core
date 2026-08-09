@@ -1162,10 +1162,7 @@ def promote_hunt(hunt_id: str, yes: bool) -> None:
 
     # Check hunt is in test directory
     if "test" not in hunt_file.parts:
-        if "production" in hunt_file.parts:
-            console.print(f"[yellow]{hunt_id} is already in production: {hunt_file}[/yellow]")
-        else:
-            console.print(f"[yellow]{hunt_id} is not in a test directory: {hunt_file}[/yellow]")
+        console.print(f"[yellow]{hunt_id} is not in a test directory: {hunt_file}[/yellow]")
         return
 
     # Calculate production destination
