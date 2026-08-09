@@ -372,3 +372,114 @@ class TestParseCache:
 
         assert [h["hunt_id"] for h in HuntManager(hunts_dir=dir_a).list_hunts()] == ["H-0001"]
         assert [h["hunt_id"] for h in HuntManager(hunts_dir=dir_b).list_hunts()] == ["H-0002"]
+
+    def test_dead_directory_evicted_from_cache(self, tmp_path):
+        """Cache entries for directories that no longer exist should be evicted
+        when a new cache write happens (Item 2 — dead-entry eviction)."""
+        dir_a = tmp_path / "a" / "hunts"
+        dir_a.mkdir(parents=True)
+        _write_hunt(dir_a, "H-0001")
+        HuntManager(hunts_dir=dir_a).list_hunts()  # populate cache
+
+        # dir_a now in cache; destroy it
+        import shutil
+        shutil.rmtree(dir_a)
+
+        # A write from a different dir should evict the stale dir_a entry
+        dir_b = tmp_path / "b" / "hunts"
+        dir_b.mkdir(parents=True)
+        _write_hunt(dir_b, "H-0002")
+        HuntManager(hunts_dir=dir_b).list_hunts()  # triggers eviction
+
+        stale_key = dir_a.resolve()
+        assert stale_key not in HuntManager._parse_cache
+
+
+@pytest.mark.unit
+class TestSearchHunts:
+    """Test HuntManager.search_hunts() — uses the parse cache."""
+
+    def test_search_finds_by_title(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001")
+
+        results = HuntManager(hunts_dir=hunts_dir).search_hunts("Test Hunt H-0001")
+        assert len(results) == 1
+        assert results[0]["hunt_id"] == "H-0001"
+
+    def test_search_returns_empty_for_no_match(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001")
+
+        results = HuntManager(hunts_dir=hunts_dir).search_hunts("xyzzy-not-present")
+        assert results == []
+
+    def test_search_finds_by_technique(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001", techniques=["T1003.001"])
+
+        results = HuntManager(hunts_dir=hunts_dir).search_hunts("T1003.001")
+        assert any(r["hunt_id"] == "H-0001" for r in results)
+
+    def test_search_directory_filter(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        test_subdir = hunts_dir / "test" / "2025" / "Q1"
+        prod_subdir = hunts_dir / "production" / "2025" / "Q1"
+        test_subdir.mkdir(parents=True)
+        prod_subdir.mkdir(parents=True)
+        _write_hunt(test_subdir, "H-0001")
+        _write_hunt(prod_subdir, "H-0002")
+
+        results = HuntManager(hunts_dir=hunts_dir).search_hunts("Test Hunt", directory="test")
+        assert all(r.get("environment") == "test" for r in results)
+
+    def test_search_reuses_cache(self, tmp_path, monkeypatch):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001")
+
+        import athf.core.hunt_manager as hm
+        call_count = {"n": 0}
+        real_fast = hm.parse_hunt_file_fast
+
+        def counting(path):
+            call_count["n"] += 1
+            return real_fast(path)
+
+        monkeypatch.setattr(hm, "parse_hunt_file_fast", counting)
+
+        HuntManager(hunts_dir=hunts_dir).search_hunts("anything")
+        n_after_first = call_count["n"]
+        HuntManager(hunts_dir=hunts_dir).search_hunts("anything")
+        assert call_count["n"] == n_after_first  # second call served from cache
+
+
+@pytest.mark.unit
+class TestCalculateStatsEdgeCases:
+    """Additional edge cases for calculate_stats."""
+
+    def test_empty_hunts_dir_returns_zeros(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        stats = HuntManager(hunts_dir=hunts_dir).calculate_stats()
+        assert stats["total_hunts"] == 0
+        assert stats["success_rate"] == 0.0
+
+    def test_tp_fp_ratio_infinity_when_no_fp(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001", status="completed", true_positives=2)
+        stats = HuntManager(hunts_dir=hunts_dir).calculate_stats()
+        assert stats["tp_fp_ratio"] == "∞"
+
+    def test_model_assisted_hunts_counted(self, tmp_path):
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        _write_hunt(hunts_dir, "H-0001", hunt_type="model-assisted", status="completed")
+        stats = HuntManager(hunts_dir=hunts_dir).calculate_stats()
+        assert stats["model_assisted_hunts"] == 1
+        # model-assisted excluded from success_rate denominator
+        assert stats["success_rate"] == 0.0

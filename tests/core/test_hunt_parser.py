@@ -331,4 +331,102 @@ title: Test Hunt
             parse_hunt_file(Path("/nonexistent/path/hunt.md"))
 
 
+class TestParseWithoutLockSections:
+    """Test the fast-parse path that skips LOCK-section extraction."""
+
+    def test_returns_frontmatter_and_content(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(VALID_HUNT)
+            temp_path = f.name
+        try:
+            parser = HuntParser(Path(temp_path))
+            data = parser.parse_without_lock_sections()
+            assert data["frontmatter"]["hunt_id"] == "H-0001"
+            assert data["content"] != ""
+            assert data["lock_sections"] == {}
+        finally:
+            os.unlink(temp_path)
+
+    def test_fast_convenience_function(self):
+        from athf.core.hunt_parser import parse_hunt_file_fast
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(VALID_HUNT)
+            temp_path = f.name
+        try:
+            data = parse_hunt_file_fast(Path(temp_path))
+            assert data["hunt_id"] == "H-0001"
+            assert data["lock_sections"] == {}
+        finally:
+            os.unlink(temp_path)
+
+    def test_fast_parse_raises_for_missing_file(self):
+        from athf.core.hunt_parser import parse_hunt_file_fast
+        with pytest.raises(FileNotFoundError):
+            parse_hunt_file_fast(Path("/nonexistent/hunt.md"))
+
+    def test_content_is_searchable(self):
+        """Fast parse must preserve body content so search_hunts() still works."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(VALID_HUNT)
+            temp_path = f.name
+        try:
+            from athf.core.hunt_parser import parse_hunt_file_fast
+            data = parse_hunt_file_fast(Path(temp_path))
+            assert "Hypothesis" in data["content"]
+        finally:
+            os.unlink(temp_path)
+
+
+class TestTacticValidation:
+    """Test tactic name validation in HuntParser.validate()."""
+
+    def test_valid_tactics_pass(self, tmp_path):
+        hunt_file = tmp_path / "H-0001.md"
+        hunt_file.write_text(VALID_HUNT)  # uses credential-access which is valid
+        parser = HuntParser(hunt_file)
+        parser.parse()
+        is_valid, errors = parser.validate()
+        assert not any("tactic" in e.lower() for e in errors)
+
+    def test_invalid_tactic_reported(self, tmp_path):
+        bad_tactic_hunt = """---
+hunt_id: H-0001
+title: Test Hunt
+status: completed
+date: 2025-12-02
+tactics: [not-a-real-tactic]
+techniques: [T1003.001]
+platform: [Windows]
+data_sources: [windows-event-logs]
+---
+
+## LEARN: Prepare the Hunt
+Content.
+## OBSERVE: Expected Behaviors
+Content.
+## CHECK: Execute & Analyze
+Content.
+## KEEP: Findings & Response
+Content.
+"""
+        hunt_file = tmp_path / "H-0001.md"
+        hunt_file.write_text(bad_tactic_hunt)
+        parser = HuntParser(hunt_file)
+        parser.parse()
+        is_valid, errors = parser.validate()
+        assert not is_valid
+        assert any("tactic" in e.lower() and "not-a-real-tactic" in e for e in errors)
+
+    def test_non_string_tactics_skipped(self, tmp_path):
+        """None or non-str entries in tactics list must not crash validation."""
+        hunt_file = tmp_path / "H-0001.md"
+        hunt_file.write_text(VALID_HUNT)
+        parser = HuntParser(hunt_file)
+        parser.parse()
+        parser.frontmatter["tactics"] = [None, 42, "credential-access"]
+        # Should not raise
+        is_valid, errors = parser.validate()
+        assert not any("tactic" in e.lower() for e in errors)
+
+
 # Run tests with: pytest tests/test_hunt_parser.py -v

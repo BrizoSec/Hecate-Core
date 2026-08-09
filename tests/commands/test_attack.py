@@ -194,6 +194,139 @@ class TestAttackUpdate:
 
 
 @pytest.mark.unit
+class TestAttackGap:
+    """Test 'athf attack gap' command."""
+
+    def setup_method(self):
+        from athf.core import attack_matrix
+        attack_matrix.reset_provider(attack_matrix.FallbackProvider())
+
+    def test_gap_without_stix_shows_message(self):
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap"])
+        assert result.exit_code == 0
+        assert "not available" in result.output.lower() or "requires" in result.output.lower()
+
+    def test_gap_with_stix_returns_table(self, monkeypatch):
+        fake_techs = [
+            {"id": "T1001", "name": "Data Obfuscation", "is_subtechnique": False, "platforms": ["Windows"]},
+            {"id": "T1002", "name": "Data Compressed", "is_subtechnique": False, "platforms": ["Windows"]},
+        ]
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap"])
+        assert result.exit_code == 0
+        assert "T1001" in result.output or "Gap" in result.output or "uncovered" in result.output.lower()
+
+    def test_gap_json_output(self, monkeypatch):
+        fake_techs = [
+            {"id": "T1001", "name": "Data Obfuscation", "is_subtechnique": False, "platforms": ["Windows"]},
+        ]
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap", "--output", "json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert isinstance(payload, list)
+        assert payload[0]["id"] == "T1001"
+
+    def test_gap_no_subtechniques_flag(self, monkeypatch):
+        fake_techs = [
+            {"id": "T1001", "name": "Parent", "is_subtechnique": False, "platforms": ["Windows"]},
+            {"id": "T1001.001", "name": "Sub", "is_subtechnique": True, "platforms": ["Windows"]},
+        ]
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap", "--no-subtechniques", "--output", "json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        ids = [t["id"] for t in payload]
+        assert "T1001" in ids
+        assert "T1001.001" not in ids
+
+    def test_gap_covered_techniques_excluded(self, monkeypatch):
+        fake_techs = [
+            {"id": "T1001", "name": "Parent", "is_subtechnique": False, "platforms": ["Windows"]},
+            {"id": "T1002", "name": "Other", "is_subtechnique": False, "platforms": ["Windows"]},
+        ]
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+
+        # T1001 is already covered
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {
+            "by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}
+        })
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap", "--output", "json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        ids = [t["id"] for t in payload]
+        assert "T1001" not in ids
+        assert "T1002" in ids
+
+    def test_gap_all_covered_shows_success_message(self, monkeypatch):
+        fake_techs = [
+            {"id": "T1001", "name": "Parent", "is_subtechnique": False, "platforms": ["Windows"]},
+        ]
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {
+            "by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}
+        })
+
+        runner = CliRunner()
+        result = runner.invoke(attack, ["gap"])
+        assert result.exit_code == 0
+        assert "covered" in result.output.lower() or "no gaps" in result.output.lower()
+
+    def test_gap_tactic_filter(self, monkeypatch):
+        call_log = []
+
+        def fake_get_techniques(tactic):
+            call_log.append(tactic)
+            return []
+
+        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", fake_get_techniques)
+
+        from athf.core.hunt_manager import HuntManager
+        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
+
+        runner = CliRunner()
+        runner.invoke(attack, ["gap", "--tactic", "credential-access"])
+        assert call_log == ["credential-access"]
+
+
+@pytest.mark.unit
 class TestSanitizeStixBundle:
     """Test _sanitize_stix_bundle strips invalid x_mitre_data_source_ref."""
 

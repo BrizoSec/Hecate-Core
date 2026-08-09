@@ -153,7 +153,7 @@ def new(
             if not data_source and source_fm.get("data_sources"):
                 data_source = tuple(source_fm["data_sources"])
             if not title and source_fm.get("title"):
-                title = f"[Clone] {source_fm['title']}"
+                title = f"Clone of {source_fm['title']}"
             console.print(f"[dim]Cloning metadata from {clone_id}...[/dim]")
         except Exception as e:
             console.print(f"[yellow]Warning: Could not clone from {clone_id}: {e}[/yellow]")

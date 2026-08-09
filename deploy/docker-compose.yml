@@ -16,7 +16,9 @@
 
 services:
   athf:
-    build: .
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     image: athf:latest
     container_name: athf
     volumes:

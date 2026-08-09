@@ -39,6 +39,41 @@ class TestEnvCommand:
         # Should show deactivation command
         assert "deactivate" in result.output
 
+    def test_env_check_runs_successfully(self, runner):
+        """env check should run without crashing and print a checklist."""
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert "Python" in result.output
+        assert "athf" in result.output
+
+    def test_env_check_reports_scikit_learn(self, runner):
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert "scikit-learn" in result.output
+
+    def test_env_check_reports_litellm(self, runner):
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert "litellm" in result.output
+
+    def test_env_check_reports_mitreattack(self, runner):
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert "mitreattack" in result.output
+
+    def test_env_check_reports_config_file(self, runner, tmp_path, monkeypatch):
+        """env check should mention .athfconfig.yaml status."""
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert ".athfconfig.yaml" in result.output
+
+    def test_env_check_reports_environment_md(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(env, ["check"])
+        assert result.exit_code == 0
+        assert "environment.md" in result.output
+
     # Note: We don't test actual setup/clean operations in unit tests
     # as they modify the filesystem and require subprocess execution.
     # These are better tested in integration tests or manually.
