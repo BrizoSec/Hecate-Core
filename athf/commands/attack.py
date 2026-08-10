@@ -250,16 +250,110 @@ def lookup(technique_id: str, as_json: bool) -> None:
     console.print()
 
 
+def _generate_gap_hunts(gaps: list, limit: int) -> None:
+    """Generate draft hunt files for uncovered ATT&CK techniques.
+
+    Iterates up to *limit* gap entries, feeds each into HypothesisGeneratorAgent
+    (heuristic mode — no LLM required), and writes a draft hunt file via
+    render_hunt_template().  Prints a summary of created files.
+    """
+    from pathlib import Path
+
+    from athf.agents.llm.hypothesis_generator import (
+        HypothesisGenerationInput,
+        HypothesisGeneratorAgent,
+    )
+    from athf.core.hunt_manager import HuntManager
+    from athf.core.template_engine import render_hunt_template
+
+    manager = HuntManager()
+    agent = HypothesisGeneratorAgent(llm_enabled=False)
+
+    # Read environment context if available
+    env_file = Path("knowledge/environment.md")
+    env_text = env_file.read_text(encoding="utf-8")[:3000] if env_file.exists() else ""
+
+    targets = gaps[:limit]
+    console.print(f"\n[bold cyan]Generating {len(targets)} draft hunt file(s)…[/bold cyan]\n")
+
+    created: list = []
+    for entry in targets:
+        tech_id = entry["id"]
+        tech_name = entry["name"]
+        tactic_key = entry["tactic"]
+
+        threat_intel = (
+            f"ATT&CK technique {tech_id} — {tech_name} "
+            f"(tactic: {tactic_key}) has no existing hunt coverage. "
+            f"Platforms: {', '.join(entry.get('platforms', []) or ['unknown'])}."
+        )
+
+        result = agent.execute(HypothesisGenerationInput(
+            threat_intel=threat_intel,
+            past_hunts=[],
+            environment={"environment_summary": env_text[:500]} if env_text else {},
+        ))
+
+        if not result.is_success or result.data is None:
+            console.print(f"  [yellow]⚠ Skipped {tech_id}: agent error[/yellow]")
+            continue
+
+        out = result.data
+        hunt_id = manager.get_next_hunt_id()
+
+        hunt_content = render_hunt_template(
+            hunt_id=hunt_id,
+            title=f"Hunt {tech_id}: {tech_name}",
+            technique=tech_id,
+            tactics=[tactic_key],
+            platform=entry.get("platforms") or [],
+            data_sources=out.data_sources,
+            hypothesis=out.hypothesis,
+            threat_context=f"Gap-generated from ATT&CK coverage analysis. {out.justification}",
+            actor=out.actor or "",
+            behavior=out.behavior or "",
+            location=out.location or "",
+            evidence=out.evidence or "",
+        )
+
+        hunt_dir = Path("hunts")
+        hunt_dir.mkdir(parents=True, exist_ok=True)
+        hunt_file = hunt_dir / f"{hunt_id}.md"
+        hunt_file.write_text(hunt_content, encoding="utf-8")
+        created.append((hunt_id, tech_id, tech_name))
+        console.print(f"  [green]✓[/green] {hunt_id} — {tech_id}: {tech_name}")
+
+    if created:
+        console.print(f"\n[bold]Created {len(created)} draft hunt file(s).[/bold]")
+        console.print("[dim]Edit each file to add queries and complete the LOCK section.[/dim]\n")
+    else:
+        console.print("[yellow]No hunt files were created.[/yellow]\n")
+
+
 @attack.command()
 @click.option("--tactic", "tactic_filter", help="Limit to one tactic (e.g., credential-access)")
 @click.option("--platform", "platform_filter", help="Only show techniques for this platform")
 @click.option("--no-subtechniques", "no_subs", is_flag=True, help="Exclude sub-techniques")
 @click.option("--output", "output_format", type=click.Choice(["table", "json"]), default="table")
+@click.option(
+    "--generate",
+    is_flag=True,
+    help="Generate draft hunt files for each uncovered technique via hypothesis-generator agent.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=5,
+    show_default=True,
+    help="Maximum number of hunt files to generate (used with --generate).",
+)
 def gap(
     tactic_filter: Optional[str],
     platform_filter: Optional[str],
     no_subs: bool,
     output_format: str,
+    generate: bool,
+    limit: int,
 ) -> None:
     """Show ATT&CK techniques not yet covered by any hunt.
 
@@ -278,6 +372,12 @@ def gap(
 
       # JSON output for scripting
       athf attack gap --output json
+
+      # Generate draft hunt files for top 5 uncovered techniques
+      athf attack gap --tactic credential-access --generate
+
+      # Generate up to 10 draft hunts
+      athf attack gap --generate --limit 10
     """
     from athf.core.attack_matrix import (
         get_sorted_tactics,
@@ -349,6 +449,9 @@ def gap(
 
     console.print(table)
     console.print()
+
+    if generate:
+        _generate_gap_hunts(gaps, limit)
 
 
 @attack.command()

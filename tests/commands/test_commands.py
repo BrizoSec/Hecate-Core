@@ -1546,3 +1546,54 @@ class TestHuntOperationalize:
         assert result.exit_code == 0
         import os
         assert os.path.exists(custom)
+
+
+# ---------------------------------------------------------------------------
+# athf hunt stats --save-context
+# ---------------------------------------------------------------------------
+
+class TestHuntStatsSaveContext:
+    """Tests for athf hunt stats --save-context."""
+
+    def test_save_context_creates_section_in_env_file(self, runner, temp_workspace):
+        runner.invoke(hunt, ["new", "--title", "Save Ctx Hunt", "--non-interactive"])
+        result = runner.invoke(hunt, ["stats", "--save-context"])
+        assert result.exit_code == 0
+        env_file = temp_workspace / "knowledge" / "environment.md"
+        assert env_file.exists()
+        content = env_file.read_text()
+        assert "Hunt Program Metrics" in content
+
+    def test_save_context_includes_stats_fields(self, runner, temp_workspace):
+        runner.invoke(hunt, ["new", "--title", "Stats Hunt", "--non-interactive"])
+        runner.invoke(hunt, ["stats", "--save-context"])
+        env_file = temp_workspace / "knowledge" / "environment.md"
+        content = env_file.read_text()
+        assert "Total Hunts" in content
+        assert "Success Rate" in content
+        assert "TP/FP Ratio" in content
+
+    def test_save_context_replaces_existing_section(self, runner, temp_workspace):
+        runner.invoke(hunt, ["new", "--title", "First Hunt", "--non-interactive"])
+        runner.invoke(hunt, ["stats", "--save-context"])
+        runner.invoke(hunt, ["new", "--title", "Second Hunt", "--non-interactive"])
+        runner.invoke(hunt, ["stats", "--save-context"])
+        env_file = temp_workspace / "knowledge" / "environment.md"
+        content = env_file.read_text()
+        # Only one metrics section should exist
+        assert content.count("Hunt Program Metrics") == 1
+
+    def test_save_context_preserves_existing_env_content(self, runner, temp_workspace):
+        env_path = temp_workspace / "knowledge" / "environment.md"
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        env_path.write_text("# Environment Profile\n\nUsing Splunk.\n", encoding="utf-8")
+        runner.invoke(hunt, ["new", "--title", "Test Hunt", "--non-interactive"])
+        runner.invoke(hunt, ["stats", "--save-context"])
+        content = env_path.read_text()
+        assert "Using Splunk." in content
+        assert "Hunt Program Metrics" in content
+
+    def test_save_context_prints_confirmation(self, runner, temp_workspace):
+        result = runner.invoke(hunt, ["stats", "--save-context"])
+        assert result.exit_code == 0
+        assert "environment.md" in result.output
