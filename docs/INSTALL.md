@@ -429,9 +429,9 @@ If all commands work, you're ready to go!
    ```
 
 2. The scripts are typically in:
-   - **macOS**: `~/Library/Python/3.x/bin`
-   - **Linux**: `~/.local/bin`
-   - **Windows**: `%APPDATA%\Python\Python3x\Scripts`
+    - **macOS**: `~/Library/Python/3.x/bin`
+    - **Linux**: `~/.local/bin`
+    - **Windows**: `%APPDATA%\Python\Python3x\Scripts`
 
 3. Add to PATH:
    ```bash
