@@ -460,7 +460,7 @@ def check() -> None:  # noqa: C901
     config_path = get_config_path()
     config_ok = config_path.exists()
     _check(".athfconfig.yaml", config_ok,
-           str(config_path) if config_ok else f"not found — run `athf init`")
+           str(config_path) if config_ok else "not found")
 
     # Environment context
     env_md = Path("knowledge") / "environment.md"
