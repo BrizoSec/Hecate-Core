@@ -10,7 +10,7 @@ from rich.console import Console
 load_dotenv()
 
 from athf.__version__ import __version__  # noqa: E402
-from athf.commands import attack, context, env, hunt, init, investigate, research, similar, splunk  # noqa: E402
+from athf.commands import attack, context, env, hunt, investigate, research, similar, splunk  # noqa: E402
 from athf.commands.agent import agent  # noqa: E402
 from athf.commands.eval import eval_cmd  # noqa: E402
 from athf.commands.mcp import mcp  # noqa: E402
@@ -22,9 +22,6 @@ console = Console()
 EPILOG = """
 \b
 Examples:
-  # Initialize a new hunting workspace
-  athf init
-
   # Create your first hunt
   athf hunt new
 
@@ -39,16 +36,14 @@ Examples:
 
 \b
 Getting Started:
-  1. Run 'athf init' to set up your workspace
-  2. Run 'athf hunt new' to create your first hunt
-  3. Document using the LOCK pattern (Learn → Observe → Check → Keep)
-  4. Track findings and iterate
+  1. Run 'athf hunt new' to create your first hunt
+  2. Document using the LOCK pattern (Learn → Observe → Check → Keep)
+  3. Track findings and iterate
 
 \b
 Documentation:
   • Full docs: https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
   • CLI reference: docs/CLI_REFERENCE.md
-  • AI workflows: Run 'athf init' to get prompts/ai-workflow.md
 
 \b
 Need help? Run 'athf COMMAND --help' for command-specific help.
@@ -74,7 +69,6 @@ def cli() -> None:
 
     \b
     Quick Start:
-      athf init           Set up a new hunting workspace
       athf hunt new       Create a hunt from template
       athf hunt list      View all hunts
       athf hunt search    Find hunts by keyword
@@ -83,7 +77,6 @@ def cli() -> None:
 
 
 # Register command groups
-cli.add_command(init)
 cli.add_command(hunt)
 cli.add_command(investigate)
 cli.add_command(research)

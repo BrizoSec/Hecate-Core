@@ -9,7 +9,6 @@ import yaml
 from click.testing import CliRunner
 
 from athf.commands.hunt import hunt
-from athf.commands.init import init
 
 
 @pytest.fixture
@@ -27,76 +26,6 @@ def temp_workspace(tmp_path):
     os.chdir(old_cwd)
 
 
-class TestInitCommand:
-    """Test suite for athf init command."""
-
-    def test_init_creates_structure_non_interactive(self, runner, temp_workspace):
-        """Test that init creates the correct directory structure in non-interactive mode."""
-        result = runner.invoke(init, ["--non-interactive"])
-
-        assert result.exit_code == 0
-        assert (temp_workspace / "hunts").exists()
-        assert (temp_workspace / "queries").exists()
-        assert (temp_workspace / "runs").exists()
-        assert (temp_workspace / "templates").exists()
-        assert (temp_workspace / "knowledge").exists()
-        assert (temp_workspace / "prompts").exists()
-        assert (temp_workspace / "integrations").exists()
-        assert (temp_workspace / "docs").exists()
-
-    def test_init_creates_config_file(self, runner, temp_workspace):
-        """Test that init creates a valid config file."""
-        result = runner.invoke(init, ["--non-interactive"])
-
-        assert result.exit_code == 0
-        config_path = temp_workspace / "config" / ".athfconfig.yaml"
-        assert config_path.exists()
-
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        assert "hunt_prefix" in config
-        assert "siem" in config
-        assert "edr" in config
-        assert config["hunt_prefix"] == "H-"
-
-    def test_init_creates_agents_file(self, runner, temp_workspace):
-        """Test that init creates AGENTS.md."""
-        result = runner.invoke(init, ["--non-interactive"])
-
-        assert result.exit_code == 0
-        agents_path = temp_workspace / "AGENTS.md"
-        assert agents_path.exists()
-
-        content = agents_path.read_text()
-        assert "Data Sources" in content
-        assert "Technology Stack" in content
-
-    def test_init_creates_hunt_template(self, runner, temp_workspace):
-        """Test that init creates hunt template."""
-        result = runner.invoke(init, ["--non-interactive"])
-
-        assert result.exit_code == 0
-        template_path = temp_workspace / "templates" / "HUNT_LOCK.md"
-        assert template_path.exists()
-
-        content = template_path.read_text()
-        assert "## LEARN" in content
-        assert "## OBSERVE" in content
-        assert "## CHECK" in content
-        assert "## KEEP" in content
-
-    def test_init_with_custom_path(self, runner, tmp_path):
-        """Test init with custom path."""
-        custom_path = tmp_path / "custom_workspace"
-        custom_path.mkdir()
-
-        result = runner.invoke(init, ["--path", str(custom_path), "--non-interactive"])
-
-        assert result.exit_code == 0
-        assert (custom_path / "hunts").exists()
-        assert (custom_path / "config" / ".athfconfig.yaml").exists()
-
 
 class TestHuntNewCommand:
     """Test suite for athf hunt new command."""
@@ -104,7 +33,7 @@ class TestHuntNewCommand:
     def test_hunt_new_non_interactive(self, runner, temp_workspace):
         """Test creating a new hunt in non-interactive mode."""
         # First initialize
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create hunt
         result = runner.invoke(
@@ -146,7 +75,7 @@ class TestHuntNewCommand:
 
     def test_hunt_new_missing_title_non_interactive(self, runner, temp_workspace):
         """Test that hunt new fails without title in non-interactive mode."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["new", "--technique", "T1003.001", "--non-interactive"])
 
@@ -157,7 +86,7 @@ class TestHuntNewCommand:
         """Test that hunt IDs increment correctly."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create first hunt
         result1 = runner.invoke(hunt, ["new", "--title", "First Hunt", "--non-interactive"])
@@ -203,7 +132,7 @@ class TestHuntNewCommand:
 
         monkeypatch.setattr(create_mod, "get_technique", fake_get_technique)
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(
             hunt,
@@ -244,7 +173,7 @@ class TestHuntNewCommand:
         create_mod = sys.modules["athf.commands._hunt_create"]
         monkeypatch.setattr(create_mod, "get_technique", lambda _tid: None)
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(
             hunt,
             [
@@ -268,7 +197,7 @@ class TestHuntNewCommand:
         """Test creating hunt with multiple tactics."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(
             hunt,
@@ -302,7 +231,7 @@ class TestHuntNewCommand:
         """Test creating hunt with rich content parameters (hypothesis, threat-context, ABLE framework)."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(
             hunt,
@@ -378,7 +307,7 @@ class TestHuntOutputPath:
         import re
         from datetime import datetime
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--title", "Path Check Hunt", "--non-interactive"])
 
         assert result.exit_code == 0
@@ -401,7 +330,7 @@ class TestHuntOutputPath:
         """The word 'production' must not appear in any part of a new hunt's file path."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Anti-Production Hunt", "--non-interactive"])
         runner.invoke(hunt, ["new", "--title", "Anti-Production Hunt 2", "--non-interactive"])
 
@@ -417,7 +346,7 @@ class TestHuntOutputPath:
         import re
         from datetime import datetime
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--title", "Test-Flag Hunt", "--test", "--non-interactive"])
 
         assert result.exit_code == 0
@@ -438,7 +367,7 @@ class TestHuntOutputPath:
         """promote must reject a hunt that is not in a test/ directory."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--title", "Regular Hunt", "--non-interactive"])
         match = re.search(r"Created (H-\d+)", result.output)
         hunt_id = match.group(1)
@@ -470,7 +399,7 @@ class TestHuntBinaryPath:
         if not shutil.which("athf"):
             pytest.skip("athf binary not on PATH")
 
-        subprocess.run(["athf", "init", "--non-interactive"], cwd=tmp_path, check=True, capture_output=True)
+        (tmp_path / "hunts").mkdir(exist_ok=True)
         result = subprocess.run(
             ["athf", "hunt", "new", "--title", "Binary Smoke Test", "--non-interactive"],
             cwd=tmp_path, capture_output=True, text=True,
@@ -511,7 +440,7 @@ class TestHuntNewBaselineCommand:
 
     def test_requires_title_in_non_interactive_mode(self, runner, temp_workspace):
         """Test that --title is required for non-interactive baseline creation."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["new-baseline", "--non-interactive"])
 
@@ -519,7 +448,7 @@ class TestHuntNewBaselineCommand:
 
     def test_creates_baseline_hunt_with_hunt_type(self, runner, temp_workspace):
         """Test that a baseline hunt is created with hunt_type: baseline and no hypothesis."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(
             hunt,
@@ -553,7 +482,7 @@ class TestHuntNewBaselineCommand:
     def test_shares_hunt_id_sequence_with_regular_hunts(self, runner, temp_workspace):
         """Baseline hunts use the same H-XXXX counter as hypothesis-driven hunts,
         not a separate ID space."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         first = runner.invoke(hunt, ["new", "--title", "Regular Hunt", "--non-interactive"])
         second = runner.invoke(
             hunt,
@@ -573,7 +502,7 @@ class TestHuntListCommand:
 
     def setup_test_hunts(self, runner, temp_workspace):
         """Helper to create test hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create hunt 1
         runner.invoke(
@@ -683,7 +612,7 @@ class TestHuntListCommand:
 
     def test_hunt_list_empty(self, runner, temp_workspace):
         """Test list with no user-created hunts (sample hunts may exist)."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["list"])
 
@@ -699,7 +628,7 @@ class TestHuntValidateCommand:
 
     def test_validate_all_hunts(self, runner, temp_workspace):
         """Test validating all hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Test Hunt", "--non-interactive"])
 
         result = runner.invoke(hunt, ["validate"])
@@ -708,7 +637,7 @@ class TestHuntValidateCommand:
 
     def test_validate_specific_hunt(self, runner, temp_workspace):
         """Test validating a specific hunt."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Test Hunt", "--non-interactive"])
 
         result = runner.invoke(hunt, ["validate", "H-0001"])
@@ -717,7 +646,7 @@ class TestHuntValidateCommand:
 
     def test_validate_nonexistent_hunt(self, runner, temp_workspace):
         """Test validating a hunt that doesn't exist."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["validate", "H-9999"])
 
@@ -730,7 +659,7 @@ class TestHuntStatsCommand:
 
     def test_hunt_stats_empty(self, runner, temp_workspace):
         """Test stats with no hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["stats"])
 
@@ -739,7 +668,7 @@ class TestHuntStatsCommand:
 
     def test_hunt_stats_with_hunts(self, runner, temp_workspace):
         """Test stats with hunts created."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Test Hunt", "--non-interactive"])
 
         result = runner.invoke(hunt, ["stats"])
@@ -753,7 +682,7 @@ class TestHuntSearchCommand:
 
     def test_hunt_search(self, runner, temp_workspace):
         """Test searching for hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Kerberoasting Detection", "--technique", "T1558.003", "--non-interactive"])
 
         result = runner.invoke(hunt, ["search", "Kerberoasting"])
@@ -762,7 +691,7 @@ class TestHuntSearchCommand:
 
     def test_hunt_search_no_results(self, runner, temp_workspace):
         """Test search with no results."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["search", "nonexistent"])
 
@@ -775,7 +704,7 @@ class TestHuntCoverageCommand:
 
     def test_hunt_coverage(self, runner, temp_workspace):
         """Test ATT&CK coverage command."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(
             hunt,
             ["new", "--title", "Test Hunt", "--technique", "T1003.001", "--tactic", "credential-access", "--non-interactive"],
@@ -787,7 +716,7 @@ class TestHuntCoverageCommand:
 
     def test_hunt_coverage_empty(self, runner, temp_workspace):
         """Test coverage with no hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["coverage"])
 
@@ -894,7 +823,7 @@ Yes -- proposed as a Sigma rule for rundll32 + comsvcs.dll + MiniDump.
         left out of the brief rather than shown as literal placeholder text."""
         import re
 
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         # init seeds a few bundled example hunts (H-0001..H-0003), so the
         # hunt created here won't actually land on H-0001 -- pull the real ID
         # out of the creation command's own success message rather than
@@ -1034,7 +963,7 @@ H-9003 was created to investigate the winword.exe -> powershell.exe anomaly.
         '**Candidate Anomalies Found:** 0' stat line wasn't stripped before the
         unfilled-section check -- its presence (real bold text, no brackets)
         made the whole placeholder table look "filled" to _is_unfilled."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         new_result = runner.invoke(
             hunt,
             [
@@ -1062,14 +991,12 @@ class TestCLIIntegration:
     """Integration tests for CLI workflows."""
 
     def test_full_workflow(self, runner, temp_workspace):
-        """Test complete workflow: init -> new -> validate -> list -> stats."""
+        """Test complete workflow: new -> validate -> list -> stats."""
         import re
 
-        # Step 1: Initialize
-        result = runner.invoke(init, ["--non-interactive"])
-        assert result.exit_code == 0
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
-        # Step 2: Create new hunt
+        # Step 1: Create new hunt
         result = runner.invoke(
             hunt,
             [
@@ -1110,7 +1037,7 @@ class TestCLIIntegration:
 
     def test_multiple_hunts_workflow(self, runner, temp_workspace):
         """Test workflow with multiple hunts."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create 3 hunts
         for i in range(1, 4):
@@ -1136,24 +1063,11 @@ class TestCLIErrorHandling:
         # Should still work, creating directories as needed
         assert result.exit_code == 0 or "error" in result.output.lower()
 
-    def test_init_twice(self, runner, temp_workspace):
-        """Test running init twice."""
-        # First init
-        result1 = runner.invoke(init, ["--non-interactive"])
-        assert result1.exit_code == 0
-
-        # Second init should ask for confirmation (but we're non-interactive)
-        # In non-interactive mode, it might skip or proceed
-        result2 = runner.invoke(init, ["--non-interactive"])
-        # Should handle gracefully
-        assert result2.exit_code == 0 or "already" in result2.output.lower()
-
-
 class TestHuntUpdate:
     """Tests for 'athf hunt update' command."""
 
     def test_update_status(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "LSASS Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001", "--status", "completed"])
@@ -1167,7 +1081,7 @@ class TestHuntUpdate:
         assert hunts[0]["status"] == "completed"
 
     def test_update_true_positives(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001", "--true-positives", "3", "--false-positives", "1"])
@@ -1180,7 +1094,7 @@ class TestHuntUpdate:
         assert hunts[0]["false_positives"] == 1
 
     def test_update_add_and_remove_tags(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         runner.invoke(hunt, ["update", "H-0001", "--add-tag", "lsass", "--add-tag", "credential-dumping"])
@@ -1188,7 +1102,7 @@ class TestHuntUpdate:
         assert result.exit_code == 0
 
     def test_update_with_no_options_shows_message(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001"])
@@ -1196,20 +1110,20 @@ class TestHuntUpdate:
         assert "nothing changed" in result.output.lower() or "no updates" in result.output.lower()
 
     def test_update_nonexistent_hunt(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         result = runner.invoke(hunt, ["update", "H-9999", "--status", "completed"])
         assert result.exit_code == 0
         assert "not found" in result.output.lower()
 
     def test_update_invalid_hunt_id(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["update", "INVALID", "--status", "completed"])
         assert result.exit_code == 0
         assert "invalid" in result.output.lower()
 
     def test_update_title_and_hunter(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Old Title", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001", "--title", "New Title", "--hunter", "Jane"])
@@ -1221,7 +1135,7 @@ class TestHuntStatsTrend:
     """Tests for 'athf hunt stats --trend'."""
 
     def test_stats_trend_shows_quarterly_table(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["stats", "--trend"])
@@ -1229,12 +1143,12 @@ class TestHuntStatsTrend:
         assert "Quarterly Trend" in result.output or "Q" in result.output
 
     def test_stats_trend_no_hunts(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["stats", "--trend"])
         assert result.exit_code == 0
 
     def test_stats_without_trend_unchanged(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["stats"])
         assert result.exit_code == 0
         assert "Total Hunts" in result.output
@@ -1245,7 +1159,7 @@ class TestHuntCoverageOutput:
 
     def test_coverage_json_output(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["coverage", "--output", "json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1254,14 +1168,14 @@ class TestHuntCoverageOutput:
 
     def test_coverage_yaml_output(self, runner, temp_workspace):
         import yaml
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["coverage", "--output", "yaml"])
         assert result.exit_code == 0
         data = yaml.safe_load(result.output)
         assert "summary" in data
 
     def test_coverage_table_output(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["coverage"])
         assert result.exit_code == 0
         assert "Coverage" in result.output or "tactic" in result.output.lower()
@@ -1272,7 +1186,7 @@ class TestHuntValidateFailOnError:
 
     def test_fail_on_error_exits_nonzero_when_invalid(self, runner, temp_workspace):
         import yaml as _yaml
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create a hunt then corrupt its frontmatter
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
@@ -1295,7 +1209,7 @@ class TestHuntValidateFailOnError:
         assert result.exit_code != 0
 
     def test_fail_on_error_exits_zero_when_valid(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         # Rename file to match hunt_id (validation check)
@@ -1309,7 +1223,7 @@ class TestHuntNewClone:
     """Tests for 'athf hunt new --clone'."""
 
     def test_clone_copies_metadata(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         # Create source hunt
         runner.invoke(hunt, ["new", "--title", "Original Hunt", "--technique", "T1003.001",
                              "--tactic", "credential-access", "--platform", "Windows", "--non-interactive"])
@@ -1320,18 +1234,18 @@ class TestHuntNewClone:
         assert "H-0002" in result.output or "Created" in result.output
 
     def test_clone_nonexistent_source_shows_error(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--clone", "H-9999", "--title", "Clone", "--non-interactive"])
         assert result.exit_code == 0
         assert "not found" in result.output.lower()
 
     def test_clone_title_prefixed(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Determine the next ID so we can clone the hunt we create
         list_result = runner.invoke(hunt, ["list", "--output", "json"])
-        existing = json.loads(list_result.output) if list_result.output.strip() else []
+        existing = json.loads(list_result.output) if list_result.output.strip().startswith("[") else []
         next_num = max((int(h["hunt_id"].split("-")[1]) for h in existing if h.get("hunt_id")), default=0) + 1
         our_id = f"H-{next_num:04d}"
 
@@ -1353,7 +1267,7 @@ class TestHuntUpdateAssigneeReviewer:
 
     def test_update_assignee_and_reviewer(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001", "--assignee", "alice", "--reviewer", "bob"])
@@ -1368,7 +1282,7 @@ class TestHuntUpdateAssigneeReviewer:
 
     def test_update_status_in_review(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         result = runner.invoke(hunt, ["update", "H-0001", "--status", "in_review"])
@@ -1384,7 +1298,7 @@ class TestHuntListAssignee:
 
     def test_list_filter_by_assignee(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Alice Hunt", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["new", "--title", "Bob Hunt", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["update", "H-0001", "--assignee", "alice"])
@@ -1397,7 +1311,7 @@ class TestHuntListAssignee:
 
     def test_list_assignee_shown_in_table(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["update", "H-0001", "--assignee", "carol"])
 
@@ -1409,7 +1323,7 @@ class TestHuntListAssignee:
 
     def test_list_status_in_review_filter(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt A", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["new", "--title", "Hunt B", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["update", "H-0001", "--status", "in_review"])
@@ -1426,7 +1340,7 @@ class TestHuntNewAssignee:
 
     def test_new_hunt_with_assignee(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--title", "Assignee Hunt", "--technique", "T1003.001",
                                       "--assignee", "dave", "--non-interactive"])
         assert result.exit_code == 0
@@ -1438,7 +1352,7 @@ class TestHuntNewAssignee:
 
     def test_new_hunt_without_assignee(self, runner, temp_workspace):
         import json
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt No Assignee", "--technique", "T1003.001", "--non-interactive"])
 
         list_result = runner.invoke(hunt, ["list", "--output", "json"])
@@ -1454,7 +1368,7 @@ class TestHuntOperationalize:
 
     def _make_hunt_with_query(self, runner, temp_workspace):
         """Init workspace and create a hunt that has a query in the CHECK section."""
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "LSASS Hunt", "--technique", "T1003.001",
                              "--tactic", "credential-access", "--platform", "Windows",
                              "--data-source", "EDR", "--non-interactive"])
@@ -1504,7 +1418,7 @@ class TestHuntOperationalize:
             assert "detection:" in content
 
     def test_operationalize_no_query_shows_message(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt No Query", "--technique", "T1003.001",
                              "--non-interactive"])
         import glob
@@ -1516,13 +1430,13 @@ class TestHuntOperationalize:
         assert result.exit_code == 0
 
     def test_operationalize_nonexistent_hunt_shows_error(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["operationalize", "H-9999", "--query-index", "1"])
         assert result.exit_code == 0
         assert "not found" in result.output.lower()
 
     def test_operationalize_invalid_id_shows_error(self, runner, temp_workspace):
-        runner.invoke(init, ["--non-interactive"])
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["operationalize", "NOTVALID", "--query-index", "1"])
         assert result.exit_code == 0
         assert "invalid" in result.output.lower()

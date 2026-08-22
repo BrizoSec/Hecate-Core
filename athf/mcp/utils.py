@@ -61,8 +61,7 @@ def _validate_workspace(path: Path) -> None:
     if (path / "config" / ".athfconfig.yaml").exists():
         return
     raise FileNotFoundError(
-        f"Not an ATHF workspace: {path} (missing .athfconfig.yaml). "
-        "Run 'athf init' to initialize."
+        f"Not an ATHF workspace: {path} (missing .athfconfig.yaml)."
     )
 
 

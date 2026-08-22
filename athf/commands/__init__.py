@@ -4,7 +4,6 @@ from athf.commands.attack import attack
 from athf.commands.context import context
 from athf.commands.env import env
 from athf.commands.hunt import hunt
-from athf.commands.init import init
 from athf.commands.investigate import investigate
 from athf.commands.research import research
 from athf.commands.similar import similar
@@ -17,7 +16,6 @@ except ImportError:
 
 __all__ = [
     "attack",
-    "init",
     "hunt",
     "investigate",
     "research",
