@@ -6,10 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is **ATHF (Agentic Threat Hunting Framework)** — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is published as the `agentic-threat-hunting-framework` PyPI package, with the `athf` entry point.
 
+**This repository is dual-purpose:** it is both the framework's source (`athf/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using ATHF against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
+
 ## Development Setup
 
 ```bash
-# Install in editable mode with all dev dependencies
+# Create .venv and install in editable mode (equivalent to pip install -e ".[dev]")
+athf env setup --dev
+# or manually:
 pip install -e ".[dev]"
 
 # Install with all optional features
@@ -25,14 +29,18 @@ Copy `.env.example` to `.env` and configure API keys before running agents or re
 
 ```bash
 # IMPORTANT: activate the venv first — two tests invoke `athf` via subprocess
-# and will fail if the system Python's athf binary is found first on PATH
-source /Users/chemch/Projects/Hecate/.venv/bin/activate
+# and will fail if a system-installed athf binary is found first on PATH
+source .venv/bin/activate
+which athf   # sanity check: should point inside .venv
 
 # Run all tests with coverage
 pytest tests/ -v --cov=athf --cov-report=term-missing
 
 # Run a single test file
-pytest tests/test_hunt_manager.py -v
+pytest tests/core/test_hunt_manager.py -v
+
+# Run a single test
+pytest tests/core/test_hunt_manager.py::TestGetHuntDirectory::test_get_hunt_directory_production -v
 
 # Lint (syntax errors only — fast)
 flake8 athf --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -77,6 +85,8 @@ athf/
 │   ├── context.py          # AI-optimized context export (reduces token usage)
 │   ├── similar.py          # Semantic similarity search via TF-IDF (requires scikit-learn)
 │   ├── attack.py           # MITRE ATT&CK STIX data management
+│   ├── env.py              # `athf env setup/clean` — creates/manages the project .venv
+│   ├── eval.py             # Model-quality eval harness — scripted known-answer spot checks
 │   ├── mcp.py              # MCP server control
 │   └── splunk.py           # Optional Splunk integration (loaded conditionally)
 ├── core/                   # Business logic layer
@@ -97,7 +107,7 @@ athf/
 │   └── llm/
 │       ├── hypothesis_generator.py  # Generates hunt hypotheses from threat intel
 │       ├── hunt_researcher.py       # 5-skill pre-hunt research methodology
-│       └── pivot_suggester.py
+│       └── pivot_suggester.py       # Suggests pivot queries from hunt findings
 ├── mcp/                    # MCP server (FastMCP)
 │   ├── server.py           # Server factory, workspace discovery, plugin tool loading
 │   └── tools/              # MCP tool implementations (mirrors CLI commands)
