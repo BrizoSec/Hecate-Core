@@ -6,7 +6,15 @@ from typing import Any, List, Optional
 import click
 from rich.console import Console
 
-console = Console()
+# soft_wrap=True: this file's human-readable agent output (bulleted
+# techniques/observables/false-positives, prose fields) is line-parsed by
+# downstream consumers like hecate-runner's AthfClient. Without it, rich's
+# default wrap at the fallback 80-column width (there's no real TTY under a
+# captured subprocess) silently truncates long bullets — the parser only
+# recognises a new bullet, so the wrapped continuation line is dropped
+# rather than appended. Matches the same soft_wrap=True already used for
+# research.py's --output json path, same reasoning.
+console = Console(soft_wrap=True)
 
 # Single source of truth for agent metadata.  Add an entry here when a new
 # agent is added to athf.agents.llm — the list/info/run commands below all
