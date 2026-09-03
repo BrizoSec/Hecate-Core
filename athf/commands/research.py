@@ -1,6 +1,7 @@
 """Research management commands - thorough pre-hunt investigation."""
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -146,6 +147,16 @@ def new(
     # Generate markdown content
     markdown_content = _generate_research_markdown(output)
 
+    # Related-work sources are keyed "hunts/H-XXXX.md" (see
+    # HuntResearcherAgent._skill_4_related_work) -- pull the hunt IDs back out
+    # so a research doc that found related hunts actually says so in its own
+    # frontmatter instead of always reporting linked_hunts: [].
+    linked_hunts = []
+    for source in output.related_work.sources:
+        match = re.match(r"hunts/(H-\d+)\.md$", source.get("url", ""))
+        if match:
+            linked_hunts.append(match.group(1))
+
     # Create research file
     frontmatter = {
         "research_id": output.research_id,
@@ -154,7 +165,7 @@ def new(
         "status": "completed",
         "depth": depth,
         "duration_minutes": round(output.total_duration_ms / 60000, 1),
-        "linked_hunts": [],
+        "linked_hunts": linked_hunts,
         "web_searches": output.web_searches_performed,
         "llm_calls": output.llm_calls,
         "total_cost_usd": output.total_cost_usd,
@@ -511,6 +522,7 @@ def _display_json_output(output: ResearchOutput) -> None:
         "related_work": {
             "summary": output.related_work.summary,
             "key_findings": output.related_work.key_findings,
+            "sources": output.related_work.sources,
         },
         "synthesis": {
             "summary": output.synthesis.summary,
