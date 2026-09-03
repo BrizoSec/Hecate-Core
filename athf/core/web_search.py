@@ -91,6 +91,12 @@ class TavilySearchClient:
                 raise ImportError("tavily-python package not installed. Run: pip install tavily-python")
         return self._client
 
+    # Empirically chosen (see search_system_internals/search_adversary_tradecraft):
+    # for a narrow, specific topic (e.g. a malware family name), on-topic results
+    # scored 0.45-0.82 while off-topic filler scored 0.09-0.26 -- 0.3 sits
+    # cleanly in the observed gap between the two clusters.
+    MIN_RELEVANCE_SCORE = 0.3
+
     def search(
         self,
         query: str,
@@ -100,6 +106,7 @@ class TavilySearchClient:
         exclude_domains: Optional[List[str]] = None,
         include_answer: bool = True,
         include_raw_content: bool = False,
+        min_score: float = MIN_RELEVANCE_SCORE,
     ) -> SearchResponse:
         """Execute search query.
 
@@ -111,6 +118,10 @@ class TavilySearchClient:
             exclude_domains: Exclude these domains from search
             include_answer: Include AI-generated answer summary
             include_raw_content: Include full page content (increases response size)
+            min_score: Drop results below this Tavily relevance score. Acts as a
+                backstop against low-relevance filler -- most relevant when
+                include_domains is empty/broad enough that Tavily has to return
+                *something* even for a niche topic with little real coverage.
 
         Returns:
             SearchResponse with results
@@ -142,15 +153,18 @@ class TavilySearchClient:
 
         response_time_ms = int((time.time() - start_time) * 1000)
 
-        # Parse results
+        # Parse results, dropping anything below the relevance floor
         results = []
         for result in response.get("results", []):
+            score = result.get("score", 0.0)
+            if score < min_score:
+                continue
             results.append(
                 SearchResult(
                     title=result.get("title", ""),
                     url=result.get("url", ""),
                     content=result.get("content", ""),
-                    score=result.get("score", 0.0),
+                    score=score,
                 )
             )
 
@@ -215,25 +229,19 @@ class TavilySearchClient:
         """
         query = f"{topic} how it works internals documentation"
 
-        # Focus on technical documentation sources
-        technical_domains = [
-            "microsoft.com",
-            "learn.microsoft.com",
-            "docs.microsoft.com",
-            "developer.apple.com",
-            "man7.org",
-            "linux.die.net",
-            "kernel.org",
-            "aws.amazon.com",
-            "docs.aws.amazon.com",
-            "cloud.google.com",
-            "en.wikipedia.org",
-        ]
-
+        # No include_domains: this skill's topic is very often a malware/threat-
+        # actor name rather than a legitimate protocol/OS feature, and a fixed
+        # protocol-documentation allowlist (microsoft.com/kernel.org/man7.org/...)
+        # has essentially no real coverage of a given malware family. Measured
+        # against a real topic: domain-restricted top result scored 0.38 (a
+        # Microsoft Q&A forum post) with the rest of the top 5 being unrelated
+        # kernel.org driver docs (score 0.22-0.26); unrestricted, the top result
+        # (score 0.82) was the actual source article, and all 10 results were
+        # genuinely on-topic. min_score on search() is the backstop against
+        # low-relevance filler now that there's no domain allowlist to lean on.
         return self.search(
             query=query,
             search_depth=search_depth,
-            include_domains=technical_domains,
             include_answer=True,
         )
 
@@ -260,26 +268,18 @@ class TavilySearchClient:
         if technique:
             query += f" {technique}"
 
-        # Focus on threat intelligence sources
-        threat_intel_domains = [
-            "attack.mitre.org",
-            "thedfirreport.com",
-            "mandiant.com",
-            "crowdstrike.com",
-            "unit42.paloaltonetworks.com",
-            "blog.talosintelligence.com",
-            "securelist.com",
-            "redcanary.com",
-            "elastic.co",
-            "atomicredteam.io",
-            "lolbas-project.github.io",
-            "gtfobins.github.io",
-        ]
-
+        # No include_domains: this list of threat-intel vendor domains still
+        # missed real, relevant coverage (SC Media, Cybereason, Hacker News
+        # weren't in it), and for a narrow/specific topic Tavily runs out of
+        # genuinely relevant hits within it -- measured case: correct top 2
+        # results (score 0.64-0.68) followed by four duplicate, unrelated MITRE
+        # technique pages (score 0.09-0.17) padding out the rest. Unrestricted,
+        # relevance stayed high (0.45-0.79) throughout all 10 results. min_score
+        # on search() is the backstop against low-relevance filler now that
+        # there's no domain allowlist to lean on.
         return self.search(
             query=query,
             search_depth=search_depth,
-            include_domains=threat_intel_domains,
             include_answer=True,
         )
 
