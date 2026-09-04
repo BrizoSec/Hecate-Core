@@ -325,9 +325,9 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print("  pip install 'athf[litellm]'   # All providers via LiteLLM")
-            console.print("  pip install 'athf[openai]'    # OpenAI/GPT")
-            console.print("  pip install 'athf[bedrock]'   # AWS Bedrock")
+            console.print(r"  pip install 'athf\[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install 'athf\[openai]'    # OpenAI/GPT")
+            console.print(r"  pip install 'athf\[bedrock]'   # AWS Bedrock")
             raise click.Abort()
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
@@ -384,7 +384,7 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print("  pip install 'athf[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install 'athf\[litellm]'   # All providers via LiteLLM")
             console.print("  pip install tavily-python      # Web search (optional)")
             raise click.Abort()
         except Exception as e:
@@ -420,7 +420,7 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print("  pip install 'athf[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install 'athf\[litellm]'   # All providers via LiteLLM")
             raise click.Abort()
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")

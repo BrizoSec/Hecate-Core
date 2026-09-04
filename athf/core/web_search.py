@@ -66,6 +66,34 @@ class TavilySearchClient:
         "gtfobins.github.io",
     ]
 
+    # Applied to search_system_internals/search_adversary_tradecraft (the
+    # skills that don't use include_domains -- see the comments there for why
+    # that allowlist was dropped). Two narrow, low-maintenance categories that
+    # are never a legitimate *primary* research citation regardless of topic,
+    # observed as real problems in production research docs:
+    # - Social/reposting platforms: Tavily returns the same underlying
+    #   article re-shared across several of these as if they were
+    #   independent corroborating sources (observed: one Hacker News piece
+    #   cited 5 times over Facebook/LinkedIn/X/Threads/Reddit in one doc).
+    # - URL shorteners/trackers: not research content at all (observed:
+    #   grabify.org -- an IP-logging link tool -- cited as a source).
+    EXCLUDE_DOMAINS = [
+        "facebook.com",
+        "x.com",
+        "twitter.com",
+        "linkedin.com",
+        "threads.com",
+        "reddit.com",
+        "instagram.com",
+        "tiktok.com",
+        "grabify.org",
+        "bit.ly",
+        "tinyurl.com",
+        "t.co",
+        "is.gd",
+        "ow.ly",
+    ]
+
     def __init__(self, api_key: Optional[str] = None) -> None:
         """Initialize client with API key.
 
@@ -239,10 +267,13 @@ class TavilySearchClient:
         # (score 0.82) was the actual source article, and all 10 results were
         # genuinely on-topic. min_score on search() is the backstop against
         # low-relevance filler now that there's no domain allowlist to lean on.
+        # EXCLUDE_DOMAINS drops social-media reposts and URL-tracker tools --
+        # see its own comment for why.
         return self.search(
             query=query,
             search_depth=search_depth,
             include_answer=True,
+            exclude_domains=self.EXCLUDE_DOMAINS,
         )
 
     def search_adversary_tradecraft(
@@ -277,10 +308,13 @@ class TavilySearchClient:
         # relevance stayed high (0.45-0.79) throughout all 10 results. min_score
         # on search() is the backstop against low-relevance filler now that
         # there's no domain allowlist to lean on.
+        # EXCLUDE_DOMAINS drops social-media reposts and URL-tracker tools --
+        # see its own comment for why.
         return self.search(
             query=query,
             search_depth=search_depth,
             include_answer=True,
+            exclude_domains=self.EXCLUDE_DOMAINS,
         )
 
     def search_detection_methods(

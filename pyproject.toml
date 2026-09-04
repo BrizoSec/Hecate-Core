@@ -96,6 +96,17 @@ ollama = [
 attack = [
     "mitreattack-python>=5.0.0",
 ]
+# Web search grounding for hunt-researcher (athf research new). Previously
+# only bundled inside `all`, which also drags in litellm/scikit-learn/mcp --
+# a workspace that just wants grounded research (this one) had no way to
+# declare that minimally, so a venv rebuild via the documented `pip install
+# -e ".[dev,similarity]"` setup would silently lose it and go back to
+# research grounding failing open (see hunt_researcher.py's
+# _get_search_client(): a missing tavily-python import is caught and
+# swallowed, degrading to ungrounded generation with no error surfaced).
+research = [
+    "tavily-python>=0.3.0",
+]
 # Convenience: all LLM providers via LiteLLM
 llm = [
     "litellm>=1.30.0",

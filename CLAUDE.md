@@ -16,6 +16,15 @@ athf env setup --dev
 # or manually:
 pip install -e ".[dev]"
 
+# For a workspace that runs real research/hunting (grounded web search +
+# ATT&CK technique validation + hunt similarity search) -- `[dev]` alone is
+# not enough: hunt_researcher.py's web search and the technique validator
+# both fail *silently* without tavily-python/mitreattack-python (caught
+# ImportErrors, not surfaced as errors -- see _get_search_client() and
+# _validate_techniques()), so a bare `[dev]` install looks like it's working
+# while quietly producing ungrounded research and unvalidated technique IDs.
+pip install -e ".[dev,similarity,attack,research]"
+
 # Install with all optional features
 pip install -e ".[all]"
 
