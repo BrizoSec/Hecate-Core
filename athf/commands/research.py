@@ -225,7 +225,12 @@ def list_research(
             techniques += "..."
 
         linked_hunts = len(r.get("linked_hunts", []))
-        cost = f"${r.get('total_cost_usd', 0):.3f}"
+        # ResearchManager.list_research() stores total_cost_usd as None (key
+        # present, not omitted) for a doc whose frontmatter lacks the field,
+        # so `.get(..., 0)`'s default never fires -- `or 0` is needed too,
+        # same defensive pattern calculate_stats() already uses for the same
+        # field.
+        cost = f"${r.get('total_cost_usd', 0) or 0:.3f}"
 
         table.add_row(
             r.get("research_id", ""),

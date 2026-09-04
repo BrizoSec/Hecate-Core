@@ -361,6 +361,48 @@ class TestHypothesisGeneratorAgent:
         assert '"is_threat_report":' in prompt
         assert '"low_confidence_reason":' in prompt
 
+    def test_build_prompt_assesses_threat_intel_before_generating_hypothesis(self):
+        """The is_threat_report assessment must come *before* the
+        hypothesis-generation format instructions, not after.
+
+        It used to sit at the very end of the prompt, after the model had
+        already been asked to produce hypothesis/justification/techniques/
+        ABLE scoping -- by the time it reached the assessment question it
+        had likely already committed to a narrative. A real case (CTI: a
+        Huntress blog post announcing their new MCP server integration,
+        purely a product feature with zero adversary activity described)
+        produced a fully fabricated hypothesis ("Adversaries use reverse
+        proxy servers to launch AiTM attacks on the Huntress MCP Server...
+        leveraging known tools like Evilginx and Modlishka") with
+        is_threat_report left at its true default, none of it ever
+        supported by the source material. Moving the assessment to happen
+        immediately after the threat intel is presented, before any
+        hypothesis-format instructions, is meant to make it a genuine
+        first judgment instead of an afterthought.
+        """
+        mock = MockProvider(VALID_HYPOTHESIS_JSON)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        prompt = agent._build_prompt(_make_input())
+
+        assess_pos = prompt.index("assess the threat intel")
+        format_pos = prompt.index("Generate a hypothesis following this format")
+        assert assess_pos < format_pos
+
+    def test_build_prompt_warns_against_fabricating_tooling_for_marketing_content(self):
+        """The prompt's counter-example should resemble the actual failure
+        mode closely enough to generalize to it: security-adjacent
+        vocabulary (credentials/MFA/billing) in a product announcement,
+        with no adversary described doing anything."""
+        mock = MockProvider(VALID_HYPOTHESIS_JSON)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+
+        prompt = agent._build_prompt(_make_input())
+
+        assert "credentials, MFA, or billing" in prompt
+        assert "do not invent an adversary" in prompt
+        assert "named tooling" in prompt
+
     def test_build_prompt_includes_research_context(self):
         """When ResearchContext is provided, it appears in the prompt."""
         mock = MockProvider(VALID_HYPOTHESIS_JSON)

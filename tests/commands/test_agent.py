@@ -133,6 +133,18 @@ class TestDisplayHypothesisGeneratorResult:
         assert "Warnings:" in output
         assert "T9999.999" in output
 
+    def test_shows_cost_and_token_metadata_when_present(self):
+        result = AgentResult(
+            success=True,
+            data=_make_output(),
+            error=None,
+            metadata={"cost_usd": 0.0123, "prompt_tokens": 500, "completion_tokens": 120},
+        )
+        output = _capture(result)
+
+        assert "Cost: $0.0123" in output
+        assert "Tokens: 500 input + 120 output" in output
+
 
 class TestDisplayPivotResult:
     """Tests for _display_pivot_result."""

@@ -34,6 +34,40 @@ def _llm_call_failed(key_findings: List[str]) -> bool:
     return key_findings == [_LLM_ERROR_KEY_FINDING]
 
 
+# Web search snippets are truncated to 200 chars each (see
+# _skill_1_system_research/_skill_2_adversary_tradecraft) -- barely more than
+# a headline. Asking for "4-6 key findings about attack methods, tools used,
+# and indicators" from a handful of title+200-char fragments pressures the
+# model to invent plausible-sounding specifics to fill the gap, especially
+# for an evocative/ambiguous title. This instruction used to only appear in
+# the zero-sources fallback context string; a real, observed case (R-0005,
+# topic: a Talos report quoting a captured attacker<->AI-agent prompt log)
+# had *some* thin sources and fabricated an unrelated claim ("malware embeds
+# this phrase to manipulate victims") that the fallback-only wording never
+# would have reached. Applying it unconditionally closes that gap.
+#
+# The source-quality sentence below is a second, independent gap: web_search.py's
+# EXCLUDE_DOMAINS blocks known social-media reposts and URL-tracker tools at
+# the API level, but that's a fixed list and can't anticipate every generic
+# content-mill/tutorial domain (observed: oxfordhomestudy.com, a "how does AI
+# work?" tutoring-site explainer, cited as a source because it was topically
+# relevant to an otherwise-vague CTI topic). A hard filter can't catch that
+# long tail; asking the model to weigh source authority when it already has
+# the title/snippet in front of it can.
+_GROUNDING_INSTRUCTION = (
+    "Base your summary and findings strictly on the Research Context above. "
+    "Do not invent facts, statistics, named campaigns, or technical details "
+    "that are not present in it -- infer only what a careful reader would "
+    "reasonably conclude from the text given. If the context doesn't contain "
+    "enough detail to support a specific claim, omit it or flag it with "
+    "[UNCERTAIN] rather than filling the gap with a plausible-sounding guess. "
+    "Also weigh source quality: prioritize named security vendors, "
+    "researchers, and established publications, and discount or ignore "
+    "generic tutorial/explainer content, personal blogs, and other "
+    "low-authority material even when it's topically relevant."
+)
+
+
 # Keyword presence (lowercased, substring match) used to derive data-source
 # availability from skill 3's free-text telemetry-mapping output. See
 # _extract_data_sources.
@@ -668,6 +702,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 " internals.\n\n"
                 "Topic: {topic}\n\n"
                 "Research Context:\n{context}\n\n"
+                "{grounding}\n\n"
                 "Based on this context, provide:\n"
                 "1. A concise summary (2-3 sentences) of how this"
                 " system/technology normally works\n"
@@ -676,7 +711,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '{{\n  "summary": "string",\n'
                 '  "key_findings": ["finding1", "finding2",'
                 ' "finding3"]\n}}'
-            ).format(topic=topic, context=context)
+            ).format(topic=topic, context=context, grounding=_GROUNDING_INSTRUCTION)
 
             response = self._call_llm(prompt, max_tokens=2048)
             data = self._parse_json_response(response)
@@ -729,6 +764,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
                 "Research Context:\n{context}\n\n"
+                "{anti_hallucination}\n\n"
                 "Based on this context, provide:\n"
                 "1. A concise summary (2-3 sentences) of how"
                 " adversaries abuse this system/technique\n"
@@ -740,6 +776,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 ' "finding3", "finding4"]\n}}'
             ).format(
                 grounding=grounding,
+                anti_hallucination=_GROUNDING_INSTRUCTION,
                 topic=topic,
                 technique_str=technique_str,
                 context=context,
