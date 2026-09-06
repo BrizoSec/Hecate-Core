@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from athf.core.hunt_manager import HuntManager
-from athf.core.hunt_parser import validate_hunt_file
+from athf.core.hunt_parser import validate_hunt_file_with_warnings
 from athf.utils.validation import validate_hunt_id
 
 console = Console()
@@ -27,7 +27,7 @@ def _validate_single_hunt(hunt_file: Path) -> tuple:
     """
     console.print(f"\n[bold]Validating {hunt_file.name}...[/bold]\n")
 
-    is_valid, errors = validate_hunt_file(hunt_file)
+    is_valid, errors, warnings = validate_hunt_file_with_warnings(hunt_file)
 
     if is_valid:
         console.print("[green]Hunt is valid![/green]")
@@ -35,6 +35,17 @@ def _validate_single_hunt(hunt_file: Path) -> tuple:
         console.print("[red]Hunt has validation errors:[/red]\n")
         for error in errors:
             console.print(f"  - {error}")
+
+    # Warnings never change is_valid (and so never affect --fail-on-error):
+    # an auto-generated draft awaiting review is legitimately incomplete. They
+    # are surfaced because "Hunt is valid!" on a hunt with empty tactics and
+    # platform reads as a clean bill of health while the hunt is invisible to
+    # `athf hunt coverage`.
+    if warnings:
+        console.print("\n[yellow]Metadata gaps:[/yellow]\n")
+        for warning in warnings:
+            console.print(f"  - {warning}")
+        console.print("\n[dim]Fix with: athf hunt update <ID> --technique T1234 --tactic execution --platform Windows[/dim]")
 
     return is_valid, errors
 
@@ -254,20 +265,30 @@ def validate(hunt_id: str, fail_on_error: bool) -> None:
 
         valid_count = 0
         invalid_count = 0
+        warned_count = 0
 
         for hunt_file in hunt_files:
-            is_valid, errors = validate_hunt_file(hunt_file)
+            is_valid, errors, warnings = validate_hunt_file_with_warnings(hunt_file)
 
             if is_valid:
                 valid_count += 1
-                console.print(f"[green]✓[/green] {hunt_file.name}")
+                marker = "[yellow]![/yellow]" if warnings else "[green]✓[/green]"
+                console.print(f"{marker} {hunt_file.name}")
             else:
                 invalid_count += 1
                 console.print(f"[red]✗[/red] {hunt_file.name}")
                 for error in errors:
                     console.print(f"    - {error}")
 
-        console.print(f"\n[bold]Results:[/bold] {valid_count} valid, {invalid_count} invalid")
+            if warnings:
+                warned_count += 1
+                for warning in warnings:
+                    console.print(f"    [yellow]-[/yellow] {warning}")
+
+        summary = f"\n[bold]Results:[/bold] {valid_count} valid, {invalid_count} invalid"
+        if warned_count:
+            summary += f", {warned_count} with metadata gaps"
+        console.print(summary)
         if fail_on_error and invalid_count > 0:
             import sys
             sys.exit(1)

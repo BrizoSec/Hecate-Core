@@ -114,7 +114,7 @@ class LLMAgent(Agent[InputT, OutputT]):
         self._provider = create_provider(llm_config if llm_config else None)
         return self._provider
 
-    def _call_llm(self, prompt: str, max_tokens: int = 4096) -> str:
+    def _call_llm(self, prompt: str, max_tokens: int = 4096, temperature: Optional[float] = None) -> str:
         """Call the LLM and return response text.
 
         Provider-agnostic: works with any configured LLM backend.
@@ -122,15 +122,25 @@ class LLMAgent(Agent[InputT, OutputT]):
         Args:
             prompt: The prompt to send to the LLM.
             max_tokens: Maximum tokens to generate.
+            temperature: Sampling temperature. Left as the provider default
+                when None. Worth lowering for calls whose output is a
+                judgement rather than prose -- a yes/no classification
+                sampled at the creative default varies run to run on
+                identical input, which reads as the model being unreliable
+                when it is really just being asked to be creative about a
+                question that has one right answer.
 
         Returns:
             The generated text content.
         """
         provider = self._get_provider()
-        response = provider.complete(
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
-        )
+        complete_kwargs: Dict[str, Any] = {
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+        }
+        if temperature is not None:
+            complete_kwargs["temperature"] = temperature
+        response = provider.complete(**complete_kwargs)
 
         self._log_llm_metrics(
             agent_name=self.__class__.__name__,
@@ -150,6 +160,7 @@ class LLMAgent(Agent[InputT, OutputT]):
         validate_fn: Callable[[str], Optional[str]],
         max_retries: int = 2,
         max_tokens: int = 4096,
+        temperature: Optional[float] = None,
     ) -> str:
         """Call LLM with a validation-retry loop.
 
@@ -170,7 +181,7 @@ class LLMAgent(Agent[InputT, OutputT]):
         result = ""
 
         for attempt in range(1 + max_retries):
-            result = self._call_llm(current_prompt, max_tokens=max_tokens)
+            result = self._call_llm(current_prompt, max_tokens=max_tokens, temperature=temperature)
             error = validate_fn(result)
             if error is None:
                 return result

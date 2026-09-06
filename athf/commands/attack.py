@@ -129,7 +129,7 @@ def status() -> None:
       athf attack status
     """
     from athf.core.attack_matrix import (
-        _get_stix_file_path,
+        _resolve_stix_file,
         get_attack_version,
         get_sorted_tactics,
         is_using_stix,
@@ -143,7 +143,7 @@ def status() -> None:
     console.print(f"  [cyan]Tactics:[/cyan]   {len(get_sorted_tactics())}")
 
     # Show cache info
-    stix_path = _get_stix_file_path()
+    stix_path = _resolve_stix_file()
     if stix_path.exists():
         size_mb = stix_path.stat().st_size / (1024 * 1024)
         age_days = int((time.time() - stix_path.stat().st_mtime) / 86400)
