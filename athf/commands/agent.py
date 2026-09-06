@@ -194,6 +194,16 @@ def info(agent_name: str) -> None:
     help="Research depth: basic (5 min) or advanced (15-20 min) (for hunt-researcher)",
 )
 @click.option("--no-web-search", is_flag=True, help="Skip web search - offline mode (for hunt-researcher)")
+@click.option(
+    "--indicators-only",
+    is_flag=True,
+    help=(
+        "Threat intel is a bare indicator list with no narrative (e.g. a "
+        "ThreatFox/Maltrail feed dump) - keeps the hypothesis to indicator "
+        "presence instead of inferring delivery, actor or technique "
+        "(for hypothesis-generator)"
+    ),
+)
 @click.option("--tactic", help="MITRE tactic filter")
 @click.option("--finding", help="Suspicious finding as JSON or plain text (for pivot-suggester)")
 @click.option("--hunt", "hunt_id", help="Current hunt ID for context (for pivot-suggester)")
@@ -213,6 +223,7 @@ def run(  # noqa: C901
     technique: Optional[str],
     depth: str,
     no_web_search: bool,
+    indicators_only: bool,
     tactic: Optional[str],
     finding: Optional[str],
     hunt_id: Optional[str],
@@ -298,6 +309,7 @@ def run(  # noqa: C901
                     past_hunts=past_hunts,
                     environment=environment,
                     research=research_ctx,
+                    intel_is_indicator_only=indicators_only,
                 )
             )
 
@@ -507,6 +519,15 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
         # stripping won't remove, unlike the [bold red] tags.
         console.print("[bold red]Low Confidence Source:[/bold red]")
         console.print(f"  {data.low_confidence_reason or 'Source does not appear to describe observed adversary behavior.'}\n")
+
+    if data.is_indicator_only:
+        # Same plain-header convention as "Low Confidence Source:" above --
+        # a caller line-parsing this output matches the exact header string.
+        console.print("[bold yellow]Indicator-Only Source:[/bold yellow]")
+        console.print(
+            "  Source is a bare indicator list with no narrative; the hypothesis "
+            "describes indicator presence, not adversary behavior.\n"
+        )
 
     if result.warnings:
         console.print("[bold yellow]Warnings:[/bold yellow]")

@@ -261,6 +261,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     self._skill_1_system_research,
                     input_data.topic,
                     search_depth,
+                    input_data.web_search_enabled,
                 )
                 future_2 = executor.submit(
                     self._skill_2_adversary_tradecraft,
@@ -348,12 +349,19 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self,
         topic: str,
         search_depth: str,
+        web_search_enabled: bool,
     ) -> ResearchSkillOutput:
         """Skill 1: Research how the system/technology normally works.
 
         Args:
             topic: Research topic
             search_depth: "basic" or "advanced"
+            web_search_enabled: Whether web search is enabled. Used to be
+                ignored here (only skill 2 checked it) -- a caller passing
+                web_search_enabled=False specifically because the topic has
+                nothing real to search for (e.g. hecate-runner disabling it
+                for narrative-free CTI, a bare IOC-count blurb with no
+                description) would still have this skill search anyway.
 
         Returns:
             ResearchSkillOutput with system research findings
@@ -364,7 +372,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         # Try web search for system internals
         search_client = self._get_search_client()
-        if search_client:
+        if search_client and web_search_enabled:
             try:
                 search_results = search_client.search_system_internals(
                     topic,

@@ -126,7 +126,7 @@ class TestExecuteHappyPath:
         assert result.success is True
         assert result.data.web_searches_performed == 0
 
-    def test_execute_web_search_disabled_flag_skips_tradecraft_search(
+    def test_execute_web_search_disabled_flag_skips_all_search(
         self, fake_search_client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         provider = CapturingProvider()
@@ -140,9 +140,12 @@ class TestExecuteHappyPath:
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic", web_search_enabled=False))
 
-        # Skill 1 (system research) always tries search; skill 2 (tradecraft)
-        # is gated on web_search_enabled too -- only skill 1's search fires.
-        assert result.data.web_searches_performed == 1
+        # Skill 1 (system research) used to always try search regardless of
+        # this flag -- only skill 2 (tradecraft) checked it. A caller
+        # disabling web search specifically because there's nothing real to
+        # search for (e.g. hecate-runner, for narrative-free CTI) would
+        # still have skill 1 search anyway. Both skills must respect it now.
+        assert result.data.web_searches_performed == 0
 
     def test_execute_catches_unexpected_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         provider = CapturingProvider()
@@ -163,11 +166,20 @@ class TestSkillSearchClientBranches:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
         agent._search_client = fake_search_client
 
-        output = agent._skill_1_system_research("ValleyRAT", "advanced")
+        output = agent._skill_1_system_research("ValleyRAT", "advanced", True)
 
         assert len(output.sources) == 3
         assert output.sources[0]["title"] == "Result 0"
         assert agent._web_searches == 1
+
+    def test_skill_1_respects_web_search_disabled(self, fake_search_client: Any) -> None:
+        agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
+        agent._search_client = fake_search_client
+
+        output = agent._skill_1_system_research("ValleyRAT", "advanced", False)
+
+        assert output.sources == []
+        assert agent._web_searches == 0
 
     def test_skill_1_search_error_is_swallowed(self) -> None:
         broken_client = type(
@@ -176,7 +188,7 @@ class TestSkillSearchClientBranches:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
         agent._search_client = broken_client
 
-        output = agent._skill_1_system_research("ValleyRAT", "advanced")
+        output = agent._skill_1_system_research("ValleyRAT", "advanced", True)
 
         assert output.sources == []  # error caught, not raised
 
@@ -184,7 +196,7 @@ class TestSkillSearchClientBranches:
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
         agent._search_client = None
 
-        output = agent._skill_1_system_research("ValleyRAT", "advanced")
+        output = agent._skill_1_system_research("ValleyRAT", "advanced", True)
 
         assert "requires LLM for detailed analysis" in output.summary
         assert output.key_findings == ["LLM disabled - manual research required"]
