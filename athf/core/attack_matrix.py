@@ -163,6 +163,16 @@ class AttackDataProvider(ABC):
     def is_stix(self) -> bool:
         """Return True if backed by live STIX data."""
 
+    def get_superseding_technique_id(self, technique_id: str) -> Optional[str]:
+        """Return the current ATT&CK ID that replaced a revoked one.
+
+        Deliberately concrete rather than abstract: resolving this needs
+        ATT&CK's revoked-by relationship, which only real STIX data carries.
+        A provider without it isn't broken -- it just can't answer, so the
+        honest default is "no known replacement".
+        """
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Fallback provider (hardcoded data)
@@ -226,6 +236,14 @@ def _get_stix_file_path() -> Path:
     return _get_stix_cache_dir() / "enterprise-attack.json"
 
 
+def _extract_attack_id(stix_obj: Any) -> str:
+    """Return a STIX object's ATT&CK ID (e.g. 'T1055.012'), or '' if absent."""
+    for ref in stix_obj.get("external_references", []):
+        if ref.get("source_name") == "mitre-attack":
+            return str(ref.get("external_id", ""))
+    return ""
+
+
 class StixProvider(AttackDataProvider):
     """Provider backed by STIX data via mitreattack-python.
 
@@ -238,6 +256,7 @@ class StixProvider(AttackDataProvider):
         self._tactics_cache: Optional[Dict[str, TacticInfo]] = None
         self._technique_cache: Optional[Dict[str, TechniqueInfo]] = None
         self._tactic_techniques_cache: Dict[str, List[TechniqueInfo]] = {}
+        self._revoked_cache: Optional[Dict[str, str]] = None
 
     def _ensure_loaded(self) -> None:
         """Lazily load STIX data on first access."""
@@ -349,6 +368,83 @@ class StixProvider(AttackDataProvider):
     def get_sorted_tactic_keys(self) -> List[str]:
         tactics = self.get_tactics()
         return sorted(tactics.keys(), key=lambda k: tactics[k]["order"])
+
+    def _build_revoked_index(self) -> Dict[str, str]:
+        """Map revoked ATT&CK technique IDs to the IDs that replaced them.
+
+        Built separately from the main technique index, which is
+        deliberately loaded with remove_revoked_deprecated=True so revoked
+        techniques never inflate coverage counts or tactic listings. They're
+        still worth *resolving*, though: an LLM trained on years of threat
+        reporting routinely names a real behavior using its pre-subtechnique
+        ID (T1093 for Process Hollowing, T1067 for Bootkit), and ATT&CK's
+        own STIX ships the revoked-by relationship needed to translate that
+        into the current ID rather than discarding a correct call.
+        """
+        self._ensure_loaded()
+
+        # Queried as one bulk relationship lookup rather than a
+        # get_revoking_object() call per revoked technique: that helper
+        # rescans the whole store each time, which measured ~20s to build
+        # this index versus ~0.2s here for identical output.
+        from stix2 import Filter
+
+        index: Dict[str, str] = {}
+        try:
+            relationships = self._attack_data.src.query(
+                [
+                    Filter("type", "=", "relationship"),
+                    Filter("relationship_type", "=", "revoked-by"),
+                ]
+            )
+            patterns = self._attack_data.get_objects_by_type(
+                "attack-pattern", remove_revoked_deprecated=False
+            )
+        except Exception:  # pragma: no cover - depends on mitreattack internals
+            logger.warning(
+                "Could not read ATT&CK revoked-by relationships; deprecated "
+                "technique IDs will be reported as unknown instead of remapped.",
+                exc_info=True,
+            )
+            return {}
+
+        by_stix_id = {obj["id"]: obj for obj in patterns}
+        for rel in relationships:
+            revoked = by_stix_id.get(rel.get("source_ref"))
+            successor = by_stix_id.get(rel.get("target_ref"))
+            if revoked is None or successor is None:
+                # revoked-by also covers groups/software/mitigations; only
+                # technique-to-technique pairs belong in this index.
+                continue
+            old_id = _extract_attack_id(revoked)
+            new_id = _extract_attack_id(successor)
+            # A successor that is itself revoked (ATT&CK has chained a few
+            # over the years) is resolved transitively below, once the whole
+            # index is built -- following the chain here would depend on
+            # dict insertion order.
+            if old_id and new_id:
+                index[old_id] = new_id
+
+        # Collapse chains (A -> B -> C becomes A -> C) so a caller never has
+        # to re-resolve, and drop any cycle rather than loop forever.
+        resolved: Dict[str, str] = {}
+        for old_id, first_hop in index.items():
+            seen = {old_id}
+            target = first_hop
+            while target in index and target not in seen:
+                seen.add(target)
+                target = index[target]
+            if target in index:
+                # Loop exited because we came back around, not because we
+                # reached a live technique -- no honest answer to give.
+                continue
+            resolved[old_id] = target
+        return resolved
+
+    def get_superseding_technique_id(self, technique_id: str) -> Optional[str]:
+        if self._revoked_cache is None:
+            self._revoked_cache = self._build_revoked_index()
+        return self._revoked_cache.get(technique_id.upper())
 
     def get_technique_by_id(self, technique_id: str) -> Optional[TechniqueInfo]:
         if self._technique_cache is None:
@@ -516,6 +612,26 @@ def get_technique(technique_id: str) -> Optional[TechniqueInfo]:
         TechniqueInfo dict or None if not found / using fallback provider.
     """
     return _get_provider().get_technique_by_id(technique_id)
+
+
+def get_superseding_technique_id(technique_id: str) -> Optional[str]:
+    """Return the current ATT&CK ID that replaced a revoked technique ID.
+
+    ATT&CK revokes IDs when it restructures (T1093 "Process Hollowing"
+    became sub-technique T1055.012; T1067 "Bootkit" became T1542.003).
+    Threat reporting written before a restructure -- and models trained on
+    it -- still cite the old ID for a behavior that is otherwise named
+    correctly, so callers validating IDs should offer this translation
+    before rejecting one as unknown.
+
+    Args:
+        technique_id: Possibly-revoked ATT&CK technique ID (e.g., "T1093")
+
+    Returns:
+        The replacement ID (e.g., "T1055.012"), or None when the ID isn't
+        revoked, has no recorded successor, or STIX data isn't installed.
+    """
+    return _get_provider().get_superseding_technique_id(technique_id)
 
 
 def get_techniques_for_tactic(tactic_key: str) -> List[TechniqueInfo]:

@@ -210,6 +210,129 @@ class TestStixProvider:
         assert tactics["credential-access"]["technique_count"] == 2
 
 
+def _pattern(stix_id, attack_id):
+    """Minimal attack-pattern STIX object carrying an ATT&CK external ref."""
+    return {
+        "id": stix_id,
+        "external_references": [{"source_name": "mitre-attack", "external_id": attack_id}],
+    }
+
+
+def _revoked_by(source_ref, target_ref):
+    return {"type": "relationship", "relationship_type": "revoked-by",
+            "source_ref": source_ref, "target_ref": target_ref}
+
+
+def _stix_provider_with(tmp_path, patterns, relationships):
+    from athf.core.attack_matrix import StixProvider
+
+    provider = StixProvider(stix_path=tmp_path / "enterprise-attack.json")
+    mock_attack_data = MagicMock()
+    mock_attack_data.get_objects_by_type.return_value = patterns
+    mock_attack_data.src.query.return_value = relationships
+    provider._attack_data = mock_attack_data  # bypass file-backed _ensure_loaded
+    return provider
+
+
+@pytest.mark.unit
+class TestSupersedingTechniqueId:
+    """Revoked ATT&CK IDs resolve to the ID that replaced them."""
+
+    def test_revoked_id_resolves_to_replacement(self, tmp_path):
+        provider = _stix_provider_with(
+            tmp_path,
+            [_pattern("attack-pattern--old", "T1093"), _pattern("attack-pattern--new", "T1055.012")],
+            [_revoked_by("attack-pattern--old", "attack-pattern--new")],
+        )
+
+        assert provider.get_superseding_technique_id("T1093") == "T1055.012"
+
+    def test_lookup_is_case_insensitive(self, tmp_path):
+        provider = _stix_provider_with(
+            tmp_path,
+            [_pattern("attack-pattern--old", "T1093"), _pattern("attack-pattern--new", "T1055.012")],
+            [_revoked_by("attack-pattern--old", "attack-pattern--new")],
+        )
+
+        assert provider.get_superseding_technique_id("t1093") == "T1055.012"
+
+    def test_live_technique_has_no_superseding_id(self, tmp_path):
+        provider = _stix_provider_with(
+            tmp_path, [_pattern("attack-pattern--new", "T1055.012")], []
+        )
+
+        assert provider.get_superseding_technique_id("T1055.012") is None
+
+    def test_chained_revocations_collapse_to_final_target(self, tmp_path):
+        """ATT&CK has revoked a replacement in turn; A -> B -> C must answer C
+        so callers never have to re-resolve."""
+        provider = _stix_provider_with(
+            tmp_path,
+            [
+                _pattern("attack-pattern--a", "T1000"),
+                _pattern("attack-pattern--b", "T2000"),
+                _pattern("attack-pattern--c", "T3000"),
+            ],
+            [
+                _revoked_by("attack-pattern--a", "attack-pattern--b"),
+                _revoked_by("attack-pattern--b", "attack-pattern--c"),
+            ],
+        )
+
+        assert provider.get_superseding_technique_id("T1000") == "T3000"
+        assert provider.get_superseding_technique_id("T2000") == "T3000"
+
+    def test_revocation_cycle_is_dropped_not_looped(self, tmp_path):
+        """A cycle has no live technique to land on -- it must be dropped
+        rather than hang or return an arbitrary member."""
+        provider = _stix_provider_with(
+            tmp_path,
+            [_pattern("attack-pattern--a", "T1000"), _pattern("attack-pattern--b", "T2000")],
+            [
+                _revoked_by("attack-pattern--a", "attack-pattern--b"),
+                _revoked_by("attack-pattern--b", "attack-pattern--a"),
+            ],
+        )
+
+        assert provider.get_superseding_technique_id("T1000") is None
+        assert provider.get_superseding_technique_id("T2000") is None
+
+    def test_non_technique_revocations_are_ignored(self, tmp_path):
+        """revoked-by also links groups/software/mitigations; only
+        technique-to-technique pairs belong in the technique index."""
+        provider = _stix_provider_with(
+            tmp_path,
+            [_pattern("attack-pattern--old", "T1093"), _pattern("attack-pattern--new", "T1055.012")],
+            [
+                _revoked_by("attack-pattern--old", "attack-pattern--new"),
+                _revoked_by("intrusion-set--g1", "intrusion-set--g2"),
+            ],
+        )
+
+        assert provider.get_superseding_technique_id("T1093") == "T1055.012"
+        assert provider.get_superseding_technique_id("G0001") is None
+
+    def test_index_is_built_once_and_cached(self, tmp_path):
+        provider = _stix_provider_with(
+            tmp_path,
+            [_pattern("attack-pattern--old", "T1093"), _pattern("attack-pattern--new", "T1055.012")],
+            [_revoked_by("attack-pattern--old", "attack-pattern--new")],
+        )
+
+        provider.get_superseding_technique_id("T1093")
+        provider.get_superseding_technique_id("T1067")
+        provider.get_superseding_technique_id("T1093")
+
+        assert provider._attack_data.src.query.call_count == 1
+
+    def test_fallback_provider_returns_none(self):
+        """Without STIX data there is no revoked-by relationship to read, so
+        the honest answer is 'no known replacement', not a guess."""
+        from athf.core.attack_matrix import FallbackProvider
+
+        assert FallbackProvider().get_superseding_technique_id("T1093") is None
+
+
 # ---------------------------------------------------------------------------
 # Provider selection tests
 # ---------------------------------------------------------------------------

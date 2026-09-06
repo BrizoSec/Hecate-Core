@@ -78,13 +78,13 @@ class TestLlmCallFailed:
 class TestConfidenceReflectsLlmFailure:
     def test_skill_1_confidence_is_low_when_llm_call_fails(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=True, provider=FailingProvider())
-        result = agent._skill_1_system_research(topic="LSASS dumping", search_depth="basic")
+        result = agent._skill_1_system_research(topic="LSASS dumping", search_depth="basic", web_search_enabled=True)
         assert _LLM_ERROR_KEY_FINDING in result.key_findings
         assert result.confidence <= 0.1
 
     def test_skill_1_confidence_is_normal_when_llm_call_succeeds(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CannedProvider())
-        result = agent._skill_1_system_research(topic="LSASS dumping", search_depth="basic")
+        result = agent._skill_1_system_research(topic="LSASS dumping", search_depth="basic", web_search_enabled=True)
         assert result.confidence >= 0.5
 
     def test_skill_2_confidence_is_low_when_llm_call_fails(self) -> None:

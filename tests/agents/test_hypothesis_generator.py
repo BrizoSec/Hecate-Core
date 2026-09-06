@@ -187,7 +187,12 @@ class TestHypothesisGeneratorAgent:
             mock_get_provider.return_value = mock_stix
             with patch("athf.core.attack_matrix.get_technique") as mock_get_technique:
                 mock_get_technique.side_effect = lambda tid: {"name": tid} if tid == "T1003.001" else None
-                result = agent.execute(_make_input())
+                # T9999.999 is fabricated, not merely deprecated -- ATT&CK has
+                # no successor for it, so it must still be dropped outright.
+                with patch(
+                    "athf.core.attack_matrix.get_superseding_technique_id", return_value=None
+                ):
+                    result = agent.execute(_make_input())
 
         assert result.success is True
         assert result.data.mitre_techniques == ["T1003.001"]  # invalid ID dropped
@@ -195,6 +200,65 @@ class TestHypothesisGeneratorAgent:
         assert result.data.behavior == "Test behavior"
         assert result.data.location == "Test location"
         assert result.data.evidence == "Test evidence"
+
+    def test_execute_remaps_deprecated_technique_instead_of_dropping_it(self):
+        """A revoked ATT&CK ID names a real behavior with a stale label
+        (T1093 was Process Hollowing before it became T1055.012). It must be
+        translated to the current ID, not discarded as unrecognised."""
+        response = json.dumps(
+            {
+                "hypothesis": "Adversaries hollow processes to run payloads",
+                "justification": "test",
+                "mitre_techniques": ["T1093"],
+                "data_sources": ["EDR telemetry"],
+                "expected_observables": [],
+                "known_false_positives": [],
+                "time_range_suggestion": "7 days",
+                "actor": "",
+                "behavior": "",
+                "location": "",
+                "evidence": "",
+            }
+        )
+        agent = HypothesisGeneratorAgent(provider=MockProvider(response), llm_enabled=True)
+
+        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+            mock_stix = MagicMock()
+            mock_stix.is_stix.return_value = True
+            mock_get_provider.return_value = mock_stix
+            with patch("athf.core.attack_matrix.get_technique", return_value=None):
+                with patch(
+                    "athf.core.attack_matrix.get_superseding_technique_id",
+                    return_value="T1055.012",
+                ):
+                    result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data.mitre_techniques == ["T1055.012"]
+        assert any("T1093 -> T1055.012" in w for w in result.warnings)
+
+    def test_validate_techniques_deduplicates_old_and_new_id(self):
+        """A model emitting both the deprecated and current ID for one
+        technique must not leave a duplicate behind after remapping."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider("{}"), llm_enabled=True)
+
+        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+            mock_stix = MagicMock()
+            mock_stix.is_stix.return_value = True
+            mock_get_provider.return_value = mock_stix
+            with patch(
+                "athf.core.attack_matrix.get_technique",
+                side_effect=lambda tid: {"name": tid} if tid == "T1055.012" else None,
+            ):
+                with patch(
+                    "athf.core.attack_matrix.get_superseding_technique_id",
+                    return_value="T1055.012",
+                ):
+                    valid, remapped, invalid = agent._validate_techniques(["T1093", "T1055.012"])
+
+        assert valid == ["T1055.012"]
+        assert remapped == [("T1093", "T1055.012")]
+        assert invalid == []
 
     def test_execute_flags_low_confidence_source(self):
         """A response that self-assesses as not a real threat report
@@ -402,6 +466,54 @@ class TestHypothesisGeneratorAgent:
         assert "credentials, MFA, or billing" in prompt
         assert "do not invent an adversary" in prompt
         assert "named tooling" in prompt
+
+    def test_build_prompt_omits_indicator_only_guidance_by_default(self):
+        """Free-prose intel must keep the standard behavior template -- the
+        indicator-only constraints would wrongly suppress real tradecraft."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+
+        prompt = agent._build_prompt(_make_input())
+
+        assert "indicator list, not a narrative" not in prompt
+        assert '- Hypothesis: "Adversaries use [behavior] to [goal] on [target]"' in prompt
+
+    def test_build_prompt_constrains_hypothesis_for_indicator_only_intel(self):
+        """A bare feed dump evidences no delivery vector, actor or technique.
+
+        Regression test for drafts that invented "phishing emails" and
+        "stolen credentials ... lateral movement" from a ThreatFox/Maltrail
+        list of domains -- content the source never contained."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+        input_data = HypothesisGenerationInput(
+            threat_intel="MISP Event: ThreatFox IOCs\nAttributes (245 total): domain (146)",
+            past_hunts=[],
+            environment={"data_sources": ["EDR"]},
+            intel_is_indicator_only=True,
+        )
+
+        prompt = agent._build_prompt(input_data)
+
+        assert "indicator list, not a narrative" in prompt
+        assert "naming phishing" in prompt
+        assert "lateral movement" in prompt
+        assert "empty technique list is the correct answer" in prompt
+
+    def test_build_prompt_swaps_behavior_template_for_indicator_only_intel(self):
+        """The default '[behavior]' slot obliges the model to name a
+        behavior; against an indicator list there is none to name, so the
+        template itself drove the fabrication and must be replaced."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+        input_data = HypothesisGenerationInput(
+            threat_intel="Attributes (245 total): domain (146)",
+            past_hunts=[],
+            environment={},
+            intel_is_indicator_only=True,
+        )
+
+        prompt = agent._build_prompt(input_data)
+
+        assert '- Hypothesis: "Adversaries use [behavior] to [goal] on [target]"' not in prompt
+        assert "Indicators published in [source] appear in [telemetry]" in prompt
 
     def test_build_prompt_includes_research_context(self):
         """When ResearchContext is provided, it appears in the prompt."""
