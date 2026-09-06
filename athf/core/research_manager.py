@@ -494,29 +494,30 @@ class ResearchManager:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Parse frontmatter
-            frontmatter = research_data.get("frontmatter", {})
-            linked_hunts = frontmatter.get("linked_hunts", [])
+            # Frontmatter is round-tripped through yaml rather than patched by
+            # regex. The previous pattern matched up to the next key with
+            # DOTALL and re-appended a newline, so every call left a stray
+            # blank line behind ("linked_hunts: [...]\n\nweb_searches: 0") --
+            # accumulating one per link, since `athf hunt new --research` runs
+            # this on every hunt created from a research doc.
+            parts = content.split("---", 2)
+            if len(parts) < 3:
+                return False
 
-            # Add hunt if not already linked
-            if hunt_id not in linked_hunts:
-                linked_hunts.append(hunt_id)
+            frontmatter = yaml.safe_load(parts[1]) or {}
+            linked_hunts = frontmatter.get("linked_hunts") or []
 
-                # Update the YAML frontmatter
-                # Find and replace linked_hunts line
-                if "linked_hunts:" in content:
-                    # Replace existing linked_hunts
-                    pattern = r"linked_hunts:.*?(?=\n[a-z_]+:|---)"
-                    replacement = f"linked_hunts: {linked_hunts}\n"
-                    content = re.sub(pattern, replacement, content, flags=re.DOTALL)
-                else:
-                    # Add linked_hunts before closing ---
-                    pattern = r"\n---\s*\n"
-                    replacement = f"\nlinked_hunts: {linked_hunts}\n---\n"
-                    content = re.sub(pattern, replacement, content, count=1)
+            if hunt_id in linked_hunts:
+                return True
 
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(content)
+            linked_hunts.append(hunt_id)
+            frontmatter["linked_hunts"] = linked_hunts
+
+            # flow_style=None keeps short lists inline; width avoids wrapping a
+            # long topic onto a continuation line.
+            new_frontmatter = yaml.dump(frontmatter, default_flow_style=None, sort_keys=False, width=4096)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("---\n{}---{}".format(new_frontmatter, parts[2]))
 
             return True
 

@@ -29,6 +29,12 @@ _LOCK_PATTERNS: List[Tuple[str, re.Pattern]] = [
 
 _RE_HUNT_ID_FORMAT = re.compile(r"^[A-Z]+-\d+$")
 
+# Required by hunts/FORMAT_GUIDELINES.md ("Required Fields") but not hard-failed
+# by validate(), which only errors on hunt_id/title/status/date. Reported via
+# collect_warnings() so an empty value is visible without blocking a draft that
+# is still awaiting review.
+_RECOMMENDED_FIELDS = ("hunter", "platform", "tactics", "techniques", "data_sources")
+
 
 class HuntParser:
     """Parser for ATHF hunt files."""
@@ -181,6 +187,28 @@ class HuntParser:
 
         return (len(errors) == 0, errors)
 
+    def collect_warnings(self) -> List[str]:
+        """Return non-fatal metadata gaps: fields FORMAT_GUIDELINES marks
+        required that are missing or present-but-empty.
+
+        Deliberately warnings rather than errors. validate() hard-fails only on
+        hunt_id/title/status/date, so a draft carrying `platform: []` and
+        `tactics: []` reported "Hunt is valid!" while being invisible to
+        `athf hunt coverage` -- four auto-generated drafts passed validation
+        while the program showed 0% coverage across every tactic. Promoting
+        these to errors would instead fail every draft that is legitimately
+        still awaiting human review, and would break `--fail-on-error` in CI.
+        """
+        warnings: List[str] = []
+        for field in _RECOMMENDED_FIELDS:
+            if field not in self.frontmatter:
+                warnings.append("Missing recommended frontmatter field: {}".format(field))
+            elif not self.frontmatter.get(field):
+                warnings.append(
+                    "Frontmatter field is empty: {} (hunt will not be filterable or counted by this field)".format(field)
+                )
+        return warnings
+
 
 def parse_hunt_file(file_path: Path) -> Dict:
     """Convenience function to parse a hunt file (includes LOCK sections).
@@ -209,6 +237,18 @@ def parse_hunt_file_fast(file_path: Path) -> Dict:
     """
     parser = HuntParser(file_path)
     return parser.parse_without_lock_sections()
+
+
+def validate_hunt_file_with_warnings(file_path: Path) -> Tuple[bool, List[str], List[str]]:
+    """Validate a hunt file, also returning non-fatal metadata gaps.
+
+    Returns:
+        Tuple of (is_valid, errors, warnings). Warnings never affect is_valid.
+    """
+    parser = HuntParser(file_path)
+    parser.parse()
+    is_valid, errors = parser.validate()
+    return is_valid, errors, parser.collect_warnings()
 
 
 def validate_hunt_file(file_path: Path) -> Tuple[bool, List[str]]:

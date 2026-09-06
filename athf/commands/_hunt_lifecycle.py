@@ -405,6 +405,9 @@ def _build_brief(hunt_data: Dict[str, Any]) -> str:
 @click.option("--findings-count", "findings_count", type=int, help="Set findings count")
 @click.option("--add-tag", "add_tags", multiple=True, help="Add tag(s) to the hunt")
 @click.option("--remove-tag", "remove_tags", multiple=True, help="Remove tag(s) from the hunt")
+@click.option("--technique", "techniques", multiple=True, help="Set MITRE technique ID(s), replacing any existing")
+@click.option("--tactic", "tactics", multiple=True, help="Set MITRE tactic(s), replacing any existing")
+@click.option("--platform", "platforms", multiple=True, help="Set target platform(s), replacing any existing")
 def update_hunt(
     hunt_id: str,
     status: Optional[str],
@@ -417,6 +420,9 @@ def update_hunt(
     findings_count: Optional[int],
     add_tags: Tuple,
     remove_tags: Tuple,
+    techniques: Tuple,
+    tactics: Tuple,
+    platforms: Tuple,
 ) -> None:
     """Update frontmatter fields in a hunt file.
 
@@ -436,6 +442,12 @@ def update_hunt(
 
       # Combine updates
       athf hunt update H-0042 --status completed --true-positives 2 --findings-count 5
+
+      # Correct an ATT&CK mapping (technique IDs are checked against the matrix)
+      athf hunt update H-0042 --technique T1219 --technique T1071 --tactic command-and-control
+
+      # Fill in the platform an auto-generated draft left empty
+      athf hunt update H-0042 --platform Windows
     """
     if not validate_hunt_id(hunt_id):
         console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
@@ -500,12 +512,50 @@ def update_hunt(
         fm["tags"] = [t for t in current_tags if t not in remove_tags]
         changed.append(f"tags -{list(remove_tags)}")
 
+    # Techniques/tactics are validated against the ATT&CK matrix before being
+    # written. These fields exist to be *corrected* -- an auto-generated draft
+    # can carry a syntactically valid ID that is simply wrong for the
+    # hypothesis (T1091 "Replication Through Removable Media" on a
+    # command-and-control hunt) -- so writing another bad value unchecked would
+    # miss the point of offering the flag at all.
+    if techniques:
+        from athf.core.attack_matrix import get_technique, is_using_stix
+
+        if is_using_stix():
+            unknown = [t for t in techniques if get_technique(t) is None]
+            if unknown:
+                console.print(f"[red]Error: Unknown MITRE technique(s): {', '.join(unknown)}[/red]")
+                console.print("[dim]Check the ID against https://attack.mitre.org/techniques/[/dim]")
+                return
+        fm["techniques"] = list(techniques)
+        changed.append(f"techniques → {list(techniques)}")
+
+    if tactics:
+        from athf.core.attack_matrix import get_sorted_tactics
+
+        valid_tactics = set(get_sorted_tactics())
+        unknown_tactics = [t for t in tactics if t not in valid_tactics]
+        if unknown_tactics:
+            console.print(f"[red]Error: Unknown MITRE tactic(s): {', '.join(unknown_tactics)}[/red]")
+            console.print(f"[dim]Valid tactics: {', '.join(sorted(valid_tactics))}[/dim]")
+            return
+        fm["tactics"] = list(tactics)
+        changed.append(f"tactics → {list(tactics)}")
+
+    if platforms:
+        fm["platform"] = list(platforms)
+        changed.append(f"platform → {list(platforms)}")
+
     if not changed:
         console.print("[yellow]No updates specified — nothing changed.[/yellow]")
-        console.print("[dim]Use --status, --true-positives, --add-tag, etc.[/dim]")
+        console.print("[dim]Use --status, --true-positives, --technique, --tactic, --platform, --add-tag, etc.[/dim]")
         return
 
-    new_fm = yaml.dump(fm, default_flow_style=False, sort_keys=False)
+    # flow_style=None keeps short lists inline ("platform: [Windows]") and
+    # width=4096 stops a long title being wrapped onto a continuation line --
+    # both match how drafts are written, so an update patches the field asked
+    # for instead of reformatting the entire frontmatter block.
+    new_fm = yaml.dump(fm, default_flow_style=None, sort_keys=False, width=4096)
     updated = f"---\n{new_fm}---{parts[2]}"
 
     with open(hunt_file, "w", encoding="utf-8") as f:
@@ -721,7 +771,8 @@ level: medium
             try:
                 fm = yaml.safe_load(parts[1]) or {}
                 fm["detection_rule"] = str(dest)
-                new_fm = yaml.dump(fm, default_flow_style=False, sort_keys=False)
+                # Same formatting-preservation as update_hunt above.
+                new_fm = yaml.dump(fm, default_flow_style=None, sort_keys=False, width=4096)
                 with open(hunt_file, "w", encoding="utf-8") as f:
                     f.write(f"---\n{new_fm}---{parts[2]}")
                 console.print(f"[dim]Updated {hunt_id} frontmatter: detection_rule → {dest}[/dim]")

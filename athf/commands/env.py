@@ -438,8 +438,8 @@ def check() -> None:  # noqa: C901
     # STIX data file
     if mitreattack_ok:
         try:
-            from athf.core.attack_matrix import _get_stix_file_path, is_using_stix
-            stix_path = _get_stix_file_path()
+            from athf.core.attack_matrix import _resolve_stix_file, is_using_stix
+            stix_path = _resolve_stix_file()
             stix_ok = stix_path.exists() and is_using_stix()
             _check("ATT&CK STIX data", stix_ok,
                    str(stix_path) if stix_ok else f"not found at {stix_path} — run `athf attack update`",

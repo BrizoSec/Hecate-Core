@@ -29,9 +29,21 @@ logger = logging.getLogger(__name__)
 # sentinel lets the skill methods force confidence down on a real failure.
 _LLM_ERROR_KEY_FINDING = "Error during LLM analysis"
 
+# Skill 3 is now allowed to return no fields at all: a source that describes
+# no adversary behavior (a bare indicator list, say) has no telemetry to map,
+# and the prompt used to demand "4-6 specific OCSF fields" regardless. That
+# quota is what produced sections mapping unrelated behavior lifted from the
+# environment profile. An empty result is rendered as this visible gap rather
+# than a blank section, so a reviewer sees the absence.
+_NO_TELEMETRY_KEY_FINDING = "No telemetry mapped - the source describes no behavior to detect"
+
 
 def _llm_call_failed(key_findings: List[str]) -> bool:
     return key_findings == [_LLM_ERROR_KEY_FINDING]
+
+
+def _no_telemetry_mapped(key_findings: List[str]) -> bool:
+    return key_findings == [_NO_TELEMETRY_KEY_FINDING]
 
 
 # Web search snippets are truncated to 200 chars each (see
@@ -531,6 +543,9 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "Check OCSF_SCHEMA_REFERENCE.md for field population" " rates",
             ]
 
+        if not key_findings:
+            key_findings = [_NO_TELEMETRY_KEY_FINDING]
+
         # Add schema reference as source
         sources.append(
             {
@@ -551,6 +566,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         confidence = 0.9 if schema_available else 0.4
         if _llm_call_failed(key_findings):
             confidence = 0.1  # summary is an error message, not a finding
+        elif _no_telemetry_mapped(key_findings):
+            # The call succeeded; there was simply nothing to map. Schema
+            # availability says nothing about the quality of that answer.
+            confidence = 0.2
 
         return ResearchSkillOutput(
             skill_name="telemetry_mapping",
@@ -823,15 +842,29 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "OCSF Schema Reference (partial):\n"
                 "{ocsf_schema}\n\n"
                 "Environment:\n{environment_data}\n\n"
-                "Based on this context, provide:\n"
+                "FIRST decide: does the topic itself describe adversary"
+                " behavior -- actions, tooling or technique? A bare list of"
+                " indicators (domains, IP addresses, file hashes, URLs) does"
+                " not. If it does not, return an empty key_findings list and"
+                " say so in the summary. Do not substitute generic, example"
+                " or typical attacker behavior to fill the list.\n\n"
+                "The environment profile above lists which log sources"
+                " exist here. It is not evidence of adversary behavior:"
+                " never infer a technique, tool or attack pattern from it,"
+                " and do not map fields it happens to mention unless the"
+                " topic itself calls for them.\n\n"
+                "Do not state field population rates or percentages. This"
+                " environment has not been measured, so any figure would be"
+                " invented.\n\n"
+                "If the topic does describe behavior, provide:\n"
                 "1. A concise summary of what telemetry would"
-                " capture this behavior\n"
-                "2. 4-6 specific OCSF fields that are relevant,"
-                " with population rates if known\n\n"
+                " capture that behavior\n"
+                "2. Up to 6 specific OCSF fields that behavior calls for,"
+                " and no others.\n\n"
                 "Return JSON format:\n"
                 '{{\n  "summary": "string",\n'
-                '  "key_findings": ["field1 (X% populated):'
-                ' description", "field2: description"]\n}}'
+                '  "key_findings": ["field1: description",'
+                ' "field2: description"]\n}}'
             ).format(
                 grounding=grounding,
                 topic=topic,

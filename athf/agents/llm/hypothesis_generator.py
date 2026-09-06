@@ -130,7 +130,15 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 except ValueError as e:
                     return str(e)
 
-            output_text = self._call_llm_with_retry(prompt, validate_json, max_retries=2)
+            # Low temperature because step 1 of this prompt is a
+            # classification, not prose: "is this actually a threat report?"
+            # has one right answer for a given source, but sampled at the
+            # creative default it varied run to run on identical input --
+            # measured 0/5 correct on a defensive-engineering blog post
+            # before the step-1 wording was sharpened, and still only 2/5
+            # after, purely from sampling. The hypothesis text itself is
+            # better for being less inventive here too.
+            output_text = self._call_llm_with_retry(prompt, validate_json, max_retries=2, temperature=0.2)
             output_data = self._parse_json_response(output_text)
             # A caller that set the flag knows its own source formats; its
             # statement of fact outranks the model's self-assessment, which
@@ -397,7 +405,15 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "the product itself accesses -- not because any adversary was "
             "observed abusing them -- is marketing, not a threat report, "
             "even though every sentence in it could plausibly appear in "
-            "one. Decide this now, before drafting anything below, and "
+            "one. The same applies to defensive engineering content: a "
+            "post about how to instrument, audit, log, or hunt over "
+            "some system describes what a *defender* does, and "
+            "telemetry pipelines, detection queries and hunting "
+            "guidance are its subject matter, not evidence that anyone "
+            "attacked anything. Security-vendor research blogs publish "
+            "both kinds, so the publisher is not the test -- an "
+            "adversary doing something is. "
+            "Decide this now, before drafting anything below, and "
             "record it as \"is_threat_report\" in your JSON response.\n\n"
             "**Step 2 -- generate the hunt hypothesis.** If step 1 "
             "concluded this is not a genuine threat report, still produce "

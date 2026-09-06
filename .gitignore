@@ -19,6 +19,12 @@ secrets/
 # User-specific ATHF config
 .athfconfig.yaml
 
+# Workspace-local ATT&CK STIX cache (~52MB, regenerable via `athf attack
+# update`). Only lands here when the workspace has a .athfconfig.yaml, which
+# switches the cache from ~/.athf/ to the workspace -- so it is easy to stage
+# by accident.
+.athf/
+
 # Evidence artifacts (optional - uncomment if you want to exclude large files)
 # evidence/
 

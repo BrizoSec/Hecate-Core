@@ -96,7 +96,7 @@ def register_hunt_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]  
         description="Validate a hunt file's structure and YAML frontmatter. Returns validation errors if any.",
     )
     def hunt_validate(hunt_id: str) -> str:
-        from athf.core.hunt_parser import validate_hunt_file
+        from athf.core.hunt_parser import validate_hunt_file_with_warnings
 
         workspace = get_workspace()
         from athf.core.hunt_manager import HuntManager
@@ -106,8 +106,8 @@ def register_hunt_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]  
         if hunt_file is None:
             return _json_result({"valid": False, "error": f"Hunt not found: {hunt_id}"})
 
-        is_valid, errors = validate_hunt_file(hunt_file)
-        return _json_result({"valid": is_valid, "hunt_id": hunt_id, "errors": errors})
+        is_valid, errors, warnings = validate_hunt_file_with_warnings(hunt_file)
+        return _json_result({"valid": is_valid, "hunt_id": hunt_id, "errors": errors, "warnings": warnings})
 
     @mcp.tool(
         name="athf_hunt_new",

@@ -222,18 +222,52 @@ def _get_stix_cache_dir() -> Path:
     if env_path:
         return Path(env_path)
 
-    # Check for workspace-local cache
-    cwd = Path.cwd()
-    if (cwd / ".athfconfig.yaml").exists():
-        return cwd / ".athf" / "stix-data"
+    # Workspace-local cache. ATHF_WORKSPACE is the workspace a caller has
+    # explicitly declared; cwd is the fallback for interactive use from inside
+    # a workspace. They usually coincide -- but a caller that sets
+    # ATHF_WORKSPACE and runs from a different directory silently got the wrong
+    # cache directory, even though this docstring has always said "{workspace}".
+    workspace_env = os.environ.get("ATHF_WORKSPACE")
+    workspace = Path(workspace_env) if workspace_env else Path.cwd()
+    if (workspace / ".athfconfig.yaml").exists():
+        return workspace / ".athf" / "stix-data"
 
     # Global default
     return Path.home() / ".athf" / "stix-data"
 
 
 def _get_stix_file_path() -> Path:
-    """Return the expected path for the STIX JSON file."""
+    """Return the canonical path for the STIX JSON file.
+
+    This is the *write* location -- where ``athf attack update`` downloads
+    to. Readers should use :func:`_resolve_stix_file`, which falls back to
+    the global cache when a workspace has no copy of its own.
+    """
     return _get_stix_cache_dir() / "enterprise-attack.json"
+
+
+def _resolve_stix_file() -> Path:
+    """Return the STIX JSON file to *read*, honouring the documented order.
+
+    ``_get_stix_cache_dir`` returns the workspace-local directory whenever a
+    .athfconfig.yaml is present, without checking that a STIX file is
+    actually there. A workspace that had a config but no STIX copy of its own
+    therefore reported "stix_unavailable" even with a perfectly good global
+    cache on disk -- which silently degraded every ``attack lookup`` to empty
+    metadata (no tactics, no platforms, no validation of technique IDs) with
+    nothing logged. Fall through to the global cache instead, which is what
+    _get_stix_cache_dir's own "checks in order" docstring already promises.
+    """
+    preferred = _get_stix_file_path()
+    if preferred.exists():
+        return preferred
+
+    fallback = Path.home() / ".athf" / "stix-data" / "enterprise-attack.json"
+    if fallback.exists():
+        logger.debug("No STIX data at %s; using global cache %s", preferred, fallback)
+        return fallback
+
+    return preferred
 
 
 def _extract_attack_id(stix_obj: Any) -> str:
@@ -518,7 +552,7 @@ def _get_provider() -> AttackDataProvider:
 
     try:
         import mitreattack.stix20  # noqa: F401
-        stix_path = _get_stix_file_path()
+        stix_path = _resolve_stix_file()
         if stix_path.exists():
             _provider = StixProvider(stix_path)
             logger.debug("Using STIX provider: %s", stix_path)
