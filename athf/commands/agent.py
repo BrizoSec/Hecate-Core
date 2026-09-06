@@ -419,7 +419,7 @@ def run(  # noqa: C901
                 technique=technique,
             ))
 
-            if not result.is_success:
+            if not result.is_success or result.data is None:
                 console.print(f"[red]Error: {result.error}[/red]")
                 raise click.Abort()
 

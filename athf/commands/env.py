@@ -411,7 +411,7 @@ def check() -> None:  # noqa: C901
 
     # athf package
     try:
-        import athf  # type: ignore
+        import athf
         athf_version = getattr(athf, "__version__", "unknown")
         _check(f"athf {athf_version}", True)
     except ImportError:

@@ -355,7 +355,7 @@ class PivotSuggesterAgent(LLMAgent[PivotInput, PivotOutput]):
                 ),
             ]
 
-        past_refs = [h.get("hunt_id") for h in past_hunts if h.get("hunt_id")]
+        past_refs = [str(h["hunt_id"]) for h in past_hunts if h.get("hunt_id")]
 
         return AgentResult(
             success=True,
