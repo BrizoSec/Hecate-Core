@@ -14,6 +14,7 @@ file-loading branches.
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,6 +25,12 @@ import pytest
 from athf.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
 from athf.core.llm_provider import LLMProvider, LLMResponse
 from athf.core.web_search import SearchResponse, SearchResult
+
+# athf/commands/__init__.py binds the click Command `similar` as the
+# `similar` attribute of the package, shadowing the submodule of the same
+# name. importlib.import_module is the only form that reliably returns the
+# module itself, so patch against this handle rather than a dotted string.
+_similar_mod = importlib.import_module("athf.commands.similar")
 
 
 class CapturingProvider(LLMProvider):
@@ -87,8 +94,9 @@ class TestExecuteHappyPath:
 
         with (
             patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch(
-                "athf.commands.similar._find_similar_hunts",
+            patch.object(
+                _similar_mod,
+                "_find_similar_hunts",
                 return_value=[
                     {"hunt_id": "H-0001", "title": "Related hunt", "status": "completed", "similarity_score": 0.42}
                 ],
@@ -118,7 +126,7 @@ class TestExecuteHappyPath:
 
         with (
             patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch("athf.commands.similar._find_similar_hunts", return_value=[]),
+            patch.object(_similar_mod, "_find_similar_hunts", return_value=[]),
         ):
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic"))
@@ -135,7 +143,7 @@ class TestExecuteHappyPath:
 
         with (
             patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch("athf.commands.similar._find_similar_hunts", return_value=[]),
+            patch.object(_similar_mod, "_find_similar_hunts", return_value=[]),
         ):
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic", web_search_enabled=False))
@@ -293,8 +301,9 @@ class TestSkill3TelemetryMapping:
 class TestSkill4RelatedWork:
     def test_finds_similar_hunts(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
-        with patch(
-            "athf.commands.similar._find_similar_hunts",
+        with patch.object(
+            _similar_mod,
+            "_find_similar_hunts",
             return_value=[
                 {"hunt_id": "H-0602", "title": "AI evasion draft", "status": "planning", "similarity_score": 0.31}
             ],
@@ -307,7 +316,7 @@ class TestSkill4RelatedWork:
 
     def test_no_similar_hunts_found(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
-        with patch("athf.commands.similar._find_similar_hunts", return_value=[]):
+        with patch.object(_similar_mod, "_find_similar_hunts", return_value=[]):
             output = agent._skill_4_related_work("Some topic")
 
         assert output.sources == []
@@ -315,7 +324,7 @@ class TestSkill4RelatedWork:
 
     def test_similarity_search_exception_degrades_gracefully(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
-        with patch("athf.commands.similar._find_similar_hunts", side_effect=RuntimeError("index unavailable")):
+        with patch.object(_similar_mod, "_find_similar_hunts", side_effect=RuntimeError("index unavailable")):
             output = agent._skill_4_related_work("Some topic")
 
         assert output.sources == []

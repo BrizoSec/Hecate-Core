@@ -8,6 +8,17 @@ pytest.importorskip("mcp", reason="MCP optional dependency not installed")
 
 from athf.mcp.server import create_server
 
+_has_sklearn = True
+try:
+    import sklearn  # noqa: F401
+except ImportError:
+    _has_sklearn = False
+
+# athf_similar degrades to an {"error": ...} payload without scikit-learn, so
+# the tests asserting on real ranked results need the optional dep -- same
+# guard tests/commands/test_similar.py already uses.
+requires_sklearn = pytest.mark.skipif(not _has_sklearn, reason="scikit-learn not installed")
+
 
 def _setup_workspace(tmp_path):
     """Create workspace with hunts for search testing."""
@@ -105,11 +116,13 @@ def _call_tool(server, tool_name, arguments=None):
 
 
 class TestSimilar:
+    @requires_sklearn
     def test_similar_with_query(self, server):
         result = _call_tool(server, "athf_similar", {"query": "credential dumping LSASS"})
         assert result["count"] >= 1
         assert result["results"][0]["hunt_id"] == "H-0001"
 
+    @requires_sklearn
     def test_similar_with_hunt_id(self, server):
         """H-0001 must match H-0003 (both real LSASS credential-dumping
         hunts), but never match itself: the old implementation excluded
@@ -126,6 +139,7 @@ class TestSimilar:
         result = _call_tool(server, "athf_similar")
         assert "error" in result
 
+    @requires_sklearn
     def test_similar_threshold(self, server):
         result = _call_tool(server, "athf_similar", {"query": "credential dumping", "threshold": 0.9})
         # High threshold may filter out results

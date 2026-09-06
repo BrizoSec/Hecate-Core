@@ -234,7 +234,21 @@ def _stix_provider_with(tmp_path, patterns, relationships):
     return provider
 
 
+_has_stix2 = True
+try:
+    import stix2  # noqa: F401
+except ImportError:
+    _has_stix2 = False
+
+# get_superseding_technique_id() imports stix2.Filter directly. In production a
+# StixProvider is only selected when mitreattack-python (which depends on
+# stix2) is installed; these tests build one directly against a mocked
+# _attack_data, so they need the optional dep stated explicitly.
+requires_stix2 = pytest.mark.skipif(not _has_stix2, reason="stix2 not installed")
+
+
 @pytest.mark.unit
+@requires_stix2
 class TestSupersedingTechniqueId:
     """Revoked ATT&CK IDs resolve to the ID that replaced them."""
 
