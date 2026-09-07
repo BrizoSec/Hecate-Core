@@ -1,0 +1,31 @@
+title: Detection of Black Hat SEO Tool Usage via Command Line Manipulation
+id: f9cf3892-1911-4125-ae59-a1b9c94e7ac1
+status: experimental
+description: This rule aims to detect the use of black hat SEO tools that manipulate search engine rankings
+  by identifying suspicious command line activities indicative of such practices. The detection focuses
+  on specific patterns in the command line arguments used for SEO tool execution.
+references:
+- https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-07'
+tags:
+- attack.t1568
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \cmd.exe
+  filter:
+    CommandLine|contains:
+    - seo
+    - rank
+    - blackhat
+    - spam
+  condition: selection and filter
+falsepositives:
+- Legitimate SEO tool usage by marketing teams
+level: medium
+related:
+- id: H-0616
+  type: derived
