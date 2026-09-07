@@ -1,6 +1,7 @@
 """ATHF command-line interface."""
 
 import random
+import sys
 
 import click
 from dotenv import load_dotenv
@@ -143,8 +144,41 @@ def thrunt() -> None:
     console.print("[italic]Welcome to the club. Now go hunt some threats.[/italic]\n")
 
 
+def _ensure_printable_stdio() -> None:
+    """Make stdout/stderr able to carry this CLI's non-ASCII output.
+
+    A legacy Windows console encodes as cp1252, which has no mapping for the
+    emoji and box-drawing characters used throughout the command output. rich
+    writes through the stream, so the first such character raised
+    UnicodeEncodeError mid-print and aborted the command: `athf hunt new` exited
+    1 without creating the hunt, before doing any of its real work. 27 source
+    files emit characters outside cp1252, so this is fixed once here rather
+    than by stripping them from every message.
+
+    UTF-8 first, since it can carry everything this CLI prints. If the stream
+    refuses to change encoding, fall back to leaving the encoding alone and
+    only relaxing the error handler -- losing a glyph to a placeholder is an
+    acceptable outcome, aborting the command halfway through its output is not.
+
+    Best-effort throughout: a stream without reconfigure() (pytest's capture,
+    click's CliRunner) is left exactly as it was.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            try:
+                reconfigure(errors="replace")
+            except (AttributeError, ValueError, OSError):  # pragma: no cover - stream-dependent
+                pass
+
+
 def main() -> None:
     """Run the CLI."""
+    _ensure_printable_stdio()
     cli()
 
 

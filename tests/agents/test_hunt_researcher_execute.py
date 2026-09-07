@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -92,21 +93,22 @@ class TestExecuteHappyPath:
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key="fake-key")
         monkeypatch.setattr(agent, "_get_search_client", lambda: fake_search_client)
 
-        with (
-            patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch.object(
-                _similar_mod,
-                "_find_similar_hunts",
-                return_value=[
-                    {"hunt_id": "H-0001", "title": "Related hunt", "status": "completed", "similarity_score": 0.42}
-                ],
-            ),
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            stack.enter_context(
+                patch.object(
+                    _similar_mod,
+                    "_find_similar_hunts",
+                    return_value=[
+                        {"hunt_id": "H-0001", "title": "Related hunt", "status": "completed", "similarity_score": 0.42}
+                    ],
+                )
+            )
             # Real STIX lookup (mitreattack-python parsing the ~50MB
             # enterprise-attack.json) is a genuinely slow cold load and
             # irrelevant to what this test covers -- mock it out, same as
             # test_hunt_researcher_grounding.py does.
-            patch("athf.core.attack_matrix.get_technique", return_value=None),
-        ):
+            stack.enter_context(patch("athf.core.attack_matrix.get_technique", return_value=None))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0099"
 
             result = agent.execute(ResearchInput(topic="ValleyRAT", mitre_technique="T1574.001"))
@@ -124,10 +126,9 @@ class TestExecuteHappyPath:
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key=None)
         monkeypatch.setattr(agent, "_get_search_client", lambda: None)
 
-        with (
-            patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch.object(_similar_mod, "_find_similar_hunts", return_value=[]),
-        ):
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic"))
 
@@ -141,10 +142,9 @@ class TestExecuteHappyPath:
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key="fake-key")
         monkeypatch.setattr(agent, "_get_search_client", lambda: fake_search_client)
 
-        with (
-            patch("athf.core.research_manager.ResearchManager") as mock_manager_cls,
-            patch.object(_similar_mod, "_find_similar_hunts", return_value=[]),
-        ):
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic", web_search_enabled=False))
 
@@ -255,7 +255,13 @@ class TestSkillSearchClientBranches:
         # Cached, not rebuilt on a second call.
         assert agent._get_search_client() is client
 
-    def test_get_search_client_none_without_key(self) -> None:
+    def test_get_search_client_none_without_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The constructor falls back to os.getenv("TAVILY_API_KEY") when the
+        # argument is None, so "without key" has to mean the environment too --
+        # otherwise this passes only where no .env happens to be loaded, and
+        # any test importing athf.cli (which calls load_dotenv() at import)
+        # silently turns it red. Mirrors tests/core/test_web_search.py.
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider(), tavily_api_key=None)
         assert agent._get_search_client() is None
 

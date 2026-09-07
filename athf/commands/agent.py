@@ -1,7 +1,7 @@
 """Agent management commands."""
 
 import json
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 from rich.console import Console
@@ -19,7 +19,7 @@ console = Console(soft_wrap=True)
 # Single source of truth for agent metadata.  Add an entry here when a new
 # agent is added to athf.agents.llm — the list/info/run commands below all
 # derive their output from this dict.
-_AGENT_REGISTRY: dict[str, dict] = {
+_AGENT_REGISTRY: Dict[str, dict] = {
     "hypothesis-generator": {
         "type": "LLM (auto-detect)",
         "description": "Generates creative hunt hypotheses using threat intelligence",
