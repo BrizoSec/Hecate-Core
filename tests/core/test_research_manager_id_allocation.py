@@ -157,11 +157,22 @@ def test_counter_file_is_readable_like_the_rest_of_the_workspace(tmp_path: Path)
     assert counter.stat().st_mode & 0o777 == plain.stat().st_mode & 0o777
 
 
+@pytest.mark.skipif(
+    research_manager._fcntl is None,
+    reason="allocation lock is a documented no-op without fcntl (Windows); " "concurrent allocation is not serialized there",
+)
 def test_concurrent_allocation_hands_out_unique_ids(tmp_path: Path) -> None:
     """Regression test: without the allocation lock, a manual
     `athf research new` overlapping the hourly orchestrator could have both
     read the same high-water mark before either wrote it back, and both
-    allocate the same ID. The sleep widens the read-modify-write window."""
+    allocate the same ID. The sleep widens the read-modify-write window.
+
+    POSIX-only by construction. `_id_allocation_lock` degrades to a no-op
+    where fcntl is unavailable, so on Windows all five threads legitimately
+    read the same mark and return R-0001 -- asserting serialization there
+    would be asserting a guarantee the implementation does not make. See
+    test_allocation_works_without_fcntl for what is guaranteed on that path.
+    """
     research_dir = tmp_path / "research"
     manager = ResearchManager(research_dir)
     allocated: List[str] = []

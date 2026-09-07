@@ -44,7 +44,8 @@ _fcntl: Optional[Any] = _fcntl_module
 _ID_COUNTER_FILENAME = ".research_id_counter"
 
 # flock target guarding the counter's read-modify-write. Mirrors the hunt
-# side's .hunt_id.lock; created on demand, never read.
+# side's .hunt_id.lock; created on demand, never read, and never created at
+# all on platforms without fcntl.
 _ID_LOCK_FILENAME = ".research_id.lock"
 
 # Bound the one-off git seed scan so a large or damaged repo cannot wedge
@@ -201,9 +202,15 @@ class ResearchManager:
         before either writes it back, and both allocate the same ID.
 
         This covers allocation only, not the later write of the research
-        document -- the caller does that well after the lock is released. It
-        is a no-op where fcntl is unavailable (Windows), which leaves the
-        pre-existing race there rather than blocking the import.
+        document -- the caller does that well after the lock is released.
+
+        No-op where fcntl is unavailable (Windows): concurrent callers there
+        can read the same mark and be handed the same ID, which is the
+        pre-existing behavior. Degrading was chosen over a Windows-specific
+        lock that no CI here can exercise, and over blocking the import
+        outright. See get_next_research_id for the caller-facing statement of
+        that limit, and test_allocation_works_without_fcntl for what still
+        holds.
         """
         if _fcntl is None:
             yield
@@ -354,6 +361,15 @@ class ResearchManager:
         The ID is burned at allocation time, before the document is written,
         so a run that dies between the two leaves a gap in the numbering
         rather than handing the same ID to the next caller.
+
+        Concurrency is serialized across processes only where fcntl exists
+        (POSIX). On Windows the lock degrades to a no-op, so two
+        `athf research new` runs started at the same instant can be handed
+        the same ID -- and since the document is named after it, the second
+        written would overwrite the first. Known and accepted: the scheduled
+        orchestrator runs on Linux, and interactive Windows use is
+        sequential. Anything driving this concurrently on Windows needs its
+        own locking.
 
         Args:
             prefix: Research ID prefix (default: R-)
