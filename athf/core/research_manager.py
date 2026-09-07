@@ -37,6 +37,20 @@ _ID_COUNTER_FILENAME = ".research_id_counter"
 _GIT_SEED_TIMEOUT_SEC = 30
 
 
+def _default_file_mode() -> int:
+    """Mode a plain open() would create: 0o666 masked by the process umask.
+
+    Read once at import, before any worker threads exist -- querying the
+    umask means temporarily setting it, which is not thread-safe.
+    """
+    umask = os.umask(0o022)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
+_DEFAULT_FILE_MODE = _default_file_mode()
+
+
 class ResearchParser:
     """Parser for research files (YAML frontmatter + markdown)."""
 
@@ -207,6 +221,10 @@ class ResearchManager:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(counters, f, indent=2, sort_keys=True)
+            # mkstemp hardcodes 0600 and os.replace carries that onto the
+            # destination, which would leave the counter private to its owner
+            # while every other file in the workspace is world-readable.
+            os.chmod(tmp_name, _DEFAULT_FILE_MODE)
             os.replace(tmp_name, path)
         except BaseException:
             with contextlib.suppress(OSError):

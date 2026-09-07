@@ -64,8 +64,7 @@ def _fake_search_response(n: int = 3) -> SearchResponse:
     return SearchResponse(
         query="fake query",
         results=[
-            SearchResult(title=f"Result {i}", url=f"https://example.com/{i}", content="x" * 250, score=0.9)
-            for i in range(n)
+            SearchResult(title=f"Result {i}", url=f"https://example.com/{i}", content="x" * 250, score=0.9) for i in range(n)
         ],
         answer="A fake AI-generated answer summary.",
     )
@@ -135,6 +134,26 @@ class TestExecuteHappyPath:
         assert result.success is True
         assert result.data.web_searches_performed == 0
 
+    def test_execute_reuses_a_caller_supplied_research_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`athf research new` allocates an ID for its "Starting Research:"
+        banner and passes it in. Allocation persists a high-water mark, so
+        allocating a second one here would both leave a permanent gap in the
+        numbering and make the banner name a document never written."""
+        provider = CapturingProvider()
+        agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key=None)
+        monkeypatch.setattr(agent, "_get_search_client", lambda: None)
+
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
+            result = agent.execute(ResearchInput(topic="Some topic", research_id="R-0500"))
+
+        assert result.success is True
+        assert result.data is not None
+        assert result.data.research_id == "R-0500"
+        assert result.metadata["research_id"] == "R-0500"
+        mock_manager_cls.return_value.get_next_research_id.assert_not_called()
+
     def test_execute_web_search_disabled_flag_skips_all_search(
         self, fake_search_client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -191,7 +210,9 @@ class TestSkillSearchClientBranches:
 
     def test_skill_1_search_error_is_swallowed(self) -> None:
         broken_client = type(
-            "BrokenClient", (), {"search_system_internals": lambda self, topic, depth: (_ for _ in ()).throw(RuntimeError("boom"))}
+            "BrokenClient",
+            (),
+            {"search_system_internals": lambda self, topic, depth: (_ for _ in ()).throw(RuntimeError("boom"))},
         )()
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
         agent._search_client = broken_client
@@ -222,11 +243,7 @@ class TestSkillSearchClientBranches:
         broken_client = type(
             "BrokenClient",
             (),
-            {
-                "search_adversary_tradecraft": lambda self, topic, technique, depth: (_ for _ in ()).throw(
-                    RuntimeError("boom")
-                )
-            },
+            {"search_adversary_tradecraft": lambda self, topic, technique, depth: (_ for _ in ()).throw(RuntimeError("boom"))},
         )()
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
         agent._search_client = broken_client
@@ -310,9 +327,7 @@ class TestSkill4RelatedWork:
         with patch.object(
             _similar_mod,
             "_find_similar_hunts",
-            return_value=[
-                {"hunt_id": "H-0602", "title": "AI evasion draft", "status": "planning", "similarity_score": 0.31}
-            ],
+            return_value=[{"hunt_id": "H-0602", "title": "AI evasion draft", "status": "planning", "similarity_score": 0.31}],
         ):
             output = agent._skill_4_related_work("Some topic")
 

@@ -108,6 +108,13 @@ class ResearchInput:
     include_past_hunts: bool = True
     include_telemetry_mapping: bool = True
     web_search_enabled: bool = True  # Can be disabled for offline mode
+    # ID allocated by the caller, so a caller that needs to name the document
+    # before research starts (the `athf research new` banner) does not have to
+    # allocate a second one. Allocation persists a high-water mark, so a
+    # discarded ID is a permanent gap in the numbering -- and the caller's
+    # banner would name a document that never gets written. None means this
+    # agent allocates its own.
+    research_id: Optional[str] = None
 
 
 @dataclass
@@ -260,7 +267,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             from athf.core.research_manager import ResearchManager
 
             manager = ResearchManager()
-            research_id = manager.get_next_research_id()
+            research_id = input_data.research_id or manager.get_next_research_id()
 
             # Determine search depth based on input
             search_depth = "basic" if input_data.depth == "basic" else "advanced"
@@ -986,7 +993,9 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 if extracted:
                     return extracted
         if not _llm_call_failed(synthesis.key_findings):
-            logger.warning("Could not extract a recommended hypothesis from synthesis key_findings: %r", synthesis.key_findings)
+            logger.warning(
+                "Could not extract a recommended hypothesis from synthesis key_findings: %r", synthesis.key_findings
+            )
         return None
 
     def _extract_data_sources(
