@@ -14,6 +14,9 @@ import time
 from pathlib import Path
 from typing import List
 
+import pytest
+
+from athf.core import research_manager
 from athf.core.research_manager import ResearchManager
 
 
@@ -177,3 +180,16 @@ def test_concurrent_allocation_hands_out_unique_ids(tmp_path: Path) -> None:
         t.join()
 
     assert sorted(allocated) == ["R-0001", "R-0002", "R-0003", "R-0004", "R-0005"]
+
+
+def test_allocation_works_without_fcntl(tmp_path: Path, monkeypatch: "pytest.MonkeyPatch") -> None:
+    """Core's CI runs windows-latest, where fcntl does not exist and the lock
+    degrades to a no-op. Allocation itself must still work there -- only the
+    cross-process serialization is given up."""
+    monkeypatch.setattr(research_manager, "_fcntl", None)
+    manager = ResearchManager(tmp_path / "research")
+
+    assert manager.get_next_research_id() == "R-0001"
+    assert manager.get_next_research_id() == "R-0002"
+    # No lock file is created when there is nothing to lock with.
+    assert not (tmp_path / "research" / ".research_id.lock").exists()

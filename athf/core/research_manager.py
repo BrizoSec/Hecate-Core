@@ -6,10 +6,9 @@ import os
 import re
 import subprocess
 import tempfile
-from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
 
 if TYPE_CHECKING:
     from athf.agents.llm.hypothesis_generator import ResearchContext
