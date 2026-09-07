@@ -9,7 +9,10 @@ so a reused ID also repoints that link at the wrong research.
 
 import json
 import subprocess
+import threading
+import time
 from pathlib import Path
+from typing import List
 
 from athf.core.research_manager import ResearchManager
 
@@ -149,3 +152,28 @@ def test_counter_file_is_readable_like_the_rest_of_the_workspace(tmp_path: Path)
     plain.write_text("x")
     counter = research_dir / ".research_id_counter"
     assert counter.stat().st_mode & 0o777 == plain.stat().st_mode & 0o777
+
+
+def test_concurrent_allocation_hands_out_unique_ids(tmp_path: Path) -> None:
+    """Regression test: without the allocation lock, a manual
+    `athf research new` overlapping the hourly orchestrator could have both
+    read the same high-water mark before either wrote it back, and both
+    allocate the same ID. The sleep widens the read-modify-write window."""
+    research_dir = tmp_path / "research"
+    manager = ResearchManager(research_dir)
+    allocated: List[str] = []
+    guard = threading.Lock()  # protects `allocated`, not the code under test
+
+    def allocate() -> None:
+        research_id = manager.get_next_research_id()
+        time.sleep(0.02)
+        with guard:
+            allocated.append(research_id)
+
+    threads = [threading.Thread(target=allocate) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sorted(allocated) == ["R-0001", "R-0002", "R-0003", "R-0004", "R-0005"]

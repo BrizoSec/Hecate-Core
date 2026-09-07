@@ -96,12 +96,16 @@ automation/state.json
 automation/state.json.tmp
 automation/loop.log
 
-# sec7669 orchestrator (local runtime state — never commit)
+# hecate-runner orchestrator (local runtime state — never commit)
 .orchestrator_state.json
 .otx_cursor_state.json
 .rss_cursor_state.json
 .misp_cursor_state.json
 .multi_cti_cursor_state.json
+
+# flock targets for ID allocation — created on demand, contents never read.
+hunts/.hunt_id.lock
+research/.research_id.lock
 .pending_queries/
 logs/
 cti_queue/

@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -16,6 +17,17 @@ if TYPE_CHECKING:
 import yaml
 
 from athf.utils.validation import validate_research_id
+
+try:
+    import fcntl as _fcntl_module
+except ImportError:  # pragma: no cover - fcntl is POSIX-only
+    _fcntl_module = None  # type: ignore[assignment]
+
+# Bound through an Optional alias so the Windows fallback in
+# _id_allocation_lock stays a reachable branch rather than one the type
+# checker prunes as dead. Placed below the imports because the alias is a
+# statement, and an import after it would trip E402.
+_fcntl: Optional[Any] = _fcntl_module
 
 # Persisted high-water mark for allocated research IDs, kept in research/.
 # The ID used to be derived purely by scanning research/ for the highest
@@ -31,6 +43,10 @@ from athf.utils.validation import validate_research_id
 # Stored as a JSON object keyed by ID prefix, since get_next_research_id()
 # takes a configurable prefix and separate prefixes must not share a mark.
 _ID_COUNTER_FILENAME = ".research_id_counter"
+
+# flock target guarding the counter's read-modify-write. Mirrors the hunt
+# side's .hunt_id.lock; created on demand, never read.
+_ID_LOCK_FILENAME = ".research_id.lock"
 
 # Bound the one-off git seed scan so a large or damaged repo cannot wedge
 # research ID allocation behind it.
@@ -177,6 +193,31 @@ class ResearchManager:
         """Path to the persisted research ID high-water mark."""
         return self.research_dir / _ID_COUNTER_FILENAME
 
+    @contextlib.contextmanager
+    def _id_allocation_lock(self) -> Iterator[None]:
+        """Serialize the counter's read-modify-write across processes.
+
+        Without this, a manual `athf research new` overlapping the hourly
+        orchestrator can have both processes read the same high-water mark
+        before either writes it back, and both allocate the same ID.
+
+        This covers allocation only, not the later write of the research
+        document -- the caller does that well after the lock is released. It
+        is a no-op where fcntl is unavailable (Windows), which leaves the
+        pre-existing race there rather than blocking the import.
+        """
+        if _fcntl is None:
+            yield
+            return
+
+        self.research_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.research_dir / _ID_LOCK_FILENAME, "w") as lock_file:
+            _fcntl.flock(lock_file, _fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                _fcntl.flock(lock_file, _fcntl.LOCK_UN)
+
     def _read_id_counters(self) -> Dict[str, int]:
         """Read the persisted per-prefix high-water marks.
 
@@ -321,18 +362,20 @@ class ResearchManager:
         Returns:
             Next research ID (e.g., R-0023)
         """
-        # The on-disk max is always a floor, so a document added by hand (or
-        # by a version predating the counter) cannot be clobbered.
-        high_water = self._max_id_on_disk(prefix)
+        with self._id_allocation_lock():
+            # The on-disk max is always a floor, so a document added by hand
+            # (or by a version predating the counter) cannot be clobbered.
+            high_water = self._max_id_on_disk(prefix)
 
-        counters = self._read_id_counters()
-        if prefix in counters:
-            high_water = max(high_water, counters[prefix])
-        else:
-            high_water = max(high_water, self._max_id_in_git(prefix))
+            counters = self._read_id_counters()
+            if prefix in counters:
+                high_water = max(high_water, counters[prefix])
+            else:
+                high_water = max(high_water, self._max_id_in_git(prefix))
 
-        next_num = high_water + 1
-        self._write_id_counter(prefix, next_num)
+            next_num = high_water + 1
+            self._write_id_counter(prefix, next_num)
+
         return f"{prefix}{next_num:04d}"
 
     def list_research(
@@ -719,9 +762,13 @@ class ResearchManager:
 
         file_path = Path(research_data["file_path"])
 
+        # Re-check the file is still readable before rebuilding it: research_data
+        # came from an earlier parse, so the file may have been removed or had
+        # its permissions changed since. The contents are deliberately not read
+        # -- the rewrite below is reconstructed entirely from research_data.
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            with open(file_path, "r", encoding="utf-8"):
+                pass
         except OSError:
             return None
 
