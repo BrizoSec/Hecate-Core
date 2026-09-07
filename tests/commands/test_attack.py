@@ -377,3 +377,54 @@ class TestSanitizeStixBundle:
         mtime_after = path.stat().st_mtime
 
         assert mtime_before == mtime_after
+
+
+class TestLookupFollowsRevocations:
+    """ATT&CK merges techniques; CTI keeps emitting the old identifier.
+
+    T1574.002 "DLL Side-Loading" was folded into T1574.001 "DLL", and the MISP
+    ATT&CK galaxy still tags events with the revoked ID. Reporting that as
+    not_found made every caller silently drop the technique's tactics and
+    platforms, so a hunt lost scoping signal for a technique its own source
+    had asserted.
+    """
+
+    def test_revoked_id_resolves_to_its_replacement(self):
+        from athf.commands.attack import _follow_revocation
+
+        live = {"id": "T1574.001", "name": "DLL", "platforms": ["Windows"]}
+        superseded_from, tech = _follow_revocation(
+            "T1574.002",
+            None,
+            lambda _: "T1574.001",
+            lambda _: live,
+        )
+        assert superseded_from == "T1574.002"
+        assert tech == live
+
+    def test_a_live_technique_is_returned_untouched(self):
+        from athf.commands.attack import _follow_revocation
+
+        live = {"id": "T1059.003"}
+        superseded_from, tech = _follow_revocation(
+            "T1059.003", live, lambda _: pytest.fail("must not be consulted"), lambda _: None
+        )
+        assert superseded_from is None
+        assert tech is live
+
+    def test_a_genuinely_unknown_id_stays_unknown(self):
+        from athf.commands.attack import _follow_revocation
+
+        superseded_from, tech = _follow_revocation("T9999", None, lambda _: None, lambda _: None)
+        assert superseded_from is None
+        assert tech is None
+
+    def test_a_revocation_pointing_at_a_missing_technique_is_not_reported(self):
+        """Better to say "unknown" than to claim a remap we cannot resolve."""
+        from athf.commands.attack import _follow_revocation
+
+        superseded_from, tech = _follow_revocation(
+            "T1574.002", None, lambda _: "T1574.001", lambda _: None
+        )
+        assert superseded_from is None
+        assert tech is None

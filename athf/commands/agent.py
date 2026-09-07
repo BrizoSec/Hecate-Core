@@ -1,6 +1,7 @@
 """Agent management commands."""
 
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
@@ -35,6 +36,21 @@ _AGENT_REGISTRY: Dict[str, dict] = {
         "usage": [
             'athf agent run hypothesis-generator --threat-intel "APT29 targeting SaaS"',
             'athf agent run hypothesis-generator --threat-intel "..." --research R-0001',
+        ],
+    },
+    "sigma-generator": {
+        "type": "LLM (auto-detect)",
+        "description": "Drafts portable Sigma detection rules for a hunt, before operator review",
+        "capabilities": [
+            "One rule per applicable Sigma log source",
+            "Log sources derived from ATT&CK techniques + CTI indicator types",
+            "Grounds rules in the concrete indicators the CTI carried",
+            "Model emits JSON; YAML is rendered here, so malformed rules are impossible",
+            "Rejects rules whose condition names an undefined selection",
+            "Multi-provider support (Claude, GPT, Gemini, Ollama)",
+        ],
+        "usage": [
+            "athf agent run sigma-generator --input-json in.json --out-dir queries/H-0612",
         ],
     },
     "pivot-suggester": {
@@ -181,6 +197,83 @@ def info(agent_name: str) -> None:
     console.print()
 
 
+def _run_sigma_generator(
+    input_json: Optional[str],
+    out_dir: Optional[str],
+    hunt_id: Optional[str],
+    llm: bool,
+    output_format: str,
+) -> None:
+    """Generate Sigma rules and, when asked, write them to disk.
+
+    Rules are written as separate files rather than inlined into the hunt so
+    they stay convertible: `sigma convert` takes a path, and an operator who
+    edits one during review is editing the artifact itself, not a copy that
+    has to be synced back.
+    """
+    import json as _json
+
+    from athf.agents.llm.sigma_generator import SigmaGenerationInput, SigmaGeneratorAgent
+
+    if not input_json:
+        console.print("[red]Error: --input-json required for sigma-generator[/red]")
+        raise click.Abort()
+
+    payload = _json.loads(Path(input_json).read_text())
+    known = set(SigmaGenerationInput.__dataclass_fields__)
+    agent_input = SigmaGenerationInput(**{k: v for k, v in payload.items() if k in known})
+    if hunt_id and not agent_input.hunt_id:
+        agent_input.hunt_id = hunt_id
+
+    result = SigmaGeneratorAgent(llm_enabled=llm).execute(agent_input)
+
+    written: List[str] = []
+    if result.data and out_dir:
+        target = Path(out_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        for rule in result.data.rules:
+            path = target / rule.filename
+            path.write_text(rule.rule_yaml)
+            written.append(str(path))
+
+    if output_format == "json":
+        console.print_json(
+            _json.dumps(
+                {
+                    "success": result.success,
+                    "error": result.error,
+                    "warnings": result.warnings,
+                    "logsources_considered": result.data.logsources_considered if result.data else [],
+                    "rejected": result.data.rejected if result.data else [],
+                    "files": written,
+                    "rules": [
+                        {
+                            "logsource_category": r.logsource_category,
+                            "title": r.title,
+                            "level": r.level,
+                            "techniques": r.techniques,
+                            "rule_yaml": r.rule_yaml,
+                        }
+                        for r in (result.data.rules if result.data else [])
+                    ],
+                }
+            )
+        )
+        return
+
+    if not result.success or result.data is None:
+        console.print(f"[red]Sigma generation failed:[/red] {result.error}")
+        raise click.Abort()
+
+    console.print(f"[green]Generated {len(result.data.rules)} Sigma rule(s)[/green]")
+    for rule in result.data.rules:
+        console.print(f"  [{rule.level}] {rule.logsource_category}: {rule.title}")
+    for written_path in written:
+        console.print(f"  wrote {written_path}")
+    for warning in result.warnings:
+        console.print(f"  [yellow]! {warning}[/yellow]")
+
+
 @agent.command()
 @click.argument("agent_name")
 @click.option("--threat-intel", help="Threat intelligence context (for hypothesis-generator)")
@@ -207,6 +300,23 @@ def info(agent_name: str) -> None:
 @click.option("--tactic", help="MITRE tactic filter")
 @click.option("--finding", help="Suspicious finding as JSON or plain text (for pivot-suggester)")
 @click.option("--hunt", "hunt_id", help="Current hunt ID for context (for pivot-suggester)")
+@click.option(
+    "--input-json",
+    "input_json",
+    type=click.Path(exists=True, dir_okay=False),
+    help=(
+        "Path to a JSON file of SigmaGenerationInput fields (hypothesis, "
+        "techniques, indicators, platforms, references) (for sigma-generator). "
+        "A file rather than a dozen flags because the indicator map is nested "
+        "and can be long."
+    ),
+)
+@click.option(
+    "--out-dir",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    help="Directory to write generated .yml rules into (for sigma-generator)",
+)
 @click.option("--llm/--no-llm", default=True, help="Enable/disable LLM (default: enabled)")
 @click.option(
     "--output-format",
@@ -227,6 +337,8 @@ def run(  # noqa: C901
     tactic: Optional[str],
     finding: Optional[str],
     hunt_id: Optional[str],
+    input_json: Optional[str],
+    out_dir: Optional[str],
     llm: bool,
     output_format: str,
 ) -> None:
@@ -249,6 +361,10 @@ def run(  # noqa: C901
       # Fallback mode (no LLM)
       athf agent run hypothesis-generator --threat-intel "..." --no-llm
     """
+    if agent_name == "sigma-generator":
+        _run_sigma_generator(input_json, out_dir, hunt_id, llm, output_format)
+        return
+
     if agent_name == "hypothesis-generator":
         if not threat_intel:
             console.print("[red]Error: --threat-intel required for hypothesis-generator[/red]")
@@ -413,11 +529,13 @@ def run(  # noqa: C901
             from athf.agents.llm.pivot_suggester import PivotInput, PivotSuggesterAgent
 
             agent_instance = PivotSuggesterAgent(llm_enabled=llm)
-            result = agent_instance.execute(PivotInput(
-                finding=finding,
-                hunt_id=hunt_id,
-                technique=technique,
-            ))
+            result = agent_instance.execute(
+                PivotInput(
+                    finding=finding,
+                    hunt_id=hunt_id,
+                    technique=technique,
+                )
+            )
 
             if not result.is_success or result.data is None:
                 console.print(f"[red]Error: {result.error}[/red]")
@@ -425,6 +543,7 @@ def run(  # noqa: C901
 
             if output_format == "json":
                 import dataclasses
+
                 console.print(json.dumps(dataclasses.asdict(result.data), indent=2), soft_wrap=True)
             else:
                 _display_pivot_result(result)

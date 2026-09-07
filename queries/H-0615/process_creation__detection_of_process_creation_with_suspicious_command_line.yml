@@ -1,0 +1,26 @@
+title: Detection of Process Creation with Suspicious Command Line
+id: c9faa49b-cb71-4cb4-939f-eb793486b4c1
+status: experimental
+description: Detects process creations involving cmd.exe with suspicious command lines that may be indicative
+  of APT28 activity as per Hanger Bulletin UAC-0001.
+references:
+- https://localhost:8443/events/view/1834
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-07'
+tags:
+- attack.t1059.003
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: \cmd.exe
+    CommandLine|contains: malicious-command
+  filter:
+    CommandLine|contains: known-good
+  condition: selection and not filter
+falsepositives:
+- Administrative scripting with known good commands
+level: medium
+related:
+- id: H-0615
+  type: derived
