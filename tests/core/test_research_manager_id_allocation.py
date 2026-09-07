@@ -138,3 +138,14 @@ def test_next_id_outside_a_git_repo_uses_on_disk_max(tmp_path: Path) -> None:
     research_dir = tmp_path / "research"
     _write_research(research_dir, "R-0004")
     assert ResearchManager(research_dir).get_next_research_id() == "R-0005"
+
+
+def test_counter_file_is_readable_like_the_rest_of_the_workspace(tmp_path: Path) -> None:
+    """The counter used to inherit mkstemp's owner-only 0o600, unlike every
+    other file the workspace holds."""
+    research_dir = tmp_path / "research"
+    ResearchManager(research_dir).get_next_research_id()
+    plain = research_dir / "reference.txt"
+    plain.write_text("x")
+    counter = research_dir / ".research_id_counter"
+    assert counter.stat().st_mode & 0o777 == plain.stat().st_mode & 0o777

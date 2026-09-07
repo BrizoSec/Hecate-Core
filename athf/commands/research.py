@@ -132,6 +132,11 @@ def new(
                 include_past_hunts=True,
                 include_telemetry_mapping=True,
                 web_search_enabled=not no_web_search,
+                # Reuse the ID printed in the banner above rather than letting
+                # the agent allocate a second one -- allocation is persistent,
+                # so a discarded ID both leaves a gap and makes the banner name
+                # a document that is never written.
+                research_id=research_id,
             )
         )
 
