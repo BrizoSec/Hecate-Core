@@ -1,6 +1,11 @@
 """Manage research files and operations."""
 
+import contextlib
+import json
+import os
 import re
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -11,6 +16,25 @@ if TYPE_CHECKING:
 import yaml
 
 from athf.utils.validation import validate_research_id
+
+# Persisted high-water mark for allocated research IDs, kept in research/.
+# The ID used to be derived purely by scanning research/ for the highest
+# R-XXXX still present, which made it a function of what happened to be on
+# disk rather than of what had ever been allocated. Clearing the directory --
+# the normal cleanup here is to commit the documents and remove them -- reset
+# numbering to R-0001, so new documents silently reused IDs that already
+# named a different document in git history. Since drafts reference their
+# grounding as `spawned_from: R-XXXX`, a reused ID also repoints that link at
+# the wrong research. The counter records the highest ID ever handed out, so
+# numbering survives the directory being emptied.
+#
+# Stored as a JSON object keyed by ID prefix, since get_next_research_id()
+# takes a configurable prefix and separate prefixes must not share a mark.
+_ID_COUNTER_FILENAME = ".research_id_counter"
+
+# Bound the one-off git seed scan so a large or damaged repo cannot wedge
+# research ID allocation behind it.
+_GIT_SEED_TIMEOUT_SEC = 30
 
 
 class ResearchParser:
@@ -135,25 +159,73 @@ class ResearchManager:
 
         return sorted(set(research_files))
 
-    def get_next_research_id(self, prefix: str = "R-") -> str:
-        """Calculate the next available research ID.
+    def _counter_path(self) -> Path:
+        """Path to the persisted research ID high-water mark."""
+        return self.research_dir / _ID_COUNTER_FILENAME
 
-        Args:
-            prefix: Research ID prefix (default: R-)
+    def _read_id_counters(self) -> Dict[str, int]:
+        """Read the persisted per-prefix high-water marks.
 
         Returns:
-            Next research ID (e.g., R-0023)
+            Mapping of ID prefix to highest allocated number. Empty when the
+            file is absent, unreadable, or corrupted by a hand-edit -- the
+            caller falls back to the on-disk and git floors rather than
+            failing allocation over a bad counter.
         """
-        research_files = self._find_all_research_files()
+        try:
+            data = json.loads(self._counter_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
 
-        if not research_files:
-            return f"{prefix}0001"
+        if not isinstance(data, dict):
+            return {}
 
-        # Extract numbers from research IDs with matching prefix
+        return {
+            key: value
+            for key, value in data.items()
+            if isinstance(key, str) and isinstance(value, int) and not isinstance(value, bool)
+        }
+
+    def _write_id_counter(self, prefix: str, value: int) -> None:
+        """Persist `value` as the high-water mark for `prefix`.
+
+        Written to a temp file in the same directory and renamed over the
+        destination: os.replace is atomic on POSIX, so a reader only ever
+        sees the old complete file or the new complete one, never a partial
+        write from an interrupted process.
+
+        Args:
+            prefix: Research ID prefix the mark applies to
+            value: Highest allocated number for that prefix
+        """
+        counters = self._read_id_counters()
+        counters[prefix] = value
+
+        path = self._counter_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(counters, f, indent=2, sort_keys=True)
+            os.replace(tmp_name, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name)
+            raise
+
+    def _max_id_on_disk(self, prefix: str) -> int:
+        """Highest research ID currently written under research_dir.
+
+        Args:
+            prefix: Research ID prefix to match
+
+        Returns:
+            Highest matching number, or 0 when none are present
+        """
         numbers = []
         pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
 
-        for research_file in research_files:
+        for research_file in self._find_all_research_files():
             try:
                 research_data = parse_research_file(research_file)
                 research_id = research_data.get("frontmatter", {}).get("research_id")
@@ -170,11 +242,79 @@ class ResearchManager:
                 if match:
                     numbers.append(int(match.group(1)))
 
-        if not numbers:
-            return f"{prefix}0001"
+        return max(numbers) if numbers else 0
 
-        # Next number with zero-padding
-        next_num = max(numbers) + 1
+    def _max_id_in_git(self, prefix: str) -> int:
+        """Highest research ID ever committed under research_dir.
+
+        Seeds the counter on the first allocation after it was introduced, so
+        numbering resumes past every document git remembers instead of
+        restarting underneath documents that were committed and then cleaned
+        off disk. `--name-only` over `--all` lists paths from every commit on
+        every branch, which includes files added and later deleted -- exactly
+        the ones a disk scan can no longer see.
+
+        Args:
+            prefix: Research ID prefix to match
+
+        Returns:
+            Highest matching number, or 0 when the workspace is not a git
+            repo, git is unavailable, or the scan fails or times out. A
+            missing seed only risks reusing an ID already unreachable on
+            disk, which is not worth failing allocation over.
+        """
+        try:
+            proc = subprocess.run(
+                [
+                    "git",
+                    "log",
+                    "--all",
+                    "--pretty=format:",
+                    "--name-only",
+                    "--",
+                    self.research_dir.name,
+                ],
+                cwd=self.research_dir.parent,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_SEED_TIMEOUT_SEC,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return 0
+
+        if proc.returncode != 0:
+            return 0
+
+        numbers = [int(match.group(1)) for match in re.finditer(rf"{re.escape(prefix)}(\d+)\.md", proc.stdout)]
+        return max(numbers) if numbers else 0
+
+    def get_next_research_id(self, prefix: str = "R-") -> str:
+        """Allocate the next research ID and persist it as the new
+        high-water mark.
+
+        The ID is burned at allocation time, before the document is written,
+        so a run that dies between the two leaves a gap in the numbering
+        rather than handing the same ID to the next caller.
+
+        Args:
+            prefix: Research ID prefix (default: R-)
+
+        Returns:
+            Next research ID (e.g., R-0023)
+        """
+        # The on-disk max is always a floor, so a document added by hand (or
+        # by a version predating the counter) cannot be clobbered.
+        high_water = self._max_id_on_disk(prefix)
+
+        counters = self._read_id_counters()
+        if prefix in counters:
+            high_water = max(high_water, counters[prefix])
+        else:
+            high_water = max(high_water, self._max_id_in_git(prefix))
+
+        next_num = high_water + 1
+        self._write_id_counter(prefix, next_num)
         return f"{prefix}{next_num:04d}"
 
     def list_research(
