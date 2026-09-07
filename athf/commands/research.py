@@ -279,6 +279,29 @@ def view(research_id: str, output_format: str) -> None:
 
 
 @research.command()
+@click.argument("research_id")
+@click.option("--hunt", "hunt_id", required=True, help="Hunt ID to link (e.g. H-0612)")
+def link(research_id: str, hunt_id: str) -> None:
+    """Link a hunt to its source research document.
+
+    `athf hunt new --research R-XXXX` already does this as part of creating a
+    hunt. This exposes the same operation on its own, for a caller that
+    generated the hunt itself and still owes the research document its
+    back-link -- without which a research doc reports linked_hunts: [] even
+    though a hunt names it in `spawned_from`.
+
+    Idempotent: linking an already-linked hunt succeeds and changes nothing.
+    """
+    from athf.core.research_manager import ResearchManager
+
+    manager = ResearchManager()
+    if not manager.link_hunt_to_research(research_id, hunt_id):
+        console.print(f"[red]Could not link {hunt_id} to {research_id}[/red] (is the research ID correct?)")
+        raise click.Abort()
+    console.print(f"[green]Linked {hunt_id} to {research_id}[/green]")
+
+
+@research.command()
 @click.argument("query")
 @click.option("--output", "output_format", type=click.Choice(["table", "json"]), default="table")
 def search(query: str, output_format: str) -> None:

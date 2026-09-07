@@ -5,7 +5,7 @@ import re
 import time
 import urllib.request
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import click
 from rich.console import Console
@@ -96,8 +96,7 @@ def update(force: bool) -> None:
     console.print(f"[dim]Cache location: {stix_path}[/dim]")
 
     _STIX_URL = (
-        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data"
-        "/master/enterprise-attack/enterprise-attack.json"
+        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data" "/master/enterprise-attack/enterprise-attack.json"
     )
 
     try:
@@ -157,6 +156,7 @@ def status() -> None:
     # Check if mitreattack-python is installed
     try:
         import mitreattack  # noqa: F401
+
         console.print("  [cyan]Library:[/cyan]   mitreattack-python installed")
     except ImportError:
         console.print("  [cyan]Library:[/cyan]   [yellow]mitreattack-python not installed[/yellow]")
@@ -188,6 +188,31 @@ def _display_technique_fields(tech: "TechniqueInfo") -> None:
         console.print(f"\n  [dim]{desc}[/dim]")
 
 
+def _follow_revocation(
+    technique_id: str,
+    tech: Optional["TechniqueInfo"],
+    get_superseding_technique_id: Callable[[str], Optional[str]],
+    get_technique: Callable[[str], Optional["TechniqueInfo"]],
+) -> Tuple[Optional[str], Optional["TechniqueInfo"]]:
+    """Resolve a revoked technique ID to its replacement.
+
+    Returns ``(superseded_from, technique)``; ``superseded_from`` is None when
+    no remap happened, so a caller can tell "found it" from "found what it
+    became". Takes its lookups as arguments because the command imports them
+    lazily -- attack_matrix pulls in STIX parsing that a bare `athf --help`
+    should not pay for.
+    """
+    if tech is not None:
+        return None, tech
+    successor = get_superseding_technique_id(technique_id)
+    if not successor:
+        return None, None
+    replacement = get_technique(successor)
+    if replacement is None:
+        return None, None
+    return technique_id.upper(), replacement
+
+
 @attack.command()
 @click.argument("technique_id")
 @click.option("--json", "as_json", is_flag=True, help="Print technique metadata as JSON instead of a formatted table.")
@@ -203,7 +228,12 @@ def lookup(technique_id: str, as_json: bool) -> None:
       athf attack lookup T1003.001
       athf attack lookup T1003.001 --json
     """
-    from athf.core.attack_matrix import get_sub_techniques, get_technique, is_using_stix
+    from athf.core.attack_matrix import (
+        get_sub_techniques,
+        get_superseding_technique_id,
+        get_technique,
+        is_using_stix,
+    )
 
     if not is_using_stix():
         if as_json:
@@ -214,6 +244,17 @@ def lookup(technique_id: str, as_json: bool) -> None:
         return
 
     tech = get_technique(technique_id)
+
+    # A revoked ID is not an unknown one. ATT&CK merges techniques (T1574.002
+    # "DLL Side-Loading" was folded into T1574.001 "DLL"), and CTI keeps
+    # emitting the old identifier long afterwards -- the MISP ATT&CK galaxy
+    # still tags events with T1574.002. Returning "not_found" made callers
+    # silently drop that technique's tactics and platforms, so a hunt lost
+    # scoping signal for a technique its source had actually asserted.
+    # hypothesis_generator already followed revocations; this makes the CLI
+    # agree with it.
+    superseded_from, tech = _follow_revocation(technique_id, tech, get_superseding_technique_id, get_technique)
+
     if tech is None:
         if as_json:
             print(json.dumps({"error": "not_found", "technique_id": technique_id}))
@@ -231,11 +272,17 @@ def lookup(technique_id: str, as_json: bool) -> None:
                     "platforms": tech.get("platforms", []),
                     "is_subtechnique": tech.get("is_subtechnique", False),
                     "parent_id": tech.get("parent_id"),
+                    # Present only on a remap, so a caller can record that the
+                    # source's identifier is stale rather than silently
+                    # showing a different ID than it asked for.
+                    **({"superseded_from": superseded_from} if superseded_from else {}),
                 }
             )
         )
         return
 
+    if superseded_from:
+        console.print(f"\n[yellow]{superseded_from} was revoked by ATT&CK; showing its replacement.[/yellow]")
     console.print(f"\n[bold]{tech.get('id', '')} - {tech.get('name', '')}[/bold]\n")
     _display_technique_fields(tech)
 
@@ -288,11 +335,13 @@ def _generate_gap_hunts(gaps: list, limit: int) -> None:
             f"Platforms: {', '.join(entry.get('platforms', []) or ['unknown'])}."
         )
 
-        result = agent.execute(HypothesisGenerationInput(
-            threat_intel=threat_intel,
-            past_hunts=[],
-            environment={"environment_summary": env_text[:500]} if env_text else {},
-        ))
+        result = agent.execute(
+            HypothesisGenerationInput(
+                threat_intel=threat_intel,
+                past_hunts=[],
+                environment={"environment_summary": env_text[:500]} if env_text else {},
+            )
+        )
 
         if not result.is_success or result.data is None:
             console.print(f"  [yellow]⚠ Skipped {tech_id}: agent error[/yellow]")
@@ -416,13 +465,15 @@ def gap(
                 platforms = [p.lower() for p in tech.get("platforms", [])]
                 if platform_filter.lower() not in platforms:
                     continue
-            gaps.append({
-                "tactic": tactic_key,
-                "id": tid,
-                "name": tech.get("name", ""),
-                "is_subtechnique": tech.get("is_subtechnique", False),
-                "platforms": tech.get("platforms", []),
-            })
+            gaps.append(
+                {
+                    "tactic": tactic_key,
+                    "id": tid,
+                    "name": tech.get("name", ""),
+                    "is_subtechnique": tech.get("is_subtechnique", False),
+                    "platforms": tech.get("platforms", []),
+                }
+            )
 
     if not gaps:
         console.print("[green]No gaps found — all techniques are covered![/green]")

@@ -144,3 +144,53 @@ class TestStixCacheDirResolution:
         monkeypatch.chdir(tmp_path)
 
         assert _get_stix_cache_dir() == Path.home() / ".athf" / "stix-data"
+
+
+def test_research_link_command_writes_the_back_link(tmp_path, monkeypatch):
+    """The runner writes hunt files itself (it needs the ID-allocation lock),
+    so `athf hunt new --research` never runs and the research document was
+    left reporting linked_hunts: [] while the hunt named it in spawned_from.
+    """
+    from click.testing import CliRunner
+
+    from athf.commands.research import research
+
+    research_dir = tmp_path / "research"
+    _write_research(research_dir)
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(research, ["link", "R-0001", "--hunt", "H-0612"])
+    assert result.exit_code == 0, result.output
+
+    fm = yaml.safe_load((research_dir / "R-0001.md").read_text().split("---")[1])
+    assert fm["linked_hunts"] == ["H-0612"]
+
+
+def test_research_link_command_is_idempotent(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from athf.commands.research import research
+
+    research_dir = tmp_path / "research"
+    _write_research(research_dir)
+    monkeypatch.chdir(tmp_path)
+
+    runner = CliRunner()
+    runner.invoke(research, ["link", "R-0001", "--hunt", "H-0612"])
+    result = runner.invoke(research, ["link", "R-0001", "--hunt", "H-0612"])
+    assert result.exit_code == 0
+
+    fm = yaml.safe_load((research_dir / "R-0001.md").read_text().split("---")[1])
+    assert fm["linked_hunts"] == ["H-0612"]
+
+
+def test_research_link_command_fails_loudly_on_an_unknown_id(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from athf.commands.research import research
+
+    _write_research(tmp_path / "research")
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(research, ["link", "R-9999", "--hunt", "H-0612"])
+    assert result.exit_code != 0

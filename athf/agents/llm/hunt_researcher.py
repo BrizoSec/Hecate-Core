@@ -90,11 +90,92 @@ _GROUNDING_INSTRUCTION = (
 _HYPOTHESIS_PREFIX_RE = re.compile(r"^\**\s*(recommended\s+|hunt\s+)?hypothesis\s*:?\**\s*", re.IGNORECASE)
 _GAP_PREFIX_RE = re.compile(r"^\**\s*(knowledge\s+|coverage\s+)?gaps?\s*:?\**\s*", re.IGNORECASE)
 
+# CVE identifiers asserted by the model are checked against the sources
+# actually retrieved; see _drop_unsupported_cve_findings.
+_CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
+
+# Keywords that say a research doc's telemetry mapping *discusses* a data
+# source. Deliberately spelling-tolerant: the original list held only OCSF
+# dotted names ("file.path", "network."), so a mapping whose Key Fields
+# section literally read "file_paths: Tracks file paths accessed" scored
+# file_operations as absent. Underscore, spaced and bare-field spellings all
+# describe the same telemetry and all appear in real model output.
 _DATA_SOURCE_KEYWORDS: Dict[str, List[str]] = {
-    "process_execution": ["process.name", "process execution", "process creation", "command_line", "process.cmd_line"],
-    "file_operations": ["file operation", "file.path", "file.name", "file write", "file creation", "file access"],
-    "network_connections": ["network connection", "network.", "dst_endpoint", "src_endpoint", "connection_info"],
-    "registry_events": ["registry", "reg_key"],
+    "process_execution": [
+        "process.name",
+        "process execution",
+        "process creation",
+        "command_line",
+        "process.cmd_line",
+        "process_name",
+        "commandline",
+        "command line",
+        "parentproc",
+        "parent process",
+        "image|",
+        "childproc",
+    ],
+    "file_operations": [
+        "file operation",
+        "file.path",
+        "file.name",
+        "file write",
+        "file creation",
+        "file access",
+        "file_path",
+        "file paths",
+        "file path",
+        "filename",
+        "file_name",
+        "targetfilename",
+        "file event",
+    ],
+    "network_connections": [
+        "network connection",
+        "network.",
+        "dst_endpoint",
+        "src_endpoint",
+        "connection_info",
+        "network_connection",
+        "destination ip",
+        "destinationip",
+        "dst_ip",
+        "dns",
+        "http",
+        "beacon",
+        "c2 ",
+        "command and control",
+        "network traffic",
+        "netflow",
+    ],
+    "registry_events": [
+        "registry",
+        "reg_key",
+        "regkey",
+        "run key",
+        "targetobject",
+        "service registration",
+        "autorun",
+    ],
+}
+
+# Keywords that say the *environment profile* collects a data source. This is
+# the question `data_source_availability` actually names, and it is a property
+# of the estate, not of whatever vocabulary the model happened to use.
+_ENVIRONMENT_DATA_SOURCE_KEYWORDS: Dict[str, List[str]] = {
+    "process_execution": ["process execution", "process creation", "endpoint telemetry", "edr", "sysmon"],
+    "file_operations": ["file event", "file operation", "file integrity", "file monitoring", "file events"],
+    "network_connections": [
+        "network connection",
+        "network flow",
+        "netflow",
+        "firewall log",
+        "proxy log",
+        "dns",
+        "network telemetry",
+        "network logs",
+    ],
+    "registry_events": ["registry modification", "registry event", "registry"],
 }
 
 
@@ -311,6 +392,15 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 [skill_1, skill_2, skill_3, skill_4],
             )
 
+            # Strip findings that assert a CVE no retrieved source mentions.
+            # A real run stated "CVE-2024-1234 is associated with the initial
+            # access vector" as fact; no such CVE appeared in the source event
+            # or in any snippet the search returned. A fabricated identifier
+            # is worse than a vague one -- it is specific, checkable, and
+            # propagates into the hunt as grounding.
+            for skill in (skill_1, skill_2, skill_3, skill_4, skill_5):
+                self._drop_unsupported_cve_findings(skill, input_data.topic)
+
             # Extract synthesis outputs
             mitre_techniques = [input_data.mitre_technique] if input_data.mitre_technique else []
 
@@ -329,6 +419,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 recommended_hypothesis=self._extract_hypothesis(skill_5),
                 data_source_availability=self._extract_data_sources(
                     skill_3,
+                    self._load_environment(),
                 ),
                 estimated_hunt_complexity=self._estimate_complexity(
                     skill_2,
@@ -998,9 +1089,44 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             )
         return None
 
+    def _drop_unsupported_cve_findings(self, skill: ResearchSkillOutput, topic: str = "") -> None:
+        """Remove key findings citing a CVE that no retrieved source mentions.
+
+        The whole finding goes, not just the identifier. A model that invented
+        a CVE invented the sentence around it too, and surgically deleting the
+        ID would leave a confident claim about an unnamed vulnerability --
+        less obviously wrong, equally unfounded.
+
+        Matched against the search snippets actually returned for this skill
+        plus the research topic, so a CVE genuinely reported in a source is
+        kept.
+        """
+        corpus_parts = [topic]
+        for source in skill.sources or []:
+            corpus_parts.extend(str(source.get(key, "")) for key in ("title", "url", "snippet"))
+        corpus_cves = {c.upper() for c in _CVE_RE.findall(" ".join(corpus_parts))}
+
+        kept: List[str] = []
+        for finding in skill.key_findings:
+            unsupported = sorted({c.upper() for c in _CVE_RE.findall(finding)} - corpus_cves)
+            if unsupported:
+                logger.warning(
+                    "Dropping %s finding citing unsupported %s (absent from every retrieved source): %r",
+                    skill.skill_name,
+                    ", ".join(unsupported),
+                    finding[:120],
+                )
+                continue
+            kept.append(finding)
+        skill.key_findings = kept
+
+        for cve in sorted({c.upper() for c in _CVE_RE.findall(skill.summary)} - corpus_cves):
+            logger.warning("%s summary cites unsupported %s; left in place but unverified.", skill.skill_name, cve)
+
     def _extract_data_sources(
         self,
         telemetry: ResearchSkillOutput,
+        environment_data: str = "",
     ) -> Dict[str, bool]:
         """Derive data source availability from skill 3's actual telemetry
         mapping (summary + key_findings), not a fixed stub.
@@ -1014,10 +1140,28 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         substring-based extraction already used elsewhere in this module
         (_extract_hypothesis/_extract_gaps below).
         """
+        # The environment profile is the authority: "availability" is a
+        # property of what the estate collects, not of which words the model
+        # reached for. Deriving it from the model's own prose scored three of
+        # four sources unavailable on a hunt whose CTI carried nine C2 URLs
+        # and two C2 hostnames, and the hypothesis was then scoped to process
+        # telemetry alone -- while environment.md listed file, network and
+        # registry telemetry as collected.
+        env_text = (environment_data or "").lower()
+        if env_text and "not found" not in env_text[:60]:
+            return {
+                category: any(kw in env_text for kw in keywords)
+                for category, keywords in _ENVIRONMENT_DATA_SOURCE_KEYWORDS.items()
+            }
+
+        logger.warning(
+            "No environment profile available; falling back to what the telemetry "
+            "mapping discusses, which describes the hunt's needs rather than the "
+            "estate's coverage."
+        )
         if _llm_call_failed(telemetry.key_findings):
-            # The "mapping" is an error message -- nothing to derive, and
-            # claiming any availability here would be fabricating from a
-            # failure, the exact problem this fix exists to avoid.
+            # Both signals are gone. Claiming availability here would be
+            # fabricating from a failure.
             return dict.fromkeys(_DATA_SOURCE_KEYWORDS, False)
 
         text = " ".join([telemetry.summary, *telemetry.key_findings]).lower()
