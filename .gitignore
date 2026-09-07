@@ -103,6 +103,10 @@ automation/loop.log
 .misp_cursor_state.json
 .multi_cti_cursor_state.json
 
+# Hand-taken cursor backups (e.g. before seeding a MISP backfill). Local
+# recovery aids, same runtime-state class as the cursors themselves.
+*.pre-backfill.bak
+
 # flock targets for ID allocation — created on demand, contents never read.
 hunts/.hunt_id.lock
 research/.research_id.lock
