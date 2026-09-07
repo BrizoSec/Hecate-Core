@@ -14,7 +14,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from athf.agents.base import AgentResult, LLMAgent
 
@@ -1104,7 +1104,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         corpus_parts = [topic]
         for source in skill.sources or []:
             corpus_parts.extend(str(source.get(key, "")) for key in ("title", "url", "snippet"))
-        corpus_cves = {c.upper() for c in _CVE_RE.findall(" ".join(corpus_parts))}
+        corpus_cves: Set[str] = {c.upper() for c in _CVE_RE.findall(" ".join(corpus_parts))}
 
         kept: List[str] = []
         for finding in skill.key_findings:
@@ -1120,8 +1120,49 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             kept.append(finding)
         skill.key_findings = kept
 
-        for cve in sorted({c.upper() for c in _CVE_RE.findall(skill.summary)} - corpus_cves):
-            logger.warning("%s summary cites unsupported %s; left in place but unverified.", skill.skill_name, cve)
+        skill.summary = self._redact_unsupported_cves(skill.summary, corpus_cves, skill.skill_name)
+
+    @staticmethod
+    def _redact_unsupported_cves(summary: str, corpus_cves: Set[str], skill_name: str) -> str:
+        """Drop the sentences of a summary that cite an unsourced CVE.
+
+        Findings are discrete claims, so an unsupported one is removed whole.
+        A summary is a paragraph, and deleting all of it over a single
+        identifier throws away sound analysis -- which is why this used to
+        warn and leave the text alone. But "warn and leave" still put the
+        fabrication in the document, where it reads as reported fact.
+
+        Sentence granularity is the middle ground: the invented claim goes,
+        the surrounding analysis stays, and a marker records that something
+        was removed so the gap is visible rather than silent.
+        """
+        if not summary.strip():
+            return summary
+
+        # Split on sentence-ending punctuation followed by whitespace, keeping
+        # the punctuation with its sentence.
+        sentences = re.split(r"(?<=[.!?])\s+", summary)
+        kept, dropped = [], []
+        for sentence in sentences:
+            unsupported = sorted({c.upper() for c in _CVE_RE.findall(sentence)} - corpus_cves)
+            if unsupported:
+                dropped.extend(unsupported)
+                continue
+            kept.append(sentence)
+
+        if not dropped:
+            return summary
+
+        logger.warning(
+            "Redacted %d sentence(s) from the %s summary citing unsupported %s.",
+            len(sentences) - len(kept),
+            skill_name,
+            ", ".join(sorted(set(dropped))),
+        )
+        marker = "[A sentence citing an unsourced CVE was removed from this summary.]"
+        # Everything was a fabrication -- say so rather than return an empty
+        # summary that reads as "the model had nothing to say".
+        return " ".join(kept + [marker]) if kept else marker
 
     def _extract_data_sources(
         self,

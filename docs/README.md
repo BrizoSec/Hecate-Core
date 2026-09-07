@@ -20,6 +20,7 @@ Files here are GitHub/developer-facing and are not deployed into workspaces:
 - [Configuration Reference](CONFIGURATION.md) — All config keys and environment variables
 - [Using ATHF](USING_ATHF.md) — Adoption guide for teams
 - [Hunt Showcase](SHOWCASE.md) — Example completed hunts
+- [Open Threads](OPEN_THREADS.md) — Known unfinished work across Hecate-Core and Hecate-Runner, with owner and next step
 
 ## Developer Internals
 

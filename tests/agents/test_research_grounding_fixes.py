@@ -136,3 +136,63 @@ def test_findings_without_any_cve_are_untouched():
     skill = _skill_with(["DLL side-loading from a hidden directory.", "Registers a service."])
     _agent()._drop_unsupported_cve_findings(skill, topic="")
     assert len(skill.key_findings) == 2
+
+
+# --- CVE redaction in summaries (G3) ---------------------------------------
+
+
+def _summary_skill(summary, snippet=""):
+    return ResearchSkillOutput(
+        skill_name="adversary_tradecraft",
+        summary=summary,
+        key_findings=[],
+        sources=[{"title": "t", "url": "u", "snippet": snippet}],
+        confidence=0.8,
+    )
+
+
+def test_summary_keeps_sound_analysis_and_drops_the_invented_sentence():
+    """Findings are discrete claims and go whole; a summary is a paragraph,
+    and deleting all of it over one identifier throws away real analysis."""
+    skill = _summary_skill(
+        "The campaign used DLL side-loading. CVE-2024-1234 enabled initial access. " "It then beaconed to C2."
+    )
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert "DLL side-loading" in skill.summary
+    assert "beaconed to C2" in skill.summary
+    assert "CVE-2024-1234" not in skill.summary
+
+
+def test_redaction_leaves_a_visible_marker():
+    """A silent deletion is indistinguishable from the model never having
+    said it."""
+    skill = _summary_skill("Analysis holds. CVE-2024-1234 was the vector.")
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert "unsourced CVE was removed" in skill.summary
+
+
+def test_a_wholly_fabricated_summary_becomes_the_marker_not_an_empty_string():
+    skill = _summary_skill("CVE-2024-1234 was the sole vector.")
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert skill.summary.strip()
+    assert "unsourced CVE was removed" in skill.summary
+
+
+def test_a_sourced_cve_leaves_the_summary_untouched():
+    original = "Log4Shell CVE-2021-44228 was exploited in the wild."
+    skill = _summary_skill(original, snippet="advisory for CVE-2021-44228")
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert skill.summary == original
+
+
+def test_a_summary_without_any_cve_is_untouched():
+    original = "DLL side-loading from a hidden directory."
+    skill = _summary_skill(original)
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert skill.summary == original
+
+
+def test_an_empty_summary_is_left_alone():
+    skill = _summary_skill("")
+    _agent()._drop_unsupported_cve_findings(skill, topic="")
+    assert skill.summary == ""
