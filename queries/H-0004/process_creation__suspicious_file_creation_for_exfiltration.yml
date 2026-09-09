@@ -1,0 +1,25 @@
+title: Suspicious File Creation for Exfiltration
+id: e42f59c7-82eb-40f8-b772-785a8909e5b4
+status: experimental
+description: Detects the creation of specific files known to be used by adversaries in Centreon systems
+  for exfiltrating sensitive data via C2 channels.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-09'
+tags:
+- attack.t1041
+- attack.t1573.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: .exe
+  filter:
+    CommandLine|contains: /tmp/.applocktx, /tmp/.applock, configtx.json
+  condition: selection and filter
+falsepositives:
+- Administrative scripts that create temporary files
+level: medium
+hunt_id: H-0004
