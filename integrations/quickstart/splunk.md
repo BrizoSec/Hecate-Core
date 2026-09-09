@@ -159,4 +159,4 @@ Create a new token in Splunk Web → Settings → Tokens
 
 ---
 
-**Questions?** Open an issue in the ATHF repo or check the official Splunk MCP documentation.
+**Questions?** Open an issue in the Hecate repo or check the official Splunk MCP documentation.

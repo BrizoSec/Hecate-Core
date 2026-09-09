@@ -20,13 +20,13 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-from athf.agents.llm.hunt_researcher import (
+from hecate_agent.agents.llm.hunt_researcher import (
     _LLM_ERROR_KEY_FINDING,
     HuntResearcherAgent,
     ResearchSkillOutput,
     _llm_call_failed,
 )
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 
 class FailingProvider(LLMProvider):
@@ -156,9 +156,7 @@ class TestExtractDataSources:
 
 
 def _synthesis(key_findings: List[str]) -> ResearchSkillOutput:
-    return ResearchSkillOutput(
-        skill_name="synthesis", summary="s", key_findings=key_findings, sources=[], confidence=0.8
-    )
+    return ResearchSkillOutput(skill_name="synthesis", summary="s", key_findings=key_findings, sources=[], confidence=0.8)
 
 
 @pytest.mark.unit

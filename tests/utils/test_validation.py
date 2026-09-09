@@ -2,7 +2,7 @@
 
 import pytest
 
-from athf.utils.validation import (
+from hecate_agent.utils.validation import (
     safe_path_join,
     validate_file_path,
     validate_hunt_id,

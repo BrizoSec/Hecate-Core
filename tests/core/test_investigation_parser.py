@@ -2,7 +2,7 @@
 
 import pytest
 
-from athf.core.investigation_parser import (
+from hecate_agent.core.investigation_parser import (
     InvestigationParser,
     get_all_investigations,
     get_next_investigation_id,

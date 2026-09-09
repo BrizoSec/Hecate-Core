@@ -61,8 +61,8 @@ Built-in Python integration for direct Splunk REST API access. Best for:
 # Quick start
 export SPLUNK_HOST="splunk.example.com"
 export SPLUNK_TOKEN="your-token-here"
-athf splunk test
-athf splunk search 'index=thrunt | head 10'  # Use thrunt index for all queries
+hecate-agent splunk test
+hecate-agent splunk search 'index=thrunt | head 10'  # Use thrunt index for all queries
 ```
 
 ### Option 2: MCP Integration (AI-Driven)
@@ -76,7 +76,7 @@ Official Splunk MCP Server for AI-powered query execution. Best for:
 
 **Recommendation:** Use both! Native API for scripts, MCP for AI workflows.
 
-Once you complete either integration, you'll understand how to extend ATHF with any security tool.
+Once you complete either integration, you'll understand how to extend Hecate with any security tool.
 
 ## Quick Example
 
@@ -127,7 +127,7 @@ Always maintain human oversight:
 
 ### Credential Management
 
-- **Never commit credentials** to your ATHF repository
+- **Never commit credentials** to your Hecate repository
 - **Use environment variables** for API keys
 - **Rotate keys regularly** per your security policy
 - **Use Claude Code's built-in permission system** to approve/deny MCP usage
@@ -151,6 +151,6 @@ Level 3 gives Claude the **tools**. Level 4 gives it **agency**.
 
 - **MCP Documentation:** <https://modelcontextprotocol.io>
 - **Claude Code MCP Guide:** <https://docs.claude.com/claude-code/mcp>
-- **ATHF Issues:** <https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues>
+- **Hecate Issues:** <https://github.com/Nebulock-Inc/hecate-agent/issues>
 
 Happy hunting!

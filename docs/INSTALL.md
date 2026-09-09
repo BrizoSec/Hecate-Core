@@ -1,14 +1,14 @@
-# ATHF Installation & Development Guide
+# Hecate Installation & Development Guide
 
-This guide covers installation methods and development setup for the Agentic Threat Hunting Framework (ATHF).
+This guide covers installation methods and development setup for the Agentic Threat Hunting Framework (Hecate).
 
 ## Quick Start
 
 The fastest way to get started:
 
 ```bash
-pip install agentic-threat-hunting-framework
-athf init
+pip install hecate-agent
+hecate-agent init
 ```
 
 That's it! You're ready to start threat hunting.
@@ -23,13 +23,13 @@ That's it! You're ready to start threat hunting.
 
 ```bash
 # Install the latest stable release
-pip install agentic-threat-hunting-framework
+pip install hecate-agent
 
 # Verify installation
-athf --version
+hecate-agent --version
 
 # Initialize your workspace
-athf init
+hecate-agent init
 ```
 
 **Requirements**:
@@ -40,14 +40,14 @@ athf init
 
 ```bash
 # Create a virtual environment
-python3 -m venv athf-env
+python3 -m venv hecate-env
 
 # Activate it
-source athf-env/bin/activate  # On macOS/Linux
-athf-env\Scripts\activate     # On Windows
+source hecate-env/bin/activate  # On macOS/Linux
+hecate-env\Scripts\activate     # On Windows
 
-# Install ATHF
-pip install agentic-threat-hunting-framework
+# Install Hecate
+pip install hecate-agent
 ```
 
 ---
@@ -58,8 +58,8 @@ pip install agentic-threat-hunting-framework
 
 ```bash
 # Clone the repository
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework.git
-cd agentic-threat-hunting-framework
+git clone https://github.com/Nebulock-Inc/hecate-agent.git
+cd hecate-agent
 
 # Install in editable mode (changes take effect immediately)
 pip install -e .
@@ -68,7 +68,7 @@ pip install -e .
 pip install .
 
 # Verify installation
-athf --version
+hecate-agent --version
 ```
 
 ---
@@ -79,8 +79,8 @@ athf --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework.git
-cd agentic-threat-hunting-framework
+git clone https://github.com/Nebulock-Inc/hecate-agent.git
+cd hecate-agent
 
 # Copy the template structure
 mkdir -p my-hunts/hunts my-hunts/queries my-hunts/runs
@@ -107,14 +107,14 @@ cp templates/HUNT_LOCK.md my-hunts/hunts/H-0001.md
 
 ## Development & Customization
 
-ATHF is designed to be forked and customized for your organization. This section covers setting up your development environment and maintaining code quality in your fork.
+Hecate is designed to be forked and customized for your organization. This section covers setting up your development environment and maintaining code quality in your fork.
 
 ### Setting Up Your Fork for Development
 
 ```bash
 # Fork and clone your repository
-git clone https://github.com/YOUR-ORG/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
+git clone https://github.com/YOUR-ORG/hecate-agent
+cd hecate-agent
 
 # Install with development dependencies
 pip install -e ".[dev]"
@@ -126,17 +126,17 @@ pre-commit install
 pytest tests/ -v
 
 # Run type checking
-mypy athf --ignore-missing-imports
+mypy hecate_agent --ignore-missing-imports
 
 # Run linting
-flake8 athf
-black athf --check
-isort athf --check-only
+flake8 hecate_agent
+black hecate_agent --check
+isort hecate_agent --check-only
 ```
 
 ### Pre-commit Hooks (Optional)
 
-Pre-commit hooks help maintain code quality as you customize ATHF for your organization. Once installed, they run automatically on every commit and check:
+Pre-commit hooks help maintain code quality as you customize Hecate for your organization. Once installed, they run automatically on every commit and check:
 
 - **Code formatting** (black, isort)
 - **Linting** (flake8)
@@ -161,33 +161,33 @@ pre-commit run --all-files
 
 ```bash
 # Format code
-black athf
-isort athf
+black hecate_agent
+isort hecate_agent
 
 # Check formatting without changes
-black athf --check
-isort athf --check-only
+black hecate_agent --check
+isort hecate_agent --check-only
 
 # Lint code
-flake8 athf
+flake8 hecate_agent
 
 # Check security issues
-bandit -r athf -c pyproject.toml
+bandit -r hecate_agent -c pyproject.toml
 
 # Type check
-mypy athf --ignore-missing-imports
+mypy hecate_agent --ignore-missing-imports
 ```
 
 ### Code Quality Standards
 
-When customizing ATHF for your team:
+When customizing Hecate for your team:
 
 **Type Hints**: Maintain type annotations for better IDE support and catch errors early:
 
 ```python
 def get_config_path() -> Path:
     """Get config file path."""
-    return Path("config/.athfconfig.yaml")
+    return Path("config/.hecateconfig.yaml")
 
 def search_hunts(query: str) -> list[dict]:
     """Search hunts by query string."""
@@ -199,7 +199,7 @@ The mypy configuration in `pyproject.toml` enforces:
 - `disallow_untyped_defs = true` - All functions need type annotations
 - `disallow_incomplete_defs = true` - Function signatures must be complete
 
-**Testing**: Add tests for custom features you build. ATHF uses pytest:
+**Testing**: Add tests for custom features you build. Hecate uses pytest:
 
 ```bash
 # Run all tests
@@ -209,7 +209,7 @@ pytest tests/ -v
 pytest tests/test_commands.py -v
 
 # Run with coverage
-pytest tests/ -v --cov=athf --cov-report=term-missing
+pytest tests/ -v --cov=hecate_agent --cov-report=term-missing
 
 # Run specific test
 pytest tests/test_commands.py::TestInitCommand::test_init_creates_structure_non_interactive -v
@@ -227,10 +227,10 @@ Tests use Click's `CliRunner` to test actual CLI commands rather than mocks. See
 
 ```bash
 # Check all Python files
-bandit -r athf -c pyproject.toml
+bandit -r hecate_agent -c pyproject.toml
 
 # Check specific file
-bandit athf/commands/hunt.py
+bandit hecate_agent/commands/hunt.py
 ```
 
 ### Testing Your Changes
@@ -242,14 +242,14 @@ Before committing significant customizations:
 pytest tests/ -v
 
 # 2. Check types
-mypy athf --ignore-missing-imports
+mypy hecate_agent --ignore-missing-imports
 
 # 3. Format code
-black athf
-isort athf
+black hecate_agent
+isort hecate_agent
 
 # 4. Check security
-bandit -r athf -c pyproject.toml
+bandit -r hecate_agent -c pyproject.toml
 
 # 5. Or run pre-commit on everything
 pre-commit run --all-files
@@ -260,7 +260,7 @@ pre-commit run --all-files
 **Adding a Custom Command**:
 
 ```python
-# athf/commands/custom.py
+# hecate_agent/commands/custom.py
 import click
 from rich.console import Console
 
@@ -271,12 +271,12 @@ def mycustom() -> None:
     """My custom command."""
     console.print("[cyan]Running custom command![/cyan]")
 
-# Register in athf/cli.py
-from athf.commands import custom
+# Register in hecate/cli.py
+from hecate_agent.commands import custom
 cli.add_command(custom.mycustom)
 ```
 
-**Extending Hunt Metadata**: Modify the hunt template in `athf/core/template_engine.py` to add custom fields:
+**Extending Hunt Metadata**: Modify the hunt template in `hecate_agent/core/template_engine.py` to add custom fields:
 
 ```python
 HUNT_TEMPLATE = """---
@@ -288,21 +288,21 @@ owner_team: {{ owner_team | default('SOC') }}
 ---
 ```
 
-**Custom Workflows**: ATHF's structure makes it easy to build custom workflows:
+**Custom Workflows**: Hecate's structure makes it easy to build custom workflows:
 
 ```bash
 #!/bin/bash
 # weekly-hunt-report.sh
 
 # Get all completed hunts from last week
-athf hunt list --status completed --output json | \
+hecate-agent hunt list --status completed --output json | \
   jq '[.[] | select(.date >= "2025-11-29")]' | \
-  athf stats
+  hecate-agent stats
 ```
 
 ### CI/CD Integration
 
-ATHF includes a GitHub Actions workflow ([.github/workflows/tests.yml](../.github/workflows/tests.yml)) that runs:
+Hecate includes a GitHub Actions workflow ([.github/workflows/tests.yml](../.github/workflows/tests.yml)) that runs:
 
 - Tests across Python 3.8-3.12 on Ubuntu, macOS, Windows
 - Linting with flake8
@@ -337,8 +337,8 @@ python3 --version
 # If not installed, get it from homebrew
 brew install python3
 
-# Install ATHF
-pip3 install agentic-threat-hunting-framework
+# Install Hecate
+pip3 install hecate-agent
 
 # Add to PATH if needed (check installation output)
 export PATH="$HOME/Library/Python/3.x/bin:$PATH"
@@ -353,8 +353,8 @@ Add the PATH export to your `~/.zshrc` or `~/.bash_profile` to make it permanent
 sudo apt update
 sudo apt install python3 python3-pip python3-venv
 
-# Install ATHF
-pip3 install agentic-threat-hunting-framework
+# Install Hecate
+pip3 install hecate-agent
 
 # Add to PATH if needed
 export PATH="$HOME/.local/bin:$PATH"
@@ -370,14 +370,14 @@ Add the PATH export to your `~/.bashrc` to make it permanent.
 # Verify installation
 python --version
 
-# Install ATHF
-pip install agentic-threat-hunting-framework
+# Install Hecate
+pip install hecate-agent
 
 # Verify
-athf --version
+hecate-agent --version
 ```
 
-If `athf` is not recognized, add Python Scripts to your PATH:
+If `hecate-agent` is not recognized, add Python Scripts to your PATH:
 - `C:\Users\<YourUser>\AppData\Local\Programs\Python\Python3x\Scripts`
 
 ---
@@ -388,27 +388,27 @@ After installation, verify everything works:
 
 ```bash
 # Check version
-athf --version
+hecate-agent --version
 
 # Get help
-athf --help
+hecate-agent --help
 
 # List available commands
-athf hunt --help
+hecate-agent hunt --help
 
 # Initialize a test workspace
-mkdir athf-test
-cd athf-test
-athf init --non-interactive
+mkdir hecate-test
+cd hecate-test
+hecate-agent init --non-interactive
 
 # Create a test hunt
-athf hunt new --technique T1003.001 --title "Test Hunt" --non-interactive
+hecate-agent hunt new --technique T1003.001 --title "Test Hunt" --non-interactive
 
 # List hunts
-athf hunt list
+hecate-agent hunt list
 
 # View statistics
-athf hunt stats
+hecate-agent hunt stats
 ```
 
 If all commands work, you're ready to go!
@@ -417,7 +417,7 @@ If all commands work, you're ready to go!
 
 ## Troubleshooting
 
-### "athf: command not found"
+### "hecate: command not found"
 
 **Cause**: The Python scripts directory is not in your PATH.
 
@@ -425,7 +425,7 @@ If all commands work, you're ready to go!
 
 1. Find where pip installed the package:
    ```bash
-   pip show agentic-threat-hunting-framework
+   pip show hecate-agent
    ```
 
 2. The scripts are typically in:
@@ -443,7 +443,7 @@ If all commands work, you're ready to go!
 
 4. Reload your shell or open a new terminal.
 
-### "No module named 'athf'"
+### "No module named 'hecate'"
 
 **Cause**: Package not installed or wrong Python environment.
 
@@ -451,10 +451,10 @@ If all commands work, you're ready to go!
 
 ```bash
 # Check if installed
-pip list | grep athf
+pip list | grep hecate
 
 # If not listed, install it
-pip install agentic-threat-hunting-framework
+pip install hecate-agent
 
 # Check which Python pip is using
 pip --version
@@ -487,15 +487,15 @@ python --version
 
 ```bash
 # Option 1: Install for current user only (recommended)
-pip install --user agentic-threat-hunting-framework
+pip install --user hecate-agent
 
 # Option 2: Use a virtual environment (best practice)
-python3 -m venv athf-env
-source athf-env/bin/activate
-pip install agentic-threat-hunting-framework
+python3 -m venv hecate-env
+source hecate-env/bin/activate
+pip install hecate-agent
 
 # Option 3: Install globally (not recommended)
-sudo pip install agentic-threat-hunting-framework
+sudo pip install hecate-agent
 ```
 
 ### Import errors with dependencies
@@ -509,8 +509,8 @@ sudo pip install agentic-threat-hunting-framework
 python3 -m venv fresh-env
 source fresh-env/bin/activate
 
-# Install ATHF in the clean environment
-pip install agentic-threat-hunting-framework
+# Install Hecate in the clean environment
+pip install hecate-agent
 
 # Verify dependencies
 pip list
@@ -529,38 +529,38 @@ pip list
 
 ---
 
-## Upgrading ATHF
+## Upgrading Hecate
 
 To upgrade to the latest version:
 
 ```bash
 # Upgrade from PyPI
-pip install --upgrade agentic-threat-hunting-framework
+pip install --upgrade hecate-agent
 
 # Or from source
-cd agentic-threat-hunting-framework
+cd hecate-agent
 git pull
 pip install --upgrade .
 
 # Verify new version
-athf --version
+hecate-agent --version
 ```
 
 ---
 
-## Uninstalling ATHF
+## Uninstalling Hecate
 
-To remove ATHF:
+To remove Hecate:
 
 ```bash
 # Uninstall the package
-pip uninstall agentic-threat-hunting-framework
+pip uninstall hecate-agent
 
 # Remove your workspace (optional - this deletes your hunts!)
-# rm -rf /path/to/your/athf-workspace
+# rm -rf /path/to/your/hecate-workspace
 ```
 
-Your hunt files are separate from the package installation, so uninstalling ATHF won't delete your hunts.
+Your hunt files are separate from the package installation, so uninstalling Hecate won't delete your hunts.
 
 ---
 
@@ -568,20 +568,20 @@ Your hunt files are separate from the package installation, so uninstalling ATHF
 
 After installation:
 
-1. **Initialize your workspace**: `athf init`
+1. **Initialize your workspace**: `hecate-agent init`
 2. **Read the getting started guide**: [getting-started.md](getting-started.md)
 3. **Review the CLI reference**: [CLI_REFERENCE.md](CLI_REFERENCE.md)
-4. **Create your first hunt**: `athf hunt new`
+4. **Create your first hunt**: `hecate-agent hunt new`
 5. **Explore example hunts**: [../hunts/production/2026/Q1/H-0001.md](../hunts/2026/Q1/H-0001.md)
 
 ---
 
 ## Getting Help
 
-- **CLI help**: `athf --help` or `athf <command> --help`
+- **CLI help**: `hecate-agent --help` or `hecate <command> --help`
 - **Documentation**: [getting-started.md](getting-started.md)
-- **Issues**: [GitHub Issues](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Nebulock-Inc/hecate-agent/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Nebulock-Inc/hecate-agent/discussions)
 
 ---
 

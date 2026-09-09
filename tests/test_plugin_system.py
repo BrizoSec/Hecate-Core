@@ -1,9 +1,9 @@
-"""Tests for the ATHF plugin system."""
+"""Tests for the Hecate plugin system."""
 
 import pytest
 from click import Command
 
-from athf.plugin_system import PluginRegistry
+from hecate_agent.plugin_system import PluginRegistry
 
 
 @pytest.fixture(autouse=True)

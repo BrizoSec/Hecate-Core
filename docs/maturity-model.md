@@ -1,10 +1,10 @@
 # The Five Levels of Agentic Hunting
 
-ATHF defines a simple maturity model for evolving your hunting program. Each level builds on the previous one.
+Hecate defines a simple maturity model for evolving your hunting program. Each level builds on the previous one.
 
 **Most teams will live at Levels 1–2. Everything beyond that is optional maturity.**
 
-![The Five Levels of Agentic Hunting](../assets/athf_fivelevels.png)
+![The Five Levels of Agentic Hunting](../assets/hecate_fivelevels.png)
 
 ## Overview
 
@@ -18,18 +18,18 @@ ATHF defines a simple maturity model for evolving your hunting program. Each lev
 
 ---
 
-## How ATHF CLI Commands Support Each Level
+## How Hecate CLI Commands Support Each Level
 
-**Important:** The CLI is optional. ATHF is markdown-first - you can achieve all maturity levels using just markdown files and your AI assistant. The CLI provides convenience commands for common workflows, but the framework structure works without it.
+**Important:** The CLI is optional. Hecate is markdown-first - you can achieve all maturity levels using just markdown files and your AI assistant. The CLI provides convenience commands for common workflows, but the framework structure works without it.
 
 **If you choose to use the CLI**, it provides consistent commands across all maturity levels. What changes is **who uses them** and **how they're used**:
 
 | Level | Who Uses CLI | How It's Used | Example |
 |-------|--------------|---------------|---------|
-| **1** | You (manually) | Create and validate hunts | `athf hunt new` creates structured hunt files<br>OR manually create markdown files |
-| **2** | You + AI (interactive) | AI searches hunts, suggests refinements | AI uses `athf hunt search` to recall past work<br>OR AI searches markdown files directly |
-| **3** | AI (on your behalf) | AI executes queries and documents results | AI uses MCP tools + `athf hunt new` to create hunts<br>OR AI writes markdown files directly |
-| **4** | Autonomous agents | Agents coordinate through CLI | CTI agent uses `athf hunt new`, validator uses `athf hunt validate`<br>OR agents manipulate markdown files |
+| **1** | You (manually) | Create and validate hunts | `hecate-agent hunt new` creates structured hunt files<br>OR manually create markdown files |
+| **2** | You + AI (interactive) | AI searches hunts, suggests refinements | AI uses `hecate-agent hunt search` to recall past work<br>OR AI searches markdown files directly |
+| **3** | AI (on your behalf) | AI executes queries and documents results | AI uses MCP tools + `hecate-agent hunt new` to create hunts<br>OR AI writes markdown files directly |
+| **4** | Autonomous agents | Agents coordinate through CLI | CTI agent uses `hecate-agent hunt new`, validator uses `hecate-agent hunt validate`<br>OR agents manipulate markdown files |
 
 **Key insights:**
 - The CLI doesn't change between levels - it becomes building blocks for increasingly sophisticated automation
@@ -93,16 +93,16 @@ When someone new joins the team, they can quickly see what was tested, what was 
 **Using the CLI (Recommended):**
 ```bash
 # Initialize workspace
-athf init
+hecate-agent init
 
 # Create your first hunt
-athf hunt new --technique T1003.001 --title "LSASS Credential Dumping"
+hecate-agent hunt new --technique T1003.001 --title "LSASS Credential Dumping"
 
 # Validate structure
-athf hunt validate
+hecate-agent hunt validate
 
 # View your hunt catalog
-athf hunt list
+hecate-agent hunt list
 ```
 
 **Without the CLI (Pure Markdown):**
@@ -159,7 +159,7 @@ The AI automatically searches your hunts directory, references past investigatio
 
 **The combination of AGENTS.md (environmental context) and hunting-knowledge.md (domain expertise) transforms AI assistants from generic helpers into informed threat hunting partners.**
 
-![Manual vs. AI-Assisted Content Creation](../assets/athf_manual_v_ai.png)
+![Manual vs. AI-Assisted Content Creation](../assets/hecate_manual_v_ai.png)
 
 ### Getting Started at Level 2
 
@@ -173,13 +173,13 @@ The AI automatically searches your hunts directory, references past investigatio
 At this level, you still run commands manually, but AI helps you decide what to run:
 ```bash
 # AI suggests: "Let me search for related hunts first"
-athf hunt search "T1003"
+hecate-agent hunt search "T1003"
 
 # AI suggests: "Check your coverage gaps"
-athf hunt coverage
+hecate-agent hunt coverage
 
 # AI suggests: "Let's see your success rates"
-athf hunt stats
+hecate-agent hunt stats
 ```
 
 The AI reads your hunt files and provides context-aware suggestions, but you execute the commands.
@@ -260,13 +260,13 @@ You: "Search for SSH brute force and create a hunt"
 
 AI: [Executes Splunk query via MCP]
     [Gets results: 3 high-volume IPs]
-    [Uses: athf hunt new --technique T1110.001 --title "SSH Brute Force Detection"]
+    [Uses: hecate-agent hunt new --technique T1110.001 --title "SSH Brute Force Detection"]
     [Documents findings in hunt file]
-    [Uses: athf hunt validate to check structure]
+    [Uses: hecate-agent hunt validate to check structure]
     "Created H-0087.md documenting SSH brute force activity. Review?"
 ```
 
-**The difference:** You direct the workflow, AI executes both MCP tools (Splunk) and CLI commands (athf).
+**The difference:** You direct the workflow, AI executes both MCP tools (Splunk) and CLI commands (hecate).
 
 ### Getting Started at Level 3
 
@@ -336,29 +336,29 @@ At Level 4, agents use CLI commands without your intervention:
 **Autonomous Agent Workflow:**
 ```bash
 # CTI Monitor Agent (runs every 6 hours)
-athf hunt search "T1059.003"  # Check for existing hunts
+hecate-agent hunt search "T1059.003"  # Check for existing hunts
 # No matches found
 
 # Hypothesis Generator Agent (triggered by CTI Monitor)
-athf hunt new \
+hecate-agent hunt new \
   --technique T1059.003 \
   --title "Qakbot JavaScript Dropper Detection" \
   --platform windows \
   --non-interactive
 
 # Validator Agent (triggered by Generator)
-athf hunt validate H-0156  # Ensure structure is correct
-athf hunt coverage  # Update coverage metrics
+hecate-agent hunt validate H-0156  # Ensure structure is correct
+hecate-agent hunt coverage  # Update coverage metrics
 
 # Notifier Agent (triggered by Validator)
 # Posts to Slack: "H-0156 ready for review"
 ```
 
 **The progression:**
-- **Level 1:** You run `athf hunt new` manually
-- **Level 2:** AI suggests when to run `athf hunt new`
-- **Level 3:** AI runs `athf hunt new` when you ask
-- **Level 4:** Agents run `athf hunt new` autonomously based on objectives
+- **Level 1:** You run `hecate-agent hunt new` manually
+- **Level 2:** AI suggests when to run `hecate-agent hunt new`
+- **Level 3:** AI runs `hecate-agent hunt new` when you ask
+- **Level 4:** Agents run `hecate-agent hunt new` autonomously based on objectives
 
 ### The Maturity Progression
 

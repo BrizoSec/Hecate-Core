@@ -1,6 +1,6 @@
-# AGENTS.md - Context for AI Assistants Using ATHF
+# AGENTS.md - Context for AI Assistants Using Hecate
 
-**Purpose:** This file provides AI assistants with context about threat hunting repositories using the Agentic Threat Hunting Framework (ATHF).
+**Purpose:** This file provides AI assistants with context about threat hunting repositories using the Agentic Threat Hunting Framework (Hecate).
 
 ---
 
@@ -10,7 +10,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 
 **AI assistants should:**
 
-- **🔧 ALWAYS activate the virtual environment FIRST** - Run `source .venv/bin/activate` before any `athf` commands (verify with `which athf`)
+- **🔧 ALWAYS activate the virtual environment FIRST** - Run `source .venv/bin/activate` before any `hecate-agent` commands (verify with `which hecate-agent`)
 - **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Expert hunting frameworks and analytical methods
 - **Browse past hunts** - Search hunt history before suggesting new hypotheses
 - Reference lessons learned when generating queries
@@ -19,25 +19,25 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 
 ---
 
-## 🚨 MANDATORY: Use ATHF CLI Commands & Agents
+## 🚨 MANDATORY: Use Hecate CLI Commands & Agents
 
-**CRITICAL REQUIREMENT:** AI assistants MUST use `athf` CLI commands or `athf agent run` for ALL tasks that have corresponding CLI functionality. Direct file manipulation is prohibited for framework-managed operations.
+**CRITICAL REQUIREMENT:** AI assistants MUST use `hecate-agent` CLI commands or `hecate-agent agent run` for ALL tasks that have corresponding CLI functionality. Direct file manipulation is prohibited for framework-managed operations.
 
 ### ✅ ALWAYS Use CLI For
 
 | Task Category              | CLI Command                                                | ❌ Never Use                   |
 | -------------------------- | ---------------------------------------------------------- | ----------------------------- |
-| **Hunt creation**          | `athf hunt new --non-interactive`                          | Write tool, Edit tool         |
-| **Baseline hunt creation** | `athf hunt new-baseline --non-interactive`                 | Write tool, Edit tool         |
-| **Model-assisted hunt**    | `athf hunt new-model-assisted --non-interactive`           | Write tool, Edit tool         |
-| **Investigation creation** | `athf investigate new --non-interactive`                   | Write tool, Edit tool         |
-| **Research execution**     | `athf research new --topic "..."`                          | Manual web search, Write tool |
-| **Hypothesis generation**  | `athf agent run hypothesis-generator --threat-intel "..."` | Manual hypothesis drafting    |
-| **Duplicate checking**     | `athf similar "keywords"`                                  | Grep, manual search           |
-| **Context loading**        | `athf context --hunt H-XXXX`                               | Multiple Read operations      |
-| **Coverage analysis**      | `athf hunt coverage`                                       | Manual ATT&CK counting        |
-| **Hunt validation**        | `athf hunt validate H-XXXX`                                | Manual YAML parsing           |
-| **Hunt search**            | `athf hunt search "keyword"`                               | Grep, manual file search      |
+| **Hunt creation**          | `hecate-agent hunt new --non-interactive`                          | Write tool, Edit tool         |
+| **Baseline hunt creation** | `hecate-agent hunt new-baseline --non-interactive`                 | Write tool, Edit tool         |
+| **Model-assisted hunt**    | `hecate-agent hunt new-model-assisted --non-interactive`           | Write tool, Edit tool         |
+| **Investigation creation** | `hecate-agent investigate new --non-interactive`                   | Write tool, Edit tool         |
+| **Research execution**     | `hecate-agent research new --topic "..."`                          | Manual web search, Write tool |
+| **Hypothesis generation**  | `hecate-agent agent run hypothesis-generator --threat-intel "..."` | Manual hypothesis drafting    |
+| **Duplicate checking**     | `hecate-agent similar "keywords"`                                  | Grep, manual search           |
+| **Context loading**        | `hecate-agent context --hunt H-XXXX`                               | Multiple Read operations      |
+| **Coverage analysis**      | `hecate-agent hunt coverage`                                       | Manual ATT&CK counting        |
+| **Hunt validation**        | `hecate-agent hunt validate H-XXXX`                                | Manual YAML parsing           |
+| **Hunt search**            | `hecate-agent hunt search "keyword"`                               | Grep, manual file search      |
 
 ### 🎯 CLI-First Policy
 
@@ -55,7 +55,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 - ❌ NEVER use Write/Edit tools to create hunt or investigation files
 - ❌ NEVER manually construct YAML frontmatter
 - ❌ NEVER bypass CLI for hunt management operations
-- ✅ ALWAYS verify virtual environment is activated (`which athf`)
+- ✅ ALWAYS verify virtual environment is activated (`which hecate-agent`)
 - ✅ ALWAYS use CLI for file generation and validation
 
 ### 📋 When Manual Tools Are Acceptable
@@ -64,11 +64,11 @@ You MAY use Read, Edit, Grep, Glob tools for:
 
 - Reading existing hunt/investigation/research files
 - Editing hunt file content AFTER creation (query results, findings, lessons learned)
-- Searching file contents (complement to `athf hunt search`)
+- Searching file contents (complement to `hecate-agent hunt search`)
 - Exploring codebase structure
 - Reading knowledge/environment.md and knowledge files
 
-**Rule of thumb:** If `athf` has a command for it, use the command. Manual tools are for content, not structure.
+**Rule of thumb:** If `hecate-agent` has a command for it, use the command. Manual tools are for content, not structure.
 
 ---
 
@@ -89,10 +89,10 @@ You MAY use Read, Edit, Grep, Glob tools for:
 
 ## Repository Structure
 
-### Framework Source Code (athf/)
+### Framework Source Code (hecate/)
 
 ```
-athf/                           # CLI source code
+hecate/                           # CLI source code
 ├── agents/                     # Agent implementations
 │   ├── base.py                 # Base agent classes
 │   └── llm/                    # LLM-powered agents
@@ -126,13 +126,13 @@ athf/                           # CLI source code
     └── integrations/           # Integration guides
 ```
 
-### User Workspace (Created by athf init)
+### User Workspace (Created by hecate-agent init)
 
 ```
 /
 ├── README.md                   # Project overview
 ├── AGENTS.md                   # 🤖 This file - AI context
-├── .athfconfig.yaml            # Workspace configuration
+├── .hecateconfig.yaml            # Workspace configuration
 ├── knowledge/environment.md              # Data sources and tech stack
 │
 ├── hunts/                      # Hunt investigations (H-XXXX.md)
@@ -257,11 +257,11 @@ This repository follows the **LOCK pattern**:
 | **Validation** | Strict (CI/CD enforced) | Lightweight |
 
 **CLI Commands:**
-- `athf investigate new` - Create investigation (interactive or --non-interactive)
-- `athf investigate list [--type finding]` - List/filter investigations
-- `athf investigate search "keyword"` - Full-text search
-- `athf investigate validate I-XXXX` - Lightweight validation
-- `athf investigate promote I-XXXX` - Promote to formal hunt
+- `hecate-agent investigate new` - Create investigation (interactive or --non-interactive)
+- `hecate-agent investigate list [--type finding]` - List/filter investigations
+- `hecate-agent investigate search "keyword"` - Full-text search
+- `hecate-agent investigate validate I-XXXX` - Lightweight validation
+- `hecate-agent investigate promote I-XXXX` - Promote to formal hunt
 
 **Cross-Referencing:**
 - Investigations → Hunts: Use `related_hunts: [H-0013]` field
@@ -276,7 +276,7 @@ This repository follows the **LOCK pattern**:
 **Mandatory Rules:**
 - ✅ Always include time bounds (7 days max initially for exploratory queries)
 - ✅ Always start with `LIMIT 100` or equivalent (progressive strategy)
-- ✅ Use `athf validate query --sql "..."` before executing (if supported by your data source)
+- ✅ Use `hecate-agent validate query --sql "..."` before executing (if supported by your data source)
 - ✅ **COUNT-FIRST:** Count baseline → Count filtered → Analyze → Pull results only if justified
 - ✅ **Sequential execution:** ONE query at a time, STOP for user feedback
 - ❌ Never omit LIMIT or time constraints
@@ -303,7 +303,7 @@ Query syntax, field naming, and performance optimization vary by data source. Re
 
 ### Hypothesis Validation
 
-- **Check if we've hunted this before** - Use `athf similar "hypothesis keywords"` to find duplicate hunts
+- **Check if we've hunted this before** - Use `hecate-agent similar "hypothesis keywords"` to find duplicate hunts
 - **Verify data source availability** - Reference knowledge/environment.md
 - **Ensure hypothesis is testable** - Can be validated with a query
 - **Consider false positive rate** - Will this hunt generate noise?
@@ -319,11 +319,11 @@ Query syntax, field naming, and performance optimization vary by data source. Re
 
 ## CLI Commands (Required Workflow)
 
-**Purpose:** ATHF includes CLI tools (`athf` command) that automate common hunt management tasks. When available, these commands are faster and more reliable than manual file operations.
+**Purpose:** Hecate includes CLI tools (`hecate-agent` command) that automate common hunt management tasks. When available, these commands are faster and more reliable than manual file operations.
 
 ### 🔧 SETUP: Virtual Environment Activation
 
-**CRITICAL:** The `athf` command requires the virtual environment to be activated. Activate it once at the start of your session:
+**CRITICAL:** The `hecate-agent` command requires the virtual environment to be activated. Activate it once at the start of your session:
 
 ```bash
 source .venv/bin/activate
@@ -331,19 +331,19 @@ source .venv/bin/activate
 
 **Verify activation:**
 ```bash
-which athf
-# Should output: /path/to/workspace/.venv/bin/athf
+which hecate-agent
+# Should output: /path/to/workspace/.venv/bin/hecate
 
-athf --version
+hecate-agent --version
 # Should succeed with version number
 ```
 
 **Why this matters:**
-- System `athf` (if installed) may lack dependencies like `scikit-learn`
-- Venv `athf` has all required dependencies (scikit-learn, anthropic, etc.)
+- System `hecate-agent` (if installed) may lack dependencies like `scikit-learn`
+- Venv `hecate-agent` has all required dependencies (scikit-learn, anthropic, etc.)
 - Activation ensures correct Python interpreter
 
-**For AI Assistants:** Before running any `athf` commands, verify venv is activated with `which athf`. If it returns a system path, run `source .venv/bin/activate` first.
+**For AI Assistants:** Before running any `hecate-agent` commands, verify venv is activated with `which hecate-agent`. If it returns a system path, run `source .venv/bin/activate` first.
 
 ---
 
@@ -351,17 +351,17 @@ athf --version
 
 **These two commands are REQUIRED for all hunt workflows:**
 
-1. **`athf similar "hypothesis keywords"`** - BEFORE creating hunt hypothesis
+1. **`hecate-agent similar "hypothesis keywords"`** - BEFORE creating hunt hypothesis
    - Prevents duplicate hunts
    - Finds related past work
    - Saves time and token costs
-   - Example: `athf similar "password spraying"`
+   - Example: `hecate-agent similar "password spraying"`
 
-2. **`athf context --hunt H-XXXX`** - BEFORE executing hunt queries
+2. **`hecate-agent context --hunt H-XXXX`** - BEFORE executing hunt queries
    - Loads all context in one command (~5 Read operations → 1 command)
    - Saves ~75% token usage
    - Returns JSON/YAML/Markdown with knowledge/environment.md + past hunts + domain knowledge
-   - Example: `athf context --tactic credential-access --format json`
+   - Example: `hecate-agent context --tactic credential-access --format json`
 
 **Failure to use these tools will result in:**
 - Duplicate hunts (wasted effort)
@@ -374,21 +374,21 @@ athf --version
 
 | Step | Command | When | Purpose |
 |------|---------|------|---------|
-| 1 | `athf similar "keywords"` | BEFORE hypothesis | Check for duplicate hunts |
-| 2 | `athf research new --topic "..."` | REQUIRED: Before hypothesis | Thorough pre-hunt research (15-20 min) - **NEW** |
-| 3 | `athf agent run hypothesis-generator --threat-intel "..."` | AFTER research | Generate structured hypothesis - **NEW** |
-| 4 | `athf hunt new --technique T1XXX --title "..." --non-interactive` | WHEN creating hunt | Auto-generate hunt file (⚠️ NEVER use Write tool) |
-| 5 | `athf context --hunt H-XXXX --format json` | BEFORE executing queries | Load all context efficiently |
+| 1 | `hecate-agent similar "keywords"` | BEFORE hypothesis | Check for duplicate hunts |
+| 2 | `hecate-agent research new --topic "..."` | REQUIRED: Before hypothesis | Thorough pre-hunt research (15-20 min) - **NEW** |
+| 3 | `hecate-agent agent run hypothesis-generator --threat-intel "..."` | AFTER research | Generate structured hypothesis - **NEW** |
+| 4 | `hecate-agent hunt new --technique T1XXX --title "..." --non-interactive` | WHEN creating hunt | Auto-generate hunt file (⚠️ NEVER use Write tool) |
+| 5 | `hecate-agent context --hunt H-XXXX --format json` | BEFORE executing queries | Load all context efficiently |
 
 ---
 
 ### Hunt Execution Steps
 
-1. **Check duplicates:** `athf similar "hypothesis keywords"`
-2. **Deep research (REQUIRED):** `athf research new --topic "..."` (creates R-XXXX.md with 5-skill methodology)
-3. **Generate hypothesis:** `athf agent run hypothesis-generator --threat-intel "..."`
-4. **Create hunt file:** `athf hunt new --research R-XXXX --non-interactive ...` (link to research)
-5. **Load context:** `athf context --hunt H-XXXX --format json`
+1. **Check duplicates:** `hecate-agent similar "hypothesis keywords"`
+2. **Deep research (REQUIRED):** `hecate-agent research new --topic "..."` (creates R-XXXX.md with 5-skill methodology)
+3. **Generate hypothesis:** `hecate-agent agent run hypothesis-generator --threat-intel "..."`
+4. **Create hunt file:** `hecate-agent hunt new --research R-XXXX --non-interactive ...` (link to research)
+5. **Load context:** `hecate-agent context --hunt H-XXXX --format json`
 6. **Present hypothesis to user** - ABLE scoping table + threat context
 7. **Execute queries** - Use appropriate data source tools (ClickHouse CLI, SIEM interface, etc.)
 8. **STOP after each query** - Wait for user feedback before next query
@@ -400,31 +400,31 @@ athf --version
 
 ```bash
 # Agent management (NEW - AI-powered capabilities)
-athf agent list                       # List available agents
-athf agent info hypothesis-generator  # Get info about specific agent
-athf agent run hunt-researcher --topic "LSASS dumping"
+hecate-agent agent list                       # List available agents
+hecate-agent agent info hypothesis-generator  # Get info about specific agent
+hecate-agent agent run hunt-researcher --topic "LSASS dumping"
 
 # Hunt management
-athf hunt coverage                    # ATT&CK coverage analysis
-athf hunt coverage --tactic credential-access
-athf hunt search "credential dumping" # Full-text search across hunts
-athf hunt validate H-0001             # Validate hunt file structure
+hecate-agent hunt coverage                    # ATT&CK coverage analysis
+hecate-agent hunt coverage --tactic credential-access
+hecate-agent hunt search "credential dumping" # Full-text search across hunts
+hecate-agent hunt validate H-0001             # Validate hunt file structure
 
 # Research management (NEW)
-athf research list                    # List research documents
-athf research view R-0001             # View specific research
-athf research search "credential access"  # Search research documents
-athf research stats                   # Show research metrics
+hecate-agent research list                    # List research documents
+hecate-agent research view R-0001             # View specific research
+hecate-agent research search "credential access"  # Search research documents
+hecate-agent research stats                   # Show research metrics
 
-# ATT&CK data management (optional: pip install 'athf[attack]')
-athf attack update                    # Download/refresh STIX data
-athf attack status                    # Show provider type, version, cache info
-athf attack lookup T1003.001          # Look up technique metadata
-athf attack techniques credential-access  # List techniques for a tactic
+# ATT&CK data management (optional: pip install 'hecate-agent[attack]')
+hecate-agent attack update                    # Download/refresh STIX data
+hecate-agent attack status                    # Show provider type, version, cache info
+hecate-agent attack lookup T1003.001          # Look up technique metadata
+hecate-agent attack techniques credential-access  # List techniques for a tactic
 
 # Similarity search
-athf similar "LSASS dumping"          # Find similar hunts by query
-athf similar --hunt H-0001            # Find hunts similar to H-0001
+hecate-agent similar "LSASS dumping"          # Find similar hunts by query
+hecate-agent similar --hunt H-0001            # Find hunts similar to H-0001
 ```
 
 ---
@@ -433,25 +433,25 @@ athf similar --hunt H-0001            # Find hunts similar to H-0001
 
 ```bash
 # Deep research before hunting (15-20 min, uses web search + LLM) - DEFAULT
-athf research new --topic "LSASS dumping" --technique T1003.001
+hecate-agent research new --topic "LSASS dumping" --technique T1003.001
 
 # Quick research for urgent hunts (5 min)
-athf research new --topic "Pass-the-Hash" --depth basic
+hecate-agent research new --topic "Pass-the-Hash" --depth basic
 
 # Offline mode (no web search)
-athf research new --topic "Credential Access" --no-web-search
+hecate-agent research new --topic "Credential Access" --no-web-search
 
 # List and view research documents
-athf research list
-athf research list --status completed
-athf research view R-0001
-athf research search "kerberos"
+hecate-agent research list
+hecate-agent research list --status completed
+hecate-agent research view R-0001
+hecate-agent research search "kerberos"
 
 # Statistics
-athf research stats
+hecate-agent research stats
 
 # Link research to hunt during creation (REQUIRED)
-athf hunt new --research R-0001 --non-interactive
+hecate-agent hunt new --research R-0001 --non-interactive
 ```
 
 **Research is now REQUIRED for all hunts** to ensure:
@@ -484,16 +484,16 @@ athf hunt new --research R-0001 --non-interactive
 
 ### AI-Friendly Hunt Creation (One-Liner Support)
 
-**NEW:** `athf hunt new` supports rich content flags for fully-populated hunt files without manual editing.
+**NEW:** `hecate-agent hunt new` supports rich content flags for fully-populated hunt files without manual editing.
 
 **Basic Usage:**
 ```bash
-athf hunt new --title "Hunt Title" --technique T1003.001 --non-interactive
+hecate-agent hunt new --title "Hunt Title" --technique T1003.001 --non-interactive
 ```
 
 **AI-Friendly One-Liner (Full Hypothesis + ABLE Framework):**
 ```bash
-athf hunt new \
+hecate-agent hunt new \
   --title "macOS Unix Shell Abuse for Reconnaissance" \
   --technique "T1059.004" \
   --tactic "execution" \
@@ -531,11 +531,11 @@ athf hunt new \
 
 | ❌ Wrong | ✅ Correct |
 |---------|-----------|
-| Write tool → hunt file | `athf hunt new --non-interactive` |
-| Skip duplicate check | `athf similar "keywords"` first |
-| Skip research | `athf research new --topic "..."` (REQUIRED) |
-| Manual hypothesis | `athf agent run hypothesis-generator --threat-intel "..."` |
-| Multiple Read operations | `athf context --hunt H-XXXX` |
+| Write tool → hunt file | `hecate-agent hunt new --non-interactive` |
+| Skip duplicate check | `hecate-agent similar "keywords"` first |
+| Skip research | `hecate-agent research new --topic "..."` (REQUIRED) |
+| Manual hypothesis | `hecate-agent agent run hypothesis-generator --threat-intel "..."` |
+| Multiple Read operations | `hecate-agent context --hunt H-XXXX` |
 
 **Full CLI Reference:** [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)
 
@@ -543,7 +543,7 @@ athf hunt new \
 
 ## Domain-Specific Knowledge
 
-ATHF includes bundled hunting knowledge files to inform hunt hypotheses and query generation.
+Hecate includes bundled hunting knowledge files to inform hunt hypotheses and query generation.
 
 **Example domain-specific knowledge files organizations can add:**
 
@@ -563,7 +563,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 
 **When user requests hunt ideas:**
 
-1. **Analyze coverage gaps:** `athf hunt coverage --tactic all` or `athf context --tactic all --format json`
+1. **Analyze coverage gaps:** `hecate-agent hunt coverage --tactic all` or `hecate-agent context --tactic all --format json`
 2. **Validate data sources:** Check user's knowledge/environment.md for available telemetry
 3. **Present Top 3 ranked options** with MITRE technique, data source, priority reason
 4. **Wait for user selection** before creating hunt
@@ -599,22 +599,22 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 **AI capabilities:**
 
 - Execute queries via data source integrations
-- Semantic similarity search (`athf similar`)
-- **Pre-hunt research with web search** (`athf research new`) - 5-skill methodology - **NEW**
-- **LLM-powered agents** (`athf agent run`) - Hypothesis generation, hunt research - **NEW**
-- Automated hypothesis generation (`athf agent run hypothesis-generator`) - **NEW**
-- Automated hunt research (`athf agent run hunt-researcher`) - **NEW**
-- ATT&CK coverage analysis (`athf hunt coverage`)
-- **ATT&CK STIX data** (`athf attack update/status/lookup/techniques`) - live technique metadata - **NEW**
-- Context loading optimization (`athf context`)
-- Session tracking (`athf session`)
+- Semantic similarity search (`hecate-agent similar`)
+- **Pre-hunt research with web search** (`hecate-agent research new`) - 5-skill methodology - **NEW**
+- **LLM-powered agents** (`hecate-agent agent run`) - Hypothesis generation, hunt research - **NEW**
+- Automated hypothesis generation (`hecate-agent agent run hypothesis-generator`) - **NEW**
+- Automated hunt research (`hecate-agent agent run hunt-researcher`) - **NEW**
+- ATT&CK coverage analysis (`hecate-agent hunt coverage`)
+- **ATT&CK STIX data** (`hecate-agent attack update/status/lookup/techniques`) - live technique metadata - **NEW**
+- Context loading optimization (`hecate-agent context`)
+- Session tracking (`hecate session`)
 - MCP integrations (Notion, GitHub, custom tools)
 
 **Data sources AI can access:**
 - `hunts/` folder and past hunt files
 - `research/` folder (R-XXXX.md documents) - **NEW**
 - Data sources via integrations (Splunk, etc. - via CLI or MCP)
-- Web search via Tavily API (`athf research new`) - **NEW**
+- Web search via Tavily API (`hecate-agent research new`) - **NEW**
 - User's knowledge/environment.md
 
 **Agent Infrastructure (NEW):**
@@ -633,7 +633,7 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 
 **Purpose:** Two commands designed specifically for AI assistants to reduce token usage and avoid duplicate hunts.
 
-### `athf context` - AI-Optimized Context Loading
+### `hecate-agent context` - AI-Optimized Context Loading
 
 **Why this helps AI:**
 - **Reduces context-loading from ~5 tool calls to 1** - Single command replaces multiple Read operations
@@ -644,19 +644,19 @@ ATHF includes bundled hunting knowledge files to inform hunt hypotheses and quer
 **Usage examples:**
 ```bash
 # Export context for specific hunt
-athf context --hunt H-0013 --format json
+hecate-agent context --hunt H-0013 --format json
 
 # Export context for all credential access hunts
-athf context --tactic credential-access --format json
+hecate-agent context --tactic credential-access --format json
 
 # Export context for macOS platform hunts
-athf context --platform macos --format json
+hecate-agent context --platform macos --format json
 
 # Combine filters: persistence hunts on Linux platform
-athf context --tactic persistence --platform linux --format json
+hecate-agent context --tactic persistence --platform linux --format json
 
 # Export full repository context (use sparingly)
-athf context --full --format json
+hecate-agent context --full --format json
 ```
 
 **What's included:**
@@ -670,7 +670,7 @@ athf context --full --format json
 - **When user asks about specific hunt** - Load hunt content + context
 - **When exploring tactics** - Get all hunts for a specific tactic
 
-### `athf similar` - Semantic Hunt Search
+### `hecate-agent similar` - Semantic Hunt Search
 
 **Why this helps AI:**
 - **Find similar hunts even with different terminology** - Semantic search, not keyword matching
@@ -681,19 +681,19 @@ athf context --full --format json
 **Usage examples:**
 ```bash
 # Find hunts similar to text query
-athf similar "password spraying via RDP"
+hecate-agent similar "password spraying via RDP"
 
 # Find hunts similar to specific hunt
-athf similar --hunt H-0013
+hecate-agent similar --hunt H-0013
 
 # Limit results to top 5
-athf similar "kerberos" --limit 5
+hecate-agent similar "kerberos" --limit 5
 
 # Export as JSON for parsing
-athf similar "credential theft" --format json
+hecate-agent similar "credential theft" --format json
 
 # Set minimum similarity threshold
-athf similar "reconnaissance" --threshold 0.3
+hecate-agent similar "reconnaissance" --threshold 0.3
 ```
 
 **Similarity scoring:**
@@ -711,19 +711,19 @@ athf similar "reconnaissance" --threshold 0.3
 **Combined workflow (context + similar):**
 ```
 User: "Help me hunt for Kerberoasting"
-AI: 1. athf similar "kerberoasting" --format json
+AI: 1. hecate-agent similar "kerberoasting" --format json
        → Check for similar hunts first
     2. If similar hunt exists (score > 0.3):
-       - athf context --hunt H-XXXX --format json
+       - hecate-agent context --hunt H-XXXX --format json
        - Suggest continuing existing hunt
     3. If no similar hunt:
-       - athf context --tactic credential-access --format json
+       - hecate-agent context --tactic credential-access --format json
        - Generate new hypothesis with context
        - Create new hunt
 ```
 
 **Requirements:**
-- `scikit-learn` must be installed for `athf similar`
+- `scikit-learn` must be installed for `hecate-agent similar`
 - Install with: `pip install scikit-learn`
 
 ---
@@ -733,7 +733,7 @@ AI: 1. athf similar "kerberoasting" --format json
 **Core Process:**
 
 1. **Consult Hunting Brain** - Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
-2. **Search Memory First** - **REQUIRED: Use `athf similar "your hypothesis keywords"` to check for duplicate hunts** (saves time, avoids redundant work)
+2. **Search Memory First** - **REQUIRED: Use `hecate-agent similar "your hypothesis keywords"` to check for duplicate hunts** (saves time, avoids redundant work)
 3. **Validate Environment** - Read user's knowledge/environment.md to confirm data sources exist
 4. **Generate LOCK Hypothesis** - Create testable hypothesis following [templates/HUNT_LOCK.md](templates/HUNT_LOCK.md)
 5. **Apply Quality Criteria** - Use quality checklist (Falsifiable, Scoped, Observable, Actionable, Contextual)
@@ -765,5 +765,4 @@ AI: 1. athf similar "kerberoasting" --format json
 - Team practices change (update CLI workflow or hunt execution steps)
 
 **Last Updated:** 2026-01-12
-**Maintained By:** ATHF Framework Team
-
+**Maintained By:** Hecate Framework Team

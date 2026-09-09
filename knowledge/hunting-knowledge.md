@@ -3,7 +3,7 @@
 **Purpose:** This document embeds expert threat hunting knowledge into Claude's reasoning process. Read and internalize these frameworks before generating hypotheses, analyzing findings, or making hunting decisions.
 
 **Last Updated:** 2025-11-17
-**Maintained By:** ATHF Framework
+**Maintained By:** Hecate Framework
 
 ---
 
@@ -1729,7 +1729,7 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary changes one byte, new hash
 - Hunt Value: Only if hunting for specific known malware sample
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Don't build hunts around hashes unless hunting specific known campaign
 - Use hashes for confirmation, not discovery
@@ -1751,7 +1751,7 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary spins up new infrastructure at 5.6.7.8
 - Hunt Value: Find other systems communicating with known-bad IP (campaign scope)
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Use IPs to pivot (IP → systems that contacted it)
 - Hunt for behavioral patterns (beaconing, not specific IP)
@@ -1773,7 +1773,7 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary registers new-domain.tk
 - Hunt Value: Find DGA patterns, newly registered domains, suspicious TLDs
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Hunt for domain characteristics (age, TLD, length, entropy)
 - Identify C2 domains by behavior (beaconing pattern), not just name
@@ -1794,7 +1794,7 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary changes beacon profile, new user-agent
 - Hunt Value: Find variations of tools (same family, different config)
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Hunt for artifact patterns, not exact matches
 - Example: PowerShell download cradles (many variations, same pattern)
@@ -1816,7 +1816,7 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary must switch to different C2 framework (Meterpreter, Sliver)
 - Hunt Value: Force adversary to change toolset, disrupt operations
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Hunt for tool behaviors, not just signatures
 - Example: mimikatz → Hunt LSASS access patterns, not binary name
@@ -1839,13 +1839,13 @@ Are you still within hunt scope/objective?
 - Evasion: Adversary must find entirely different technique for credential access
 - Hunt Value: Detects adversary regardless of tools, IPs, domains
 
-**ATHF Application:**
+**Hecate Application:**
 
 - BUILD HUNTS AROUND TTPs, not indicators
 - Example: Hunt "process injection behavior" not "specific tool"
 - Example: Hunt "living-off-the-land binary abuse" not "specific binary"
-- Focus on MITRE ATT&CK techniques (See all ATHF hunt examples)
-- This is the CORE PRINCIPLE of ATHF
+- Focus on MITRE ATT&CK techniques (See all Hecate hunt examples)
+- This is the CORE PRINCIPLE of Hecate
 
 **Pyramid Application to Hypothesis Generation:**
 
@@ -1864,7 +1864,7 @@ Are you still within hunt scope/objective?
 
 - Best: Behavior-based, hard to evade, high value
 
-**ATHF Mandate:** All hunts should target Level 4-6 of Pyramid (Artifacts/Tools/TTPs), never Level 1-2 (Hashes/IPs) alone.
+**Hecate Mandate:** All hunts should target Level 4-6 of Pyramid (Artifacts/Tools/TTPs), never Level 1-2 (Hashes/IPs) alone.
 
 ### Diamond Model (Sergio Caltagirone, Andrew Pendergast, Chris Betz)
 
@@ -1962,7 +1962,7 @@ Are you still within hunt scope/objective?
 - Victim → Infrastructure: Where did malicious authentication come from?
 - Victim → Adversary: Why was this user/system targeted? (job role, access)
 
-**ATHF Application:**
+**Hecate Application:**
 Use Diamond Model to structure pivots:
 
 - Start with what you know (usually Capability or Infrastructure from detection)
@@ -2040,7 +2040,7 @@ Use Diamond Model to structure pivots:
 - **Hunt Opportunity: LAST RESORT** - Detect damage in progress, minimize impact
 - Observables: Large data uploads, file encryption, credential harvesting
 
-**ATHF Hunt Prioritization by Stage:**
+**Hecate Hunt Prioritization by Stage:**
 
 **Highest Value Hunts:**
 
@@ -2072,7 +2072,7 @@ Use Diamond Model to structure pivots:
 - Hunt detects persistence before Stage 6 (C2) or Stage 7 (Actions)
 - Still valuable, but later stage than ideal
 
-**ATHF Recommendation:**
+**Hecate Recommendation:**
 
 - Focus hypothesis generation on Stages 3-6
 - Build hunts that catch adversaries before Actions on Objectives
@@ -2093,9 +2093,9 @@ Use Diamond Model to structure pivots:
 - Limited documentation
 - Tools: Manual queries, basic SIEM searches
 
-**ATHF Equivalent:** Not using framework, hunting when incidents occur
+**Hecate Equivalent:** Not using framework, hunting when incidents occur
 
-**Progression Goal:** Establish process, begin documentation (adopt ATHF Level 1)
+**Progression Goal:** Establish process, begin documentation (adopt Hecate Level 1)
 
 #### HMM1: Minimal (Documented)
 
@@ -2106,7 +2106,7 @@ Use Diamond Model to structure pivots:
 - Learning captured in hunt documentation
 - Still largely reactive, but systematic
 
-**ATHF Equivalent:** ATHF Level 1 (Documented) - Using templates, writing hunts
+**Hecate Equivalent:** Hecate Level 1 (Documented) - Using templates, writing hunts
 
 **Progression Goal:** Move to regular cadence, build hypothesis backlog
 
@@ -2119,7 +2119,7 @@ Use Diamond Model to structure pivots:
 - Team collaboration on hunts
 - Metrics tracked (hunts completed, findings)
 
-**ATHF Equivalent:** ATHF Level 2 (Searchable) - AI-assisted, memory-enabled
+**Hecate Equivalent:** Hecate Level 2 (Searchable) - AI-assisted, memory-enabled
 
 **Progression Goal:** Proactive hunting, threat-informed priorities
 
@@ -2132,7 +2132,7 @@ Use Diamond Model to structure pivots:
 - Hunt outcomes feed detection engineering
 - Continuous improvement of hunt techniques
 
-**ATHF Equivalent:** ATHF Level 3 (Generative) - AI generates hunt ideas based on TI
+**Hecate Equivalent:** Hecate Level 3 (Generative) - AI generates hunt ideas based on TI
 
 **Progression Goal:** Automation of routine hunts, advanced analytics
 
@@ -2145,13 +2145,13 @@ Use Diamond Model to structure pivots:
 - Hunt program influences industry (research, sharing)
 - Adversary TTP research informs hunt development
 
-**ATHF Equivalent:** ATHF Level 4 (Agentic) - Automated hunt execution, AI orchestration
+**Hecate Equivalent:** Hecate Level 4 (Agentic) - Automated hunt execution, AI orchestration
 
 **Progression Goal:** Maintain leadership, continuous innovation
 
-**ATHF Maturity Alignment:**
+**Hecate Maturity Alignment:**
 
-| ATHF Level | HMM Level | Key Capability |
+| Hecate Level | HMM Level | Key Capability |
 |-----------|-----------|---------------|
 | Level 0 (Manual) | HMM0 (Initial) | Ad-hoc hunting |
 | Level 1 (Documented) | HMM1 (Minimal) | Process + templates |
@@ -2161,16 +2161,16 @@ Use Diamond Model to structure pivots:
 
 **Maturity Progression Strategy:**
 
-- Start at Level 1: Use ATHF templates, document hunts
+- Start at Level 1: Use Hecate templates, document hunts
 - Grow to Level 2: Enable AI memory, search past hunts
 - Advance to Level 3: AI generates hypotheses from TI
 - Reach Level 4: Automate routine hunts, focus humans on novel hunts
 
-**Current ATHF User:** Likely Level 1-2 (using this knowledge base = Level 2 capability)
+**Current Hecate User:** Likely Level 1-2 (using this knowledge base = Level 2 capability)
 
 ### PEAK Threat Hunting Framework (David J. Bianco, Splunk SURGe)
 
-**Purpose:** A three-phase hunting process model — Prepare, Execute, Act with Knowledge — that names three distinct *types* of hunt within Execute, not just one. PEAK complements LOCK rather than replacing it: LOCK is ATHF's execution method for PEAK's hypothesis-driven hunt type.
+**Purpose:** A three-phase hunting process model — Prepare, Execute, Act with Knowledge — that names three distinct *types* of hunt within Execute, not just one. PEAK complements LOCK rather than replacing it: LOCK is Hecate's execution method for PEAK's hypothesis-driven hunt type.
 
 **The Three Phases:**
 
@@ -2178,17 +2178,17 @@ Use Diamond Model to structure pivots:
 
 Scope and prioritize the hunt before touching data: define the goal, apply ABLE (Actor, Behavior, Location, Evidence) scoping, and rank candidate hunts by feasibility and impact.
 
-**ATHF Equivalent:** LOCK's Learn phase already does this — hypothesis statement, threat context, and the ABLE table are the same ABLE framework ATHF already uses.
+**Hecate Equivalent:** LOCK's Learn phase already does this — hypothesis statement, threat context, and the ABLE table are the same ABLE framework Hecate already uses.
 
 #### Execute
 
-Run the hunt. PEAK names three distinct hunt types here — most hunting programs (and ATHF today) only do the first:
+Run the hunt. PEAK names three distinct hunt types here — most hunting programs (and Hecate today) only do the first:
 
-| Hunt Type | Approach | ATHF Support |
+| Hunt Type | Approach | Hecate Support |
 |-----------|----------|---------------|
 | **Hypothesis-Driven Hunting** | Start from a specific, testable hypothesis about adversary behavior; query to confirm or refute it | Full support — this is what LOCK's Observe/Check phases are |
-| **Baseline Hunting (EDA)** | No hypothesis; characterize "what's normal" for a dataset (frequency counts, cardinality, rare values) and flag outliers as candidate leads for later hypothesis-driven hunts | Full support — `athf hunt new-baseline` (`hunt_type: baseline`), reuses LOCK's headings with baseline-specific subsections; filter with `athf hunt list --type baseline` |
-| **Model-Assisted Threat Hunting (M-ATH)** | Use statistical or ML models (clustering, rarity/frequency analysis, z-score/IQR outliers) over data to surface anomalies at scale, faster than manual EDA | Full support — `athf hunt new-model-assisted` (`hunt_type: model-assisted`), reuses LOCK headings with M-ATH-specific subsections (model design, anomaly scoring, candidate leads); filter with `athf hunt list --type model-assisted` |
+| **Baseline Hunting (EDA)** | No hypothesis; characterize "what's normal" for a dataset (frequency counts, cardinality, rare values) and flag outliers as candidate leads for later hypothesis-driven hunts | Full support — `hecate-agent hunt new-baseline` (`hunt_type: baseline`), reuses LOCK's headings with baseline-specific subsections; filter with `hecate-agent hunt list --type baseline` |
+| **Model-Assisted Threat Hunting (M-ATH)** | Use statistical or ML models (clustering, rarity/frequency analysis, z-score/IQR outliers) over data to surface anomalies at scale, faster than manual EDA | Full support — `hecate-agent hunt new-model-assisted` (`hunt_type: model-assisted`), reuses LOCK headings with M-ATH-specific subsections (model design, anomaly scoring, candidate leads); filter with `hecate-agent hunt list --type model-assisted` |
 
 **When to reach for Baseline or M-ATH instead of hypothesis-driven:** when there isn't yet a specific TTP in mind but ground truth for a dataset is needed first, or when data volume makes a manual hypothesis-first approach impractical (e.g. "what does normal parent-child process activity look like across 50,000 endpoints" isn't a hypothesis, it's a baseline).
 
@@ -2201,22 +2201,22 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - **Automate** — turn confirmed detections into standing detection logic
 - **Document** lessons learned so the *next* hunt benefits, closing the loop back into Prepare
 
-**ATHF Equivalent:** LOCK's Keep phase already covers Answer (Findings), Automate (Detection Logic), and Document (Lessons Learned). Brief is the one piece without a dedicated artifact — `athf hunt export` produces machine-readable JSON, not a stakeholder-facing summary. Use `athf hunt brief H-XXXX` for that: it renders hypothesis, executive summary, findings, detection outcome, and follow-up actions as a condensed markdown brief, deliberately dropping internal-only content like query iteration detail and lessons learned.
+**Hecate Equivalent:** LOCK's Keep phase already covers Answer (Findings), Automate (Detection Logic), and Document (Lessons Learned). Brief is the one piece without a dedicated artifact — `hecate-agent hunt export` produces machine-readable JSON, not a stakeholder-facing summary. Use `hecate-agent hunt brief H-XXXX` for that: it renders hypothesis, executive summary, findings, detection outcome, and follow-up actions as a condensed markdown brief, deliberately dropping internal-only content like query iteration detail and lessons learned.
 
-**ATHF Alignment:**
+**Hecate Alignment:**
 
 | PEAK Phase | LOCK Equivalent | Gap |
 |-----------|-----------------|-----|
 | Prepare | Learn | None — same ABLE framework |
 | Execute (Hypothesis-Driven) | Observe + Check | None |
-| Execute (Baseline / EDA) | Learn/Observe/Check (baseline subsections) | None — `athf hunt new-baseline` |
-| Execute (Model-Assisted / M-ATH) | LEARN/OBSERVE/CHECK/KEEP (M-ATH subsections) | None — `athf hunt new-model-assisted` |
+| Execute (Baseline / EDA) | Learn/Observe/Check (baseline subsections) | None — `hecate-agent hunt new-baseline` |
+| Execute (Model-Assisted / M-ATH) | LEARN/OBSERVE/CHECK/KEEP (M-ATH subsections) | None — `hecate-agent hunt new-model-assisted` |
 | Act → Answer | Keep (Findings) | None |
 | Act → Automate | Keep (Detection Logic) | None |
-| Act → Brief | Keep (condensed) | None — `athf hunt brief` |
+| Act → Brief | Keep (condensed) | None — `hecate-agent hunt brief` |
 | Act → Document | Keep (Lessons Learned) | None |
 
-**When to reach for PEAK vocabulary:** when scoping which of the three Execute-phase hunt types actually fits a given hunt idea before writing it up (most hunt ideas are hypothesis-driven and belong in a normal LOCK hunt file; an idea that's really "let's see what's normal here first" is a baseline-hunt candidate — use `athf hunt new-baseline` for those instead of forcing a hypothesis that doesn't exist yet), or when reporting to a PEAK-literate audience.
+**When to reach for PEAK vocabulary:** when scoping which of the three Execute-phase hunt types actually fits a given hunt idea before writing it up (most hunt ideas are hypothesis-driven and belong in a normal LOCK hunt file; an idea that's really "let's see what's normal here first" is a baseline-hunt candidate — use `hecate-agent hunt new-baseline` for those instead of forcing a hypothesis that doesn't exist yet), or when reporting to a PEAK-literate audience.
 
 ### Data Quality Dimensions
 
@@ -2246,7 +2246,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - Problem: Only 60% of servers logging SMB access
 - Impact: Can only hunt 60% of environment, false confidence
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Check environment.md for known gaps before hunting
 - Document telemetry gaps found during hunting
@@ -2274,7 +2274,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - Problem: Network logs delayed 30 minutes
 - Impact: By the time we see beaconing, adversary already took action
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Understand data latency when scoping hunt timeframes
 - Near real-time hunts require real-time data sources
@@ -2303,7 +2303,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - Low Fidelity: Only Event 4103 (module logging), can't see command
 - Impact: Need high fidelity to test hypothesis
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Match hypothesis to available data fidelity
 - Don't build hypothesis requiring high fidelity if you have low fidelity data
@@ -2331,7 +2331,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - Problem: System clocks out of sync by 5 minutes
 - Impact: Can't accurately correlate, false negatives
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Validate data accuracy before trusting findings
 - If timeline doesn't make sense, check timestamps
@@ -2359,7 +2359,7 @@ Turn hunt results into lasting value — sometimes called "the ABCs of Act":
 - Problem: Sysmon deployed on only 50% of Windows endpoints
 - Impact: Hunt only covers half the environment, inconsistent
 
-**ATHF Application:**
+**Hecate Application:**
 
 - Document which systems have which data sources (environment.md)
 - Scope hunts to systems with consistent data
@@ -2409,7 +2409,7 @@ If data quality is insufficient:
 - Apply decision frameworks (pivot vs collapse, confidence scoring)
 - Check for cognitive biases
 
-**Integration with ATHF Files:**
+**Integration with Hecate Files:**
 
 - This document = The "brain" (knowledge)
 - AGENTS.md = The "instructions" (how to use the brain)

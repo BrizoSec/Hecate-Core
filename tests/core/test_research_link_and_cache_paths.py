@@ -9,12 +9,12 @@ generated research documents.
        <blank>
        web_searches: 0
 
-   `athf hunt new --research R-XXXX` runs this on every hunt created from a
+   `hecate-agent hunt new --research R-XXXX` runs this on every hunt created from a
    research doc, so the blank lines accumulated one per link.
 
 2. _get_stix_cache_dir resolved the workspace-local cache from Path.cwd()
    while its docstring said "{workspace}". A caller that declares
-   ATHF_WORKSPACE and runs from elsewhere silently got a different cache
+   HECATE_WORKSPACE and runs from elsewhere silently got a different cache
    directory than the workspace it asked for.
 """
 
@@ -23,8 +23,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from athf.core.attack_matrix import _get_stix_cache_dir
-from athf.core.research_manager import ResearchManager
+from hecate_agent.core.attack_matrix import _get_stix_cache_dir
+from hecate_agent.core.research_manager import ResearchManager
 
 _FRONTMATTER = {
     "research_id": "R-0001",
@@ -111,49 +111,49 @@ class TestStixCacheDirResolution:
     def test_declared_workspace_wins_over_cwd(self, tmp_path, monkeypatch):
         workspace = tmp_path / "ws"
         workspace.mkdir()
-        (workspace / ".athfconfig.yaml").write_text("workspace_name: test\n", encoding="utf-8")
+        (workspace / ".hecateconfig.yaml").write_text("workspace_name: test\n", encoding="utf-8")
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()
 
-        monkeypatch.delenv("ATHF_STIX_CACHE", raising=False)
-        monkeypatch.setenv("ATHF_WORKSPACE", str(workspace))
+        monkeypatch.delenv("HECATE_STIX_CACHE", raising=False)
+        monkeypatch.setenv("HECATE_WORKSPACE", str(workspace))
         monkeypatch.chdir(elsewhere)
 
-        assert _get_stix_cache_dir() == workspace / ".athf" / "stix-data"
+        assert _get_stix_cache_dir() == workspace / ".hecate" / "stix-data"
 
     def test_cwd_is_used_when_no_workspace_declared(self, tmp_path, monkeypatch):
         workspace = tmp_path / "ws"
         workspace.mkdir()
-        (workspace / ".athfconfig.yaml").write_text("workspace_name: test\n", encoding="utf-8")
+        (workspace / ".hecateconfig.yaml").write_text("workspace_name: test\n", encoding="utf-8")
 
-        monkeypatch.delenv("ATHF_STIX_CACHE", raising=False)
-        monkeypatch.delenv("ATHF_WORKSPACE", raising=False)
+        monkeypatch.delenv("HECATE_STIX_CACHE", raising=False)
+        monkeypatch.delenv("HECATE_WORKSPACE", raising=False)
         monkeypatch.chdir(workspace)
 
-        assert _get_stix_cache_dir() == workspace / ".athf" / "stix-data"
+        assert _get_stix_cache_dir() == workspace / ".hecate" / "stix-data"
 
     def test_explicit_cache_env_still_wins(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("ATHF_STIX_CACHE", str(tmp_path / "explicit"))
-        monkeypatch.setenv("ATHF_WORKSPACE", str(tmp_path))
+        monkeypatch.setenv("HECATE_STIX_CACHE", str(tmp_path / "explicit"))
+        monkeypatch.setenv("HECATE_WORKSPACE", str(tmp_path))
 
         assert _get_stix_cache_dir() == tmp_path / "explicit"
 
     def test_falls_back_to_global_without_a_workspace_config(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("ATHF_STIX_CACHE", raising=False)
-        monkeypatch.delenv("ATHF_WORKSPACE", raising=False)
+        monkeypatch.delenv("HECATE_STIX_CACHE", raising=False)
+        monkeypatch.delenv("HECATE_WORKSPACE", raising=False)
         monkeypatch.chdir(tmp_path)
 
-        assert _get_stix_cache_dir() == Path.home() / ".athf" / "stix-data"
+        assert _get_stix_cache_dir() == Path.home() / ".hecate" / "stix-data"
 
 
 def test_research_link_command_writes_the_back_link(tmp_path, monkeypatch):
     """The runner writes hunt files itself (it needs the ID-allocation lock),
-    so `athf hunt new --research` never runs and the research document was
+    so `hecate-agent hunt new --research` never runs and the research document was
     left reporting linked_hunts: [] while the hunt named it in spawned_from.
     """
     from click.testing import CliRunner
 
-    from athf.commands.research import research
+    from hecate_agent.commands.research import research
 
     research_dir = tmp_path / "research"
     _write_research(research_dir)
@@ -169,7 +169,7 @@ def test_research_link_command_writes_the_back_link(tmp_path, monkeypatch):
 def test_research_link_command_is_idempotent(tmp_path, monkeypatch):
     from click.testing import CliRunner
 
-    from athf.commands.research import research
+    from hecate_agent.commands.research import research
 
     research_dir = tmp_path / "research"
     _write_research(research_dir)
@@ -187,7 +187,7 @@ def test_research_link_command_is_idempotent(tmp_path, monkeypatch):
 def test_research_link_command_fails_loudly_on_an_unknown_id(tmp_path, monkeypatch):
     from click.testing import CliRunner
 
-    from athf.commands.research import research
+    from hecate_agent.commands.research import research
 
     _write_research(tmp_path / "research")
     monkeypatch.chdir(tmp_path)

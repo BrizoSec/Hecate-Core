@@ -34,8 +34,8 @@ from unittest.mock import patch
 
 import pytest
 
-from athf.agents.llm.hunt_researcher import _GROUNDING_INSTRUCTION, HuntResearcherAgent
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.agents.llm.hunt_researcher import _GROUNDING_INSTRUCTION, HuntResearcherAgent
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 
 class CapturingProvider(LLMProvider):
@@ -68,7 +68,7 @@ class TestTradecraftAntiHallucination:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        with patch("athf.core.attack_matrix.get_technique", return_value=None):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=None):
             agent._llm_summarize_tradecraft(
                 topic="Keep going, bro",
                 technique=None,

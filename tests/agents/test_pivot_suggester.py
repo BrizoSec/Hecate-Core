@@ -1,50 +1,47 @@
-"""Tests for athf.agents.llm.pivot_suggester — pivot suggestion agent."""
+"""Tests for hecate_agent.agents.llm.pivot_suggester — pivot suggestion agent."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from athf.agents.llm.pivot_suggester import (
-    PivotInput,
-    PivotOutput,
-    PivotSuggesterAgent,
-    PivotSuggestion,
-)
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.agents.llm.pivot_suggester import PivotInput, PivotSuggesterAgent
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-VALID_PIVOT_JSON = json.dumps({
-    "finding_summary": "PowerShell spawned by Word — classic phishing execution chain.",
-    "technique_matches": ["T1566.001", "T1059.001"],
-    "pivots": [
-        {
-            "priority": 1,
-            "query": "Find all network connections from powershell.exe within 10 minutes of the Word spawn event",
-            "rationale": "C2 beaconing typically follows phishing execution",
-            "data_source": "EDR network telemetry",
-            "technique_hint": "T1071.001",
-        },
-        {
-            "priority": 2,
-            "query": "Search for all hosts where winword.exe spawned any child process in the last 7 days",
-            "rationale": "Scope the phishing campaign — this may not be an isolated incident",
-            "data_source": "EDR process creation logs",
-            "technique_hint": "T1566.001",
-        },
-        {
-            "priority": 3,
-            "query": "Check file writes by powershell.exe within the same session — look for staged payloads",
-            "rationale": "Download-and-execute patterns leave artifacts on disk",
-            "data_source": "EDR file event logs",
-            "technique_hint": "T1105",
-        },
-    ],
-    "past_hunt_references": [],
-})
+VALID_PIVOT_JSON = json.dumps(
+    {
+        "finding_summary": "PowerShell spawned by Word — classic phishing execution chain.",
+        "technique_matches": ["T1566.001", "T1059.001"],
+        "pivots": [
+            {
+                "priority": 1,
+                "query": "Find all network connections from powershell.exe within 10 minutes of the Word spawn event",
+                "rationale": "C2 beaconing typically follows phishing execution",
+                "data_source": "EDR network telemetry",
+                "technique_hint": "T1071.001",
+            },
+            {
+                "priority": 2,
+                "query": "Search for all hosts where winword.exe spawned any child process in the last 7 days",
+                "rationale": "Scope the phishing campaign — this may not be an isolated incident",
+                "data_source": "EDR process creation logs",
+                "technique_hint": "T1566.001",
+            },
+            {
+                "priority": 3,
+                "query": "Check file writes by powershell.exe within the same session — look for staged payloads",
+                "rationale": "Download-and-execute patterns leave artifacts on disk",
+                "data_source": "EDR file event logs",
+                "technique_hint": "T1105",
+            },
+        ],
+        "past_hunt_references": [],
+    }
+)
 
 
 def _mock_provider(response_text: str) -> LLMProvider:
@@ -64,15 +61,18 @@ def _mock_provider(response_text: str) -> LLMProvider:
 # Heuristic (no-LLM) mode
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestPivotSuggesterHeuristic:
     """Tests for the deterministic heuristic fallback mode."""
 
     def test_process_parent_fields_generate_process_pivots(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
-        result = agent.execute(PivotInput(
-            finding='{"process": "powershell.exe", "parent": "winword.exe"}',
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"process": "powershell.exe", "parent": "winword.exe"}',
+            )
+        )
         assert result.is_success
         assert result.data is not None
         queries = [p.query for p in result.data.pivots]
@@ -81,18 +81,22 @@ class TestPivotSuggesterHeuristic:
 
     def test_user_field_generates_auth_pivot(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
-        result = agent.execute(PivotInput(
-            finding='{"user": "svc_backup", "host": "dc01"}',
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"user": "svc_backup", "host": "dc01"}',
+            )
+        )
         assert result.is_success
         queries = [p.query for p in result.data.pivots]
         assert any("svc_backup" in q for q in queries)
 
     def test_ip_field_generates_network_pivot(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
-        result = agent.execute(PivotInput(
-            finding='{"process": "chrome.exe", "dst_ip": "198.51.100.42"}',
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"process": "chrome.exe", "dst_ip": "198.51.100.42"}',
+            )
+        )
         assert result.is_success
         queries = [p.query for p in result.data.pivots]
         assert any("198.51.100.42" in q for q in queries)
@@ -105,18 +109,22 @@ class TestPivotSuggesterHeuristic:
 
     def test_technique_propagated_to_output(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
-        result = agent.execute(PivotInput(
-            finding='{"process": "mimikatz.exe"}',
-            technique="T1003.001",
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"process": "mimikatz.exe"}',
+                technique="T1003.001",
+            )
+        )
         assert result.is_success
         assert "T1003.001" in result.data.technique_matches
 
     def test_pivots_are_ordered_by_priority(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
-        result = agent.execute(PivotInput(
-            finding='{"process": "cmd.exe", "parent": "excel.exe", "user": "alice"}',
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"process": "cmd.exe", "parent": "excel.exe", "user": "alice"}',
+            )
+        )
         assert result.is_success
         priorities = [p.priority for p in result.data.pivots]
         assert priorities == sorted(priorities)
@@ -137,6 +145,7 @@ class TestPivotSuggesterHeuristic:
 # LLM mode
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestPivotSuggesterLLM:
     """Tests for LLM-powered pivot suggestion."""
@@ -144,9 +153,11 @@ class TestPivotSuggesterLLM:
     def test_llm_response_parsed_into_output(self):
         provider = _mock_provider(VALID_PIVOT_JSON)
         agent = PivotSuggesterAgent(llm_enabled=True, provider=provider)
-        result = agent.execute(PivotInput(
-            finding='{"process": "powershell.exe", "parent": "winword.exe"}',
-        ))
+        result = agent.execute(
+            PivotInput(
+                finding='{"process": "powershell.exe", "parent": "winword.exe"}',
+            )
+        )
         assert result.is_success
         assert result.data.finding_summary == "PowerShell spawned by Word — classic phishing execution chain."
         assert "T1566.001" in result.data.technique_matches
@@ -217,6 +228,7 @@ class TestPivotSuggesterLLM:
 # ---------------------------------------------------------------------------
 # Context loaders
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestPivotContextLoading:

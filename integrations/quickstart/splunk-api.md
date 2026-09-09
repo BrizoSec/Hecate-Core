@@ -1,6 +1,6 @@
 # Splunk REST API Integration (Native Python)
 
-This guide shows how to use ATHF's built-in Splunk REST API client for direct query execution.
+This guide shows how to use Hecate's built-in Splunk REST API client for direct query execution.
 
 ## When to Use This vs MCP
 
@@ -20,7 +20,7 @@ This guide shows how to use ATHF's built-in Splunk REST API client for direct qu
 
 - Splunk Enterprise 8.0+ or Splunk Cloud
 - Python 3.8+
-- ATHF installed with dependencies
+- Hecate installed with dependencies
 
 ## Setup
 
@@ -48,7 +48,7 @@ export SPLUNK_VERIFY_SSL="true"  # Optional: set to false for self-signed certs
 ### Step 3: Verify Connection
 
 ```bash
-athf splunk test
+hecate-agent splunk test
 ```
 
 Expected output:
@@ -74,20 +74,20 @@ The `thrunt` index contains 12M+ security events including:
 ### Test Connection
 
 ```bash
-athf splunk test
+hecate-agent splunk test
 ```
 
 ### List Available Indexes
 
 ```bash
 # Simple list
-athf splunk indexes
+hecate-agent splunk indexes
 
 # JSON output
-athf splunk indexes --format json
+hecate-agent splunk indexes --format json
 
 # Table format
-athf splunk indexes --format table
+hecate-agent splunk indexes --format table
 ```
 
 ### Execute Queries
@@ -95,13 +95,13 @@ athf splunk indexes --format table
 #### Basic Query
 
 ```bash
-athf splunk search 'index=thrunt | head 10'
+hecate-agent splunk search 'index=thrunt | head 10'
 ```
 
 #### With Time Range
 
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" | head 50' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" | head 50' \
   --earliest "0" \
   --latest "now" \
   --count 50
@@ -110,7 +110,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" | head 50' \
 #### Statistical Query
 
 ```bash
-athf splunk search 'index=thrunt | stats count by sourcetype | sort -count' \
+hecate-agent splunk search 'index=thrunt | stats count by sourcetype | sort -count' \
   --earliest "0" \
   --count 100 \
   --format table
@@ -121,7 +121,7 @@ athf splunk search 'index=thrunt | stats count by sourcetype | sort -count' \
 For queries that may take more than 30 seconds:
 
 ```bash
-athf splunk search 'index=thrunt sourcetype="stream:*" | stats count by sourcetype' \
+hecate-agent splunk search 'index=thrunt sourcetype="stream:*" | stats count by sourcetype' \
   --async-search \
   --max-wait 600 \
   --count 1000
@@ -130,12 +130,12 @@ athf splunk search 'index=thrunt sourcetype="stream:*" | stats count by sourcety
 ### Show Configuration
 
 ```bash
-athf splunk config
+hecate-agent splunk config
 ```
 
 ## Command Reference
 
-### `athf splunk test`
+### `hecate-agent splunk test`
 
 Test connection and authentication.
 
@@ -144,7 +144,7 @@ Test connection and authentication.
 - `--token` - Override SPLUNK_TOKEN
 - `--verify-ssl / --no-verify-ssl` - SSL verification (default: true)
 
-### `athf splunk indexes`
+### `hecate-agent splunk indexes`
 
 List available Splunk indexes.
 
@@ -152,7 +152,7 @@ List available Splunk indexes.
 - `--format` - Output format: `list`, `json`, or `table` (default: list)
 - `--host`, `--token`, `--verify-ssl` - Connection options
 
-### `athf splunk search QUERY`
+### `hecate-agent splunk search QUERY`
 
 Execute a Splunk search query.
 
@@ -169,7 +169,7 @@ Execute a Splunk search query.
 - `--max-wait` - Max wait time for async searches in seconds (default: 300)
 - `--host`, `--token`, `--verify-ssl` - Connection options
 
-### `athf splunk config`
+### `hecate-agent splunk config`
 
 Show current configuration and test connection.
 
@@ -178,7 +178,7 @@ Show current configuration and test connection.
 ### Basic Example
 
 ```python
-from athf.core.splunk_client import SplunkClient
+from hecate_agent.core.splunk_client import SplunkClient
 
 # Create client
 client = SplunkClient(
@@ -205,7 +205,7 @@ for event in results:
 ### From Environment Variables
 
 ```python
-from athf.core.splunk_client import create_client_from_env
+from hecate_agent.core.splunk_client import create_client_from_env
 
 # Load from SPLUNK_HOST, SPLUNK_TOKEN, SPLUNK_VERIFY_SSL
 client = create_client_from_env()
@@ -250,7 +250,7 @@ if client.wait_for_search_job(sid, max_wait=300):
 client.delete_search_job(sid)
 ```
 
-## Integration with ATHF Workflow
+## Integration with Hecate Workflow
 
 ### In Hunt Files
 
@@ -270,7 +270,7 @@ index=thrunt sourcetype="XmlWinEventLog" EventCode=4625
 
 **Execution:**
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4625 | stats count by Account_Name, src_ip | where count > 10 | sort -count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4625 | stats count by Account_Name, src_ip | where count > 10 | sort -count' \
   --earliest "0" \
   --count 100 \
   --format json > results.json
@@ -283,7 +283,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4625 | st
 #!/usr/bin/env python3
 """Execute hunt queries from Python."""
 
-from athf.core.splunk_client import create_client_from_env
+from hecate_agent.core.splunk_client import create_client_from_env
 
 def run_hunt_query():
     client = create_client_from_env()
@@ -335,15 +335,15 @@ if __name__ == "__main__":
 4. **Test Before Production** - Test on small time windows first
    ```bash
    # Test with 1 hour
-   athf splunk search 'query' --earliest "-1h"
+   hecate-agent splunk search 'query' --earliest "-1h"
 
    # If fast, expand to 24 hours
-   athf splunk search 'query' --earliest "-24h"
+   hecate-agent splunk search 'query' --earliest "-24h"
    ```
 
 5. **Use Async for Heavy Queries** - If query takes >30s
    ```bash
-   athf splunk search 'heavy query' --async-search --max-wait 600
+   hecate-agent splunk search 'heavy query' --async-search --max-wait 600
    ```
 
 ## Security Best Practices
@@ -441,13 +441,13 @@ curl -k https://splunk.example.com:8089/services/search/jobs \
 
 **Check:**
 1. Time range includes data: `--earliest "-24h"`
-2. Index exists: `athf splunk indexes`
+2. Index exists: `hecate-agent splunk indexes`
 3. Permissions: User can access specified indexes
 4. Query syntax: Test in Splunk Web UI first
 
 ## API Reference
 
-See [`athf/core/splunk_client.py`](../../athf/core/splunk_client.py) for full API documentation.
+See [`hecate_agent/core/splunk_client.py`](../../hecate_agent/core/splunk_client.py) for full API documentation.
 
 **Key Methods:**
 - `test_connection()` - Verify connection
@@ -460,9 +460,9 @@ See [`athf/core/splunk_client.py`](../../athf/core/splunk_client.py) for full AP
 
 ## Resources
 
-- **Splunk REST API Docs:** https://docs.splunk.com/Documentation/Splunk/latest/RESTREF
-- **SPL Reference:** https://docs.splunk.com/Documentation/Splunk/latest/SearchReference
-- **ATHF Documentation:** https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+- **Splunk REST API Docs:** <https://docs.splunk.com/Documentation/Splunk/latest/RESTREF>
+- **SPL Reference:** <https://docs.splunk.com/Documentation/Splunk/latest/SearchReference>
+- **Hecate Documentation:** <https://github.com/Nebulock-Inc/hecate-agent>
 - **SPL Query Examples:** See `hunts/` directory for real-world queries
 
 ## Comparison: API vs MCP
@@ -483,4 +483,4 @@ See [`athf/core/splunk_client.py`](../../athf/core/splunk_client.py) for full AP
 
 ---
 
-**Questions?** Open an issue in the ATHF repo.
+**Questions?** Open an issue in the Hecate repo.

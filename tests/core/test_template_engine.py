@@ -1,8 +1,8 @@
-"""Tests for athf.core.template_engine - hunt template rendering."""
+"""Tests for hecate_agent.core.template_engine - hunt template rendering."""
 
 import pytest
 
-from athf.core.template_engine import render_baseline_template, render_hunt_template, render_math_template
+from hecate_agent.core.template_engine import render_baseline_template, render_hunt_template, render_math_template
 
 
 @pytest.mark.unit
@@ -146,15 +146,11 @@ class TestAssigneeReviewerFields:
     """Test assignee and reviewer frontmatter fields across all template types."""
 
     def test_hunt_template_assignee_included(self):
-        content = render_hunt_template(
-            hunt_id="H-0010", title="Assigned Hunt", assignee="alice"
-        )
+        content = render_hunt_template(hunt_id="H-0010", title="Assigned Hunt", assignee="alice")
         assert "assignee: alice" in content
 
     def test_hunt_template_reviewer_included(self):
-        content = render_hunt_template(
-            hunt_id="H-0010", title="Reviewed Hunt", reviewer="bob"
-        )
+        content = render_hunt_template(hunt_id="H-0010", title="Reviewed Hunt", reviewer="bob")
         assert "reviewer: bob" in content
 
     def test_hunt_template_assignee_omitted_when_not_set(self):
@@ -166,9 +162,7 @@ class TestAssigneeReviewerFields:
         assert "reviewer:" not in content
 
     def test_baseline_template_assignee_reviewer_included(self):
-        content = render_baseline_template(
-            hunt_id="H-0020", title="Assigned Baseline", assignee="carol", reviewer="dave"
-        )
+        content = render_baseline_template(hunt_id="H-0020", title="Assigned Baseline", assignee="carol", reviewer="dave")
         assert "assignee: carol" in content
         assert "reviewer: dave" in content
 
@@ -178,9 +172,7 @@ class TestAssigneeReviewerFields:
         assert "reviewer:" not in content
 
     def test_math_template_assignee_reviewer_included(self):
-        content = render_math_template(
-            hunt_id="H-0030", title="Assigned Model Hunt", assignee="eve", reviewer="frank"
-        )
+        content = render_math_template(hunt_id="H-0030", title="Assigned Model Hunt", assignee="eve", reviewer="frank")
         assert "assignee: eve" in content
         assert "reviewer: frank" in content
 
@@ -202,14 +194,10 @@ class TestRenderMathTemplate:
         assert "status: planning" in content
 
     def test_model_type_included(self):
-        content = render_math_template(
-            hunt_id="H-0030", title="Z-Score Hunt", model_type="z-score"
-        )
+        content = render_math_template(hunt_id="H-0030", title="Z-Score Hunt", model_type="z-score")
         assert "z-score" in content
 
     def test_data_source_indexing_uses_real_first_source(self):
-        content = render_math_template(
-            hunt_id="H-0030", title="Model Hunt", data_sources=["EDR", "SIEM"]
-        )
+        content = render_math_template(hunt_id="H-0030", title="Model Hunt", data_sources=["EDR", "SIEM"])
         assert "- **Index/Data Source:** EDR" in content
         assert "- **Index/Data Source:** [" not in content

@@ -1,4 +1,4 @@
-"""Tests for athf.commands.research -- this module had essentially zero
+"""Tests for hecate_agent.commands.research -- this module had essentially zero
 direct coverage (11.59%) despite `research new` being the command this
 session's Tavily-grounding/EXCLUDE_DOMAINS/linked_hunts fixes all revolve
 around, and despite carrying the exact linked_hunts extraction logic (the
@@ -25,17 +25,17 @@ import pytest
 from click.testing import CliRunner
 from rich.console import Console
 
-from athf.agents.base import AgentResult
-from athf.agents.llm.hunt_researcher import ResearchOutput, ResearchSkillOutput
+from hecate_agent.agents.base import AgentResult
+from hecate_agent.agents.llm.hunt_researcher import ResearchOutput, ResearchSkillOutput
 
-# athf/commands/__init__.py does `from athf.commands.research import
+# hecate_agent/commands/__init__.py does `from hecate_agent.commands.research import
 # research`, which re-exports the click Group under the *same* name and
-# shadows the athf.commands.research *submodule* reference on the package
-# object -- `from athf.commands import research` would silently get the
+# shadows the hecate_agent.commands.research *submodule* reference on the package
+# object -- `from hecate_agent.commands import research` would silently get the
 # Group, not the module with _display_json_output etc. on it.
 # importlib.import_module goes through sys.modules directly, sidestepping
 # that shadowing.
-research_cmd = importlib.import_module("athf.commands.research")
+research_cmd = importlib.import_module("hecate_agent.commands.research")
 research = research_cmd.research  # the click Group, for CliRunner.invoke
 
 
@@ -188,7 +188,7 @@ class TestDisplayResearchSummary:
         assert "Recommended Hypothesis:" in text
         assert "Adversaries do X" in text
         assert "Gaps Identified:" in text
-        assert "athf research view R-0099" in text
+        assert "hecate-agent research view R-0099" in text
 
     def test_omits_hypothesis_and_gaps_when_absent(self) -> None:
         output = _make_output(recommended_hypothesis=None, gaps_identified=[])
@@ -205,7 +205,7 @@ class TestNewCommand:
     ) -> None:
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=_make_output(), error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         result = runner.invoke(research, ["new", "--topic", "ValleyRAT"])
 
@@ -218,7 +218,7 @@ class TestNewCommand:
     ) -> None:
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=_make_output(), error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         runner.invoke(research, ["new", "--topic", "ValleyRAT"])
 
@@ -228,21 +228,25 @@ class TestNewCommand:
     def test_json_output_format(self, runner: CliRunner, workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=_make_output(), error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         result = runner.invoke(research, ["new", "--topic", "ValleyRAT", "--output", "json"])
 
         assert result.exit_code == 0, result.output
         # Output has a progress banner before the JSON, same as hecate-runner's
-        # athf_client.py has to parse around -- just confirm the JSON object
+        # hecate_client.py has to parse around -- just confirm the JSON object
         # is present and parses.
         start = result.output.find("{")
         json.loads(result.output[start:])
 
-    def test_agent_failure_aborts_with_error(self, runner: CliRunner, workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_agent_failure_aborts_with_error(
+        self, runner: CliRunner, workspace: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         fake_agent = MagicMock()
-        fake_agent.execute.return_value = AgentResult(success=False, data=None, error="LLM timed out", warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        fake_agent.execute.return_value = AgentResult(
+            success=False, data=None, error="LLM timed out", warnings=[], metadata={}
+        )
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         result = runner.invoke(research, ["new", "--topic", "ValleyRAT"])
 
@@ -256,7 +260,7 @@ class TestNewCommand:
         # on `output.research_id` against None.
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=None, error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         result = runner.invoke(research, ["new", "--topic", "ValleyRAT"])
 
@@ -266,7 +270,7 @@ class TestNewCommand:
     def test_technique_option_is_echoed(self, runner: CliRunner, workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=_make_output(), error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         result = runner.invoke(research, ["new", "--topic", "ValleyRAT", "--technique", "T1574.001"])
 
@@ -281,7 +285,7 @@ class TestNewCommand:
         )
         fake_agent = MagicMock()
         fake_agent.execute.return_value = AgentResult(success=True, data=output, error=None, warnings=[], metadata={})
-        monkeypatch.setattr("athf.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
+        monkeypatch.setattr("hecate_agent.agents.llm.hunt_researcher.HuntResearcherAgent", lambda llm_enabled: fake_agent)
 
         runner.invoke(research, ["new", "--topic", "ValleyRAT"])
 
@@ -297,7 +301,7 @@ class TestListCommand:
         assert "No research documents found" in result.output
 
     def test_lists_created_research(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         manager = ResearchManager()
         manager.create_research_file(
@@ -314,11 +318,9 @@ class TestListCommand:
         assert "Test topic" in result.output
 
     def test_json_output_format(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
-        ResearchManager().create_research_file(
-            research_id="R-0001", topic="Test topic", content="body", frontmatter={}
-        )
+        ResearchManager().create_research_file(research_id="R-0001", topic="Test topic", content="body", frontmatter={})
 
         result = runner.invoke(research, ["list", "--output", "json"])
 
@@ -327,7 +329,7 @@ class TestListCommand:
         assert data[0]["research_id"] == "R-0001"
 
     def test_more_than_two_techniques_are_truncated_with_ellipsis(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001",
@@ -349,7 +351,7 @@ class TestViewCommand:
         assert "not found" in result.output
 
     def test_view_markdown(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001", topic="Test topic", content="# body content", frontmatter={}
@@ -361,7 +363,7 @@ class TestViewCommand:
         assert "body content" in result.output
 
     def test_view_json(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001", topic="Test topic", content="# body content", frontmatter={}
@@ -377,7 +379,7 @@ class TestViewCommand:
         self, runner: CliRunner, workspace: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "athf.core.research_manager.ResearchManager.get_research",
+            "hecate_agent.core.research_manager.ResearchManager.get_research",
             lambda self, research_id: {"research_id": research_id},  # no "file_path" key
         )
 
@@ -394,7 +396,7 @@ class TestSearchCommand:
         assert "No research documents found matching" in result.output
 
     def test_finds_matching_research(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001", topic="ValleyRAT adware campaign", content="body", frontmatter={}
@@ -406,7 +408,7 @@ class TestSearchCommand:
         assert "R-0001" in result.output
 
     def test_json_output_format(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001", topic="ValleyRAT adware campaign", content="body", frontmatter={}
@@ -433,7 +435,7 @@ class TestStatsCommand:
         assert "total_research" in data
 
     def test_by_status_breakdown_shown_when_present(self, runner: CliRunner, workspace: Path) -> None:
-        from athf.core.research_manager import ResearchManager
+        from hecate_agent.core.research_manager import ResearchManager
 
         ResearchManager().create_research_file(
             research_id="R-0001", topic="Test topic", content="body", frontmatter={"status": "completed"}

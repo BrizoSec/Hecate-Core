@@ -1,0 +1,25 @@
+title: Suspicious Command Execution Related to Magento/Adobe Commerce Vulnerability
+id: 60e1ab6f-8ab8-424a-b3d1-44983dd272c2
+status: experimental
+description: Detects process creations involving specific command lines that are indicative of exploitation
+  attempts targeting known vulnerabilities in Magento and Adobe Commerce systems.
+references:
+- https://sansec.io/research/stylesmuggler-0day
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-09'
+tags:
+- attack.t1059
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: http://www.incofar.it/js/jquery/plugins/ajaxfileupload/mag.txt
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate network traffic to known good URLs or administrative scripts that may accidentally include
+  the malicious URL
+level: medium
+related:
+- id: H-0007
+  type: derived

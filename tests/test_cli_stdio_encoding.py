@@ -1,8 +1,8 @@
 """Regression: the CLI aborted on a legacy Windows console.
 
-`athf hunt new` exited 1 on every Windows CI job without creating the hunt:
+`hecate-agent hunt new` exited 1 on every Windows CI job without creating the hunt:
 
-    File "athf/commands/_hunt_create.py", line 117, in new
+    File "hecate_agent/commands/_hunt_create.py", line 117, in new
       console.print("\\n[bold cyan]\\U0001f3af Creating new hunt[/bold cyan]\\n")
     ...
     File "lib/encodings/cp1252.py", line 19, in encode
@@ -23,7 +23,7 @@ import sys
 
 import pytest
 
-from athf.cli import _ensure_printable_stdio
+from hecate_agent.cli import _ensure_printable_stdio
 
 
 def _cp1252_stream():

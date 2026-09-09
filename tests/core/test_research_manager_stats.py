@@ -5,7 +5,7 @@ from typing import Optional
 
 import pytest
 
-from athf.core.research_manager import ResearchManager
+from hecate_agent.core.research_manager import ResearchManager
 
 
 def _write_research(

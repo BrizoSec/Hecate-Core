@@ -1,19 +1,19 @@
-"""Tests for athf.commands.attack - ATT&CK CLI commands."""
+"""Tests for hecate_agent.commands.attack - ATT&CK CLI commands."""
 
 import json
 
 import pytest
 from click.testing import CliRunner
 
-from athf.commands.attack import _sanitize_stix_bundle, attack
+from hecate_agent.commands.attack import _sanitize_stix_bundle, attack
 
 
 @pytest.mark.unit
 class TestAttackStatus:
-    """Test 'athf attack status' command."""
+    """Test 'hecate-agent attack status' command."""
 
     def setup_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
 
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
@@ -39,10 +39,10 @@ class TestAttackStatus:
 
 @pytest.mark.unit
 class TestAttackLookup:
-    """Test 'athf attack lookup' command."""
+    """Test 'hecate-agent attack lookup' command."""
 
     def setup_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
 
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
@@ -70,8 +70,8 @@ class TestAttackLookup:
                 "parent_id": None,
             }
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_technique", fake_get_technique)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_technique", fake_get_technique)
 
         runner = CliRunner()
         result = runner.invoke(attack, ["lookup", "T1098", "--json"])
@@ -87,8 +87,8 @@ class TestAttackLookup:
         }
 
     def test_lookup_json_not_found_emits_error_json(self, monkeypatch):
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_technique", lambda technique_id: None)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_technique", lambda technique_id: None)
 
         runner = CliRunner()
         result = runner.invoke(attack, ["lookup", "T9999", "--json"])
@@ -99,10 +99,10 @@ class TestAttackLookup:
 
 @pytest.mark.unit
 class TestAttackTechniques:
-    """Test 'athf attack techniques' command."""
+    """Test 'hecate-agent attack techniques' command."""
 
     def setup_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
 
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
@@ -115,15 +115,15 @@ class TestAttackTechniques:
 
 @pytest.mark.unit
 class TestAttackUpdate:
-    """Test 'athf attack update' command."""
+    """Test 'hecate-agent attack update' command."""
 
     def setup_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
 
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
     def teardown_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
 
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
@@ -174,15 +174,17 @@ class TestAttackUpdate:
             downloaded["url"] = url
             downloaded["dest"] = dest
             import json
+
             with open(dest, "w") as f:
                 json.dump({"type": "bundle", "objects": []}, f)
 
         monkeypatch.setattr(urllib.request, "urlretrieve", mock_urlretrieve)
 
         # Point STIX cache to tmp_path so no real file exists
-        monkeypatch.setenv("ATHF_STIX_CACHE", str(tmp_path / "stix-data"))
+        monkeypatch.setenv("HECATE_STIX_CACHE", str(tmp_path / "stix-data"))
 
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
+
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
         runner = CliRunner()
@@ -195,10 +197,11 @@ class TestAttackUpdate:
 
 @pytest.mark.unit
 class TestAttackGap:
-    """Test 'athf attack gap' command."""
+    """Test 'hecate-agent attack gap' command."""
 
     def setup_method(self):
-        from athf.core import attack_matrix
+        from hecate_agent.core import attack_matrix
+
         attack_matrix.reset_provider(attack_matrix.FallbackProvider())
 
     def test_gap_without_stix_shows_message(self):
@@ -213,11 +216,12 @@ class TestAttackGap:
             {"id": "T1002", "name": "Data Compressed", "is_subtechnique": False, "platforms": ["Windows"]},
         ]
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
-        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
 
-        from athf.core.hunt_manager import HuntManager
+        from hecate_agent.core.hunt_manager import HuntManager
+
         monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
 
         runner = CliRunner()
@@ -230,11 +234,12 @@ class TestAttackGap:
             {"id": "T1001", "name": "Data Obfuscation", "is_subtechnique": False, "platforms": ["Windows"]},
         ]
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
-        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
 
-        from athf.core.hunt_manager import HuntManager
+        from hecate_agent.core.hunt_manager import HuntManager
+
         monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
 
         runner = CliRunner()
@@ -250,11 +255,12 @@ class TestAttackGap:
             {"id": "T1001.001", "name": "Sub", "is_subtechnique": True, "platforms": ["Windows"]},
         ]
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
-        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
 
-        from athf.core.hunt_manager import HuntManager
+        from hecate_agent.core.hunt_manager import HuntManager
+
         monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
 
         runner = CliRunner()
@@ -271,15 +277,18 @@ class TestAttackGap:
             {"id": "T1002", "name": "Other", "is_subtechnique": False, "platforms": ["Windows"]},
         ]
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
-        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
 
         # T1001 is already covered
-        from athf.core.hunt_manager import HuntManager
-        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {
-            "by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}
-        })
+        from hecate_agent.core.hunt_manager import HuntManager
+
+        monkeypatch.setattr(
+            HuntManager,
+            "calculate_attack_coverage",
+            lambda self: {"by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}},
+        )
 
         runner = CliRunner()
         result = runner.invoke(attack, ["gap", "--output", "json"])
@@ -294,14 +303,17 @@ class TestAttackGap:
             {"id": "T1001", "name": "Parent", "is_subtechnique": False, "platforms": ["Windows"]},
         ]
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
-        monkeypatch.setattr("athf.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", lambda tactic: fake_techs)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_sorted_tactics", lambda: ["exfiltration"])
 
-        from athf.core.hunt_manager import HuntManager
-        monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {
-            "by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}
-        })
+        from hecate_agent.core.hunt_manager import HuntManager
+
+        monkeypatch.setattr(
+            HuntManager,
+            "calculate_attack_coverage",
+            lambda self: {"by_tactic": {"exfiltration": {"techniques": {"T1001": ["H-0001"]}}}},
+        )
 
         runner = CliRunner()
         result = runner.invoke(attack, ["gap"])
@@ -315,10 +327,11 @@ class TestAttackGap:
             call_log.append(tactic)
             return []
 
-        monkeypatch.setattr("athf.core.attack_matrix.is_using_stix", lambda: True)
-        monkeypatch.setattr("athf.core.attack_matrix.get_techniques_for_tactic", fake_get_techniques)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.is_using_stix", lambda: True)
+        monkeypatch.setattr("hecate_agent.core.attack_matrix.get_techniques_for_tactic", fake_get_techniques)
 
-        from athf.core.hunt_manager import HuntManager
+        from hecate_agent.core.hunt_manager import HuntManager
+
         monkeypatch.setattr(HuntManager, "calculate_attack_coverage", lambda self: {"by_tactic": {}})
 
         runner = CliRunner()
@@ -390,7 +403,7 @@ class TestLookupFollowsRevocations:
     """
 
     def test_revoked_id_resolves_to_its_replacement(self):
-        from athf.commands.attack import _follow_revocation
+        from hecate_agent.commands.attack import _follow_revocation
 
         live = {"id": "T1574.001", "name": "DLL", "platforms": ["Windows"]}
         superseded_from, tech = _follow_revocation(
@@ -403,7 +416,7 @@ class TestLookupFollowsRevocations:
         assert tech == live
 
     def test_a_live_technique_is_returned_untouched(self):
-        from athf.commands.attack import _follow_revocation
+        from hecate_agent.commands.attack import _follow_revocation
 
         live = {"id": "T1059.003"}
         superseded_from, tech = _follow_revocation(
@@ -413,7 +426,7 @@ class TestLookupFollowsRevocations:
         assert tech is live
 
     def test_a_genuinely_unknown_id_stays_unknown(self):
-        from athf.commands.attack import _follow_revocation
+        from hecate_agent.commands.attack import _follow_revocation
 
         superseded_from, tech = _follow_revocation("T9999", None, lambda _: None, lambda _: None)
         assert superseded_from is None
@@ -421,10 +434,8 @@ class TestLookupFollowsRevocations:
 
     def test_a_revocation_pointing_at_a_missing_technique_is_not_reported(self):
         """Better to say "unknown" than to claim a remap we cannot resolve."""
-        from athf.commands.attack import _follow_revocation
+        from hecate_agent.commands.attack import _follow_revocation
 
-        superseded_from, tech = _follow_revocation(
-            "T1574.002", None, lambda _: "T1574.001", lambda _: None
-        )
+        superseded_from, tech = _follow_revocation("T1574.002", None, lambda _: "T1574.001", lambda _: None)
         assert superseded_from is None
         assert tech is None

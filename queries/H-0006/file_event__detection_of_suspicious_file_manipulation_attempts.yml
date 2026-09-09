@@ -1,0 +1,27 @@
+title: Detection of Suspicious File Manipulation Attempts
+id: 3771c551-7236-462b-b9dc-fbdac98f50ab
+status: experimental
+description: Identifies potential attempts to manipulate files that could be used to corrupt AI-driven
+  decision-making processes in cybersecurity frameworks.
+references:
+- https://www.huntress.com/blog/delegating-work-to-ai
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-09'
+tags:
+- attack.t1098
+- attack.t1574
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: .dll
+  filter:
+    Image|contains: C:\Windows\System32\
+  condition: selection and not filter
+falsepositives:
+- Legitimate DLL files being accessed or modified by system processes
+level: medium
+related:
+- id: H-0006
+  type: derived

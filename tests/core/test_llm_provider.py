@@ -1,4 +1,4 @@
-"""Tests for athf.core.llm_provider - model-agnostic LLM provider layer."""
+"""Tests for hecate_agent.core.llm_provider - model-agnostic LLM provider layer."""
 
 import json
 import sys
@@ -6,18 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from athf.core.llm_provider import (
+from hecate_agent.core.llm_provider import (
     BedrockProvider,
     LiteLLMProvider,
-    LLMProvider,
-    LLMResponse,
     OllamaProvider,
     OpenAICompatibleProvider,
-    _load_config_file,
-    _ollama_is_running,
     create_provider,
 )
-
 
 # ---------------------------------------------------------------------------
 # LiteLLM provider
@@ -49,9 +44,7 @@ class TestLiteLLMProvider:
 
         with patch.dict(sys.modules, {"litellm": mock_litellm}):
             provider = LiteLLMProvider(model="anthropic/claude-sonnet-4-5-20250514")
-            result = provider.complete(
-                messages=[{"role": "user", "content": "Hi"}]
-            )
+            result = provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
         assert result.text == "LiteLLM response"
         assert result.input_tokens == 80
@@ -73,9 +66,7 @@ class TestLiteLLMProvider:
         with patch.dict(sys.modules, {"litellm": None}):
             provider = LiteLLMProvider()
             with pytest.raises(ImportError, match="litellm"):
-                provider.complete(
-                    messages=[{"role": "user", "content": "Hi"}]
-                )
+                provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +101,7 @@ class TestBedrockProvider:
         provider = BedrockProvider(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0")
         provider._client = mock_client  # inject mock, bypass boto3 import
 
-        result = provider.complete(
-            messages=[{"role": "user", "content": "Hi"}]
-        )
+        result = provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
         assert result.text == "Hello from Bedrock"
         assert result.input_tokens == 100
@@ -131,9 +120,7 @@ class TestBedrockProvider:
             provider = BedrockProvider()
             provider._client = None  # ensure lazy init triggers
             with pytest.raises(ImportError, match="boto3"):
-                provider.complete(
-                    messages=[{"role": "user", "content": "Hi"}]
-                )
+                provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +150,7 @@ class TestOllamaProvider:
 
         with patch("urllib.request.urlopen", return_value=mock_resp):
             provider = OllamaProvider(model="llama3")
-            result = provider.complete(
-                messages=[{"role": "user", "content": "Hi"}]
-            )
+            result = provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
         assert result.text == "Hello from Ollama"
         assert result.input_tokens == 10
@@ -213,9 +198,7 @@ class TestOllamaProvider:
         ):
             provider = OllamaProvider()
             with pytest.raises(ConnectionError, match="Cannot reach Ollama"):
-                provider.complete(
-                    messages=[{"role": "user", "content": "Hi"}]
-                )
+                provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
 
 # ---------------------------------------------------------------------------
@@ -249,9 +232,7 @@ class TestOpenAICompatibleProvider:
         provider = OpenAICompatibleProvider(model="gpt-4o", api_key="test-key")
         provider._client = mock_client  # inject mock, bypass openai import
 
-        result = provider.complete(
-            messages=[{"role": "user", "content": "Hi"}]
-        )
+        result = provider.complete(messages=[{"role": "user", "content": "Hi"}])
 
         assert result.text == "Hello from OpenAI"
         assert result.input_tokens == 60
@@ -279,8 +260,8 @@ class TestCreateProvider:
     def _clean_env(self):
         """Return a dict for patch.dict that clears all auto-detect keys."""
         return {
-            "ATHF_LLM_PROVIDER": "",
-            "ATHF_LLM_MODEL": "",
+            "HECATE_LLM_PROVIDER": "",
+            "HECATE_LLM_MODEL": "",
             "ANTHROPIC_API_KEY": "",
             "OPENAI_API_KEY": "",
             "AWS_PROFILE": "",
@@ -289,26 +270,20 @@ class TestCreateProvider:
 
     def test_create_provider_explicit_config(self):
         """Explicit config dict selects the correct provider class."""
-        with patch.object(
-            BedrockProvider, "_get_client", return_value=MagicMock()
-        ), patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict(
-            "os.environ", self._clean_env(), clear=False
-        ):
-            provider = create_provider(
-                {"provider": "bedrock", "model": "us.anthropic.claude-sonnet-4-5-v1:0"}
-            )
+        with patch.object(BedrockProvider, "_get_client", return_value=MagicMock()), patch(
+            "hecate_agent.core.llm_provider._load_config_file", return_value={}
+        ), patch.dict("os.environ", self._clean_env(), clear=False):
+            provider = create_provider({"provider": "bedrock", "model": "us.anthropic.claude-sonnet-4-5-v1:0"})
             assert isinstance(provider, BedrockProvider)
 
     def test_create_provider_env_vars(self):
-        """ATHF_LLM_PROVIDER env var selects the correct provider."""
+        """HECATE_LLM_PROVIDER env var selects the correct provider."""
         env = self._clean_env()
-        env["ATHF_LLM_PROVIDER"] = "ollama"
+        env["HECATE_LLM_PROVIDER"] = "ollama"
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", env, clear=False):
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
+            "os.environ", env, clear=False
+        ):
             provider = create_provider()
             assert isinstance(provider, OllamaProvider)
 
@@ -317,9 +292,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["ANTHROPIC_API_KEY"] = "sk-ant-test"
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", env, clear=False):
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
+            "os.environ", env, clear=False
+        ):
             provider = create_provider()
             assert isinstance(provider, LiteLLMProvider)
 
@@ -328,9 +303,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["OPENAI_API_KEY"] = "sk-test"
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", env, clear=False):
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
+            "os.environ", env, clear=False
+        ):
             provider = create_provider()
             assert isinstance(provider, OpenAICompatibleProvider)
 
@@ -339,9 +314,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["AWS_PROFILE"] = "default"
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", env, clear=False):
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
+            "os.environ", env, clear=False
+        ):
             provider = create_provider()
             assert isinstance(provider, BedrockProvider)
 
@@ -349,13 +324,9 @@ class TestCreateProvider:
         """Running Ollama triggers OllamaProvider when no API keys set."""
         env = self._clean_env()
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict(
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
             "os.environ", env, clear=False
-        ), patch(
-            "athf.core.llm_provider._ollama_is_running", return_value=True
-        ):
+        ), patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=True):
             provider = create_provider()
             assert isinstance(provider, OllamaProvider)
 
@@ -363,20 +334,16 @@ class TestCreateProvider:
         """RuntimeError when no provider can be determined."""
         env = self._clean_env()
 
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict(
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
             "os.environ", env, clear=False
-        ), patch(
-            "athf.core.llm_provider._ollama_is_running", return_value=False
-        ):
+        ), patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=False):
             with pytest.raises(RuntimeError, match="No LLM provider"):
                 create_provider()
 
     def test_create_provider_unknown_provider(self):
         """ValueError for an unrecognized provider name."""
-        with patch(
-            "athf.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", self._clean_env(), clear=False):
+        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
+            "os.environ", self._clean_env(), clear=False
+        ):
             with pytest.raises(ValueError, match="Unknown LLM provider"):
                 create_provider({"provider": "unknown"})

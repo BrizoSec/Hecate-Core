@@ -16,8 +16,8 @@ from typing import List
 
 import pytest
 
-from athf.core import research_manager
-from athf.core.research_manager import ResearchManager
+from hecate_agent.core import research_manager
+from hecate_agent.core.research_manager import ResearchManager
 
 
 def _write_research(research_dir: Path, research_id: str) -> None:
@@ -163,7 +163,7 @@ def test_counter_file_is_readable_like_the_rest_of_the_workspace(tmp_path: Path)
 )
 def test_concurrent_allocation_hands_out_unique_ids(tmp_path: Path) -> None:
     """Regression test: without the allocation lock, a manual
-    `athf research new` overlapping the hourly orchestrator could have both
+    `hecate-agent research new` overlapping the hourly orchestrator could have both
     read the same high-water mark before either wrote it back, and both
     allocate the same ID. The sleep widens the read-modify-write window.
 

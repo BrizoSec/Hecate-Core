@@ -2,11 +2,11 @@
 
 Every threat hunt follows the same basic loop: **Learn → Observe → Check → Keep**.
 
-ATHF formalizes that loop with the **LOCK Pattern**, a lightweight structure that is readable by both humans and AI tools.
+Hecate formalizes that loop with the **LOCK Pattern**, a lightweight structure that is readable by both humans and AI tools.
 
 **Why LOCK?** It's small enough to use and strict enough for agents to interpret.
 
-![The LOCK Pattern](../assets/athf_lock.png)
+![The LOCK Pattern](../assets/hecate_lock.png)
 
 ## The Four Phases
 
@@ -142,7 +142,7 @@ Next iteration: expand to include remote registry and PSExec telemetry for broad
 
 **With LOCK:** Every hunt becomes part of the memory layer.
 
-By capturing every hunt in this format, ATHF makes it possible for AI assistants to recall prior work, generate new hypotheses, and suggest refined queries based on past results.
+By capturing every hunt in this format, Hecate makes it possible for AI assistants to recall prior work, generate new hypotheses, and suggest refined queries based on past results.
 
 ## Templates
 

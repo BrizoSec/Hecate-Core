@@ -1,11 +1,11 @@
 # Open Threads
 
 Running tracker for work that is known, deliberately unfinished, and easy to
-lose. Covers both repositories — `Hecate-Core` (the ATHF framework and the
+lose. Covers both repositories — `Hecate-Core` (the Hecate framework and the
 dogfooded hunting workspace) and `Hecate-Runner` (the autonomous orchestrator)
 — because most threads cross the boundary.
 
-**Last reviewed:** 2026-09-07 (G2, G3 closed)
+**Last reviewed:** 2026-09-09 (C3, C4, E1, E3, G4, Q3 closed; G7 opened; G5, G6, G8, G9 closed; H1, H2, H3 closed; V1 closed (per-log-source Sigma generation); V2 accepted as-is)
 
 Each item records *why it matters*, not just what it is, so a future reader can
 judge whether it still does. Evidence is cited by file and line where it exists,
@@ -17,6 +17,11 @@ so a claim here can be checked rather than believed.
   codebase cannot supply.
 - **Me** — implementable from what is already here.
 - **Decision** — either path is defensible; someone has to choose.
+
+**Identifiers are stable.** A closed thread's number is retired, never reused —
+renumbering once already made "is G2 resolved?" ambiguous between the item that
+was closed and the item that inherited its number. Gaps in the sequence are
+intentional.
 
 ---
 
@@ -42,21 +47,42 @@ are the template's examples, and hunts are being scoped against them.
 when the profile is still a template rather than reporting its examples as fact.
 The second is a real option and I can do it in an hour; the first is better.
 
-### G2. No retrospective audit command — **Me**
-
-The audit runs during drafting. There is no way to re-audit hunts already on
-disk, which matters whenever the audit itself improves — every existing hunt was
-graded by an older version, or by none.
-
-Doing it ad hoc is error-prone: a throwaway script written during this session
-silently failed to extract the CTI block and reported `asserted=0` for a hunt
-that was in fact fully grounded.
-
-**Next step:** `hecate-runner audit [HUNT_ID...]`, reusing `audit_draft`, with
-CTI extraction from the Threat Context block as a tested function rather than an
-inline regex.
-
 ---
+
+### G7. Web-grounded research is silently ungrounded — Tavily quota exhausted — **You**
+
+Found 2026-09-08 while confirming a clean full run. The Tavily key in
+`Hecate-Core/.env` is over its plan limit:
+
+```text
+ForbiddenError: This request exceeds your plan's set usage limit.
+Please upgrade your plan or contact support@tavily.com
+```
+
+The effect is invisible from the outside. `_get_search_client()` and the
+search call in `hunt_researcher.py` both catch bare `Exception` and continue,
+so research still runs, still emits a document, still reports success — with
+`web_searches: 0`. The Skill 2 "Adversary Tradecraft (web search)" section is
+written from model recall alone.
+
+It is measurable in the corpus. Every research doc through R-0622 (14:26 UTC)
+recorded `web_searches: 2`; every one from R-0623 (14:51 UTC) onward records
+`0`. Nothing else changed at that boundary — it predates the H3 rename by five
+hours.
+
+Why this matters more than a missing feature: `research_enabled` exists
+*because* ungrounded generation measured ~30% accuracy on known-answer
+fixtures, and its own docstring says a research failure must abort the cycle
+rather than fall through to an ungrounded hypothesis. Quota exhaustion never
+reaches that guardrail, because research does not fail — it degrades. Drafts
+since 14:51 carry the same "research-grounded" framing as the ones before.
+
+**Next step:** two parts, and the second matters even after the key is fixed.
+(1) Restore Tavily capacity — the key is a `tvly-dev-` tier. (2) Stop the
+degradation being silent: have the researcher record that a search was
+attempted and failed, and let the orchestrator treat "web search enabled but
+0 searches performed" as a research failure, which the documented policy
+already says should refund the quota and leave the CTI queued.
 
 ## CTI intake and backfill
 
@@ -87,26 +113,13 @@ fresh cursor restarts from the beginning of the archive rather than from the
 **Next step:** turn it off once the cursor passes the present, or accept the
 restart risk knowingly.
 
-### C3. `REQUIRE_ATTACK_TECHNIQUE` is off by default — **Decision**
-
-`HECATE_RUNNER_MISP_REQUIRE_ATTACK_TECHNIQUE` exists and defaults to `false`.
-`require_galaxy` asks "is this curated"; this asks "can this produce a
-behavioural hunt". They differ: an event tagged only with a threat-actor or
-malware galaxy carries a cluster but no attack-pattern, yields no technique IDs,
-and can only ever become an indicator sweep. Observed live on the 17:46 poll of
-2026-09-07.
-
-**Next step:** if the goal is evaluating hunt quality, turning this on routes
-only events a behavioural hunt can be built from. If indicator sweeps are wanted
-too, leave it off.
-
 ---
 
 ## Query generation and execution
 
 ### Q1. `QUERY_PROVIDER=mock` — the Splunk backend is unproven — **You**
 
-`SplunkQueryProvider` shells out to `athf splunk search` and is unit-tested
+`SplunkQueryProvider` shells out to `hecate-agent splunk search` and is unit-tested
 against a fake binary, but has never touched a real SIEM. Ready-to-wire, not
 proven.
 
@@ -124,81 +137,14 @@ language. So generated rules are review material, not runnable.
 approve time (`sigma convert -t <backend>`), which means adding the dependency
 and choosing a backend — i.e. committing to a platform.
 
-### Q3. `queries/` is untracked — **Decision**
-
-Generated Sigma rules are written to `$ATHF_WORKSPACE/queries/H-XXXX/`. The
-directory has never been committed or gitignored, so it currently drifts.
-
-**Next step:** track them (rules become reviewable artifacts with history) or
-ignore them (they regenerate from the hunt). Tracking is probably right, since
-an analyst editing a rule during review is editing that file.
-
 ---
 
 ## Environment and deployment
-
-### E1. No log rotation — **Me**
-
-`Hecate-Core/logs/orchestrator.log` is the only file in `logs/` and grows
-unbounded (170 KB today, one file, no rotation). Slow-burning, but the
-orchestrator runs hourly forever.
 
 ### E2. Slack webhook unset — **You**
 
 `hecate-runner doctor` reports it. Without it, drafts land silently in `hunts/`
 with no alert — fine while the workspace is watched by hand, less fine later.
-
----
-
-## Repository hygiene
-
-### H1. Neither repo is lint-clean at the repo level — **Decision**
-
-Verified 2026-09-07 on `Hecate-Core`:
-
-- **black:** 22 files under `athf/` would be reformatted.
-- **isort:** 4 files under `tests/mcp/` fail.
-- **flake8 C901:** 23 functions exceed the complexity limit, the worst being
-  `_hunt_create.new` (27) and `register_investigate_tools` (26).
-
-All pre-existing. Everything changed during this session's work was brought to
-black/isort/flake8/mypy clean individually, and a repo-wide `black athf` was
-deliberately reverted because it produced a 24-file diff unrelated to the work
-in flight.
-
-**Next step:** if the repo should be format-clean, that is its own commit, made
-on purpose, not smuggled into a feature change.
-
-### H2. Package still named `agentic-threat-hunting-framework` — **Decision**
-
-`pyproject.toml` declares the old name while the project is called Hecate. The
-CLI entry point is `athf`. Renaming touches the published package name, the
-entry point, every import, and any existing install.
-
----
-
-## Verification gaps
-
-### V1. Sigma generation under a small context window — **Me**
-
-Ollama runs with `-c 4096`. One call writes a rule for every applicable log
-source; on the reference event that is six rules in one response. The first live
-run produced six rules that all failed validation (every one omitted
-`detection.condition`); after the prompt was sharpened it produced 6/6 valid.
-
-It works, but it is close to the ceiling. If rule counts grow or the model
-changes, splitting into one call per log source is the fix — each response then
-fits comfortably and a failure costs one rule instead of all of them.
-
-### V2. RSS items carry no structured indicators — **Me**
-
-MISP and OTX both populate `metadata["indicators"]`; RSS does not, because feed
-entries have no structured indicator field. RSS-sourced hunts therefore derive
-their data sources from techniques alone.
-
-Probably correct as-is — extracting indicators from article prose is its own
-fabrication risk — but it means RSS hunts are systematically less grounded than
-MISP ones, and the grounding audit will show fewer `asserted` claims for them.
 
 ---
 
@@ -209,18 +155,36 @@ dropped.
 
 | Thread | Resolution |
 |--------|------------|
-| CTI indicator values never reached the model | MISP/OTX now inline concrete values for curated events; dumps still summarised as counts |
+| Non-actionable CTI drafted into hunts (C4) | Two halves. The empty case — no narrative field, no indicator inventory and no free-form prose — is now walked past (option 2). The commentary case is **parked, not skipped**: `cti_triage.py` holds back items whose publisher category names a commentary series (`the good, the bad and the ugly`, `threat source newsletter`, `company`, `product updates`) or whose title has a recurring recap shape, writing them whole to `<cti_queue>/parked/` with the reason. `hecate-runner parked list`, `parked show` and `parked restore` inspect and replay them. Parking is what makes gating on a heuristic acceptable at all: a dropped item is invisible and permanent because the cursor has already advanced, a parked one is a file with its reason attached. Measured on 36 live entries: 10 parked, all correctly. A model gate was measured first and rejected — 8/8 on hand-picked cases, then on the same 36 it parked 27 including three unambiguous DFIR Report writeups (Lynx ransomware, Bumblebee/AdaptixC2, BengalSEO → H-0616) and gave three different verdicts to three entries of one monthly series. `HECATE_RUNNER_CTI_TRIAGE=off` restores the old behaviour |
+| Ollama timed out during Sigma drafting (E3) | Resolved by the per-log-source split (V1), which is what this thread's own next step offered as the alternative to raising the deadline: it shortens each response instead. One call per log source now (`llm_calls: len(logsources)`), so the risk stopped scaling with how many log sources a hunt touches. Measured over the orchestrator log — before: 10 runs, median 87s, one timeout at the 180s ceiling (H-0617, ~1 hunt in 3 affected). After: **13 runs, zero timeouts**, median 35s, worst 143s — and that worst case covered two log sources, so ~70s per call against a per-call ceiling of 180s. Cross-category field leakage, the other reason for the split, is also gone: 15 detection fields across the current 8 rules, 0 out of category. `HECATE_OLLAMA_TIMEOUT_SEC` remains unset at its 180s default — residual risk on a bigger model or a contended GPU, mitigable any time with one line in `Hecate-Core/.env` |
+| MCP surface and config contracts still named `athf` (H3) | Renamed to **hecate**: MCP server `name="hecate"` and all 21 tools `hecate_*`, resource scheme `hecate://`, env vars `ATHF_*` → `HECATE_*`, `.athfconfig.yaml` → `.hecateconfig.yaml`, `.athf/stix-data/` → `.hecate/stix-data/`, Runner's `AthfClient`/`athf_client.py` → `HecateClient`/`hecate_client.py`. Live `.env` files, both STIX caches and the systemd unit migrated in the same pass. Verified end to end on a live MISP cycle |
+| Sigma drafts matched on literal placeholders (G6) | Two fixes. The prompt was seeding them: its JSON example used `"known-good"`, which came back as `known-good-script.exe` across four different hunts — it now states the shape's values are placeholders and are rejected. And `_placeholder_problem()` enforces that at validation, alongside empty values and impossible IPv4 (`123.456.789`). A value the source CTI actually supplied is never rejected, so genuine intelligence naming `malicious-update.example.com` still passes. Measured: **8 of 25** drafted rules would be rejected, not the 2 first recorded here — the original count grepped only four literal tokens. A live run then produced `signed_binary_path`, a placeholder no denylist anticipated, so a generic rule rejects bare snake_case identifiers: real detection content carries a separator (`\\`, `/`, `.`, `-`, `=`), a description does not |
+| Entity extraction named generic nouns, missed the real family (G9) | Root cause was a defeated anchor: `_MALWARE_COLLOCATION_RE` documented "a capitalised token" but carried a global `re.IGNORECASE`, so `[A-Z]` matched lowercase and the OTX tag "chrome rat" became a family named `chrome`. Flag now scoped to the category noun only. Stopwords extended with platform and language nouns (`Browser`, `JavaScript`, `IoT`, `Rust-based`) found by running the extractor over 50 live pulses. Added a bounded all-caps rule — only inside a sentence naming a malware category, minimum four characters — which recovers `PEEP`, `SNOWLIGHT`, `FDMTP`, `GLUTTON`, `ENDLESSDOORS`. Distinct entities across the live corpus fell 34 → 26, all eight removed being generic. Re-auditing real hunts then caught two false positives the corpus could not show, both from our own scaffolding: the template's `DRAFT` marker (reported UNSUPPORTED on every draft) and the `MISP` provider label; denying both recovered `Crysis` and `KadNap` from those same lines |
+| Publisher's domain graded as an asserted indicator (G5) | Indicator claims are now scoped to each Sigma rule's `detection:` section, not the whole rule. The audit had been reading `references:` — the citation of the article the hunt came from — and grading the publisher's host (`unit42.paloaltonetworks.com`, `socradar.io`) as an indicator *asserted by CTI*. A block with no `detection:` key is still audited whole, so the fabrication check keeps its fail-safe. Note the earlier framing here was wrong: nothing ever *hunted* for those domains — they never appeared in a `detection:` block, only in citations and the grounding table |
+| OTX indicator values never reached the model (G8) | `_indicator_detail_lines()` added to the OTX provider, rendering the same `Key indicators:` shape the MISP one emits so `hunt_audit` and the grounding audit parse it unchanged. Verified against the live PEEP pulse: the CVE (`CVE-2026-20316`) and 13 SHA256 hashes now appear where only `CVE (1), FileHash-SHA256 (13)` did. Capped at 10 values per type with the elision reported, and bulk pulses past 40 indicators stay counts-only. CVEs are kept here though `_indicator_map` still excludes them from Sigma drafting — naming the CVE the source cited is what lets the audit tell it from an invented one |
+| CTI indicator values never reached the model | **MISP only** — `_attribute_detail_lines()` inlines concrete values for curated events; dumps still summarised as counts. The OTX half was built later, see the G8 row above |
 | `data_source_availability` measured the model's prose | Now derived from `environment.md` — see **G1**, which is the remaining half |
 | Hunts scoped to one data source | Derived deterministically from techniques + indicator types |
 | 15 techniques → 2, sub-technique precision lost | `merge_techniques` keeps the CTI's list and collapses a bare parent into its sub-technique |
 | Fabricated `CVE-2024-1234` in R-0611 | Guard added at generation; R-0611 redacted by hand with an explicit note |
 | Platform list contradicted the hypothesis | Platforms narrowed by what the hypothesis claims — narrowing only, never adding |
-| Research documents had no back-link | `athf research link` added and called after every draft |
+| Research documents had no back-link | `hecate-agent research link` added and called after every draft |
 | `hyp.data_sources or ["CrowdStrike"]` | Removed; empty is an honest gap |
-| `athf attack lookup` returned `not_found` for revoked IDs | Now follows `revoked-by` and reports `superseded_from` |
+| `hecate-agent attack lookup` returned `not_found` for revoked IDs | Now follows `revoked-by` and reports `superseded_from` |
 | `require_galaxy` weaker than its name | `require_attack_technique` added — see **C3** for the default |
 | Grounding was circular (research treated as proof) | Evidence ranked: CTI is `asserted`, research-only is `corroborated` |
 | `misp-poll` ignored galaxy/backfill/org settings | Wired to settings. OTX and RSS pollers were checked and match their factory |
 | Grounding audit never run live | First live run 2026-09-07 on H-0616: section present, 0 unsupported |
 | Prose claims unaudited (G2) | Audit now checks named entities — actor designators, `<Name> backdoor`-style collocations and CamelCase families. Precision-first: generic phrasing and rule bodies are excluded |
+| Indicator sweeps wanted too (C3) | Decided: `REQUIRE_ATTACK_TECHNIQUE` stays off, so sweep-shaped CTI keeps flowing alongside behavioural hunts |
+| RSS items carry no structured indicators (V2) | **Decided: accept.** Feed summaries measurably contain none (0 IPs/hashes/domains across 30 live entries); the indicators are in the linked article, and fetching arbitrary third-party URLs is an unacceptable network-posture risk. Documented at `cti/rss.py` and in the Runner README so the asymmetry reads as a property of the source, not a defect. Revisit only if outbound fetching ever becomes acceptable — defanged-indicator extraction is the precise method, measured at 5–35 per article with no publisher false positives |
+| Sigma generation under a small context window (V1) | Split into one LLM call per applicable log source. Each prompt names a single category and offers only that category's field names; a failure now costs one rule instead of all six. Runner `SIGMA_TIMEOUT_SEC` raised 900 → 1800 to bound the sequential calls |
+| Package named `agentic-threat-hunting-framework` (H2) | Renamed to **hecate-agent**: `hecate/` → `hecate_agent/` (318 imports), console scripts `hecate-agent` / `hecate-agent-mcp`, CI and pre-commit rescoped, docs and anchors updated, Hecate-Runner repointed. Verified end to end on a live cycle (H-0624). `HECATE_*` env vars, `.hecateconfig.yaml`, `.hecate/stix-data/` and the MCP surface (`hecate_*` tool names, server `name="hecate"`) were deliberately left — see **H3** |
+| mypy hook unsatisfiable (H1) | Scoped to `files: ^hecate/`, matching the command CLAUDE.md documents. Verified non-vacuous: 55 files checked, and a planted type error still fails the hook. **All 15 pre-commit hooks now pass, exit 0** |
+| Bandit gating pre-commit (H1) | Hook now runs `--severity-level high`, with the reasoning recorded at the hook and in CLAUDE.md. The 29 low / 4 medium findings are visible on demand; none are High |
+| Complexity debt (H1) | All 23 C901s resolved: 5 MCP `register_*` exempted in place (mccabe folds nested tool bodies), 18 genuinely refactored. Coverage was raised first where it was too low to refactor safely |
+| Repo lint debt (H1) | black, isort and mypy clean across `hecate/` and `tests/`; unused imports, redefinitions, an f-string and required-E402 imports all resolved. Nine C901s remain — see H1 |
+| No retrospective audit command (G4) | `hecate-runner audit` re-grades hunts on disk; `--update` refreshes their Grounding section, `--strict` exits non-zero on a fabrication, `--check-attack` validates technique IDs. CTI recovery is a tested function, not an inline regex |
+| No log rotation (E1) | Copy-and-truncate rotation at startup, keeping the inode because systemd is a second writer to the same file. 5 MB / 5 archives, configurable |
+| `queries/` untracked (Q3) | Now tracked, with a README recording why generated rules are review artifacts rather than build output |
 | CVE guard only warned on summaries (G3) | Summaries are now redacted at sentence granularity, keeping surrounding analysis and leaving a visible marker |

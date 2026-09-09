@@ -1,14 +1,14 @@
 # AGENTS.md - Splunk Integration Context for AI Assistants
 
-**Purpose:** This file provides AI assistant context for executing threat hunting queries against Splunk using ATHF's native API integration.
+**Purpose:** This file provides AI assistant context for executing threat hunting queries against Splunk using Hecate's native API integration.
 
 ---
 
 ## Query Execution Method
 
-**PRIMARY METHOD: Use `athf splunk search` CLI command**
+**PRIMARY METHOD: Use `hecate-agent splunk search` CLI command**
 
-AI assistants MUST use the `athf splunk search` command for all Splunk query execution. This provides:
+AI assistants MUST use the `hecate-agent splunk search` command for all Splunk query execution. This provides:
 - Automatic authentication via environment variables
 - Result limits and timeouts
 - Structured output (JSON, table, raw)
@@ -16,7 +16,7 @@ AI assistants MUST use the `athf splunk search` command for all Splunk query exe
 
 **✅ CORRECT - Use CLI:**
 ```bash
-athf splunk search 'index=windows EventCode=4624 | stats count by ComputerName' \
+hecate-agent splunk search 'index=windows EventCode=4624 | stats count by ComputerName' \
   --earliest "-7d" \
   --count 100 \
   --format json
@@ -84,7 +84,7 @@ The `thrunt` index contains 12M+ security events including:
 
 #### Step 1: Baseline Count
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 | stats count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 | stats count' \
   --earliest "0" \
   --count 1 \
   --format json
@@ -98,7 +98,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 | st
 
 #### Step 2: Filtered Count (Add Constraints)
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count' \
   --earliest "0" \
   --count 1 \
   --format json
@@ -106,7 +106,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 #### Step 3: Pull Results (Only if Justified)
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10' \
   --earliest "0" \
   --count 100 \
   --format json
@@ -141,7 +141,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 5. **Use Async for Long Queries** - If query may take >30 seconds
    ```bash
-   athf splunk search 'complex query' \
+   hecate-agent splunk search 'complex query' \
      --async-search \
      --max-wait 600
    ```
@@ -202,7 +202,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 **Query 1: Baseline Count (All RDP Logons)**
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count' \
   --earliest "0" \
   --count 1 \
   --format json
@@ -210,7 +210,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 **Query 2: Aggregated by Source IP**
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count by SourceNetworkAddress, ComputerName | sort -count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats count by SourceNetworkAddress, ComputerName | sort -count' \
   --earliest "0" \
   --count 100 \
   --format table
@@ -218,7 +218,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 **Query 3: Anomaly Detection (Multiple Destinations from Single Source)**
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats dc(ComputerName) as dest_count by SourceNetworkAddress | where dest_count > 5 | sort -dest_count' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 | stats dc(ComputerName) as dest_count by SourceNetworkAddress | where dest_count > 5 | sort -dest_count' \
   --earliest "0" \
   --count 50 \
   --format json
@@ -226,7 +226,7 @@ athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 Logo
 
 **Query 4: Pull Full Events (Only if Query 3 Shows Anomalies)**
 ```bash
-athf splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 SourceNetworkAddress="10.0.1.50"' \
+hecate-agent splunk search 'index=thrunt sourcetype="XmlWinEventLog" EventCode=4624 LogonType=10 SourceNetworkAddress="10.0.1.50"' \
   --earliest "0" \
   --count 100 \
   --format json
@@ -263,12 +263,12 @@ When AI assistant is executing hunt queries:
 1. **Activate virtual environment first:**
    ```bash
    source .venv/bin/activate
-   which athf  # Verify correct athf
+   which hecate  # Verify correct hecate
    ```
 
 2. **Test connection:**
    ```bash
-   athf splunk test
+   hecate-agent splunk test
    ```
 
 3. **Execute COUNT-FIRST queries:**
@@ -295,7 +295,7 @@ When AI assistant is executing hunt queries:
 | No result limit | `--count 100` |
 | Pull results first | Count first, then pull |
 | Multiple queries in parallel | One query at a time, wait for feedback |
-| Omit `athf splunk search` | Always use CLI command |
+| Omit `hecate-agent splunk search` | Always use CLI command |
 
 ---
 
@@ -311,7 +311,7 @@ export SPLUNK_VERIFY_SSL="true"
 
 **AI assistants should:**
 - Assume credentials are already configured
-- Use `athf splunk test` to verify connection before queries
+- Use `hecate-agent splunk test` to verify connection before queries
 - Report authentication errors to user if credentials missing
 
 **AI assistants should NOT:**
@@ -340,7 +340,7 @@ export SPLUNK_VERIFY_SSL="true"
 
 ### Connection Failed
 **Solutions:**
-1. Run `athf splunk test` to verify connection
+1. Run `hecate-agent splunk test` to verify connection
 2. Check environment variables are set
 3. Verify network access to Splunk host
 
@@ -352,17 +352,17 @@ export SPLUNK_VERIFY_SSL="true"
 
 1. **Load context:**
    ```bash
-   athf context --hunt H-XXXX --format json
+   hecate-agent context --hunt H-XXXX --format json
    ```
 
 2. **Check past hunts for similar queries:**
    ```bash
-   athf similar "RDP lateral movement"
+   hecate-agent similar "RDP lateral movement"
    ```
 
 3. **Verify connection:**
    ```bash
-   athf splunk test
+   hecate-agent splunk test
    ```
 
 ### During Query Execution
@@ -383,11 +383,11 @@ export SPLUNK_VERIFY_SSL="true"
 ## Resources
 
 - **CLI Reference:** [integrations/quickstart/splunk-api.md](../quickstart/splunk-api.md)
-- **SPL Documentation:** https://docs.splunk.com/Documentation/Splunk/latest/SearchReference
+- **SPL Documentation:** <https://docs.splunk.com/Documentation/Splunk/latest/SearchReference>
 - **Field Reference:** See environment.md for deployment-specific fields
 - **Example Queries:** See `hunts/` directory for past hunt queries
 
 ---
 
 **Last Updated:** 2026-01-13
-**Maintained By:** ATHF Framework Team
+**Maintained By:** Hecate Framework Team

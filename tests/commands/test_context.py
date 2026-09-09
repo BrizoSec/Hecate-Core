@@ -6,7 +6,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from athf.commands.context import context
+from hecate_agent.commands.context import context
 
 
 class TestContextCommand:
@@ -71,7 +71,7 @@ class TestContextCommand:
         result = runner.invoke(context, ["--hunt", "H-0001", "--format", "markdown"])
 
         assert result.exit_code == 0
-        assert "# ATHF Context Export" in result.output
+        assert "# Hecate Context Export" in result.output
         # In an isolated test environment without hunts/environment files,
         # only the header and filters will be present
         assert "Filters:" in result.output

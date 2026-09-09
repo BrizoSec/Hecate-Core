@@ -6,7 +6,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from athf.commands.similar import _extract_session_text, _find_similar_hunts, _load_session_data, similar
+from hecate_agent.commands.similar import _extract_session_text, _find_similar_hunts, _load_session_data, similar
 
 _has_sklearn = True
 try:
@@ -184,9 +184,7 @@ class TestExtractSessionText:
             "  alternatives: null\n"
         )
         (session_dir / "summary.md").write_text(
-            "# Session\n\n## Key Decisions\n\n"
-            "- Known bot activity\n\n"
-            "## Lessons\n\n- Check with customer first\n"
+            "# Session\n\n## Key Decisions\n\n" "- Known bot activity\n\n" "## Lessons\n\n- Check with customer first\n"
         )
         result = _extract_session_text(session_dir)
         assert "Telegram bot is known activity" in result
@@ -218,10 +216,7 @@ class TestExtractSessionText:
         session_dir = tmp_path / "H-0001-2026-01-15"
         session_dir.mkdir()
         (session_dir / "queries.yaml").write_text(
-            "queries:\n"
-            "- id: q001\n"
-            "  sql: SELECT process.name FROM nocsf_unified_events\n"
-            "  result_count: 100\n"
+            "queries:\n" "- id: q001\n" "  sql: SELECT process.name FROM nocsf_unified_events\n" "  result_count: 100\n"
         )
         result = _extract_session_text(session_dir)
         assert "SELECT" not in result
@@ -238,13 +233,10 @@ class TestLoadSessionData:
         s1 = sessions_dir / "H-0001-2026-01-15"
         s1.mkdir()
         (s1 / "decisions.yaml").write_text(
-            "decisions:\n"
-            "- decision: Found credential dumping\n"
-            "  rationale: Mimikatz signature detected\n"
+            "decisions:\n" "- decision: Found credential dumping\n" "  rationale: Mimikatz signature detected\n"
         )
         (s1 / "session.yaml").write_text(
-            "hunt_id: H-0001\nsession_id: H-0001-2026-01-15\n"
-            "query_count: 5\nfinding_count: 1\n"
+            "hunt_id: H-0001\nsession_id: H-0001-2026-01-15\n" "query_count: 5\nfinding_count: 1\n"
         )
         result = _load_session_data(sessions_dir, "H-0001")
         assert len(result) == 1
@@ -258,12 +250,9 @@ class TestLoadSessionData:
         for suffix in ["2026-01-15", "2026-01-16", "2026-01-16-2"]:
             s = sessions_dir / f"H-0001-{suffix}"
             s.mkdir()
-            (s / "decisions.yaml").write_text(
-                f"decisions:\n- decision: Session {suffix}\n  rationale: test\n"
-            )
+            (s / "decisions.yaml").write_text(f"decisions:\n- decision: Session {suffix}\n  rationale: test\n")
             (s / "session.yaml").write_text(
-                f"hunt_id: H-0001\nsession_id: H-0001-{suffix}\n"
-                "query_count: 3\nfinding_count: 0\n"
+                f"hunt_id: H-0001\nsession_id: H-0001-{suffix}\n" "query_count: 3\nfinding_count: 0\n"
             )
         result = _load_session_data(sessions_dir, "H-0001")
         assert len(result) == 3
@@ -310,15 +299,16 @@ class TestSessionFoldIntoHunts:
             "  rationale: Process hash matches known Mimikatz variant\n"
         )
         (s / "session.yaml").write_text(
-            "hunt_id: H-0001\nsession_id: H-0001-2026-01-15\n"
-            "query_count: 5\nfinding_count: 1\n"
+            "hunt_id: H-0001\nsession_id: H-0001-2026-01-15\n" "query_count: 5\nfinding_count: 1\n"
         )
 
         import os
+
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
-            from athf.commands.similar import _find_similar_hunts
+            from hecate_agent.commands.similar import _find_similar_hunts
+
             results = _find_similar_hunts("Mimikatz process hash", threshold=0.0)
         finally:
             os.chdir(original_cwd)
@@ -364,17 +354,15 @@ class TestSessionsFlag:
             "  rationale: Base64 encoded DNS queries to suspicious domain\n"
         )
         (s / "session.yaml").write_text(
-            "hunt_id: H-0001\nsession_id: H-0001-2026-01-20\n"
-            "query_count: 8\nfinding_count: 1\n"
+            "hunt_id: H-0001\nsession_id: H-0001-2026-01-20\n" "query_count: 8\nfinding_count: 1\n"
         )
 
         import os
+
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
-            results = _find_similar_hunts(
-                "iodine DNS tunnel Base64", include_sessions=True, threshold=0.0
-            )
+            results = _find_similar_hunts("iodine DNS tunnel Base64", include_sessions=True, threshold=0.0)
         finally:
             os.chdir(original_cwd)
 
@@ -395,17 +383,14 @@ class TestSessionsFlag:
         sessions_dir.mkdir()
         s = sessions_dir / "H-0001-2026-01-20"
         s.mkdir()
-        (s / "decisions.yaml").write_text(
-            "decisions:\n- decision: iodine detected\n  rationale: test\n"
-        )
+        (s / "decisions.yaml").write_text("decisions:\n- decision: iodine detected\n  rationale: test\n")
 
         import os
+
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
-            results = _find_similar_hunts(
-                "iodine DNS tunnel", include_sessions=False, threshold=0.0
-            )
+            results = _find_similar_hunts("iodine DNS tunnel", include_sessions=False, threshold=0.0)
         finally:
             os.chdir(original_cwd)
 

@@ -1,14 +1,14 @@
-# Getting Started with ATHF
+# Getting Started with Hecate
 
 This guide walks you through setting up the Agentic Threat Hunting Framework, from your first documented hunt to advanced AI-powered capabilities.
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
-> **Configuration reference:** For a complete list of API keys, environment variables, `.athfconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](CONFIGURATION.md).
+> **Configuration reference:** For a complete list of API keys, environment variables, `.hecateconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Step 1: Choose Your Setup Path
 
-ATHF offers two paths to get started:
+Hecate offers two paths to get started:
 
 ### Option A: CLI-Enabled (Recommended)
 
@@ -16,12 +16,12 @@ Install the Python CLI for convenience commands:
 
 ```bash
 # Clone and install
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
+git clone https://github.com/Nebulock-Inc/hecate-agent
+cd hecate-agent
 pip install -e .
 
 # Verify installation
-athf --version
+hecate-agent --version
 ```
 
 **Benefits:** Interactive hunt creation, automated validation, built-in search and stats
@@ -32,8 +32,8 @@ Use the framework structure without CLI tools:
 
 ```bash
 # Clone only
-git clone https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
-cd agentic-threat-hunting-framework
+git clone https://github.com/Nebulock-Inc/hecate-agent
+cd hecate-agent
 ```
 
 **Benefits:** Maximum simplicity, full control, no dependencies
@@ -45,12 +45,12 @@ cd agentic-threat-hunting-framework
 Take a few minutes to understand the repository layout:
 
 ```
-agentic-threat-hunting-framework/
+hecate-agent/
 ├── README.md              # Framework overview
 ├── AGENTS.md              # AI assistant context
 ├── config/                # Workspace configuration
-│   └── .athfconfig.yaml   # Hunt prefix, SIEM/EDR settings
-├── athf/                  # CLI source code (optional)
+│   └── .hecateconfig.yaml   # Hunt prefix, SIEM/EDR settings
+├── hecate/                  # CLI source code (optional)
 │   ├── commands/          # Hunt management commands
 │   ├── core/              # Hunt parsing and validation
 │   └── utils/             # Helper utilities
@@ -81,20 +81,20 @@ Start simple. Pick a recent hunt or create a new one and document it using the L
 
 ```bash
 # Interactive mode - CLI will prompt you for details
-athf hunt new
+hecate-agent hunt new
 
 # Or non-interactive with flags
-athf hunt new \
+hecate-agent hunt new \
   --technique T1110.001 \
   --title "SSH Brute Force Detection" \
   --platform linux \
   --tactic initial-access
 
 # Validate the hunt structure
-athf hunt validate
+hecate-agent hunt validate
 
 # View your hunt catalog
-athf hunt list
+hecate-agent hunt list
 ```
 
 **Manual Creation (Option B):**
@@ -118,7 +118,7 @@ athf hunt list
    git commit -m "Add hunt H-0001: [Brief description]"
    ```
 
-> **Tip:** The CLI (`athf hunt new`) creates the file with YAML frontmatter automatically. Manual creation gives you full control over the content.
+> **Tip:** The CLI (`hecate-agent hunt new`) creates the file with YAML frontmatter automatically. Manual creation gives you full control over the content.
 
 ### Example Structure
 
@@ -195,17 +195,17 @@ The repository includes [knowledge/hunting-knowledge.md](../knowledge/hunting-kn
 
 ### Configure an LLM Provider (Optional)
 
-ATHF agents and research commands can use any LLM provider. Without one, they fall back to template-based output — still useful, but without AI-enhanced analysis.
+Hecate agents and research commands can use any LLM provider. Without one, they fall back to template-based output — still useful, but without AI-enhanced analysis.
 
-Set **one** of the following environment variables and ATHF auto-detects your provider:
+Set **one** of the following environment variables and Hecate auto-detects your provider:
 
 | Provider | Environment Variable | Install Extra |
 |----------|---------------------|---------------|
-| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `pip install 'athf[anthropic]'` |
-| OpenAI (GPT) | `OPENAI_API_KEY` | `pip install 'athf[openai]'` |
-| AWS Bedrock | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` | `pip install 'athf[bedrock]'` |
-| Ollama (local) | `OLLAMA_HOST` (default: `localhost:11434`) | `pip install 'athf[ollama]'` |
-| Any via LiteLLM | varies | `pip install 'athf[litellm]'` |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `pip install 'hecate-agent[anthropic]'` |
+| OpenAI (GPT) | `OPENAI_API_KEY` | `pip install 'hecate-agent[openai]'` |
+| AWS Bedrock | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` | `pip install 'hecate-agent[bedrock]'` |
+| Ollama (local) | `OLLAMA_HOST` (default: `localhost:11434`) | `pip install 'hecate-agent[ollama]'` |
+| Any via LiteLLM | varies | `pip install 'hecate-agent[litellm]'` |
 
 ```bash
 # Example: configure OpenAI
@@ -218,8 +218,8 @@ export OLLAMA_HOST=http://localhost:11434
 To override auto-detection and explicitly set a provider and model:
 
 ```bash
-export ATHF_LLM_PROVIDER=openai
-export ATHF_LLM_MODEL=gpt-4o
+export HECATE_LLM_PROVIDER=openai
+export HECATE_LLM_MODEL=gpt-4o
 ```
 
 See [`.env.example`](../.env.example) for all supported variables.
@@ -232,14 +232,14 @@ See [`.env.example`](../.env.example) for all supported variables.
 4. Try the agent framework:
    ```bash
    # List available agents
-   athf agent list
+   hecate-agent agent list
 
    # Generate a hypothesis using the hypothesis-generator agent
-   athf agent run hypothesis-generator \
+   hecate-agent agent run hypothesis-generator \
      --threat-intel "APT29 using LSASS dumping for credential theft"
 
    # Conduct pre-hunt research
-   athf research new --topic "LSASS dumping" --technique T1003.001
+   hecate-agent research new --topic "LSASS dumping" --technique T1003.001
    ```
 
 If the AI can answer these questions and the agent commands work, you're successfully at Level 2!
@@ -380,60 +380,60 @@ If you installed the CLI (Option A), here are the most useful commands:
 
 ```bash
 # List all available agents
-athf agent list
+hecate-agent agent list
 
 # Get details about a specific agent
-athf agent info hypothesis-generator
+hecate-agent agent info hypothesis-generator
 
 # Run an agent
-athf agent run hypothesis-generator --threat-intel "APT29 using WMI"
-athf agent run context-loader --hunt H-0013
-athf agent run similarity-scorer --query "password spraying"
+hecate-agent agent run hypothesis-generator --threat-intel "APT29 using WMI"
+hecate-agent agent run context-loader --hunt H-0013
+hecate-agent agent run similarity-scorer --query "password spraying"
 ```
 
 ### Research Workflow (v0.3.0+)
 
 ```bash
 # Create research document (15-20 min deep research)
-athf research new --topic "LSASS dumping" --technique T1003.001
+hecate-agent research new --topic "LSASS dumping" --technique T1003.001
 
 # Quick research for urgent hunts (5 min)
-athf research new --topic "Pass-the-Hash" --depth basic
+hecate-agent research new --topic "Pass-the-Hash" --depth basic
 
 # List and view research
-athf research list
-athf research view R-0001
+hecate-agent research list
+hecate-agent research view R-0001
 ```
 
 ### Hunt Management
 
 ```bash
 # Create hunts
-athf hunt new                           # Interactive mode
-athf hunt new --technique T1003.001 --title "LSASS Dumping"
-athf hunt new --research R-0001         # Link to research document
+hecate-agent hunt new                           # Interactive mode
+hecate-agent hunt new --technique T1003.001 --title "LSASS Dumping"
+hecate-agent hunt new --research R-0001         # Link to research document
 
 # Execute hunt workflow with agents (v0.3.0+)
-athf hunt execute H-0013
+hecate-agent hunt execute H-0013
 
 # List and search
-athf hunt list                          # All hunts
-athf hunt list --status completed       # Filter by status
-athf hunt list --platform windows       # Filter by platform
-athf hunt search "kerberoasting"        # Full-text search
+hecate-agent hunt list                          # All hunts
+hecate-agent hunt list --status completed       # Filter by status
+hecate-agent hunt list --platform windows       # Filter by platform
+hecate-agent hunt search "kerberoasting"        # Full-text search
 
 # Validation and stats
-athf hunt validate                      # Validate all hunts
-athf hunt validate H-0001               # Validate specific hunt
-athf hunt stats                         # Show statistics
-athf hunt coverage                      # MITRE ATT&CK coverage
+hecate-agent hunt validate                      # Validate all hunts
+hecate-agent hunt validate H-0001               # Validate specific hunt
+hecate-agent hunt stats                         # Show statistics
+hecate-agent hunt coverage                      # MITRE ATT&CK coverage
 ```
 
 ### Workspace Initialization
 
 ```bash
-athf init                               # Interactive setup
-athf init --non-interactive             # Use defaults
+hecate-agent init                               # Interactive setup
+hecate-agent init --non-interactive             # Use defaults
 ```
 
 **Full documentation:** [CLI Reference](CLI_REFERENCE.md)
@@ -442,28 +442,28 @@ athf init --non-interactive             # Use defaults
 
 **At Level 1:**
 
-- Document 5-10 hunts (use `athf hunt new` or manual markdown)
+- Document 5-10 hunts (use `hecate-agent hunt new` or manual markdown)
 - Establish a hunt numbering convention (CLI handles this automatically)
 - Train team on LOCK pattern
-- Optional: Run `athf hunt validate` to ensure consistency
+- Optional: Run `hecate-agent hunt validate` to ensure consistency
 
 **At Level 2:**
 
 - Customize AGENTS.md for your environment
-- Use AI to search past hunts (or `athf hunt search` for CLI users)
+- Use AI to search past hunts (or `hecate-agent hunt search` for CLI users)
 - Generate hypotheses based on lessons learned
-- Optional: Use `athf hunt stats` and `athf hunt coverage` to identify gaps
+- Optional: Use `hecate-agent hunt stats` and `hecate-agent hunt coverage` to identify gaps
 
 **At Level 3:**
 
 - Connect your most-used tool (Splunk, CrowdStrike, etc.)
-- Run a full hunt with AI executing queries (AI can use `athf hunt new` to document results)
+- Run a full hunt with AI executing queries (AI can use `hecate-agent hunt new` to document results)
 - Measure time saved vs. manual execution
 
 **At Level 4:**
 
-- Deploy one monitoring agent (agents can use `athf hunt new --non-interactive` to create hunts autonomously)
-- Review agent-generated drafts (use `athf hunt validate` for automated checks)
+- Deploy one monitoring agent (agents can use `hecate-agent hunt new --non-interactive` to create hunts autonomously)
+- Review agent-generated drafts (use `hecate-agent hunt validate` for automated checks)
 - Iterate on guardrails and approval gates
 
 ## Common Questions
@@ -478,19 +478,19 @@ A: Level 1 can be operational in a day. Level 2 takes about a week. Levels 3-4 d
 A: Yes! Adapt it to your methodology. The structure is a starting point, not a prescription.
 
 **Q: What if we use a different hunting methodology (PEAK, TaHiTI)?**
-A: ATHF works with any methodology. LOCK is the documentation layer, not a replacement for your existing process.
+A: Hecate works with any methodology. LOCK is the documentation layer, not a replacement for your existing process.
 
 **Q: Do I need to use the CLI?**
 A: No. The CLI is optional convenience tooling. You can achieve all maturity levels (1-4) using just markdown files. The framework structure (hunts/, LOCK pattern, AGENTS.md) is what enables AI assistance, not the CLI.
 
 **Q: Can I use the CLI with my existing hunt files?**
-A: Yes! The CLI commands (`athf hunt list`, `athf hunt search`, `athf hunt validate`) work with any markdown files in the hunts/ directory, whether created manually or via CLI.
+A: Yes! The CLI commands (`hecate-agent hunt list`, `hecate-agent hunt search`, `hecate-agent hunt validate`) work with any markdown files in the hunts/ directory, whether created manually or via CLI.
 
 ## Need Help?
 
 - Browse [docs/](.) for detailed guides
 - Check [integrations/](../integrations/) for tool-specific setup
 - Review [hunts/](../hunts/) for example hunts
-- Open an issue on [GitHub](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
+- Open an issue on [GitHub](https://github.com/Nebulock-Inc/hecate-agent/issues)
 
 Happy thrunting!

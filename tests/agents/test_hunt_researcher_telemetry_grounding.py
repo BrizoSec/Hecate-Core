@@ -26,12 +26,8 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-from athf.agents.llm.hunt_researcher import (
-    _NO_TELEMETRY_KEY_FINDING,
-    HuntResearcherAgent,
-    _no_telemetry_mapped,
-)
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.agents.llm.hunt_researcher import _NO_TELEMETRY_KEY_FINDING, HuntResearcherAgent, _no_telemetry_mapped
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 
 class _Provider(LLMProvider):

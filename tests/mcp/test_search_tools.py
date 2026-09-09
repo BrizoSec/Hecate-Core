@@ -1,12 +1,12 @@
 """Tests for search MCP tools (similar, context)."""
 
 import json
+
 import pytest
-from pathlib import Path
 
 pytest.importorskip("mcp", reason="MCP optional dependency not installed")
 
-from athf.mcp.server import create_server
+from hecate_agent.mcp.server import create_server  # noqa: E402 - must follow the importorskip guard above
 
 _has_sklearn = True
 try:
@@ -14,7 +14,7 @@ try:
 except ImportError:
     _has_sklearn = False
 
-# athf_similar degrades to an {"error": ...} payload without scikit-learn, so
+# hecate_similar degrades to an {"error": ...} payload without scikit-learn, so
 # the tests asserting on real ranked results need the optional dep -- same
 # guard tests/commands/test_similar.py already uses.
 requires_sklearn = pytest.mark.skipif(not _has_sklearn, reason="scikit-learn not installed")
@@ -22,7 +22,7 @@ requires_sklearn = pytest.mark.skipif(not _has_sklearn, reason="scikit-learn not
 
 def _setup_workspace(tmp_path):
     """Create workspace with hunts for search testing."""
-    (tmp_path / ".athfconfig.yaml").write_text("workspace_name: test\n")
+    (tmp_path / ".hecateconfig.yaml").write_text("workspace_name: test\n")
     hunts_dir = tmp_path / "hunts"
     hunts_dir.mkdir()
     (tmp_path / "research").mkdir()
@@ -118,7 +118,7 @@ def _call_tool(server, tool_name, arguments=None):
 class TestSimilar:
     @requires_sklearn
     def test_similar_with_query(self, server):
-        result = _call_tool(server, "athf_similar", {"query": "credential dumping LSASS"})
+        result = _call_tool(server, "hecate_similar", {"query": "credential dumping LSASS"})
         assert result["count"] >= 1
         assert result["results"][0]["hunt_id"] == "H-0001"
 
@@ -129,40 +129,40 @@ class TestSimilar:
         nothing, so a hunt_id query always trivially matched itself at
         ~1.0 similarity, crowding out or masking genuine matches like this
         one."""
-        result = _call_tool(server, "athf_similar", {"hunt_id": "H-0001"})
+        result = _call_tool(server, "hecate_similar", {"hunt_id": "H-0001"})
         assert result["count"] >= 1
         hunt_ids = [r["hunt_id"] for r in result["results"]]
         assert "H-0001" not in hunt_ids
         assert "H-0003" in hunt_ids
 
     def test_similar_no_params(self, server):
-        result = _call_tool(server, "athf_similar")
+        result = _call_tool(server, "hecate_similar")
         assert "error" in result
 
     @requires_sklearn
     def test_similar_threshold(self, server):
-        result = _call_tool(server, "athf_similar", {"query": "credential dumping", "threshold": 0.9})
+        result = _call_tool(server, "hecate_similar", {"query": "credential dumping", "threshold": 0.9})
         # High threshold may filter out results
         assert "count" in result
 
 
 class TestContext:
     def test_context_with_hunt_id(self, server):
-        result = _call_tool(server, "athf_context", {"hunt_id": "H-0001"})
+        result = _call_tool(server, "hecate_context", {"hunt_id": "H-0001"})
         assert "hunt" in result
         assert "environment" in result
 
     def test_context_with_tactic(self, server):
-        result = _call_tool(server, "athf_context", {"tactic": "credential-access"})
+        result = _call_tool(server, "hecate_context", {"tactic": "credential-access"})
         assert "hunts" in result
         assert result["hunt_count"] >= 1
 
     def test_context_no_params(self, server):
-        result = _call_tool(server, "athf_context")
+        result = _call_tool(server, "hecate_context")
         assert "error" in result
 
     def test_context_includes_environment(self, server):
-        result = _call_tool(server, "athf_context", {"hunt_id": "H-0001"})
+        result = _call_tool(server, "hecate_context", {"hunt_id": "H-0001"})
         assert "Splunk" in result["environment"]
 
     def test_context_includes_matching_domain_knowledge_for_tactic(self, server, workspace):
@@ -179,7 +179,7 @@ class TestContext:
         (domains_dir / "iam-security.md").write_text("# IAM Security\nPassword spraying patterns.\n")
         (domains_dir / "insider-threat.md").write_text("# Insider Threat\nData exfiltration patterns.\n")
 
-        result = _call_tool(server, "athf_context", {"tactic": "credential-access"})
+        result = _call_tool(server, "hecate_context", {"tactic": "credential-access"})
 
         assert "domain_knowledge" in result
         assert "iam-security" in result["domain_knowledge"]
@@ -192,6 +192,6 @@ class TestContext:
         domains_dir.mkdir(parents=True)
         (domains_dir / "iam-security.md").write_text("# IAM Security\n")
 
-        result = _call_tool(server, "athf_context", {"tactic": "discovery"})
+        result = _call_tool(server, "hecate_context", {"tactic": "discovery"})
 
         assert "domain_knowledge" not in result or result.get("domain_knowledge") == {}

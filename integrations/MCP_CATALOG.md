@@ -1,20 +1,20 @@
 # MCP Catalog for Threat Hunting
 
-## ATHF MCP Server (Built-in)
+## Hecate MCP Server (Built-in)
 
-ATHF includes its own MCP server that exposes hunting operations as tools for any AI assistant.
+Hecate includes its own MCP server that exposes hunting operations as tools for any AI assistant.
 
 **Install:**
 ```bash
-pip install 'athf[mcp]'
+pip install 'hecate-agent[mcp]'
 ```
 
 **Configure for Claude Code** (`~/.claude/mcp-servers.json`):
 ```json
 {
-  "athf": {
-    "command": "athf-mcp",
-    "env": { "ATHF_WORKSPACE": "/path/to/your/hunts" }
+  "hecate": {
+    "command": "hecate-agent-mcp",
+    "env": { "HECATE_WORKSPACE": "/path/to/your/hunts" }
   }
 }
 ```
@@ -23,23 +23,23 @@ pip install 'athf[mcp]'
 
 | Tool | Description |
 |------|-------------|
-| `athf_hunt_list` | List/filter hunts by status, tactic, technique, platform |
-| `athf_hunt_search` | Full-text search across hunt files |
-| `athf_hunt_get` | Get full details of a specific hunt |
-| `athf_hunt_stats` | Hunt metrics (total, TP/FP, success rate) |
-| `athf_hunt_coverage` | MITRE ATT&CK coverage analysis |
-| `athf_hunt_validate` | Validate hunt file structure |
-| `athf_hunt_new` | Create a new hunt with LOCK structure |
-| `athf_similar` | Semantic similarity search (TF-IDF) |
-| `athf_context` | AI-optimized context bundle (environment + hunts + knowledge) |
-| `athf_research_list` | List research documents |
-| `athf_research_view` | View specific research document |
-| `athf_research_search` | Search research documents |
-| `athf_research_stats` | Research metrics |
-| `athf_investigate_list` | List investigations |
-| `athf_investigate_search` | Search investigations |
-| `athf_agent_run_hypothesis` | Generate hypothesis from threat intel (LLM-powered) |
-| `athf_agent_run_researcher` | Deep 5-skill pre-hunt research (LLM-powered) |
+| `hecate_hunt_list` | List/filter hunts by status, tactic, technique, platform |
+| `hecate_hunt_search` | Full-text search across hunt files |
+| `hecate_hunt_get` | Get full details of a specific hunt |
+| `hecate_hunt_stats` | Hunt metrics (total, TP/FP, success rate) |
+| `hecate_hunt_coverage` | MITRE ATT&CK coverage analysis |
+| `hecate_hunt_validate` | Validate hunt file structure |
+| `hecate_hunt_new` | Create a new hunt with LOCK structure |
+| `hecate_similar` | Semantic similarity search (TF-IDF) |
+| `hecate_context` | AI-optimized context bundle (environment + hunts + knowledge) |
+| `hecate_research_list` | List research documents |
+| `hecate_research_view` | View specific research document |
+| `hecate_research_search` | Search research documents |
+| `hecate_research_stats` | Research metrics |
+| `hecate_investigate_list` | List investigations |
+| `hecate_investigate_search` | Search investigations |
+| `hecate_agent_run_hypothesis` | Generate hypothesis from threat intel (LLM-powered) |
+| `hecate_agent_run_researcher` | Deep 5-skill pre-hunt research (LLM-powered) |
 
 **Works with:** Claude Code, GitHub Copilot, Cursor, Windsurf, or any MCP-compatible client.
 

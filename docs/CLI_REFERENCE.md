@@ -1,65 +1,65 @@
-# ATHF CLI Reference
+# Hecate CLI Reference
 
-Complete reference for all `athf` command-line interface commands.
+Complete reference for all `hecate-agent` command-line interface commands.
 
 ## Command Quick Reference
 
 | Command | Category | Description |
 |---------|----------|-------------|
-| [`athf init`](#athf-init) | Setup | Initialize ATHF workspace directory structure |
-| [`athf env setup`](#athf-env) | Environment | Setup Python virtual environment with dependencies |
-| [`athf env info`](#athf-env) | Environment | Show virtual environment information |
-| [`athf agent list`](#athf-agent-list) | Agent Framework | List all available agents |
-| [`athf agent info`](#athf-agent-info) | Agent Framework | Show detailed agent information |
-| [`athf agent run`](#athf-agent-run) | Agent Framework | Run individual agent |
-| [`athf research new`](#athf-research-new) | Research | Create new research document with web search |
-| [`athf research list`](#athf-research-list) | Research | List all research documents |
-| [`athf research view`](#athf-research-view) | Research | View research document |
-| [`athf hunt new`](#athf-hunt-new) | Hunt Management | Create new hunt from template with auto-generated ID |
-| [`athf hunt list`](#athf-hunt-list) | Hunt Management | List all hunts with optional filtering |
-| [`athf hunt validate`](#athf-hunt-validate) | Hunt Management | Validate hunt file structure and metadata |
-| [`athf hunt stats`](#athf-hunt-stats) | Hunt Management | Display hunt statistics and success metrics |
-| [`athf hunt search`](#athf-hunt-search) | Hunt Management | Full-text search across all hunts |
-| [`athf hunt coverage`](#athf-hunt-coverage) | Hunt Management | Display MITRE ATT&CK coverage heatmap |
-| [`athf attack update`](#athf-attack-update) | ATT&CK Data | Download/refresh STIX data from MITRE |
-| [`athf attack status`](#athf-attack-status) | ATT&CK Data | Show provider type, version, and cache info |
-| [`athf attack lookup`](#athf-attack-lookup) | ATT&CK Data | Look up technique metadata by ID |
-| [`athf attack techniques`](#athf-attack-techniques) | ATT&CK Data | List all techniques for a tactic |
-| [`athf hunt execute`](#athf-hunt-execute) | Hunt Management | Execute hunt workflow with agent orchestration |
-| [`athf investigate new`](#athf-investigate-new) | Investigation | Create new investigation file for exploratory work |
-| [`athf investigate list`](#athf-investigate-list) | Investigation | List all investigations with optional filtering |
-| [`athf investigate search`](#athf-investigate-search) | Investigation | Full-text search across investigations |
-| [`athf investigate validate`](#athf-investigate-validate) | Investigation | Validate investigation file structure |
-| [`athf investigate promote`](#athf-investigate-promote) | Investigation | Promote investigation to formal hunt |
-| [`athf context`](#athf-context) | AI Optimization | Export AI-optimized context bundle (saves ~75% tokens) |
-| [`athf similar`](#athf-similar) | AI Optimization | Find similar hunts using semantic search |
+| [`hecate-agent init`](#hecate-agent-init) | Setup | Initialize Hecate workspace directory structure |
+| [`hecate-agent env setup`](#hecate-agent-env) | Environment | Setup Python virtual environment with dependencies |
+| [`hecate-agent env info`](#hecate-agent-env) | Environment | Show virtual environment information |
+| [`hecate-agent agent list`](#hecate-agent-agent-list) | Agent Framework | List all available agents |
+| [`hecate-agent agent info`](#hecate-agent-agent-info) | Agent Framework | Show detailed agent information |
+| [`hecate-agent agent run`](#hecate-agent-agent-run) | Agent Framework | Run individual agent |
+| [`hecate-agent research new`](#hecate-agent-research-new) | Research | Create new research document with web search |
+| [`hecate-agent research list`](#hecate-agent-research-list) | Research | List all research documents |
+| [`hecate-agent research view`](#hecate-agent-research-view) | Research | View research document |
+| [`hecate-agent hunt new`](#hecate-agent-hunt-new) | Hunt Management | Create new hunt from template with auto-generated ID |
+| [`hecate-agent hunt list`](#hecate-agent-hunt-list) | Hunt Management | List all hunts with optional filtering |
+| [`hecate-agent hunt validate`](#hecate-agent-hunt-validate) | Hunt Management | Validate hunt file structure and metadata |
+| [`hecate-agent hunt stats`](#hecate-agent-hunt-stats) | Hunt Management | Display hunt statistics and success metrics |
+| [`hecate-agent hunt search`](#hecate-agent-hunt-search) | Hunt Management | Full-text search across all hunts |
+| [`hecate-agent hunt coverage`](#hecate-agent-hunt-coverage) | Hunt Management | Display MITRE ATT&CK coverage heatmap |
+| [`hecate-agent attack update`](#hecate-agent-attack-update) | ATT&CK Data | Download/refresh STIX data from MITRE |
+| [`hecate-agent attack status`](#hecate-agent-attack-status) | ATT&CK Data | Show provider type, version, and cache info |
+| [`hecate-agent attack lookup`](#hecate-agent-attack-lookup) | ATT&CK Data | Look up technique metadata by ID |
+| [`hecate-agent attack techniques`](#hecate-agent-attack-techniques) | ATT&CK Data | List all techniques for a tactic |
+| [`hecate-agent hunt execute`](#hecate-agent-hunt-execute) | Hunt Management | Execute hunt workflow with agent orchestration |
+| [`hecate-agent investigate new`](#hecate-agent-investigate-new) | Investigation | Create new investigation file for exploratory work |
+| [`hecate-agent investigate list`](#hecate-agent-investigate-list) | Investigation | List all investigations with optional filtering |
+| [`hecate-agent investigate search`](#hecate-agent-investigate-search) | Investigation | Full-text search across investigations |
+| [`hecate-agent investigate validate`](#hecate-agent-investigate-validate) | Investigation | Validate investigation file structure |
+| [`hecate-agent investigate promote`](#hecate-agent-investigate-promote) | Investigation | Promote investigation to formal hunt |
+| [`hecate-agent context`](#hecate-agent-context) | AI Optimization | Export AI-optimized context bundle (saves ~75% tokens) |
+| [`hecate-agent similar`](#hecate-agent-similar) | AI Optimization | Find similar hunts using semantic search |
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Global Options](#global-options)
-- [athf init](#athf-init)
-- [athf env](#athf-env)
-- [athf agent list](#athf-agent-list)
-- [athf agent info](#athf-agent-info)
-- [athf agent run](#athf-agent-run)
-- [athf research new](#athf-research-new)
-- [athf research list](#athf-research-list)
-- [athf research view](#athf-research-view)
-- [athf context](#athf-context)
-- [athf similar](#athf-similar)
-- [athf hunt new](#athf-hunt-new)
-- [athf hunt list](#athf-hunt-list)
-- [athf hunt validate](#athf-hunt-validate)
-- [athf hunt stats](#athf-hunt-stats)
-- [athf hunt search](#athf-hunt-search)
-- [athf hunt coverage](#athf-hunt-coverage)
-- [athf hunt execute](#athf-hunt-execute)
-- [athf investigate new](#athf-investigate-new)
-- [athf investigate list](#athf-investigate-list)
-- [athf investigate search](#athf-investigate-search)
-- [athf investigate validate](#athf-investigate-validate)
-- [athf investigate promote](#athf-investigate-promote)
+- [hecate-agent init](#hecate-agent-init)
+- [hecate-agent env](#hecate-agent-env)
+- [hecate-agent agent list](#hecate-agent-agent-list)
+- [hecate-agent agent info](#hecate-agent-agent-info)
+- [hecate-agent agent run](#hecate-agent-agent-run)
+- [hecate-agent research new](#hecate-agent-research-new)
+- [hecate-agent research list](#hecate-agent-research-list)
+- [hecate-agent research view](#hecate-agent-research-view)
+- [hecate-agent context](#hecate-agent-context)
+- [hecate-agent similar](#hecate-agent-similar)
+- [hecate-agent hunt new](#hecate-agent-hunt-new)
+- [hecate-agent hunt list](#hecate-agent-hunt-list)
+- [hecate-agent hunt validate](#hecate-agent-hunt-validate)
+- [hecate-agent hunt stats](#hecate-agent-hunt-stats)
+- [hecate-agent hunt search](#hecate-agent-hunt-search)
+- [hecate-agent hunt coverage](#hecate-agent-hunt-coverage)
+- [hecate-agent hunt execute](#hecate-agent-hunt-execute)
+- [hecate-agent investigate new](#hecate-agent-investigate-new)
+- [hecate-agent investigate list](#hecate-agent-investigate-list)
+- [hecate-agent investigate search](#hecate-agent-investigate-search)
+- [hecate-agent investigate validate](#hecate-agent-investigate-validate)
+- [hecate-agent investigate promote](#hecate-agent-investigate-promote)
 - [Configuration](#configuration)
 - [Exit Codes](#exit-codes)
 
@@ -68,7 +68,7 @@ Complete reference for all `athf` command-line interface commands.
 ## Installation
 
 ```bash
-pip install agentic-threat-hunting-framework
+pip install hecate-agent
 ```
 
 See [INSTALL.md](INSTALL.md) for detailed installation instructions.
@@ -77,29 +77,29 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 
 ## Global Options
 
-These options work with any `athf` command:
+These options work with any `hecate-agent` command:
 
 ```bash
-athf --version          # Show version and exit
-athf --help             # Show help message
-athf <command> --help   # Show help for specific command
+hecate-agent --version          # Show version and exit
+hecate-agent --help             # Show help message
+hecate-agent <command> --help   # Show help for specific command
 ```
 
 ---
 
-## athf init
+## hecate-agent init
 
-Initialize ATHF directory structure in the current directory.
+Initialize Hecate directory structure in the current directory.
 
 ### Synopsis
 
 ```bash
-athf init [OPTIONS]
+hecate-agent init [OPTIONS]
 ```
 
 ### Description
 
-Creates the standard ATHF directory structure with templates, configuration files, and documentation. This is typically the first command you run when setting up a new threat hunting workspace.
+Creates the standard Hecate directory structure with templates, configuration files, and documentation. This is typically the first command you run when setting up a new threat hunting workspace.
 
 ### Options
 
@@ -116,7 +116,7 @@ Creates the standard ATHF directory structure with templates, configuration file
 **Interactive mode** (recommended for first-time setup):
 
 ```bash
-athf init
+hecate-agent init
 ```
 
 You'll be prompted for:
@@ -130,13 +130,13 @@ Default data retention (days) [90]: 180
 **Non-interactive mode** (use defaults):
 
 ```bash
-athf init --non-interactive
+hecate-agent init --non-interactive
 ```
 
 **Custom configuration**:
 
 ```bash
-athf init \
+hecate-agent init \
   --siem sentinel \
   --edr defender \
   --hunt-prefix TH \
@@ -147,7 +147,7 @@ athf init \
 
 ```
 .
-├── .athfconfig.yaml           # Configuration file
+├── .hecateconfig.yaml           # Configuration file
 ├── AGENTS.md                  # AI assistant instructions
 ├── hunts/                     # Hunt documentation
 ├── queries/                   # Reusable query library
@@ -158,7 +158,7 @@ athf init \
 
 ### Configuration File
 
-Creates `.athfconfig.yaml`:
+Creates `.hecateconfig.yaml`:
 
 ```yaml
 siem: splunk
@@ -172,18 +172,18 @@ version: 0.2.1
 ### Exit Codes
 
 - `0`: Success
-- `1`: Directory already initialized (`.athfconfig.yaml` exists)
+- `1`: Directory already initialized (`.hecateconfig.yaml` exists)
 
 ---
 
-## athf env
+## hecate-agent env
 
-Manage Python virtual environment for ATHF development.
+Manage Python virtual environment for Hecate development.
 
 ### Synopsis
 
 ```bash
-athf env [COMMAND] [OPTIONS]
+hecate-agent env [COMMAND] [OPTIONS]
 ```
 
 ### Description
@@ -200,13 +200,13 @@ Provides commands for managing Python virtual environments, including setup, inf
 | `activate` | Show command to activate virtual environment |
 | `deactivate` | Show command to deactivate virtual environment |
 
-### athf env setup
+### hecate-agent env setup
 
 Setup Python virtual environment with dependencies.
 
 **Synopsis:**
 ```bash
-athf env setup [OPTIONS]
+hecate-agent env setup [OPTIONS]
 ```
 
 **Options:**
@@ -221,31 +221,31 @@ athf env setup [OPTIONS]
 
 ```bash
 # Basic setup
-athf env setup
+hecate-agent env setup
 
 # Setup with dev dependencies
-athf env setup --dev
+hecate-agent env setup --dev
 
 # Clean install
-athf env setup --clean
+hecate-agent env setup --clean
 
 # Use specific Python version
-athf env setup --python python3.11 --dev
+hecate-agent env setup --python python3.11 --dev
 ```
 
-### athf env info
+### hecate-agent env info
 
 Show virtual environment information.
 
 **Synopsis:**
 ```bash
-athf env info
+hecate-agent env info
 ```
 
 **Examples:**
 
 ```bash
-athf env info
+hecate-agent env info
 ```
 
 **Output:**
@@ -255,39 +255,39 @@ Virtual Environment Info:
   Location: /path/to/.venv
   Python: Python 3.11.5
   Packages: 42 installed
-  athf: ✓ Installed (version 0.2.1)
-  scikit-learn: ✓ Installed (required for athf similar)
+  hecate: ✓ Installed (version 0.2.1)
+  scikit-learn: ✓ Installed (required for hecate-agent similar)
 ```
 
-### athf env clean
+### hecate-agent env clean
 
 Remove virtual environment.
 
 **Synopsis:**
 ```bash
-athf env clean
+hecate-agent env clean
 ```
 
 **Examples:**
 
 ```bash
-athf env clean
+hecate-agent env clean
 ```
 
-### athf env activate
+### hecate-agent env activate
 
 Show command to activate virtual environment.
 
 **Synopsis:**
 ```bash
-athf env activate
+hecate-agent env activate
 ```
 
 **Examples:**
 
 ```bash
 # Show activation command
-athf env activate
+hecate-agent env activate
 
 # Copy and run the printed command
 source .venv/bin/activate
@@ -295,20 +295,20 @@ source .venv/bin/activate
 
 **Note:** Cannot activate directly (subprocesses can't modify parent shell). Copy and run the printed command.
 
-### athf env deactivate
+### hecate-agent env deactivate
 
 Show command to deactivate virtual environment.
 
 **Synopsis:**
 ```bash
-athf env deactivate
+hecate-agent env deactivate
 ```
 
 **Examples:**
 
 ```bash
 # Show deactivation command
-athf env deactivate
+hecate-agent env deactivate
 
 # Copy and run the printed command
 deactivate
@@ -321,14 +321,14 @@ deactivate
 
 ---
 
-## athf context
+## hecate-agent context
 
 Export AI-optimized context bundle to reduce token usage.
 
 ### Synopsis
 
 ```bash
-athf context [OPTIONS]
+hecate-agent context [OPTIONS]
 ```
 
 ### Description
@@ -358,37 +358,37 @@ Combines relevant files into a single structured output for AI assistants. Reduc
 **Export context for specific hunt:**
 
 ```bash
-athf context --hunt H-0013 --format json
+hecate-agent context --hunt H-0013 --format json
 ```
 
 **Export context for all credential access hunts:**
 
 ```bash
-athf context --tactic credential-access --format json
+hecate-agent context --tactic credential-access --format json
 ```
 
 **Export context for macOS platform hunts:**
 
 ```bash
-athf context --platform macos --format json
+hecate-agent context --platform macos --format json
 ```
 
 **Export as markdown:**
 
 ```bash
-athf context --hunt H-0013 --format markdown
+hecate-agent context --hunt H-0013 --format markdown
 ```
 
 **Save to file:**
 
 ```bash
-athf context --hunt H-0013 --format json --output context.json
+hecate-agent context --hunt H-0013 --format json --output context.json
 ```
 
 **Export full repository context** (large output):
 
 ```bash
-athf context --full --format json
+hecate-agent context --full --format json
 ```
 
 ### Output Structure (JSON)
@@ -396,7 +396,7 @@ athf context --full --format json
 ```json
 {
   "metadata": {
-    "generated_by": "athf context",
+    "generated_by": "hecate-agent context",
     "filters": {
       "hunt": "H-0013",
       "tactic": null,
@@ -435,15 +435,15 @@ athf context --full --format json
 
 ---
 
-## athf similar
+## hecate-agent similar
 
 Find hunts similar to a query or hunt ID using semantic search.
 
 ### Synopsis
 
 ```bash
-athf similar [QUERY] [OPTIONS]
-athf similar --hunt HUNT_ID [OPTIONS]
+hecate-agent similar [QUERY] [OPTIONS]
+hecate-agent similar --hunt HUNT_ID [OPTIONS]
 ```
 
 ### Description
@@ -478,31 +478,31 @@ Uses semantic similarity (TF-IDF) to find related hunts even when terminology di
 **Find hunts similar to text query:**
 
 ```bash
-athf similar "password spraying via RDP"
+hecate-agent similar "password spraying via RDP"
 ```
 
 **Find hunts similar to specific hunt:**
 
 ```bash
-athf similar --hunt H-0013
+hecate-agent similar --hunt H-0013
 ```
 
 **Limit results to top 5:**
 
 ```bash
-athf similar "kerberos" --limit 5
+hecate-agent similar "kerberos" --limit 5
 ```
 
 **Export as JSON:**
 
 ```bash
-athf similar "credential theft" --format json
+hecate-agent similar "credential theft" --format json
 ```
 
 **Set minimum similarity threshold:**
 
 ```bash
-athf similar "reconnaissance" --threshold 0.3
+hecate-agent similar "reconnaissance" --threshold 0.3
 ```
 
 ### Output (Table Format)
@@ -552,7 +552,7 @@ Similarity Score Legend:
 Requires `scikit-learn`:
 
 ```bash
-pip install "agentic-threat-hunting-framework[similarity]"
+pip install "hecate-agent[similarity]"
 ```
 
 Or install scikit-learn separately:
@@ -568,14 +568,14 @@ pip install scikit-learn
 
 ---
 
-## athf hunt new
+## hecate-agent hunt new
 
 Create a new hunt from template with auto-generated ID.
 
 ### Synopsis
 
 ```bash
-athf hunt new [OPTIONS]
+hecate-agent hunt new [OPTIONS]
 ```
 
 ### Description
@@ -616,7 +616,7 @@ Creates a new hunt file with proper YAML frontmatter and LOCK structure. Automat
 **Interactive mode** (recommended):
 
 ```bash
-athf hunt new
+hecate-agent hunt new
 ```
 
 Prompts:
@@ -633,7 +633,7 @@ Severity [medium]: high
 **Non-interactive mode**:
 
 ```bash
-athf hunt new \
+hecate-agent hunt new \
   --technique T1558.003 \
   --title "Kerberoasting Detection" \
   --tactics credential-access \
@@ -647,7 +647,7 @@ athf hunt new \
 **Minimal example** (non-interactive):
 
 ```bash
-athf hunt new \
+hecate-agent hunt new \
   --technique T1003.001 \
   --title "LSASS Memory Dumping" \
   --non-interactive
@@ -656,7 +656,7 @@ athf hunt new \
 **Link to pre-hunt research document**:
 
 ```bash
-athf hunt new \
+hecate-agent hunt new \
   --research R-0001 \
   --technique T1003.001 \
   --title "LSASS Memory Dumping Hunt" \
@@ -665,14 +665,14 @@ athf hunt new \
   --non-interactive
 ```
 
-This links the hunt to research document `R-0001` (created via `athf research new`). The hunt file will include:
+This links the hunt to research document `R-0001` (created via `hecate-agent research new`). The hunt file will include:
 - `spawned_from: R-0001` in YAML frontmatter
 - Link to research document in the "Threat Intel & Research" section
 
 **AI-friendly one-liner with rich content** (full hypothesis + ABLE framework):
 
 ```bash
-athf hunt new \
+hecate-agent hunt new \
   --title "macOS Unix Shell Abuse for Reconnaissance" \
   --technique "T1059.004" \
   --tactics "execution,defense-evasion" \
@@ -746,14 +746,14 @@ false_positives: 0
 
 ---
 
-## athf hunt list
+## hecate-agent hunt list
 
 List all hunts with optional filtering.
 
 ### Synopsis
 
 ```bash
-athf hunt list [OPTIONS]
+hecate-agent hunt list [OPTIONS]
 ```
 
 ### Description
@@ -776,7 +776,7 @@ Display all hunts in a formatted table. Supports filtering by status, tactic, te
 **List all hunts**:
 
 ```bash
-athf hunt list
+hecate-agent hunt list
 ```
 
 Output:
@@ -792,39 +792,39 @@ H-0023   Cloud Persistence via Lambda   paused      T1098       -
 **Filter by status**:
 
 ```bash
-athf hunt list --status completed
+hecate-agent hunt list --status completed
 ```
 
 **Filter by tactic**:
 
 ```bash
-athf hunt list --tactic credential-access
+hecate-agent hunt list --tactic credential-access
 ```
 
 **Filter by technique**:
 
 ```bash
-athf hunt list --technique T1003.001
+hecate-agent hunt list --technique T1003.001
 ```
 
 **Filter by environment directory**:
 
 ```bash
-athf hunt list --directory test
-athf hunt list --directory production
+hecate-agent hunt list --directory test
+hecate-agent hunt list --directory production
 ```
 
 **Multiple filters**:
 
 ```bash
-athf hunt list --status completed --platform windows
-athf hunt list --directory production --tactic credential-access
+hecate-agent hunt list --status completed --platform windows
+hecate-agent hunt list --directory production --tactic credential-access
 ```
 
 **JSON output** (for scripts/automation):
 
 ```bash
-athf hunt list --output json
+hecate-agent hunt list --output json
 ```
 
 Output:
@@ -846,29 +846,29 @@ Output:
 **YAML output**:
 
 ```bash
-athf hunt list --output yaml
+hecate-agent hunt list --output yaml
 ```
 
 ### Exit Codes
 
 - `0`: Success
-- `1`: No hunts directory found (run `athf init` first)
+- `1`: No hunts directory found (run `hecate-agent init` first)
 
 ---
 
-## athf hunt validate
+## hecate-agent hunt validate
 
 Validate hunt file structure and metadata.
 
 ### Synopsis
 
 ```bash
-athf hunt validate [HUNT_ID]
+hecate-agent hunt validate [HUNT_ID]
 ```
 
 ### Description
 
-Validates hunt files against the ATHF format specification. Checks YAML frontmatter, required fields, LOCK sections, and ATT&CK technique format.
+Validates hunt files against the Hecate format specification. Checks YAML frontmatter, required fields, LOCK sections, and ATT&CK technique format.
 
 ### Arguments
 
@@ -881,7 +881,7 @@ Validates hunt files against the ATHF format specification. Checks YAML frontmat
 **Validate specific hunt**:
 
 ```bash
-athf hunt validate H-0001
+hecate-agent hunt validate H-0001
 ```
 
 Output (success):
@@ -904,7 +904,7 @@ Output (errors):
 **Validate all hunts**:
 
 ```bash
-athf hunt validate
+hecate-agent hunt validate
 ```
 
 Output:
@@ -949,14 +949,14 @@ Summary: 3 valid, 1 invalid
 
 ---
 
-## athf hunt stats
+## hecate-agent hunt stats
 
 Display hunt statistics and success metrics.
 
 ### Synopsis
 
 ```bash
-athf hunt stats [OPTIONS]
+hecate-agent hunt stats [OPTIONS]
 ```
 
 ### Description
@@ -975,7 +975,7 @@ Calculate and display statistics about your hunts, including success rates, true
 **Overall statistics**:
 
 ```bash
-athf hunt stats
+hecate-agent hunt stats
 ```
 
 Output:
@@ -1011,13 +1011,13 @@ Platforms Covered:        4 (Windows, Linux, macOS, AWS)
 **Last 30 days**:
 
 ```bash
-athf hunt stats --period 30d
+hecate-agent hunt stats --period 30d
 ```
 
 **JSON output**:
 
 ```bash
-athf hunt stats --output json
+hecate-agent hunt stats --output json
 ```
 
 Output:
@@ -1042,14 +1042,14 @@ Output:
 
 ---
 
-## athf hunt search
+## hecate-agent hunt search
 
 Full-text search across all hunts.
 
 ### Synopsis
 
 ```bash
-athf hunt search QUERY [OPTIONS]
+hecate-agent hunt search QUERY [OPTIONS]
 ```
 
 ### Description
@@ -1076,7 +1076,7 @@ Search hunt content (including frontmatter, LOCK sections, queries, and findings
 **Simple search**:
 
 ```bash
-athf hunt search kerberoasting
+hecate-agent hunt search kerberoasting
 ```
 
 Output:
@@ -1099,32 +1099,32 @@ H-0012: Golden Ticket Detection
 **Filter by environment directory**:
 
 ```bash
-athf hunt search "credential" --directory test
-athf hunt search "kerberoasting" --directory production
+hecate-agent hunt search "credential" --directory test
+hecate-agent hunt search "kerberoasting" --directory production
 ```
 
 **Search for technique ID**:
 
 ```bash
-athf hunt search "T1003.001"
+hecate-agent hunt search "T1003.001"
 ```
 
 **Regex search**:
 
 ```bash
-athf hunt search "lsass|mimikatz|procdump" --regex
+hecate-agent hunt search "lsass|mimikatz|procdump" --regex
 ```
 
 **Case-sensitive search**:
 
 ```bash
-athf hunt search "LSASS" --case-sensitive
+hecate-agent hunt search "LSASS" --case-sensitive
 ```
 
 **JSON output**:
 
 ```bash
-athf hunt search kerberoasting --output json
+hecate-agent hunt search kerberoasting --output json
 ```
 
 Output:
@@ -1151,14 +1151,14 @@ Output:
 
 ---
 
-## athf hunt coverage
+## hecate-agent hunt coverage
 
 Show MITRE ATT&CK technique coverage across hunts with visual progress bars.
 
 ### Synopsis
 
 ```bash
-athf hunt coverage [OPTIONS]
+hecate-agent hunt coverage [OPTIONS]
 ```
 
 ### Description
@@ -1190,19 +1190,19 @@ Displays a comprehensive visual coverage heatmap of all 14 MITRE ATT&CK tactics,
 **Show coverage for all tactics (default):**
 
 ```bash
-athf hunt coverage
+hecate-agent hunt coverage
 ```
 
 **Show all tactics explicitly:**
 
 ```bash
-athf hunt coverage --tactic all
+hecate-agent hunt coverage --tactic all
 ```
 
 **Filter by specific tactic:**
 
 ```bash
-athf hunt coverage --tactic credential-access
+hecate-agent hunt coverage --tactic credential-access
 ```
 
 **Output:**
@@ -1231,13 +1231,13 @@ Overall: 10/221 techniques (5%)
 **Show detailed technique breakdown (all tactics):**
 
 ```bash
-athf hunt coverage --detailed
+hecate-agent hunt coverage --detailed
 ```
 
 **Filter by tactic with detailed view:**
 
 ```bash
-athf hunt coverage --tactic persistence --detailed
+hecate-agent hunt coverage --tactic persistence --detailed
 ```
 
 **Detailed Output:**
@@ -1277,14 +1277,14 @@ Persistence (2 hunts, 7 unique techniques)
 
 ---
 
-## athf investigate new
+## hecate-agent investigate new
 
 Create a new investigation file for exploratory work and ad-hoc analysis.
 
 ### Synopsis
 
 ```bash
-athf investigate new [OPTIONS]
+hecate-agent investigate new [OPTIONS]
 ```
 
 ### Description
@@ -1313,7 +1313,7 @@ Creates investigation files for work that should NOT be tracked in hunt metrics.
 | `--tags` | String | - | Comma-separated tags (e.g., alert-triage,powershell) |
 | `--data-source` | String | - | Data sources (can specify multiple with multiple flags) |
 | `--related-hunt` | String | - | Related hunt IDs (can specify multiple with multiple flags) |
-| `--investigator` | String | ATHF | Investigator name |
+| `--investigator` | String | Hecate | Investigator name |
 | `--non-interactive` | Flag | False | Skip interactive prompts |
 
 \* Required in non-interactive mode
@@ -1323,13 +1323,13 @@ Creates investigation files for work that should NOT be tracked in hunt metrics.
 **Interactive mode** (recommended):
 
 ```bash
-athf investigate new
+hecate-agent investigate new
 ```
 
 **Non-interactive with all options:**
 
 ```bash
-athf investigate new \
+hecate-agent investigate new \
   --title "Alert Triage - PowerShell Execution" \
   --type finding \
   --tags alert-triage,powershell,customer-x \
@@ -1343,7 +1343,7 @@ athf investigate new \
 **Create baseline investigation:**
 
 ```bash
-athf investigate new \
+hecate-agent investigate new \
   --title "Baseline AWS CloudTrail Events" \
   --type baseline \
   --tags baseline,cloudtrail,aws \
@@ -1354,7 +1354,7 @@ athf investigate new \
 **Create exploratory investigation:**
 
 ```bash
-athf investigate new \
+hecate-agent investigate new \
   --title "Credential Access Pattern Exploration" \
   --type exploratory \
   --tags sandbox,credential-access \
@@ -1373,8 +1373,8 @@ Investigation ID: I-0001
 Next steps:
   1. Edit investigations/I-0001.md to document your investigation
   2. Use LOCK pattern sections (optional/flexible)
-  3. View all investigations: athf investigate list
-  4. Promote to hunt if valuable: athf investigate promote I-0001
+  3. View all investigations: hecate-agent investigate list
+  4. Promote to hunt if valuable: hecate-agent investigate promote I-0001
 ```
 
 ### Generated File Structure
@@ -1409,14 +1409,14 @@ tags:
 
 ---
 
-## athf investigate list
+## hecate-agent investigate list
 
 List all investigations with optional filtering.
 
 ### Synopsis
 
 ```bash
-athf investigate list [OPTIONS]
+hecate-agent investigate list [OPTIONS]
 ```
 
 ### Description
@@ -1436,7 +1436,7 @@ Display all investigations in a formatted table. Supports filtering by type, tag
 **List all investigations:**
 
 ```bash
-athf investigate list
+hecate-agent investigate list
 ```
 
 Output:
@@ -1458,19 +1458,19 @@ Total: 3 investigations
 **Filter by type:**
 
 ```bash
-athf investigate list --type finding
+hecate-agent investigate list --type finding
 ```
 
 **Filter by tags:**
 
 ```bash
-athf investigate list --tags alert-triage
+hecate-agent investigate list --tags alert-triage
 ```
 
 **JSON output:**
 
 ```bash
-athf investigate list --output json
+hecate-agent investigate list --output json
 ```
 
 Output:
@@ -1497,14 +1497,14 @@ Output:
 
 ---
 
-## athf investigate search
+## hecate-agent investigate search
 
 Full-text search across all investigation files.
 
 ### Synopsis
 
 ```bash
-athf investigate search QUERY
+hecate-agent investigate search QUERY
 ```
 
 ### Description
@@ -1522,7 +1522,7 @@ Performs full-text search across all investigation files, including frontmatter,
 **Search for PowerShell:**
 
 ```bash
-athf investigate search "PowerShell"
+hecate-agent investigate search "PowerShell"
 ```
 
 Output:
@@ -1539,13 +1539,13 @@ I-0005: Process Execution Baseline
 **Search for customer-specific findings:**
 
 ```bash
-athf investigate search "customer-x"
+hecate-agent investigate search "customer-x"
 ```
 
 **Search for baseline work:**
 
 ```bash
-athf investigate search "baseline CloudTrail"
+hecate-agent investigate search "baseline CloudTrail"
 ```
 
 ### Exit Codes
@@ -1555,19 +1555,19 @@ athf investigate search "baseline CloudTrail"
 
 ---
 
-## athf investigate validate
+## hecate-agent investigate validate
 
 Validate investigation file structure.
 
 ### Synopsis
 
 ```bash
-athf investigate validate INVESTIGATION_ID
+hecate-agent investigate validate INVESTIGATION_ID
 ```
 
 ### Description
 
-Validates investigation files against the ATHF format specification. Uses lightweight validation checking only minimal required fields. Does NOT validate LOCK sections (which are optional/flexible for investigations) or findings counts.
+Validates investigation files against the Hecate format specification. Uses lightweight validation checking only minimal required fields. Does NOT validate LOCK sections (which are optional/flexible for investigations) or findings counts.
 
 ### Arguments
 
@@ -1580,7 +1580,7 @@ Validates investigation files against the ATHF format specification. Uses lightw
 **Validate specific investigation:**
 
 ```bash
-athf investigate validate I-0001
+hecate-agent investigate validate I-0001
 ```
 
 Output (success):
@@ -1621,14 +1621,14 @@ Output (errors):
 
 ---
 
-## athf investigate promote
+## hecate-agent investigate promote
 
 Promote investigation to formal hunt with hunt-required metadata.
 
 ### Synopsis
 
 ```bash
-athf investigate promote INVESTIGATION_ID [OPTIONS]
+hecate-agent investigate promote INVESTIGATION_ID [OPTIONS]
 ```
 
 ### Description
@@ -1667,13 +1667,13 @@ Converts an investigation to a formal hunt, adding hunt-required metadata (tacti
 **Interactive promotion** (prompts for details):
 
 ```bash
-athf investigate promote I-0042
+hecate-agent investigate promote I-0042
 ```
 
 **Non-interactive with all options:**
 
 ```bash
-athf investigate promote I-0042 \
+hecate-agent investigate promote I-0042 \
   --technique T1059.001 \
   --tactic execution \
   --tactic defense-evasion \
@@ -1697,8 +1697,8 @@ Updated investigations/I-0042.md with promotion note
 Next steps:
   1. Edit hunts/H-0023.md to refine hunt hypothesis
   2. Add MITRE ATT&CK coverage if needed
-  3. Validate hunt: athf hunt validate H-0023
-  4. View hunt: athf hunt list --status in-progress
+  3. Validate hunt: hecate-agent hunt validate H-0023
+  4. View hunt: hecate-agent hunt list --status in-progress
 ```
 
 ### After Promotion
@@ -1716,14 +1716,14 @@ Next steps:
 
 ---
 
-## athf agent list
+## hecate-agent agent list
 
-List all available agents in the ATHF framework.
+List all available agents in the Hecate framework.
 
 ### Synopsis
 
 ```bash
-athf agent list [OPTIONS]
+hecate-agent agent list [OPTIONS]
 ```
 
 ### Description
@@ -1741,7 +1741,7 @@ Displays all 8 agents (6 core + 2 LLM) available for threat hunting workflows. S
 **List all agents:**
 
 ```bash
-athf agent list
+hecate-agent agent list
 ```
 
 Output:
@@ -1764,7 +1764,7 @@ LLM Agents (2):
 **JSON output:**
 
 ```bash
-athf agent list --output json
+hecate-agent agent list --output json
 ```
 
 ### Exit Codes
@@ -1773,14 +1773,14 @@ athf agent list --output json
 
 ---
 
-## athf agent info
+## hecate-agent agent info
 
 Show detailed information about a specific agent.
 
 ### Synopsis
 
 ```bash
-athf agent info AGENT_NAME
+hecate-agent agent info AGENT_NAME
 ```
 
 ### Description
@@ -1798,7 +1798,7 @@ Displays detailed information about an agent including capabilities, input requi
 **Show agent details:**
 
 ```bash
-athf agent info hypothesis-generator
+hecate-agent agent info hypothesis-generator
 ```
 
 Output:
@@ -1824,7 +1824,7 @@ Output Format:
   • evidence: What evidence to collect
 
 Example Usage:
-  athf agent run hypothesis-generator \
+  hecate-agent agent run hypothesis-generator \
     --threat-intel "APT29 using WMI for persistence"
 ```
 
@@ -1835,14 +1835,14 @@ Example Usage:
 
 ---
 
-## athf agent run
+## hecate-agent agent run
 
 Run an individual agent with specified parameters.
 
 ### Synopsis
 
 ```bash
-athf agent run AGENT_NAME [OPTIONS]
+hecate-agent agent run AGENT_NAME [OPTIONS]
 ```
 
 ### Description
@@ -1853,7 +1853,7 @@ Executes a specific agent with provided inputs. Agents are autonomous components
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `AGENT_NAME` | String | Agent to run (see `athf agent list`) |
+| `AGENT_NAME` | String | Agent to run (see `hecate-agent agent list`) |
 
 ### Common Options
 
@@ -1889,7 +1889,7 @@ Executes a specific agent with provided inputs. Agents are autonomous components
 **Generate hypothesis:**
 
 ```bash
-athf agent run hypothesis-generator \
+hecate-agent agent run hypothesis-generator \
   --threat-intel "APT29 using WMI for lateral movement and persistence" \
   --technique T1047
 ```
@@ -1897,7 +1897,7 @@ athf agent run hypothesis-generator \
 **Load hunt context:**
 
 ```bash
-athf agent run context-loader \
+hecate-agent agent run context-loader \
   --hunt H-0013 \
   --output json
 ```
@@ -1905,20 +1905,20 @@ athf agent run context-loader \
 **Validate query:**
 
 ```bash
-athf agent run query-validator \
+hecate-agent agent run query-validator \
   --sql "SELECT * FROM events WHERE time >= now() - INTERVAL 7 DAY LIMIT 100"
 ```
 
 **Analyze coverage:**
 
 ```bash
-athf agent run coverage-analyzer --tactic credential-access
+hecate-agent agent run coverage-analyzer --tactic credential-access
 ```
 
 **Find similar hunts:**
 
 ```bash
-athf agent run similarity-scorer \
+hecate-agent agent run similarity-scorer \
   --query "password spraying" \
   --limit 5
 ```
@@ -1931,14 +1931,14 @@ athf agent run similarity-scorer \
 
 ---
 
-## athf research new
+## hecate-agent research new
 
 Create new research document with web search and LLM analysis.
 
 ### Synopsis
 
 ```bash
-athf research new [OPTIONS]
+hecate-agent research new [OPTIONS]
 ```
 
 ### Description
@@ -1963,19 +1963,19 @@ Conducts deep pre-hunt research using a 5-skill methodology: System Internals, A
 **Deep research (default):**
 
 ```bash
-athf research new --topic "LSASS dumping" --technique T1003.001
+hecate-agent research new --topic "LSASS dumping" --technique T1003.001
 ```
 
 **Quick research for urgent hunts:**
 
 ```bash
-athf research new --topic "Pass-the-Hash" --depth basic
+hecate-agent research new --topic "Pass-the-Hash" --depth basic
 ```
 
 **Research without technique mapping:**
 
 ```bash
-athf research new --topic "Cloud IAM enumeration"
+hecate-agent research new --topic "Cloud IAM enumeration"
 ```
 
 ### Output
@@ -1993,7 +1993,7 @@ Created: research/R-0003.md
 
 Next steps:
   1. Review research/R-0003.md
-  2. Create hunt: athf hunt new --research R-0003
+  2. Create hunt: hecate-agent hunt new --research R-0003
   3. Link to hunt in frontmatter
 ```
 
@@ -2043,7 +2043,7 @@ status: completed
   - `OPENAI_API_KEY`: OpenAI or compatible endpoint
   - `AWS_PROFILE` or `AWS_ACCESS_KEY_ID`: AWS Bedrock
   - `OLLAMA_HOST`: Local Ollama instance
-  - Override with `ATHF_LLM_PROVIDER` and `ATHF_LLM_MODEL` (see `.env.example`)
+  - Override with `HECATE_LLM_PROVIDER` and `HECATE_LLM_MODEL` (see `.env.example`)
   - Without LLM: Falls back to template-based research
   - With LLM: Enhanced analysis using your configured model
 
@@ -2055,14 +2055,14 @@ status: completed
 
 ---
 
-## athf research list
+## hecate-agent research list
 
 List all research documents.
 
 ### Synopsis
 
 ```bash
-athf research list [OPTIONS]
+hecate-agent research list [OPTIONS]
 ```
 
 ### Description
@@ -2080,13 +2080,13 @@ Displays all research documents with filtering options.
 
 ```bash
 # List all research
-athf research list
+hecate-agent research list
 
 # Filter by status
-athf research list --status completed
+hecate-agent research list --status completed
 
 # JSON output
-athf research list --output json
+hecate-agent research list --output json
 ```
 
 ### Exit Codes
@@ -2095,14 +2095,14 @@ athf research list --output json
 
 ---
 
-## athf research view
+## hecate-agent research view
 
 View research document content.
 
 ### Synopsis
 
 ```bash
-athf research view RESEARCH_ID
+hecate-agent research view RESEARCH_ID
 ```
 
 ### Description
@@ -2118,7 +2118,7 @@ Displays the full content of a research document.
 ### Examples
 
 ```bash
-athf research view R-0001
+hecate-agent research view R-0001
 ```
 
 ### Exit Codes
@@ -2128,14 +2128,14 @@ athf research view R-0001
 
 ---
 
-## athf hunt execute
+## hecate-agent hunt execute
 
 Execute hunt workflow with agent orchestration.
 
 ### Synopsis
 
 ```bash
-athf hunt execute HUNT_ID [OPTIONS]
+hecate-agent hunt execute HUNT_ID [OPTIONS]
 ```
 
 ### Description
@@ -2158,10 +2158,10 @@ Orchestrates the complete LOCK pattern workflow using autonomous agents. Loads c
 
 ```bash
 # Execute hunt with orchestration
-athf hunt execute H-0013
+hecate-agent hunt execute H-0013
 
 # Dry run to validate workflow
-athf hunt execute H-0013 --dry-run
+hecate-agent hunt execute H-0013 --dry-run
 ```
 
 ### Exit Codes
@@ -2171,26 +2171,26 @@ athf hunt execute H-0013 --dry-run
 
 ---
 
-## athf attack update
+## hecate-agent attack update
 
 Download or refresh MITRE ATT&CK STIX data for enhanced technique metadata.
 
 ### Synopsis
 
 ```bash
-athf attack update [OPTIONS]
+hecate-agent attack update [OPTIONS]
 ```
 
 ### Description
 
-Downloads the Enterprise ATT&CK STIX bundle from the official MITRE repository and caches it locally. Once downloaded, ATHF automatically switches from the hardcoded fallback data (14 tactics, approximate counts) to live STIX data (835+ techniques with full metadata including platforms, data sources, and sub-techniques).
+Downloads the Enterprise ATT&CK STIX bundle from the official MITRE repository and caches it locally. Once downloaded, Hecate automatically switches from the hardcoded fallback data (14 tactics, approximate counts) to live STIX data (835+ techniques with full metadata including platforms, data sources, and sub-techniques).
 
-**Prerequisites:** Requires `mitreattack-python` — install with `pip install 'athf[attack]'`.
+**Prerequisites:** Requires `mitreattack-python` — install with `pip install 'hecate-agent[attack]'`.
 
 **Cache locations (checked in order):**
-1. `ATHF_STIX_CACHE` environment variable
-2. `{workspace}/.athf/stix-data/` if `.athfconfig.yaml` exists in cwd
-3. `~/.athf/stix-data/` (global default)
+1. `HECATE_STIX_CACHE` environment variable
+2. `{workspace}/.hecate/stix-data/` if `.hecateconfig.yaml` exists in cwd
+3. `~/.hecate/stix-data/` (global default)
 
 ### Options
 
@@ -2202,10 +2202,10 @@ Downloads the Enterprise ATT&CK STIX bundle from the official MITRE repository a
 
 ```bash
 # Download STIX data (first time)
-athf attack update
+hecate-agent attack update
 
 # Force re-download to get latest version
-athf attack update --force
+hecate-agent attack update --force
 ```
 
 ### Exit Codes
@@ -2215,14 +2215,14 @@ athf attack update --force
 
 ---
 
-## athf attack status
+## hecate-agent attack status
 
 Show ATT&CK data provider status and cache information.
 
 ### Synopsis
 
 ```bash
-athf attack status
+hecate-agent attack status
 ```
 
 ### Description
@@ -2232,7 +2232,7 @@ Displays the active data provider (STIX or fallback), ATT&CK version, tactic cou
 ### Examples
 
 ```bash
-athf attack status
+hecate-agent attack status
 ```
 
 **Output (with STIX):**
@@ -2242,7 +2242,7 @@ ATT&CK Data Status
   Provider:  STIX (mitreattack-python)
   Version:   v16.1 (STIX)
   Tactics:   14
-  Cache:     /Users/you/.athf/stix-data/enterprise-attack.json
+  Cache:     /Users/you/.hecate/stix-data/enterprise-attack.json
   Size:      12.3 MB
   Age:       3 days
   Library:   mitreattack-python installed
@@ -2255,7 +2255,7 @@ ATT&CK Data Status
   Provider:  Fallback (hardcoded v14)
   Version:   v14 (hardcoded fallback)
   Tactics:   14
-  Cache:     Not found (/Users/you/.athf/stix-data/enterprise-attack.json)
+  Cache:     Not found (/Users/you/.hecate/stix-data/enterprise-attack.json)
   Library:   mitreattack-python not installed
 ```
 
@@ -2265,19 +2265,19 @@ ATT&CK Data Status
 
 ---
 
-## athf attack lookup
+## hecate-agent attack lookup
 
 Look up an ATT&CK technique by its ID and display metadata.
 
 ### Synopsis
 
 ```bash
-athf attack lookup TECHNIQUE_ID
+hecate-agent attack lookup TECHNIQUE_ID
 ```
 
 ### Description
 
-Shows technique metadata including name, platforms, data sources, tactics, type (technique vs sub-technique), parent technique, description, and sub-techniques. Requires STIX data — run `athf attack update` first.
+Shows technique metadata including name, platforms, data sources, tactics, type (technique vs sub-technique), parent technique, description, and sub-techniques. Requires STIX data — run `hecate-agent attack update` first.
 
 ### Arguments
 
@@ -2289,10 +2289,10 @@ Shows technique metadata including name, platforms, data sources, tactics, type 
 
 ```bash
 # Look up a parent technique
-athf attack lookup T1003
+hecate-agent attack lookup T1003
 
 # Look up a sub-technique
-athf attack lookup T1003.001
+hecate-agent attack lookup T1003.001
 ```
 
 **Output:**
@@ -2315,19 +2315,19 @@ T1003.001 - LSASS Memory
 
 ---
 
-## athf attack techniques
+## hecate-agent attack techniques
 
 List all techniques mapped to a specific ATT&CK tactic.
 
 ### Synopsis
 
 ```bash
-athf attack techniques TACTIC_KEY
+hecate-agent attack techniques TACTIC_KEY
 ```
 
 ### Description
 
-Displays a table of all techniques (including sub-techniques) for the given tactic, showing ID, name, sub-technique status, and platforms. Requires STIX data — run `athf attack update` first.
+Displays a table of all techniques (including sub-techniques) for the given tactic, showing ID, name, sub-technique status, and platforms. Requires STIX data — run `hecate-agent attack update` first.
 
 ### Arguments
 
@@ -2339,10 +2339,10 @@ Displays a table of all techniques (including sub-techniques) for the given tact
 
 ```bash
 # List credential access techniques
-athf attack techniques credential-access
+hecate-agent attack techniques credential-access
 
 # List lateral movement techniques
-athf attack techniques lateral-movement
+hecate-agent attack techniques lateral-movement
 ```
 
 **Output:**
@@ -2373,7 +2373,7 @@ Credential Access (17 techniques)
 
 ## Configuration
 
-ATHF uses `.athfconfig.yaml` for configuration:
+Hecate uses `.hecateconfig.yaml` for configuration:
 
 ```yaml
 # SIEM platform
@@ -2397,22 +2397,22 @@ version: 0.2.1
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ATHF_CONFIG` | Path to config file | `.athfconfig.yaml` |
-| `ATHF_HUNTS_DIR` | Path to hunts directory | `./hunts` |
-| `ATHF_TEMPLATE_DIR` | Path to templates | `./templates` |
+| `HECATE_CONFIG` | Path to config file | `.hecateconfig.yaml` |
+| `HECATE_HUNTS_DIR` | Path to hunts directory | `./hunts` |
+| `HECATE_TEMPLATE_DIR` | Path to templates | `./templates` |
 
 Example:
 
 ```bash
-export ATHF_HUNTS_DIR="/opt/threat-hunting/hunts"
-athf hunt list
+export HECATE_HUNTS_DIR="/opt/threat-hunting/hunts"
+hecate-agent hunt list
 ```
 
 ---
 
 ## Exit Codes
 
-All `athf` commands use standard exit codes:
+All `hecate-agent` commands use standard exit codes:
 
 | Code | Meaning |
 |------|---------|
@@ -2424,7 +2424,7 @@ All `athf` commands use standard exit codes:
 Use in scripts:
 
 ```bash
-if athf hunt validate H-0001; then
+if hecate-agent hunt validate H-0001; then
     echo "Hunt is valid"
 else
     echo "Hunt has errors"
@@ -2440,13 +2440,13 @@ fi
 
 ```bash
 # List only completed hunts
-athf hunt list --output json | jq '.[] | select(.status=="completed")'
+hecate-agent hunt list --output json | jq '.[] | select(.status=="completed")'
 
 # Count hunts by tactic
-athf hunt list --output json | jq -r '.[].tactics[]' | sort | uniq -c
+hecate-agent hunt list --output json | jq -r '.[].tactics[]' | sort | uniq -c
 
 # Find high-severity hunts
-athf hunt list --output json | jq '.[] | select(.severity=="high")'
+hecate-agent hunt list --output json | jq '.[] | select(.severity=="high")'
 ```
 
 ### Automation with Shell Scripts
@@ -2462,11 +2462,11 @@ echo "# Weekly Hunt Report - $WEEK" > "$REPORT"
 echo "" >> "$REPORT"
 
 echo "## Statistics" >> "$REPORT"
-athf hunt stats --period 7d >> "$REPORT"
+hecate-agent hunt stats --period 7d >> "$REPORT"
 
 echo "" >> "$REPORT"
 echo "## Completed Hunts" >> "$REPORT"
-athf hunt list --status completed --output json | \
+hecate-agent hunt list --status completed --output json | \
   jq -r '.[] | "- \(.hunt_id): \(.title)"' >> "$REPORT"
 
 echo "Report generated: $REPORT"
@@ -2488,8 +2488,8 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - run: pip install agentic-threat-hunting-framework
-      - run: athf hunt validate
+      - run: pip install hecate-agent
+      - run: hecate-agent hunt validate
 ```
 
 ### Batch Operations
@@ -2497,7 +2497,7 @@ jobs:
 ```bash
 # Create multiple hunts from a list
 cat techniques.txt | while read tech title; do
-  athf hunt new \
+  hecate-agent hunt new \
     --technique "$tech" \
     --title "$title" \
     --non-interactive
@@ -2506,7 +2506,7 @@ done
 # Validate all hunts and save results
 for hunt in hunts/H-*.md; do
   hunt_id=$(basename "$hunt" .md)
-  athf hunt validate "$hunt_id" 2>&1 | tee "validation-$hunt_id.log"
+  hecate-agent hunt validate "$hunt_id" 2>&1 | tee "validation-$hunt_id.log"
 done
 ```
 
@@ -2523,7 +2523,7 @@ done
 
 ## Need Help?
 
-- **CLI help**: `athf --help` or `athf <command> --help`
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues)
-- **Discussions**: [Ask questions and share ideas](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions)
+- **CLI help**: `hecate-agent --help` or `hecate <command> --help`
+- **GitHub Issues**: [Report bugs or request features](https://github.com/Nebulock-Inc/hecate-agent/issues)
+- **Discussions**: [Ask questions and share ideas](https://github.com/Nebulock-Inc/hecate-agent/discussions)
 - **Documentation**: [docs/getting-started.md](getting-started.md)

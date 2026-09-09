@@ -4,15 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **ATHF (Agentic Threat Hunting Framework)** — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is published as the `agentic-threat-hunting-framework` PyPI package, with the `athf` entry point.
+This is **Hecate (Agentic Threat Hunting Framework)** — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is published as the `hecate-agent` PyPI package, with the `hecate-agent` entry point.
 
-**This repository is dual-purpose:** it is both the framework's source (`athf/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using ATHF against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
+**This repository is dual-purpose:** it is both the framework's source (`hecate/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using Hecate against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
 
 ## Development Setup
 
 ```bash
 # Create .venv and install in editable mode (equivalent to pip install -e ".[dev]")
-athf env setup --dev
+hecate-agent env setup --dev
 # or manually:
 pip install -e ".[dev]"
 
@@ -37,13 +37,13 @@ Copy `.env.example` to `.env` and configure API keys before running agents or re
 ## Common Commands
 
 ```bash
-# IMPORTANT: activate the venv first — two tests invoke `athf` via subprocess
-# and will fail if a system-installed athf binary is found first on PATH
+# IMPORTANT: activate the venv first — two tests invoke `hecate-agent` via subprocess
+# and will fail if a system-installed hecate-agent binary is found first on PATH
 source .venv/bin/activate
-which athf   # sanity check: should point inside .venv
+which hecate-agent   # sanity check: should point inside .venv
 
 # Run all tests with coverage
-pytest tests/ -v --cov=athf --cov-report=term-missing
+pytest tests/ -v --cov=hecate_agent --cov-report=term-missing
 
 # Run a single test file
 pytest tests/core/test_hunt_manager.py -v
@@ -52,30 +52,31 @@ pytest tests/core/test_hunt_manager.py -v
 pytest tests/core/test_hunt_manager.py::TestGetHuntDirectory::test_get_hunt_directory_production -v
 
 # Lint (syntax errors only — fast)
-flake8 athf --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 hecate_agent --count --select=E9,F63,F7,F82 --show-source --statistics
 
 # Full lint pass
-flake8 athf --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+flake8 hecate_agent --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
 # Type check
-mypy athf --ignore-missing-imports
+mypy hecate_agent --ignore-missing-imports
 
 # Format code
-black athf --line-length=127
-isort athf --profile black --line-length 127
+black hecate_agent --line-length=127
+isort hecate_agent --profile black --line-length 127
 
-# Security scan
-bandit -c pyproject.toml -r athf
+# Security scan (pre-commit gates on high severity only; drop the flag
+# to review the low/medium findings, which are known and triaged)
+bandit -c pyproject.toml -r hecate_agent --severity-level high
 
 # Run all pre-commit hooks
 pre-commit run --all-files
 
 # Validate hunt files in a workspace
-athf hunt validate
+hecate-agent hunt validate
 
 # Start the MCP server
-athf mcp serve
-athf-mcp  # standalone entry point
+hecate-agent mcp serve
+hecate-agent-mcp  # standalone entry point
 ```
 
 ## Architecture
@@ -83,9 +84,9 @@ athf-mcp  # standalone entry point
 ### Package Structure
 
 ```
-athf/
+hecate/
 ├── cli.py                  # Click CLI root; registers all command groups + plugin system
-├── plugin_system.py        # Entry-point-based plugin discovery (athf.commands / athf.mcp_tools groups)
+├── plugin_system.py        # Entry-point-based plugin discovery (hecate_agent.commands / hecate_agent.mcp_tools groups)
 ├── commands/               # Click command groups (one file per top-level command)
 │   ├── hunt.py             # Hunt management (delegates to _hunt_create, _hunt_lifecycle, _hunt_query)
 │   ├── investigate.py      # Investigation commands (delegates to _investigate_*)
@@ -94,7 +95,7 @@ athf/
 │   ├── context.py          # AI-optimized context export (reduces token usage)
 │   ├── similar.py          # Semantic similarity search via TF-IDF (requires scikit-learn)
 │   ├── attack.py           # MITRE ATT&CK STIX data management
-│   ├── env.py              # `athf env setup/clean` — creates/manages the project .venv
+│   ├── env.py              # `hecate-agent env setup/clean` — creates/manages the project .venv
 │   ├── eval.py             # Model-quality eval harness — scripted known-answer spot checks
 │   ├── mcp.py              # MCP server control
 │   └── splunk.py           # Optional Splunk integration (loaded conditionally)
@@ -138,19 +139,19 @@ athf/
 
 **CLI-first invariant:** The CLI (and MCP tools) are the only sanctioned way to create/validate hunt files. Direct file writes bypass ID sequencing and YAML frontmatter generation — never create hunt/investigation/research files manually.
 
-**LLM provider auto-detection:** `athf.core.llm_provider.create_provider()` inspects environment variables in priority order (LiteLLM → OpenAI → Anthropic → Bedrock → Ollama). All optional LLM dependencies use lazy imports so the base package installs without any AI SDK.
+**LLM provider auto-detection:** `hecate_agent.core.llm_provider.create_provider()` inspects environment variables in priority order (LiteLLM → OpenAI → Anthropic → Bedrock → Ollama). All optional LLM dependencies use lazy imports so the base package installs without any AI SDK.
 
 **HuntManager caching:** `HuntManager` uses a class-level cache keyed on a filesystem fingerprint (file count + max mtime). Fresh instances are created per CLI invocation and per MCP tool call, making the class-level cache the right scope for deduplication without stale-data risk.
 
-**Plugin system:** Plugins register via `entry_points` groups `athf.commands` (CLI commands) and `athf.mcp_tools` (MCP tool registrations). The CLI and MCP server discover them at startup.
+**Plugin system:** Plugins register via `entry_points` groups `hecate_agent.commands` (CLI commands) and `hecate_agent.mcp_tools` (MCP tool registrations). The CLI and MCP server discover them at startup.
 
-**MCP server:** `mcp/server.py` uses `FastMCP` (requires `mcp[cli]<2.0.0` — the 2.0.0 release removed `mcp.server.fastmcp`). Start with `athf mcp serve` or the `athf-mcp` entry point.
+**MCP server:** `mcp/server.py` uses `FastMCP` (requires `mcp[cli]<2.0.0` — the 2.0.0 release removed `mcp.server.fastmcp`). Start with `hecate-agent mcp serve` or the `hecate-agent-mcp` entry point.
 
 ### Optional Dependencies
 
 | Extra | Provides |
 |-------|----------|
-| `[similarity]` | `scikit-learn` — required for `athf similar` |
+| `[similarity]` | `scikit-learn` — required for `hecate-agent similar` |
 | `[splunk]` | `requests` — Splunk REST integration |
 | `[litellm]` / `[llm]` | LiteLLM multi-provider support |
 | `[anthropic]` | Direct Anthropic SDK |

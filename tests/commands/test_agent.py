@@ -1,4 +1,4 @@
-"""Tests for athf.commands.agent -- specifically the hypothesis-generator display
+"""Tests for hecate_agent.commands.agent -- specifically the hypothesis-generator display
 function, which had zero direct coverage despite carrying real conditional
 logic (ABLE scoping, low-confidence-source banner)."""
 
@@ -7,9 +7,9 @@ import io
 import pytest
 from rich.console import Console
 
-from athf.agents.base import AgentResult
-from athf.agents.llm.hypothesis_generator import HypothesisGenerationOutput
-from athf.commands import agent as agent_cmd
+from hecate_agent.agents.base import AgentResult
+from hecate_agent.agents.llm.hypothesis_generator import HypothesisGenerationOutput
+from hecate_agent.commands import agent as agent_cmd
 
 
 def _capture(result: AgentResult) -> str:
@@ -151,12 +151,13 @@ class TestDisplayPivotResult:
 
     def test_shows_finding_summary(self):
         from click.testing import CliRunner
-        from athf.commands.agent import agent
-        from athf.agents.llm.pivot_suggester import PivotOutput, PivotSuggestion
-        from athf.agents.base import AgentResult
+
+        from hecate_agent.agents.base import AgentResult
+        from hecate_agent.agents.llm.pivot_suggester import PivotOutput, PivotSuggestion
+        from hecate_agent.commands.agent import agent
 
         with __import__("unittest.mock", fromlist=["patch"]).patch(
-            "athf.agents.llm.pivot_suggester.PivotSuggesterAgent.execute"
+            "hecate_agent.agents.llm.pivot_suggester.PivotSuggesterAgent.execute"
         ) as mock_exec:
             mock_exec.return_value = AgentResult(
                 success=True,
@@ -178,8 +179,7 @@ class TestDisplayPivotResult:
             runner = CliRunner()
             result = runner.invoke(
                 agent,
-                ["run", "pivot-suggester", "--finding",
-                 '{"process": "powershell.exe", "parent": "winword.exe"}', "--no-llm"],
+                ["run", "pivot-suggester", "--finding", '{"process": "powershell.exe", "parent": "winword.exe"}', "--no-llm"],
             )
 
         assert result.exit_code == 0
@@ -187,7 +187,8 @@ class TestDisplayPivotResult:
 
     def test_missing_finding_shows_error(self):
         from click.testing import CliRunner
-        from athf.commands.agent import agent
+
+        from hecate_agent.commands.agent import agent
 
         runner = CliRunner()
         result = runner.invoke(agent, ["run", "pivot-suggester"])
@@ -195,20 +196,21 @@ class TestDisplayPivotResult:
 
     def test_heuristic_mode_runs_without_llm(self):
         from click.testing import CliRunner
-        from athf.commands.agent import agent
+
+        from hecate_agent.commands.agent import agent
 
         runner = CliRunner()
         result = runner.invoke(
             agent,
-            ["run", "pivot-suggester", "--no-llm",
-             "--finding", '{"process": "cmd.exe", "parent": "explorer.exe"}'],
+            ["run", "pivot-suggester", "--no-llm", "--finding", '{"process": "cmd.exe", "parent": "explorer.exe"}'],
         )
         assert result.exit_code == 0
         assert "cmd.exe" in result.output or "Pivot" in result.output
 
     def test_pivot_suggester_listed_in_agent_list(self):
         from click.testing import CliRunner
-        from athf.commands.agent import agent
+
+        from hecate_agent.commands.agent import agent
 
         runner = CliRunner()
         result = runner.invoke(agent, ["list"])
@@ -217,7 +219,8 @@ class TestDisplayPivotResult:
 
     def test_pivot_suggester_info_shows_capabilities(self):
         from click.testing import CliRunner
-        from athf.commands.agent import agent
+
+        from hecate_agent.commands.agent import agent
 
         runner = CliRunner()
         result = runner.invoke(agent, ["info", "pivot-suggester"])
