@@ -1,10 +1,10 @@
 """Tests for the two metadata safety nets added after a review of
 auto-generated drafts.
 
-`athf hunt validate` reported "Hunt is valid!" for drafts carrying
+`hecate-agent hunt validate` reported "Hunt is valid!" for drafts carrying
 `platform: []`, `tactics: []` and `techniques: []` -- validate() hard-fails
 only on hunt_id/title/status/date. Four drafts passed validation while
-`athf hunt coverage` reported "no coverage" for every tactic, because the
+`hecate-agent hunt coverage` reported "no coverage" for every tactic, because the
 fields it reads were empty. And there was no way to fix them: `hunt update`
 covered status/title/hunter/counts/tags but not techniques, tactics or
 platform, so AGENTS.md's "never manually construct YAML frontmatter" rule
@@ -21,8 +21,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from athf.commands.hunt import hunt
-from athf.core.hunt_parser import HuntParser, validate_hunt_file_with_warnings
+from hecate_agent.commands.hunt import hunt
+from hecate_agent.core.hunt_parser import HuntParser, validate_hunt_file_with_warnings
 
 
 @pytest.fixture
@@ -163,10 +163,10 @@ class TestUpdateCanSetAttackMetadata:
         """Guarded on STIX: without mitreattack-python installed there is no
         per-technique data to check against, so the command intentionally lets
         the value through rather than rejecting every ID."""
-        from athf.core.attack_matrix import is_using_stix
+        from hecate_agent.core.attack_matrix import is_using_stix
 
         if not is_using_stix():
-            pytest.skip("technique validation requires STIX data (pip install 'athf[attack]')")
+            pytest.skip("technique validation requires STIX data (pip install 'hecate-agent[attack]')")
 
         _write_hunt(temp_workspace, techniques=["T1059"])
 

@@ -1,14 +1,15 @@
 """
-Tests for ATHF CLI commands using actual implementation.
+Tests for Hecate CLI commands using actual implementation.
 """
 
+import json
 import os
 
 import pytest
 import yaml
 from click.testing import CliRunner
 
-from athf.commands.hunt import hunt
+from hecate_agent.commands.hunt import hunt
 
 
 @pytest.fixture
@@ -26,9 +27,8 @@ def temp_workspace(tmp_path):
     os.chdir(old_cwd)
 
 
-
 class TestHuntNewCommand:
-    """Test suite for athf hunt new command."""
+    """Test suite for hecate-agent hunt new command."""
 
     def test_hunt_new_non_interactive(self, runner, temp_workspace):
         """Test creating a new hunt in non-interactive mode."""
@@ -119,7 +119,7 @@ class TestHuntNewCommand:
         # the hunt.py split.
         import sys
 
-        create_mod = sys.modules["athf.commands._hunt_create"]
+        create_mod = sys.modules["hecate_agent.commands._hunt_create"]
 
         def fake_get_technique(tid):
             if tid == "T1003.001":
@@ -167,10 +167,9 @@ class TestHuntNewCommand:
         use), the legacy default of 'collection' is preserved so existing
         behavior is unchanged for users without STIX data."""
         import re
-
         import sys
 
-        create_mod = sys.modules["athf.commands._hunt_create"]
+        create_mod = sys.modules["hecate_agent.commands._hunt_create"]
         monkeypatch.setattr(create_mod, "get_technique", lambda _tid: None)
 
         (temp_workspace / "hunts").mkdir(exist_ok=True)
@@ -328,7 +327,6 @@ class TestHuntOutputPath:
 
     def test_hunt_new_never_creates_production_directory(self, runner, temp_workspace):
         """The word 'production' must not appear in any part of a new hunt's file path."""
-        import re
 
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Anti-Production Hunt", "--non-interactive"])
@@ -373,15 +371,15 @@ class TestHuntOutputPath:
         hunt_id = match.group(1)
 
         promote_result = runner.invoke(hunt, ["promote", hunt_id, "--yes"])
-        assert "not in a test directory" in promote_result.output, (
-            f"Expected 'not in a test directory' message, got: {promote_result.output}"
-        )
+        assert (
+            "not in a test directory" in promote_result.output
+        ), f"Expected 'not in a test directory' message, got: {promote_result.output}"
         # File must not have moved
         assert len(list((temp_workspace / "hunts").rglob(f"{hunt_id}.md"))) == 1
 
 
 class TestHuntBinaryPath:
-    """Subprocess-level tests that invoke the real athf binary.
+    """Subprocess-level tests that invoke the real hecate-agent binary.
 
     CliRunner runs commands in-process with '' (CWD) first in sys.path, so it
     always loads local source code.  These tests spawn an actual subprocess to
@@ -390,19 +388,21 @@ class TestHuntBinaryPath:
     """
 
     def test_binary_hunt_new_path_is_year_quarter(self, tmp_path):
-        """The athf binary must write new hunts to hunts/YYYY/QN/, not hunts/production/."""
+        """The hecate-agent binary must write new hunts to hunts/YYYY/QN/, not hunts/production/."""
         import re
         import shutil
         import subprocess
         from datetime import datetime
 
-        if not shutil.which("athf"):
-            pytest.skip("athf binary not on PATH")
+        if not shutil.which("hecate-agent"):
+            pytest.skip("hecate-agent binary not on PATH")
 
         (tmp_path / "hunts").mkdir(exist_ok=True)
         result = subprocess.run(
-            ["athf", "hunt", "new", "--title", "Binary Smoke Test", "--non-interactive"],
-            cwd=tmp_path, capture_output=True, text=True,
+            ["hecate-agent", "hunt", "new", "--title", "Binary Smoke Test", "--non-interactive"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0, result.stderr
 
@@ -420,15 +420,16 @@ class TestHuntBinaryPath:
             assert re.match(r"Q[1-4]", parts[1]), f"Expected Q1-Q4, got {parts[1]}"
 
     def test_binary_version_matches_source(self, tmp_path):
-        """athf --version must match athf.__version__.__version__."""
+        """hecate-agent --version must match hecate_agent.__version__.__version__."""
         import shutil
         import subprocess
 
-        if not shutil.which("athf"):
-            pytest.skip("athf binary not on PATH")
+        if not shutil.which("hecate-agent"):
+            pytest.skip("hecate-agent binary not on PATH")
 
-        from athf.__version__ import __version__
-        result = subprocess.run(["athf", "--version"], capture_output=True, text=True)
+        from hecate_agent.__version__ import __version__
+
+        result = subprocess.run(["hecate-agent", "--version"], capture_output=True, text=True)
         assert __version__ in result.stdout, (
             f"Binary version output {result.stdout!r} does not contain source version {__version__!r}.\n"
             "Reinstall the editable package: pip install -e ."
@@ -436,7 +437,7 @@ class TestHuntBinaryPath:
 
 
 class TestHuntNewBaselineCommand:
-    """Test suite for athf hunt new-baseline command."""
+    """Test suite for hecate-agent hunt new-baseline command."""
 
     def test_requires_title_in_non_interactive_mode(self, runner, temp_workspace):
         """Test that --title is required for non-interactive baseline creation."""
@@ -498,7 +499,7 @@ class TestHuntNewBaselineCommand:
 
 
 class TestHuntListCommand:
-    """Test suite for athf hunt list command."""
+    """Test suite for hecate-agent hunt list command."""
 
     def setup_test_hunts(self, runner, temp_workspace):
         """Helper to create test hunts."""
@@ -624,7 +625,7 @@ class TestHuntListCommand:
 
 
 class TestHuntValidateCommand:
-    """Test suite for athf hunt validate command."""
+    """Test suite for hecate-agent hunt validate command."""
 
     def test_validate_all_hunts(self, runner, temp_workspace):
         """Test validating all hunts."""
@@ -655,7 +656,7 @@ class TestHuntValidateCommand:
 
 
 class TestHuntStatsCommand:
-    """Test suite for athf hunt stats command."""
+    """Test suite for hecate-agent hunt stats command."""
 
     def test_hunt_stats_empty(self, runner, temp_workspace):
         """Test stats with no hunts."""
@@ -678,7 +679,7 @@ class TestHuntStatsCommand:
 
 
 class TestHuntSearchCommand:
-    """Test suite for athf hunt search command."""
+    """Test suite for hecate-agent hunt search command."""
 
     def test_hunt_search(self, runner, temp_workspace):
         """Test searching for hunts."""
@@ -700,7 +701,7 @@ class TestHuntSearchCommand:
 
 
 class TestHuntCoverageCommand:
-    """Test suite for athf hunt coverage command."""
+    """Test suite for hecate-agent hunt coverage command."""
 
     def test_hunt_coverage(self, runner, temp_workspace):
         """Test ATT&CK coverage command."""
@@ -723,8 +724,229 @@ class TestHuntCoverageCommand:
         assert result.exit_code == 0
 
 
+class TestHuntNewBranches:
+    """Branch coverage for `hecate-agent hunt new`.
+
+    Written before restructuring the command: at complexity 27 it was the
+    worst in the codebase, and the clone, research-link and interactive
+    paths were all untested.
+    """
+
+    def _base(self, *extra):
+        return ["new", "--title", "Base Hunt", "--non-interactive", *extra]
+
+    # --- clone ---------------------------------------------------------
+
+    def test_clone_copies_metadata_from_the_source_hunt(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        runner.invoke(
+            hunt,
+            [
+                "new",
+                "--title",
+                "Source",
+                "--technique",
+                "T1003.001",
+                "--tactic",
+                "credential-access",
+                "--platform",
+                "Linux",
+                "--non-interactive",
+            ],
+        )
+        source = next((temp_workspace / "hunts").rglob("H-*.md")).stem
+
+        runner.invoke(hunt, ["new", "--clone", source, "--non-interactive"])
+
+        clone = sorted((temp_workspace / "hunts").rglob("H-*.md"))[-1]
+        fm = yaml.safe_load(clone.read_text().split("---")[1])
+        assert fm["techniques"] == ["T1003.001"]
+        assert fm["tactics"] == ["credential-access"]
+        assert fm["platform"] == ["Linux"]
+        assert fm["title"].startswith("Clone of")
+
+    def test_explicit_flags_override_the_clone_source(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        runner.invoke(
+            hunt,
+            ["new", "--title", "Source", "--technique", "T1003.001", "--non-interactive"],
+        )
+        source = next((temp_workspace / "hunts").rglob("H-*.md")).stem
+
+        runner.invoke(
+            hunt,
+            ["new", "--clone", source, "--technique", "T1059.001", "--non-interactive"],
+        )
+
+        clone = sorted((temp_workspace / "hunts").rglob("H-*.md"))[-1]
+        assert yaml.safe_load(clone.read_text().split("---")[1])["techniques"] == ["T1059.001"]
+
+    def test_a_missing_clone_source_creates_nothing(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        result = runner.invoke(hunt, ["new", "--clone", "H-9999", "--non-interactive"])
+        assert "Clone source not found" in result.output
+        assert not list((temp_workspace / "hunts").rglob("H-*.md"))
+
+    # --- research link -------------------------------------------------
+
+    def test_a_malformed_research_id_creates_nothing(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        result = runner.invoke(hunt, self._base("--research", "nonsense"))
+        assert "Invalid research ID format" in result.output
+        assert not list((temp_workspace / "hunts").rglob("H-*.md"))
+
+    def test_a_missing_research_document_warns_but_still_creates(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        result = runner.invoke(hunt, self._base("--research", "R-0404"))
+        assert "not found" in result.output
+        assert len(list((temp_workspace / "hunts").rglob("H-*.md"))) == 1
+
+    def test_an_existing_research_document_is_linked(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        (temp_workspace / "research").mkdir(exist_ok=True)
+        (temp_workspace / "research" / "R-0001.md").write_text(
+            "---\nresearch_id: R-0001\ntopic: T\nlinked_hunts: []\n---\n\nbody\n"
+        )
+
+        runner.invoke(hunt, self._base("--research", "R-0001"))
+
+        created = next((temp_workspace / "hunts").rglob("H-*.md"))
+        assert "R-0001" in created.read_text()
+
+    # --- non-interactive defaults --------------------------------------
+
+    def test_title_is_required_in_non_interactive_mode(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        result = runner.invoke(hunt, ["new", "--non-interactive"])
+        assert "--title required" in result.output
+        assert not list((temp_workspace / "hunts").rglob("H-*.md"))
+
+    def test_tactics_are_derived_from_the_technique_when_not_given(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        runner.invoke(hunt, self._base("--technique", "T1003.001"))
+
+        created = next((temp_workspace / "hunts").rglob("H-*.md"))
+        assert yaml.safe_load(created.read_text().split("---")[1])["tactics"]
+
+    def test_platform_and_data_sources_fall_back_to_defaults(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        runner.invoke(hunt, self._base())
+
+        fm = yaml.safe_load(next((temp_workspace / "hunts").rglob("H-*.md")).read_text().split("---")[1])
+        assert fm["platform"] == ["Windows"]
+        assert fm["data_sources"] == ["SIEM", "EDR"]
+
+    def test_test_flag_writes_into_the_test_tree(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        runner.invoke(hunt, self._base("--test"))
+        created = next((temp_workspace / "hunts").rglob("H-*.md"))
+        assert "test" in created.parts
+
+    # --- interactive ----------------------------------------------------
+
+    def test_interactive_mode_prompts_for_each_field(self, runner, temp_workspace, monkeypatch):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        answers = iter(["T1059.001", "Interactive Hunt", "execution", "Windows", "EDR", "", "", "", ""])
+        monkeypatch.setattr("hecate_agent.commands._hunt_create.Prompt.ask", lambda *a, **k: next(answers, ""))
+
+        result = runner.invoke(hunt, ["new"])
+        assert result.exit_code == 0
+
+        fm = yaml.safe_load(next((temp_workspace / "hunts").rglob("H-*.md")).read_text().split("---")[1])
+        assert fm["techniques"] == ["T1059.001"]
+        assert fm["title"] == "Interactive Hunt"
+
+
+class TestHuntCoverageBranches:
+    """Branch coverage for `hecate-agent hunt coverage`.
+
+    Written before the command was restructured: it carried a complexity of 15
+    with only two smoke tests, so the output formats, the tactic filter and
+    the detailed view had nothing checking them.
+    """
+
+    def _one_hunt(self, runner):
+        runner.invoke(
+            hunt,
+            [
+                "new",
+                "--title",
+                "Cred Dump",
+                "--technique",
+                "T1003.001",
+                "--tactic",
+                "credential-access",
+                "--non-interactive",
+            ],
+        )
+
+    def test_json_output_is_parseable(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--output", "json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output[result.output.index("{") :])
+        assert "by_tactic" in payload
+
+    def test_yaml_output_is_parseable(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--output", "yaml"])
+        assert result.exit_code == 0
+        assert "by_tactic" in yaml.safe_load(result.output)
+
+    def test_filtering_to_one_tactic_hides_the_others(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--tactic", "credential-access"])
+        assert result.exit_code == 0
+        assert "Credential Access" in result.output
+        assert "Lateral Movement" not in result.output
+
+    def test_an_unknown_tactic_lists_the_valid_ones(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--tactic", "not-a-tactic"])
+        assert "Unknown tactic" in result.output
+        assert "credential-access" in result.output
+
+    def test_overall_line_appears_only_when_showing_all_tactics(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        assert "Overall:" in runner.invoke(hunt, ["coverage"]).output
+        assert "Overall:" not in runner.invoke(hunt, ["coverage", "--tactic", "execution"]).output
+
+    def test_detailed_view_names_the_covering_hunt(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--detailed"])
+        assert "Detailed Technique Coverage" in result.output
+        assert "T1003.001" in result.output
+
+    def test_detailed_view_skips_tactics_with_no_hunts(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage", "--detailed"])
+        detail = result.output[result.output.index("Detailed Technique Coverage") :]
+        assert "Lateral Movement" not in detail
+
+    def test_uncovered_tactics_are_marked_in_the_summary(self, runner, temp_workspace):
+        (temp_workspace / "hunts").mkdir(exist_ok=True)
+        self._one_hunt(runner)
+
+        result = runner.invoke(hunt, ["coverage"])
+        assert "no coverage" in result.output
+
+
 class TestHuntBriefCommand:
-    """Test suite for athf hunt brief command."""
+    """Test suite for hecate-agent hunt brief command."""
 
     FILLED_KEEP_HUNT = """---
 hunt_id: H-9001
@@ -1063,8 +1285,9 @@ class TestCLIErrorHandling:
         # Should still work, creating directories as needed
         assert result.exit_code == 0 or "error" in result.output.lower()
 
+
 class TestHuntUpdate:
-    """Tests for 'athf hunt update' command."""
+    """Tests for 'hecate-agent hunt update' command."""
 
     def test_update_status(self, runner, temp_workspace):
         (temp_workspace / "hunts").mkdir(exist_ok=True)
@@ -1077,6 +1300,7 @@ class TestHuntUpdate:
         # Verify the change persisted via list
         list_result = runner.invoke(hunt, ["list", "--output", "json"])
         import json
+
         hunts = json.loads(list_result.output)
         assert hunts[0]["status"] == "completed"
 
@@ -1089,6 +1313,7 @@ class TestHuntUpdate:
 
         list_result = runner.invoke(hunt, ["list", "--output", "json"])
         import json
+
         hunts = json.loads(list_result.output)
         assert hunts[0]["true_positives"] == 3
         assert hunts[0]["false_positives"] == 1
@@ -1132,7 +1357,7 @@ class TestHuntUpdate:
 
 
 class TestHuntStatsTrend:
-    """Tests for 'athf hunt stats --trend'."""
+    """Tests for 'hecate-agent hunt stats --trend'."""
 
     def test_stats_trend_shows_quarterly_table(self, runner, temp_workspace):
         (temp_workspace / "hunts").mkdir(exist_ok=True)
@@ -1155,10 +1380,11 @@ class TestHuntStatsTrend:
 
 
 class TestHuntCoverageOutput:
-    """Tests for 'athf hunt coverage --output' formats."""
+    """Tests for 'hecate-agent hunt coverage --output' formats."""
 
     def test_coverage_json_output(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["coverage", "--output", "json"])
         assert result.exit_code == 0
@@ -1167,7 +1393,7 @@ class TestHuntCoverageOutput:
         assert "by_tactic" in data
 
     def test_coverage_yaml_output(self, runner, temp_workspace):
-        import yaml
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["coverage", "--output", "yaml"])
         assert result.exit_code == 0
@@ -1182,10 +1408,11 @@ class TestHuntCoverageOutput:
 
 
 class TestHuntValidateFailOnError:
-    """Tests for 'athf hunt validate --fail-on-error'."""
+    """Tests for 'hecate-agent hunt validate --fail-on-error'."""
 
     def test_fail_on_error_exits_nonzero_when_invalid(self, runner, temp_workspace):
         import yaml as _yaml
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Create a hunt then corrupt its frontmatter
@@ -1202,7 +1429,7 @@ class TestHuntValidateFailOnError:
         parts = content.split("---", 2)
         fm = _yaml.safe_load(parts[1])
         del fm["status"]
-        import yaml
+
         hunt_file.write_text(f"---\n{yaml.dump(fm)}---{parts[2]}")
 
         result = runner.invoke(hunt, ["validate", "--fail-on-error"])
@@ -1220,13 +1447,26 @@ class TestHuntValidateFailOnError:
 
 
 class TestHuntNewClone:
-    """Tests for 'athf hunt new --clone'."""
+    """Tests for 'hecate-agent hunt new --clone'."""
 
     def test_clone_copies_metadata(self, runner, temp_workspace):
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         # Create source hunt
-        runner.invoke(hunt, ["new", "--title", "Original Hunt", "--technique", "T1003.001",
-                             "--tactic", "credential-access", "--platform", "Windows", "--non-interactive"])
+        runner.invoke(
+            hunt,
+            [
+                "new",
+                "--title",
+                "Original Hunt",
+                "--technique",
+                "T1003.001",
+                "--tactic",
+                "credential-access",
+                "--platform",
+                "Windows",
+                "--non-interactive",
+            ],
+        )
 
         # Clone it
         result = runner.invoke(hunt, ["new", "--clone", "H-0001", "--non-interactive"])
@@ -1241,6 +1481,7 @@ class TestHuntNewClone:
 
     def test_clone_title_prefixed(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
 
         # Determine the next ID so we can clone the hunt we create
@@ -1267,6 +1508,7 @@ class TestHuntUpdateAssigneeReviewer:
 
     def test_update_assignee_and_reviewer(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
@@ -1282,6 +1524,7 @@ class TestHuntUpdateAssigneeReviewer:
 
     def test_update_status_in_review(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
@@ -1298,6 +1541,7 @@ class TestHuntListAssignee:
 
     def test_list_filter_by_assignee(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Alice Hunt", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["new", "--title", "Bob Hunt", "--technique", "T1003.001", "--non-interactive"])
@@ -1311,6 +1555,7 @@ class TestHuntListAssignee:
 
     def test_list_assignee_shown_in_table(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["update", "H-0001", "--assignee", "carol"])
@@ -1323,6 +1568,7 @@ class TestHuntListAssignee:
 
     def test_list_status_in_review_filter(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt A", "--technique", "T1003.001", "--non-interactive"])
         runner.invoke(hunt, ["new", "--title", "Hunt B", "--technique", "T1003.001", "--non-interactive"])
@@ -1340,9 +1586,11 @@ class TestHuntNewAssignee:
 
     def test_new_hunt_with_assignee(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
-        result = runner.invoke(hunt, ["new", "--title", "Assignee Hunt", "--technique", "T1003.001",
-                                      "--assignee", "dave", "--non-interactive"])
+        result = runner.invoke(
+            hunt, ["new", "--title", "Assignee Hunt", "--technique", "T1003.001", "--assignee", "dave", "--non-interactive"]
+        )
         assert result.exit_code == 0
 
         list_result = runner.invoke(hunt, ["list", "--output", "json"])
@@ -1352,6 +1600,7 @@ class TestHuntNewAssignee:
 
     def test_new_hunt_without_assignee(self, runner, temp_workspace):
         import json
+
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt No Assignee", "--technique", "T1003.001", "--non-interactive"])
 
@@ -1364,16 +1613,31 @@ class TestHuntNewAssignee:
 
 
 class TestHuntOperationalize:
-    """Tests for 'athf hunt operationalize' command."""
+    """Tests for 'hecate-agent hunt operationalize' command."""
 
     def _make_hunt_with_query(self, runner, temp_workspace):
         """Init workspace and create a hunt that has a query in the CHECK section."""
         (temp_workspace / "hunts").mkdir(exist_ok=True)
-        runner.invoke(hunt, ["new", "--title", "LSASS Hunt", "--technique", "T1003.001",
-                             "--tactic", "credential-access", "--platform", "Windows",
-                             "--data-source", "EDR", "--non-interactive"])
+        runner.invoke(
+            hunt,
+            [
+                "new",
+                "--title",
+                "LSASS Hunt",
+                "--technique",
+                "T1003.001",
+                "--tactic",
+                "credential-access",
+                "--platform",
+                "Windows",
+                "--data-source",
+                "EDR",
+                "--non-interactive",
+            ],
+        )
         # Find the hunt file and inject a fenced code block into CHECK section
         import glob
+
         hunt_files = glob.glob(str(temp_workspace / "hunts" / "**" / "H-0001.md"), recursive=True)
         if not hunt_files:
             # Example hunt from init
@@ -1386,8 +1650,7 @@ class TestHuntOperationalize:
             content = f.read()
         # Replace the [Your initial query] placeholder with a real code block
         content = content.replace(
-            "[Your initial query]",
-            "index=edr sourcetype=crowdstrike parent_process=winword.exe | stats count by process_name"
+            "[Your initial query]", "index=edr sourcetype=crowdstrike parent_process=winword.exe | stats count by process_name"
         )
         with open(hunt_file, "w") as f:
             f.write(content)
@@ -1405,6 +1668,7 @@ class TestHuntOperationalize:
     def test_operationalize_sigma_contains_hunt_metadata(self, runner, temp_workspace):
         self._make_hunt_with_query(runner, temp_workspace)
         import glob
+
         hunt_files = sorted(glob.glob(str(temp_workspace / "hunts" / "**" / "*.md"), recursive=True))
         hunt_file = hunt_files[-1]
         hunt_id = hunt_file.rstrip(".md").split("/")[-1]
@@ -1419,9 +1683,9 @@ class TestHuntOperationalize:
 
     def test_operationalize_no_query_shows_message(self, runner, temp_workspace):
         (temp_workspace / "hunts").mkdir(exist_ok=True)
-        runner.invoke(hunt, ["new", "--title", "Hunt No Query", "--technique", "T1003.001",
-                             "--non-interactive"])
+        runner.invoke(hunt, ["new", "--title", "Hunt No Query", "--technique", "T1003.001", "--non-interactive"])
         import glob
+
         hunt_files = sorted(glob.glob(str(temp_workspace / "hunts" / "**" / "*.md"), recursive=True))
         hunt_id = hunt_files[-1].rstrip(".md").split("/")[-1]
 
@@ -1455,19 +1719,20 @@ class TestHuntOperationalize:
         hunt_id = hunt_file.rstrip(".md").split("/")[-1].split("\\")[-1]
         custom = str(temp_workspace / "custom_sigma.yml")
 
-        result = runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1",
-                                      "--output", custom, "--no-patch"])
+        result = runner.invoke(hunt, ["operationalize", hunt_id, "--query-index", "1", "--output", custom, "--no-patch"])
         assert result.exit_code == 0
         import os
+
         assert os.path.exists(custom)
 
 
 # ---------------------------------------------------------------------------
-# athf hunt stats --save-context
+# hecate-agent hunt stats --save-context
 # ---------------------------------------------------------------------------
 
+
 class TestHuntStatsSaveContext:
-    """Tests for athf hunt stats --save-context."""
+    """Tests for hecate-agent hunt stats --save-context."""
 
     def test_save_context_creates_section_in_env_file(self, runner, temp_workspace):
         runner.invoke(hunt, ["new", "--title", "Save Ctx Hunt", "--non-interactive"])

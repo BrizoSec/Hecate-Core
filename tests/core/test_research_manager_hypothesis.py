@@ -4,10 +4,8 @@ import textwrap
 from pathlib import Path
 
 import pytest
-import yaml
 
-from athf.core.research_manager import ResearchManager, parse_research_file
-
+from hecate_agent.core.research_manager import ResearchManager, parse_research_file
 
 SAMPLE_RESEARCH = textwrap.dedent(
     """\

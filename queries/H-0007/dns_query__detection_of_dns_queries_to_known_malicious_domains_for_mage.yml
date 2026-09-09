@@ -1,0 +1,34 @@
+title: Detection of DNS Queries to Known Malicious Domains for Magento and Adobe Commerce Systems
+id: b57ae369-bee4-454d-b697-4f052c1e041e
+status: experimental
+description: This rule aims to detect DNS queries made to known malicious domains that are associated
+  with the exploitation of zero-day RCE vulnerabilities in Magento and Adobe Commerce systems. It helps
+  identify potential breaches or attacks targeting these platforms.
+references:
+- https://sansec.io/research/stylesmuggler-0day
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-09'
+tags:
+- attack.t1059
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .run
+    - .com
+  filter:
+    QueryName|contains:
+    - www.incofar.it
+    - ecomscan.com
+    - windwsecurity.run
+    - ntp.timesysnc.net
+    - pool.microsft.studio
+    - time.microsft.run
+  condition: selection and not filter
+falsepositives:
+- DNS queries to legitimate domains that happen to end with .run or .com
+level: medium
+related:
+- id: H-0007
+  type: derived

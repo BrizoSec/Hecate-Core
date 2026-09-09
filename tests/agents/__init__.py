@@ -1,1 +1,1 @@
-"""ATHF agents test suite."""
+"""Hecate agents test suite."""

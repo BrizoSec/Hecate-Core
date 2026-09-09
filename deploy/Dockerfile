@@ -12,7 +12,7 @@ WORKDIR /app
 
 # Install dependencies before copying source for better layer caching
 COPY pyproject.toml README.md ./
-COPY athf/ ./athf/
+COPY hecate/ ./hecate/
 
 RUN pip install --no-cache-dir -e ".[all]"
 

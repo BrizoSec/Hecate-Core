@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from athf.core.hunt_parser import HuntParser, parse_hunt_file, validate_hunt_file
+from hecate_agent.core.hunt_parser import HuntParser, parse_hunt_file, validate_hunt_file
 
 # Sample valid hunt content for testing
 VALID_HUNT = """---
@@ -348,7 +348,8 @@ class TestParseWithoutLockSections:
             os.unlink(temp_path)
 
     def test_fast_convenience_function(self):
-        from athf.core.hunt_parser import parse_hunt_file_fast
+        from hecate_agent.core.hunt_parser import parse_hunt_file_fast
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
             f.write(VALID_HUNT)
             temp_path = f.name
@@ -360,7 +361,8 @@ class TestParseWithoutLockSections:
             os.unlink(temp_path)
 
     def test_fast_parse_raises_for_missing_file(self):
-        from athf.core.hunt_parser import parse_hunt_file_fast
+        from hecate_agent.core.hunt_parser import parse_hunt_file_fast
+
         with pytest.raises(FileNotFoundError):
             parse_hunt_file_fast(Path("/nonexistent/hunt.md"))
 
@@ -370,7 +372,8 @@ class TestParseWithoutLockSections:
             f.write(VALID_HUNT)
             temp_path = f.name
         try:
-            from athf.core.hunt_parser import parse_hunt_file_fast
+            from hecate_agent.core.hunt_parser import parse_hunt_file_fast
+
             data = parse_hunt_file_fast(Path(temp_path))
             assert "Hypothesis" in data["content"]
         finally:

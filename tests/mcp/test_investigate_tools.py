@@ -8,11 +8,11 @@ import pytest
 
 pytest.importorskip("mcp", reason="MCP optional dependency not installed")
 
-from athf.mcp.server import create_server
+from hecate_agent.mcp.server import create_server  # noqa: E402 - must follow the importorskip guard above
 
 
 def _setup_workspace(tmp_path):
-    (tmp_path / ".athfconfig.yaml").write_text("workspace_name: test\n")
+    (tmp_path / ".hecateconfig.yaml").write_text("workspace_name: test\n")
     (tmp_path / "investigations").mkdir()
     return tmp_path
 
@@ -55,7 +55,7 @@ class TestInvestigateNew:
             lambda *a, **kw: _mock_subprocess_run("\n✅ Created I-0042: Suspicious login pattern\n"),
         )
 
-        result = _call_tool(server, "athf_investigate_new", {"title": "Suspicious login pattern"})
+        result = _call_tool(server, "hecate_investigate_new", {"title": "Suspicious login pattern"})
 
         assert result["status"] == "created"
         assert result["investigation_id"] == "I-0042"
@@ -83,7 +83,7 @@ class TestInvestigateNew:
             lambda *a, **kw: _mock_subprocess_run("\n✅ Created I-0042: Our own investigation\n"),
         )
 
-        result = _call_tool(server, "athf_investigate_new", {"title": "Our own investigation"})
+        result = _call_tool(server, "hecate_investigate_new", {"title": "Our own investigation"})
 
         assert result["investigation_id"] == "I-0042"
         assert result["investigation_id"] != "I-9999"
@@ -95,7 +95,7 @@ class TestInvestigateNew:
             lambda *a, **kw: _mock_subprocess_run("", returncode=1),
         )
 
-        result = _call_tool(server, "athf_investigate_new", {"title": "Bad"})
+        result = _call_tool(server, "hecate_investigate_new", {"title": "Bad"})
 
         assert "error" in result
 
@@ -106,7 +106,7 @@ class TestInvestigateNew:
             lambda *a, **kw: _mock_subprocess_run("some unexpected output format"),
         )
 
-        result = _call_tool(server, "athf_investigate_new", {"title": "Odd"})
+        result = _call_tool(server, "hecate_investigate_new", {"title": "Odd"})
 
         assert result["status"] == "created"
         assert "investigation_id" not in result

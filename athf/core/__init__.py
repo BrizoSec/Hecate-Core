@@ -1,1 +1,0 @@
-"""Core ATHF functionality."""

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from athf.core.envelope import build_envelope
+from hecate_agent.core.envelope import build_envelope
 
 
 def test_under_threshold_returns_inline(tmp_path: Path) -> None:
@@ -151,13 +151,11 @@ def test_non_string_payload_is_json_serialized(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "artifact_name",
     [
-        "/etc/passwd",       # POSIX absolute
+        "/etc/passwd",  # POSIX absolute
         "\\Windows\\System32\\evil.txt",  # Windows-style backslash absolute
     ],
 )
-def test_gate_b_rejects_absolute_artifact_name(
-    tmp_path: Path, artifact_name: str
-) -> None:
+def test_gate_b_rejects_absolute_artifact_name(tmp_path: Path, artifact_name: str) -> None:
     payload = "x" * 3000
     with pytest.raises(ValueError, match="must be a relative filename"):
         build_envelope(

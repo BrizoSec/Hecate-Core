@@ -1,11 +1,11 @@
-"""Tests for athf.core.hunt_manager - hunt listing and program statistics."""
+"""Tests for hecate_agent.core.hunt_manager - hunt listing and program statistics."""
 
 from pathlib import Path
 from typing import Optional
 
 import pytest
 
-from athf.core.hunt_manager import HuntManager, get_hunt_directory
+from hecate_agent.core.hunt_manager import HuntManager, get_hunt_directory
 
 
 def _write_hunt(
@@ -57,15 +57,19 @@ class TestGetHuntDirectory:
     def test_get_hunt_directory_production(self, monkeypatch):
         """Test that the production directory is returned."""
         from datetime import datetime
-        import athf.core.hunt_manager as hm
-        monkeypatch.setattr(hm, 'datetime', type('_FakeDatetime', (), {'now': staticmethod(lambda: datetime(2025, 1, 1))})())
+
+        import hecate_agent.core.hunt_manager as hm
+
+        monkeypatch.setattr(hm, "datetime", type("_FakeDatetime", (), {"now": staticmethod(lambda: datetime(2025, 1, 1))})())
         assert get_hunt_directory() == Path("hunts/2025/Q1")
 
     def test_get_hunt_directory_test(self, monkeypatch):
         """Test that the test directory is returned."""
         from datetime import datetime
-        import athf.core.hunt_manager as hm
-        monkeypatch.setattr(hm, 'datetime', type('_FakeDatetime', (), {'now': staticmethod(lambda: datetime(2025, 1, 1))})())
+
+        import hecate_agent.core.hunt_manager as hm
+
+        monkeypatch.setattr(hm, "datetime", type("_FakeDatetime", (), {"now": staticmethod(lambda: datetime(2025, 1, 1))})())
         assert get_hunt_directory(is_test=True) == Path("hunts/test/2025/Q1")
 
 
@@ -218,17 +222,22 @@ class TestCalculateAttackCoverage:
     # the tests below. Injected via setup_method so the tests always run
     # (no dependency on a cached STIX file or optional mitreattack-python).
     _TECHNIQUE_MAP = {
-        "T1053.005": {"id": "T1053.005", "name": "Scheduled Task/Job: Scheduled Task",
-                      "tactic_shortnames": ["execution", "persistence", "privilege-escalation"]},
-        "T1204":     {"id": "T1204", "name": "User Execution",
-                      "tactic_shortnames": ["execution"]},
-        "T1003.001": {"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory",
-                      "tactic_shortnames": ["credential-access"]},
+        "T1053.005": {
+            "id": "T1053.005",
+            "name": "Scheduled Task/Job: Scheduled Task",
+            "tactic_shortnames": ["execution", "persistence", "privilege-escalation"],
+        },
+        "T1204": {"id": "T1204", "name": "User Execution", "tactic_shortnames": ["execution"]},
+        "T1003.001": {
+            "id": "T1003.001",
+            "name": "OS Credential Dumping: LSASS Memory",
+            "tactic_shortnames": ["credential-access"],
+        },
     }
 
     def setup_method(self):
-        from athf.core import attack_matrix
-        from athf.core.attack_matrix import FallbackProvider
+        from hecate_agent.core import attack_matrix
+        from hecate_agent.core.attack_matrix import FallbackProvider
 
         technique_map = self._TECHNIQUE_MAP
 
@@ -313,7 +322,7 @@ class TestParseCache:
         _write_hunt(hunts_dir, "H-0001", status="planning")
         _write_hunt(hunts_dir, "H-0002", status="planning")
 
-        import athf.core.hunt_manager as hunt_manager_module
+        import hecate_agent.core.hunt_manager as hunt_manager_module
 
         real_parse = hunt_manager_module.parse_hunt_file_fast
         call_count = {"n": 0}
@@ -383,6 +392,7 @@ class TestParseCache:
 
         # dir_a now in cache; destroy it
         import shutil
+
         shutil.rmtree(dir_a)
 
         # A write from a different dir should evict the stale dir_a entry
@@ -441,7 +451,8 @@ class TestSearchHunts:
         hunts_dir.mkdir()
         _write_hunt(hunts_dir, "H-0001")
 
-        import athf.core.hunt_manager as hm
+        import hecate_agent.core.hunt_manager as hm
+
         call_count = {"n": 0}
         real_fast = hm.parse_hunt_file_fast
 

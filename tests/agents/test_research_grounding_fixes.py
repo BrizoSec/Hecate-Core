@@ -5,7 +5,7 @@ value measured another -- and both propagated into hunts as if they were
 evidence.
 """
 
-from athf.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchSkillOutput
+from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchSkillOutput
 
 # Abridged from the workspace's own knowledge/environment.md.
 ENVIRONMENT_PROFILE = """

@@ -17,9 +17,9 @@ BEFORE generating anything new, you MUST:
    - All hunts MUST focus on behaviors/TTPs (top of Pyramid of Pain), never just hashes/IPs
 
 TOOLS AVAILABLE:
-   - If athf CLI installed: Use `athf hunt` commands for search, create, list, stats
+   - If hecate-agent CLI installed: Use `hecate-agent hunt` commands for search, create, list, stats
    - If CLI unavailable: Use grep across hunts/ folder
-   - Check availability: `athf --version`
+   - Check availability: `hecate-agent --version`
    - Never fail workflow if CLI unavailable - always have fallback
 
 1. Search past hunts to avoid duplicates:
@@ -100,8 +100,8 @@ CONVERSATION STYLE:
 **With CLI:**
 ```
 You: "Check if we've hunted T1003.001 before:
-athf hunt search 'T1003.001'
-athf hunt list --technique T1003.001
+hecate-agent hunt search 'T1003.001'
+hecate-agent hunt list --technique T1003.001
 Summarize lessons learned from results."
 ```
 
@@ -140,7 +140,7 @@ Use the system prompt above. This is a proactive hunt."
 **With CLI:**
 ```
 You: "Create this hypothesis using:
-athf hunt new --technique T1003.001 --title 'LSASS Credential Dumping Detection'
+hecate-agent hunt new --technique T1003.001 --title 'LSASS Credential Dumping Detection'
 Then review and edit the generated file as needed."
 ```
 

@@ -30,10 +30,10 @@ Each file is a complete hunt from planning through execution results.
 
 ```bash
 # Interactive mode - prompts you for details
-athf hunt new
+hecate-agent hunt new
 
 # Or specify details directly
-athf hunt new --technique T1110.001 --title "SSH Brute Force Detection" --platform linux
+hecate-agent hunt new --technique T1110.001 --title "SSH Brute Force Detection" --platform linux
 ```
 
 **Manual Method (Alternative):**
@@ -102,19 +102,19 @@ The AI will search the hunts/ folder and summarize findings.
 
 ```bash
 # Find hunts by MITRE technique
-athf hunt list --technique T1110.001
+hecate-agent hunt list --technique T1110.001
 
 # Find by behavior (full-text search)
-athf hunt search "brute force"
+hecate-agent hunt search "brute force"
 
 # Find by technology
-athf hunt search "powershell"
+hecate-agent hunt search "powershell"
 
 # See completed hunts
-athf hunt list --status completed
+hecate-agent hunt list --status completed
 
 # Get hunt statistics
-athf hunt stats
+hecate-agent hunt stats
 ```
 
 ### Manual Grep (Fallback)

@@ -1,17 +1,17 @@
-# ATHF Hunt Showcase
+# Hecate Hunt Showcase
 
-Real hunts from our [hunts/](athf/data/hunts/) directory demonstrating how the LOCK pattern structures threat hunting from hypothesis to detection.
+Real hunts from our [hunts/](hecate_agent/data/hunts/) directory demonstrating how the LOCK pattern structures threat hunting from hypothesis to detection.
 
 ## 🆕 New in v0.3.0: AI-Powered Hunt Capabilities
 
-- **Research Agent:** `athf research new --topic "LSASS dumping"` - 5-skill research (15-20 min) using web search + LLM
-- **Hypothesis Generator:** `athf agent run hypothesis-generator --threat-intel "..."` - AI-generated hunt hypotheses
+- **Research Agent:** `hecate-agent research new --topic "LSASS dumping"` - 5-skill research (15-20 min) using web search + LLM
+- **Hypothesis Generator:** `hecate-agent agent run hypothesis-generator --threat-intel "..."` - AI-generated hunt hypotheses
 
 ---
 
 ## Hunt #1: macOS Information Stealer Detection
 
-**[View full hunt: H-0001.md →](athf/data/hunts/2026/Q1/H-0001.md)**
+**[View full hunt: H-0001.md →](hecate_agent/data/hunts/2026/Q1/H-0001.md)**
 
 **Hunt ID:** H-0001 | **ATT&CK:** T1005, T1059.002 | **Platform:** macOS | **Status:** ✅ Completed
 
@@ -93,7 +93,7 @@ index=mac_edr process_signature_status!=valid
 
 ## Hunt #2: Linux Crontab Persistence Detection
 
-**[View full hunt: H-0002.md →](athf/data/hunts/2026/Q1/H-0002.md)**
+**[View full hunt: H-0002.md →](hecate_agent/data/hunts/2026/Q1/H-0002.md)**
 
 **Hunt ID:** H-0002 | **ATT&CK:** T1053.003 | **Platform:** Linux | **Status:** ✅ Completed
 
@@ -165,7 +165,7 @@ file_path IN crontab locations, action IN modified/created
 
 ## Hunt #3: AWS Lambda Persistence Detection
 
-**[View full hunt: H-0003.md →](athf/data/hunts/2026/Q1/H-0003.md)**
+**[View full hunt: H-0003.md →](hecate_agent/data/hunts/2026/Q1/H-0003.md)**
 
 **Hunt ID:** H-0003 | **ATT&CK:** T1546.004, T1098 | **Platform:** AWS | **Status:** ✅ Completed
 
@@ -288,4 +288,4 @@ All hunt templates and queries are available in `hunts/` and `queries/` director
 5. Refine based on your findings
 6. Document your iterations and lessons learned
 
-**Ready to document your own hunts?** Check out the [Getting Started Guide](athf/data/docs/getting-started.md) and [templates/](athf/data/templates/).
+**Ready to document your own hunts?** Check out the [Getting Started Guide](hecate_agent/data/docs/getting-started.md) and [templates/](hecate_agent/data/templates/).

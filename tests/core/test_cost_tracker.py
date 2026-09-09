@@ -1,13 +1,8 @@
-"""Tests for athf.core.cost_tracker - model-aware cost estimation."""
+"""Tests for hecate_agent.core.cost_tracker - model-aware cost estimation."""
 
 import pytest
 
-from athf.core.cost_tracker import (
-    MODEL_PRICING,
-    _normalize_bedrock_model_id,
-    _resolve_pricing,
-    estimate_cost,
-)
+from hecate_agent.core.cost_tracker import MODEL_PRICING, _normalize_bedrock_model_id, _resolve_pricing, estimate_cost
 
 # ---------------------------------------------------------------------------
 # _resolve_pricing tests

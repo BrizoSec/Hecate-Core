@@ -1,6 +1,6 @@
-# ATHF Configuration Reference
+# Hecate Configuration Reference
 
-This document is the single source of truth for configuring ATHF: environment variables, the `.athfconfig.yaml` workspace config, LLM provider setup, API keys, and the hunt template.
+This document is the single source of truth for configuring Hecate: environment variables, the `.hecateconfig.yaml` workspace config, LLM provider setup, API keys, and the hunt template.
 
 ---
 
@@ -10,7 +10,7 @@ This document is the single source of truth for configuring ATHF: environment va
 2. [Quick Setup](#quick-setup)
 3. [API Keys Reference](#api-keys-reference)
 4. [LLM Provider Configuration](#llm-provider-configuration)
-5. [`.athfconfig.yaml` Format](#athfconfigyaml-format)
+5. [`.hecateconfig.yaml` Format](#hecateconfigyaml-format)
 6. [All Environment Variables](#all-environment-variables)
 7. [Hunt Template (`HUNT_TEMPLATE.j2`)](#hunt-template-hunt_templatej2)
 8. [MCP Server Configuration](#mcp-server-configuration)
@@ -26,7 +26,7 @@ User / AI assistant
         │
         ▼
 ┌───────────────────────────────────────────────────────────────────┐
-│  1. RESEARCH   athf research new --topic "..." --technique T1003  │
+│  1. RESEARCH   hecate-agent research new --topic "..." --technique T1003  │
 │     • Skill 1: System internals (web search via Tavily)           │
 │     • Skill 2: Adversary tradecraft (web search + ATT&CK STIX)    │
 │     • Skill 3: Telemetry mapping (OCSF schema + environment.md)   │
@@ -37,7 +37,7 @@ User / AI assistant
                              │
                              ▼
 ┌───────────────────────────────────────────────────────────────────┐
-│  2. HYPOTHESIS   athf agent run hypothesis-generator              │
+│  2. HYPOTHESIS   hecate-agent agent run hypothesis-generator              │
 │     • Loads research context from R-XXXX.md                       │
 │     • Injects real ATT&CK technique names (STIX grounding)        │
 │     • Calls LLM to generate structured JSON hypothesis            │
@@ -47,7 +47,7 @@ User / AI assistant
                              │
                              ▼
 ┌───────────────────────────────────────────────────────────────────┐
-│  3. HUNT CREATION   athf hunt new --research R-XXXX               │
+│  3. HUNT CREATION   hecate-agent hunt new --research R-XXXX               │
 │     • Renders HUNT_TEMPLATE.j2 with hypothesis fields             │
 │     • Creates H-XXXX.md in hunts/production/YYYY/QN/             │
 │     • Validates YAML frontmatter                                  │
@@ -58,7 +58,7 @@ User / AI assistant
 ┌───────────────────────────────────────────────────────────────────┐
 │  4. QUERY EXECUTION   (human or data source integration)          │
 │     • Analyst writes and runs queries (Splunk, KQL, SQL, etc.)    │
-│     • athf splunk search (Splunk REST integration)                │
+│     • hecate-agent splunk search (Splunk REST integration)                │
 │     • Results recorded in hunt file (CHECK section)               │
 └────────────────────────────┬──────────────────────────────────────┘
                              │
@@ -66,13 +66,13 @@ User / AI assistant
 ┌───────────────────────────────────────────────────────────────────┐
 │  5. DOCUMENTATION   (human edits hunt file)                       │
 │     • KEEP section: findings, TP/FP counts, lessons learned       │
-│     • athf hunt validate H-XXXX (CI/CD check)                    │
-│     • athf investigate promote I-XXXX (if started as investigation)│
+│     • hecate-agent hunt validate H-XXXX (CI/CD check)                    │
+│     • hecate-agent investigate promote I-XXXX (if started as investigation)│
 └───────────────────────────────────────────────────────────────────┘
 ```
 
 Each LLM call is grounded with real data where possible:
-- **Technique names/descriptions** come from local ATT&CK STIX data (`athf attack update`)
+- **Technique names/descriptions** come from local ATT&CK STIX data (`hecate-agent attack update`)
 - **Adversary tradecraft** comes from Tavily web search results
 - **Telemetry fields** come from `knowledge/OCSF_SCHEMA_REFERENCE.md` and `environment.md`
 - **Past hunt context** comes from local semantic search against `hunts/`
@@ -84,9 +84,9 @@ Each LLM call is grounded with real data where possible:
 ### Minimum viable (no AI, no web search)
 
 ```bash
-pip install agentic-threat-hunting-framework
-athf init
-athf hunt new --technique T1003.001 --title "LSASS Dumping" --non-interactive
+pip install hecate-agent
+hecate-agent init
+hecate-agent hunt new --technique T1003.001 --title "LSASS Dumping" --non-interactive
 ```
 
 No API keys required. Hunt creation and management work fully offline.
@@ -96,7 +96,7 @@ No API keys required. Hunt creation and management work fully offline.
 ```bash
 # Option A: Anthropic (Claude)
 export ANTHROPIC_API_KEY=sk-ant-...
-pip install 'agentic-threat-hunting-framework[litellm]'
+pip install 'hecate-agent[litellm]'
 
 # Option B: OpenAI
 export OPENAI_API_KEY=sk-...
@@ -104,14 +104,14 @@ export OPENAI_API_KEY=sk-...
 # Option C: Local Ollama (no API key needed)
 # Install Ollama: https://ollama.com, then:
 ollama pull qwen2.5:14b
-# ATHF auto-detects Ollama at localhost:11434
+# Hecate auto-detects Ollama at localhost:11434
 ```
 
 ### With research agent (requires web search)
 
 ```bash
 export TAVILY_API_KEY=tvly-...
-athf research new --topic "LSASS dumping" --technique T1003.001
+hecate-agent research new --topic "LSASS dumping" --technique T1003.001
 ```
 
 Get a free Tavily key at <https://tavily.com> (1,000 free searches/month).
@@ -119,8 +119,8 @@ Get a free Tavily key at <https://tavily.com> (1,000 free searches/month).
 ### With live ATT&CK data (better grounding)
 
 ```bash
-pip install 'agentic-threat-hunting-framework[attack]'
-athf attack update   # Downloads ~50 MB STIX bundle once
+pip install 'hecate-agent[attack]'
+hecate-agent attack update   # Downloads ~50 MB STIX bundle once
 ```
 
 ---
@@ -132,18 +132,18 @@ athf attack update   # Downloads ~50 MB STIX bundle once
 | `ANTHROPIC_API_KEY` | Optional | Claude hypothesis/research generation | <https://console.anthropic.com> |
 | `OPENAI_API_KEY` | Optional | GPT-4 hypothesis/research generation | <https://platform.openai.com> |
 | `TAVILY_API_KEY` | Optional | Web search in research agent (Skills 1 & 2) | <https://tavily.com> |
-| `SPLUNK_TOKEN` | Optional | `athf splunk search` — execute SPL queries | Splunk Settings → Tokens |
+| `SPLUNK_TOKEN` | Optional | `hecate-agent splunk search` — execute SPL queries | Splunk Settings → Tokens |
 | `AWS_PROFILE` / `AWS_ACCESS_KEY_ID` | Optional | AWS Bedrock LLM provider | AWS IAM |
 
-**None of these are required to use core ATHF features** (hunt creation, validation, search, statistics). They unlock progressively richer AI capabilities.
+**None of these are required to use core Hecate features** (hunt creation, validation, search, statistics). They unlock progressively richer AI capabilities.
 
 ### What happens without each key
 
 | Missing Key | Effect |
 |-------------|--------|
-| No LLM key and no Ollama | `athf agent run` and `athf research new` fall back to template-based output (no AI analysis) |
+| No LLM key and no Ollama | `hecate-agent agent run` and `hecate-agent research new` fall back to template-based output (no AI analysis) |
 | No `TAVILY_API_KEY` | Research Skill 1 and Skill 2 proceed with model recall only; findings are flagged `[UNCERTAIN]` |
-| No `SPLUNK_TOKEN` | `athf splunk` commands fail with a credentials error |
+| No `SPLUNK_TOKEN` | `hecate-agent splunk` commands fail with a credentials error |
 | No ATT&CK STIX | Technique grounding uses FallbackProvider; output T-code validation is skipped |
 
 ---
@@ -152,7 +152,7 @@ athf attack update   # Downloads ~50 MB STIX bundle once
 
 ### Auto-detection order
 
-When no provider is explicitly configured, ATHF checks in this order:
+When no provider is explicitly configured, Hecate checks in this order:
 
 ```
 1. ANTHROPIC_API_KEY set?  → LiteLLM + anthropic/claude-sonnet-4-5-20250514
@@ -165,7 +165,7 @@ When no provider is explicitly configured, ATHF checks in this order:
 5. None of the above       → RuntimeError (no provider found)
 ```
 
-### Config file override (`.athfconfig.yaml`)
+### Config file override (`.hecateconfig.yaml`)
 
 Takes priority over auto-detection. Supports all four providers:
 
@@ -197,40 +197,40 @@ llm:
 
 ### Environment variable overrides
 
-Environment variables take priority over `.athfconfig.yaml`:
+Environment variables take priority over `.hecateconfig.yaml`:
 
 ```bash
-ATHF_LLM_PROVIDER=ollama      # Force a specific provider
-ATHF_LLM_MODEL=llama3.2:3b   # Override the model
-ATHF_LLM_BASE_URL=http://...  # Override the base URL (useful in Docker)
-ATHF_OLLAMA_TIMEOUT_SEC=300   # Ollama request timeout
+HECATE_LLM_PROVIDER=ollama      # Force a specific provider
+HECATE_LLM_MODEL=llama3.2:3b   # Override the model
+HECATE_LLM_BASE_URL=http://...  # Override the base URL (useful in Docker)
+HECATE_OLLAMA_TIMEOUT_SEC=300   # Ollama request timeout
 ```
 
 ### Full priority order (highest → lowest)
 
 ```
 explicit config dict (programmatic API)
-  └── ATHF_LLM_PROVIDER / ATHF_LLM_MODEL / ATHF_LLM_BASE_URL (env vars)
-        └── .athfconfig.yaml llm section (config file)
+  └── HECATE_LLM_PROVIDER / HECATE_LLM_MODEL / HECATE_LLM_BASE_URL (env vars)
+        └── .hecateconfig.yaml llm section (config file)
               └── auto-detection (ANTHROPIC_API_KEY → OPENAI_API_KEY → AWS → Ollama)
 ```
 
 ### Provider-specific notes
 
 **LiteLLM** (`provider: litellm`)
-- Requires: `pip install 'athf[litellm]'`
+- Requires: `pip install 'hecate-agent[litellm]'`
 - Supports 100+ models via a single interface (Anthropic, OpenAI, Gemini, Cohere, etc.)
 - Model names follow LiteLLM format: `anthropic/claude-opus-4-5`, `openai/gpt-4o`, `gemini/gemini-2.0-flash`
 - Set the corresponding provider API key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
 
 **Bedrock** (`provider: bedrock`)
-- Requires: `pip install 'athf[bedrock]'`
+- Requires: `pip install 'hecate-agent[bedrock]'`
 - Uses your existing AWS credentials (`~/.aws/credentials` or IAM role)
 - Set `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
 - Region defaults to `us-east-1`; override with `AWS_REGION` or config `region:`
 
 **Ollama** (`provider: ollama`)
-- Requires: `pip install 'athf[ollama]'` + local Ollama installation
+- Requires: `pip install 'hecate-agent[ollama]'` + local Ollama installation
 - No API key needed — runs locally
 - Install Ollama: <https://ollama.com>
 - Pull a model before use: `ollama pull qwen2.5:14b`
@@ -245,11 +245,11 @@ explicit config dict (programmatic API)
 
 ---
 
-## `.athfconfig.yaml` Format
+## `.hecateconfig.yaml` Format
 
-ATHF searches for this file in two locations (in order):
-1. `<workspace>/.athfconfig.yaml`
-2. `<workspace>/config/.athfconfig.yaml`
+Hecate searches for this file in two locations (in order):
+1. `<workspace>/.hecateconfig.yaml`
+2. `<workspace>/config/.hecateconfig.yaml`
 
 **Full example:**
 
@@ -261,7 +261,7 @@ llm:
   base_url: http://localhost:11434
   timeout_sec: 300          # Ollama only
 
-# Workspace settings (set automatically by athf init)
+# Workspace settings (set automatically by hecate-agent init)
 workspace:
   hunt_prefix: H            # Prefix for hunt IDs (default: H)
   research_prefix: R        # Prefix for research IDs (default: R)
@@ -280,10 +280,10 @@ This file is gitignored by default — it is machine-local config (your LLM key,
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | — | Anthropic API key; triggers auto-detection |
 | `OPENAI_API_KEY` | — | OpenAI API key; triggers auto-detection |
-| `ATHF_LLM_PROVIDER` | auto | Force provider: `litellm`, `bedrock`, `ollama`, `openai` |
-| `ATHF_LLM_MODEL` | provider default | Override model name |
-| `ATHF_LLM_BASE_URL` | provider default | Override API base URL (useful in Docker) |
-| `ATHF_OLLAMA_TIMEOUT_SEC` | `180` | Per-request timeout for Ollama calls |
+| `HECATE_LLM_PROVIDER` | auto | Force provider: `litellm`, `bedrock`, `ollama`, `openai` |
+| `HECATE_LLM_MODEL` | provider default | Override model name |
+| `HECATE_LLM_BASE_URL` | provider default | Override API base URL (useful in Docker) |
+| `HECATE_OLLAMA_TIMEOUT_SEC` | `180` | Per-request timeout for Ollama calls |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama service URL |
 
 ### AWS Bedrock
@@ -309,18 +309,18 @@ This file is gitignored by default — it is machine-local config (your LLM key,
 | `SPLUNK_TOKEN` | — | Splunk authentication token |
 | `SPLUNK_VERIFY_SSL` | `true` | Whether to verify Splunk SSL certificate |
 
-### ATHF Workspace & Data
+### Hecate Workspace & Data
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ATHF_WORKSPACE` | cwd walk-up | Explicit workspace root path (MCP server) |
-| `ATHF_STIX_CACHE` | `~/.athf/stix-data/` | Directory for ATT&CK STIX JSON cache |
+| `HECATE_WORKSPACE` | cwd walk-up | Explicit workspace root path (MCP server) |
+| `HECATE_STIX_CACHE` | `~/.hecate/stix-data/` | Directory for ATT&CK STIX JSON cache |
 
 ---
 
 ## Hunt Template (`HUNT_TEMPLATE.j2`)
 
-Located at `templates/HUNT_TEMPLATE.j2`. Rendered by `athf hunt new` using Jinja2. You can edit this file to change the structure of every new hunt file created in your workspace.
+Located at `templates/HUNT_TEMPLATE.j2`. Rendered by `hecate-agent hunt new` using Jinja2. You can edit this file to change the structure of every new hunt file created in your workspace.
 
 ### Available template variables
 
@@ -362,7 +362,7 @@ Edit `templates/HUNT_TEMPLATE.j2` directly. The template uses standard Jinja2 sy
 **Techniques:** {{ ', '.join(techniques) if techniques else 'TBD' }}
 ```
 
-Changes take effect immediately on the next `athf hunt new`. Existing hunt files are not affected.
+Changes take effect immediately on the next `hecate-agent hunt new`. Existing hunt files are not affected.
 
 ### LOCK section structure
 
@@ -379,27 +379,27 @@ The template follows the LOCK pattern. Each section serves a specific purpose:
 
 ## MCP Server Configuration
 
-The MCP server exposes ATHF as tools for AI assistants (Claude Code, Cursor, Copilot, etc.).
+The MCP server exposes Hecate as tools for AI assistants (Claude Code, Cursor, Copilot, etc.).
 
 ### Starting the server
 
 ```bash
 # Default (stdio transport — for Claude Code / local AI tools)
-athf mcp serve
+hecate-agent mcp serve
 
 # HTTP transport (for remote / networked AI tools)
-athf mcp serve --transport streamable-http --port 8080
+hecate-agent mcp serve --transport streamable-http --port 8080
 
 # Explicit workspace
-athf mcp serve --workspace /path/to/your/workspace
+hecate-agent mcp serve --workspace /path/to/your/workspace
 ```
 
 ### Workspace discovery (server)
 
 The server finds your workspace in this order:
 1. `--workspace` CLI flag
-2. `ATHF_WORKSPACE` environment variable
-3. Walk up from `cwd` looking for `.athfconfig.yaml`
+2. `HECATE_WORKSPACE` environment variable
+3. Walk up from `cwd` looking for `.hecateconfig.yaml`
 
 ### Claude Code integration
 
@@ -408,17 +408,17 @@ Add to your `.claude/settings.json` or `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "athf": {
-      "command": "athf-mcp",
+    "hecate": {
+      "command": "hecate-agent-mcp",
       "env": {
-        "ATHF_WORKSPACE": "/path/to/your/workspace"
+        "HECATE_WORKSPACE": "/path/to/your/workspace"
       }
     }
   }
 }
 ```
 
-Or use `athf-mcp` as a standalone entry point (installed alongside `athf`).
+Or use `hecate-agent-mcp` as a standalone entry point (installed alongside `hecate-agent`).
 
 ### MCP tools that create files
 
@@ -426,11 +426,11 @@ These tools write to your workspace without a confirmation prompt:
 
 | Tool | Creates | Notes |
 |------|---------|-------|
-| `athf_hunt_new` | `hunts/production/YYYY/QN/H-XXXX.md` | Atomic exclusive create |
-| `athf_research_new` | `research/R-XXXX.md` | |
-| `athf_investigate_new` | `investigations/I-XXXX.md` | |
-| `athf_agent_run_researcher` | `research/R-XXXX.md` | Full 5-skill research |
-| `athf_agent_run_hypothesis` (with `research_id`) | Appends to existing `R-XXXX.md` | |
+| `hecate_hunt_new` | `hunts/production/YYYY/QN/H-XXXX.md` | Atomic exclusive create |
+| `hecate_research_new` | `research/R-XXXX.md` | |
+| `hecate_investigate_new` | `investigations/I-XXXX.md` | |
+| `hecate_agent_run_researcher` | `research/R-XXXX.md` | Full 5-skill research |
+| `hecate_agent_run_hypothesis` (with `research_id`) | Appends to existing `R-XXXX.md` | |
 
 ---
 
@@ -443,26 +443,26 @@ Live ATT&CK data improves grounding across all LLM calls:
 ### Setup
 
 ```bash
-pip install 'agentic-threat-hunting-framework[attack]'
-athf attack update        # Downloads enterprise-attack.json (~50 MB, one-time)
-athf attack status        # Verify: shows provider type, technique count, version
-athf attack lookup T1003.001   # Spot-check a technique
+pip install 'hecate-agent[attack]'
+hecate-agent attack update        # Downloads enterprise-attack.json (~50 MB, one-time)
+hecate-agent attack status        # Verify: shows provider type, technique count, version
+hecate-agent attack lookup T1003.001   # Spot-check a technique
 ```
 
 ### Cache location
 
 ```
-Default:  ~/.athf/stix-data/enterprise-attack.json
-Workspace: <workspace>/.athf/stix-data/  (if .athfconfig.yaml exists in workspace)
-Override:  ATHF_STIX_CACHE=/custom/path
+Default:  ~/.hecate/stix-data/enterprise-attack.json
+Workspace: <workspace>/.hecate/stix-data/  (if .hecateconfig.yaml exists in workspace)
+Override:  HECATE_STIX_CACHE=/custom/path
 ```
 
 ### Without STIX
 
-ATHF falls back to `FallbackProvider` which has no technique data. This means:
+Hecate falls back to `FallbackProvider` which has no technique data. This means:
 - Technique grounding in prompts is skipped (model uses recall)
 - Output T-code validation is skipped (hallucinated IDs pass through)
-- `athf attack lookup` returns nothing
+- `hecate-agent attack lookup` returns nothing
 
 ---
 
@@ -476,10 +476,10 @@ environment:
   - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
   - OPENAI_API_KEY=${OPENAI_API_KEY:-}
   - TAVILY_API_KEY=${TAVILY_API_KEY:-}
-  - ATHF_LLM_PROVIDER=${ATHF_LLM_PROVIDER:-}
-  - ATHF_LLM_MODEL=${ATHF_LLM_MODEL:-}
+  - HECATE_LLM_PROVIDER=${HECATE_LLM_PROVIDER:-}
+  - HECATE_LLM_MODEL=${HECATE_LLM_MODEL:-}
   # Override config file's base_url so the container reaches host Ollama:
-  - ATHF_LLM_BASE_URL=${ATHF_LLM_BASE_URL:-http://host.docker.internal:11434}
+  - HECATE_LLM_BASE_URL=${HECATE_LLM_BASE_URL:-http://host.docker.internal:11434}
   - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
 ```
 
@@ -490,12 +490,12 @@ environment:
 ollama serve
 ollama pull qwen2.5:14b
 
-# 2. Start ATHF container (points at host Ollama)
-docker compose up -d athf
-docker compose exec athf bash
+# 2. Start Hecate container (points at host Ollama)
+docker compose up -d hecate
+docker compose exec hecate bash
 
 # Inside container — Ollama is reachable at host.docker.internal:11434
-athf agent run hypothesis-generator --threat-intel "..."
+hecate-agent agent run hypothesis-generator --threat-intel "..."
 ```
 
 ### Running with containerized Ollama

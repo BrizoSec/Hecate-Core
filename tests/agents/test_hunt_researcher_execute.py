@@ -23,15 +23,15 @@ from unittest.mock import patch
 
 import pytest
 
-from athf.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
-from athf.core.llm_provider import LLMProvider, LLMResponse
-from athf.core.web_search import SearchResponse, SearchResult
+from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.core.web_search import SearchResponse, SearchResult
 
-# athf/commands/__init__.py binds the click Command `similar` as the
+# hecate_agent/commands/__init__.py binds the click Command `similar` as the
 # `similar` attribute of the package, shadowing the submodule of the same
 # name. importlib.import_module is the only form that reliably returns the
 # module itself, so patch against this handle rather than a dotted string.
-_similar_mod = importlib.import_module("athf.commands.similar")
+_similar_mod = importlib.import_module("hecate_agent.commands.similar")
 
 
 class CapturingProvider(LLMProvider):
@@ -93,7 +93,7 @@ class TestExecuteHappyPath:
         monkeypatch.setattr(agent, "_get_search_client", lambda: fake_search_client)
 
         with ExitStack() as stack:
-            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
             stack.enter_context(
                 patch.object(
                     _similar_mod,
@@ -107,7 +107,7 @@ class TestExecuteHappyPath:
             # enterprise-attack.json) is a genuinely slow cold load and
             # irrelevant to what this test covers -- mock it out, same as
             # test_hunt_researcher_grounding.py does.
-            stack.enter_context(patch("athf.core.attack_matrix.get_technique", return_value=None))
+            stack.enter_context(patch("hecate_agent.core.attack_matrix.get_technique", return_value=None))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0099"
 
             result = agent.execute(ResearchInput(topic="ValleyRAT", mitre_technique="T1574.001"))
@@ -126,7 +126,7 @@ class TestExecuteHappyPath:
         monkeypatch.setattr(agent, "_get_search_client", lambda: None)
 
         with ExitStack() as stack:
-            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
             stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic"))
@@ -135,7 +135,7 @@ class TestExecuteHappyPath:
         assert result.data.web_searches_performed == 0
 
     def test_execute_reuses_a_caller_supplied_research_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """`athf research new` allocates an ID for its "Starting Research:"
+        """`hecate-agent research new` allocates an ID for its "Starting Research:"
         banner and passes it in. Allocation persists a high-water mark, so
         allocating a second one here would both leave a permanent gap in the
         numbering and make the banner name a document never written."""
@@ -144,7 +144,7 @@ class TestExecuteHappyPath:
         monkeypatch.setattr(agent, "_get_search_client", lambda: None)
 
         with ExitStack() as stack:
-            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
             stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
             result = agent.execute(ResearchInput(topic="Some topic", research_id="R-0500"))
 
@@ -162,7 +162,7 @@ class TestExecuteHappyPath:
         monkeypatch.setattr(agent, "_get_search_client", lambda: fake_search_client)
 
         with ExitStack() as stack:
-            mock_manager_cls = stack.enter_context(patch("athf.core.research_manager.ResearchManager"))
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
             stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
             mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
             result = agent.execute(ResearchInput(topic="Some topic", web_search_enabled=False))
@@ -179,7 +179,7 @@ class TestExecuteHappyPath:
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
         monkeypatch.setattr(agent, "_get_search_client", lambda: None)
 
-        with patch("athf.core.research_manager.ResearchManager", side_effect=RuntimeError("db unavailable")):
+        with patch("hecate_agent.core.research_manager.ResearchManager", side_effect=RuntimeError("db unavailable")):
             result = agent.execute(ResearchInput(topic="Some topic"))
 
         assert result.success is False
@@ -266,7 +266,7 @@ class TestSkillSearchClientBranches:
 
         client = agent._get_search_client()
 
-        from athf.core.web_search import TavilySearchClient
+        from hecate_agent.core.web_search import TavilySearchClient
 
         assert isinstance(client, TavilySearchClient)
         # Cached, not rebuilt on a second call.
@@ -276,7 +276,7 @@ class TestSkillSearchClientBranches:
         # The constructor falls back to os.getenv("TAVILY_API_KEY") when the
         # argument is None, so "without key" has to mean the environment too --
         # otherwise this passes only where no .env happens to be loaded, and
-        # any test importing athf.cli (which calls load_dotenv() at import)
+        # any test importing hecate_agent.cli (which calls load_dotenv() at import)
         # silently turns it red. Mirrors tests/core/test_web_search.py.
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
         agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider(), tavily_api_key=None)

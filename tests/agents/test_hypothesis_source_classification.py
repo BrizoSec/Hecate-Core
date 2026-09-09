@@ -22,12 +22,12 @@ The is_threat_report guardrail already existed and simply misfired. Two causes:
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pytest
 
-from athf.agents.llm.hypothesis_generator import HypothesisGenerationInput, HypothesisGeneratorAgent
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.agents.llm.hypothesis_generator import HypothesisGenerationInput, HypothesisGeneratorAgent
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 _RESPONSE = {
     "hypothesis": "Adversaries use credential dumping to steal hashes on Windows endpoints",
@@ -108,9 +108,7 @@ class TestClassificationIsSampledDeterministically:
             ) -> LLMResponse:
                 self.calls.append({"prompt": messages[0]["content"], "temperature": temperature})
                 text = "not json" if len(self.calls) == 1 else json.dumps(_RESPONSE)
-                return LLMResponse(
-                    text=text, input_tokens=1, output_tokens=1, model="fake", duration_ms=1, cost_usd=0.0
-                )
+                return LLMResponse(text=text, input_tokens=1, output_tokens=1, model="fake", duration_ms=1, cost_usd=0.0)
 
         provider = _BadJsonThenGood()
         agent = HypothesisGeneratorAgent(llm_enabled=True, provider=provider)
@@ -125,7 +123,7 @@ class TestBaseAgentTemperaturePassthrough:
     def test_temperature_is_omitted_when_not_requested(self) -> None:
         """Agents that don't opt in must keep the provider's own default,
         rather than having one hardcoded underneath them."""
-        from athf.agents.llm.hunt_researcher import HuntResearcherAgent
+        from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent
 
         provider = _RecordingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
@@ -134,7 +132,7 @@ class TestBaseAgentTemperaturePassthrough:
         assert provider.calls[0]["temperature"] == 0.7
 
     def test_explicit_temperature_is_forwarded(self) -> None:
-        from athf.agents.llm.hunt_researcher import HuntResearcherAgent
+        from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent
 
         provider = _RecordingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)

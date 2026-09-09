@@ -3,7 +3,7 @@
 import pytest
 from click.testing import CliRunner
 
-from athf.commands.env import env
+from hecate_agent.commands.env import env
 
 
 class TestEnvCommand:
@@ -29,7 +29,11 @@ class TestEnvCommand:
         # Exit code 1 when no venv exists (click.Abort), 0 when venv exists
         assert result.exit_code in (0, 1)
         # Should show activation command or setup instructions
-        assert "source" in result.output or "athf env setup" in result.output or "No .venv directory found" in result.output
+        assert (
+            "source" in result.output
+            or "hecate-agent env setup" in result.output
+            or "No .venv directory found" in result.output
+        )
 
     def test_env_deactivate_shows_command(self, runner):
         """Test that env deactivate shows deactivation command."""
@@ -44,7 +48,7 @@ class TestEnvCommand:
         result = runner.invoke(env, ["check"])
         assert result.exit_code == 0
         assert "Python" in result.output
-        assert "athf" in result.output
+        assert "hecate" in result.output
 
     def test_env_check_reports_scikit_learn(self, runner):
         result = runner.invoke(env, ["check"])
@@ -62,11 +66,11 @@ class TestEnvCommand:
         assert "mitreattack" in result.output
 
     def test_env_check_reports_config_file(self, runner, tmp_path, monkeypatch):
-        """env check should mention .athfconfig.yaml status."""
+        """env check should mention .hecateconfig.yaml status."""
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(env, ["check"])
         assert result.exit_code == 0
-        assert ".athfconfig.yaml" in result.output
+        assert ".hecateconfig.yaml" in result.output
 
     def test_env_check_reports_environment_md(self, runner, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

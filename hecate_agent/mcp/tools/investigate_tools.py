@@ -1,0 +1,162 @@
+"""Investigation management MCP tools."""
+
+import logging
+import re
+from typing import Optional
+
+from hecate_agent.mcp.server import _json_result, get_workspace
+
+logger = logging.getLogger(__name__)
+
+
+# noqa C901: mccabe folds every nested @mcp.tool body into this
+# function's score, so the number tracks how many tools are registered
+# rather than how branchy the registration is. There is no control flow
+# here to simplify -- splitting it would lower the metric and nothing else.
+def register_investigate_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]  # noqa: F821, C901
+    """Register all investigation-related MCP tools."""
+
+    @mcp.tool(
+        name="hecate_investigate_list",
+        description="List investigations with optional type filter (finding, exploration, triage, validation).",
+    )
+    def investigate_list(
+        investigation_type: Optional[str] = None,
+    ) -> str:
+        from hecate_agent.core.investigation_parser import parse_investigation_file
+
+        workspace = get_workspace()
+        inv_dir = workspace / "investigations"
+        if not inv_dir.exists():
+            return _json_result({"count": 0, "investigations": []})
+
+        results = []
+        for f in sorted(inv_dir.rglob("*.md")):
+            if f.name in {"README.md", "AGENTS.md"}:
+                continue
+            try:
+                parsed = parse_investigation_file(f)
+                fm = parsed.get("frontmatter", {})
+                if investigation_type and fm.get("type", "").lower() != investigation_type.lower():
+                    continue
+                results.append(
+                    {
+                        "investigation_id": fm.get("investigation_id", f.stem),
+                        "title": fm.get("title", ""),
+                        "type": fm.get("type", ""),
+                        "status": fm.get("status", ""),
+                        "tags": fm.get("tags", []),
+                    }
+                )
+            except Exception as e:
+                logger.debug("Skipping %s: %s", f.name, e)
+                continue
+
+        return _json_result({"count": len(results), "investigations": results})
+
+    @mcp.tool(
+        name="hecate_investigate_new",
+        description="Create a new investigation file (I-XXXX). Returns the investigation ID and file path. Use type='finding' for detection review pivots.",
+    )
+    def investigate_new(
+        title: str,
+        investigation_type: str = "finding",
+        tags: Optional[str] = None,
+        data_sources: Optional[str] = None,
+        related_hunts: Optional[str] = None,
+        investigator: str = "Nova",
+    ) -> str:
+        import subprocess
+
+        workspace = get_workspace()
+        cmd = [
+            "hecate",
+            "investigate",
+            "new",
+            "--title",
+            title,
+            "--type",
+            investigation_type,
+            "--investigator",
+            investigator,
+            "--non-interactive",
+        ]
+        if tags:
+            cmd.extend(["--tags", tags])
+        if data_sources:
+            for ds in data_sources.split(","):
+                cmd.extend(["--data-source", ds.strip()])
+        if related_hunts:
+            for hunt in related_hunts.split(","):
+                cmd.extend(["--related-hunt", hunt.strip()])
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(workspace),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                return _json_result({"error": result.stderr.strip() or "Investigation creation failed"})
+
+            # Parse the ID `hecate-agent investigate new` itself just created and
+            # printed (e.g. "Created I-0042: some title"), rather than
+            # re-scanning the directory afterward and guessing the highest
+            # sorted ID is "the one we just made" -- under a concurrent
+            # investigate_new call finishing in between our subprocess exiting
+            # and this re-scan running, that guess could return a DIFFERENT
+            # caller's investigation ID as if it were our own.
+            match = re.search(r"Created (I-\d+):\s*(.*)", result.stdout)
+            if match:
+                investigation_id = match.group(1)
+                return _json_result(
+                    {
+                        "status": "created",
+                        "investigation_id": investigation_id,
+                        "title": match.group(2).strip(),
+                        "path": f"investigations/{investigation_id}.md",
+                    }
+                )
+            return _json_result({"status": "created", "output": result.stdout.strip()})
+        except subprocess.TimeoutExpired:
+            return _json_result({"error": "Investigation creation timed out"})
+        except Exception as e:
+            return _json_result({"error": str(e)})
+
+    @mcp.tool(
+        name="hecate_investigate_search",
+        description="Full-text search across investigation files.",
+    )
+    def investigate_search(query: str) -> str:
+        from hecate_agent.core.investigation_parser import parse_investigation_file
+
+        workspace = get_workspace()
+        inv_dir = workspace / "investigations"
+        if not inv_dir.exists():
+            return _json_result({"count": 0, "results": []})
+
+        query_lower = query.lower()
+        results = []
+        for f in sorted(inv_dir.rglob("*.md")):
+            if f.name in {"README.md", "AGENTS.md"}:
+                continue
+            try:
+                content = f.read_text(encoding="utf-8")
+                if query_lower in content.lower():
+                    parsed = parse_investigation_file(f)
+                    fm = parsed.get("frontmatter", {})
+                    results.append(
+                        {
+                            "investigation_id": fm.get("investigation_id", f.stem),
+                            "title": fm.get("title", ""),
+                            "type": fm.get("type", ""),
+                            "status": fm.get("status", ""),
+                        }
+                    )
+            except Exception as e:
+                logger.debug("Skipping %s: %s", f.name, e)
+                continue
+
+        return _json_result({"count": len(results), "results": results})

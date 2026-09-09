@@ -1,16 +1,14 @@
 """Tests for ResearchManager.extract_research_context() and find_by_technique()."""
 
 import textwrap
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from athf.agents.llm.hypothesis_generator import ResearchContext
-from athf.core.research_manager import ResearchManager
+from hecate_agent.agents.llm.hypothesis_generator import ResearchContext
+from hecate_agent.core.research_manager import ResearchManager
 
-
-SAMPLE_RESEARCH_CONTENT = textwrap.dedent("""\
+SAMPLE_RESEARCH_CONTENT = textwrap.dedent(
+    """\
     ---
     research_id: R-0008
     topic: Rare parent-child process relationships for behavioral detection
@@ -86,7 +84,8 @@ SAMPLE_RESEARCH_CONTENT = textwrap.dedent("""\
 
     ### Key Findings
     - Hypothesis: Adversaries use process injection to create rare parent-child relationships
-""")
+"""
+)
 
 
 @pytest.fixture
@@ -165,7 +164,8 @@ class TestExtractResearchContext:
 
     def test_missing_sections_return_defaults(self, research_dir):
         """Test that missing sections produce empty defaults."""
-        minimal_content = textwrap.dedent("""\
+        minimal_content = textwrap.dedent(
+            """\
             ---
             research_id: R-0099
             topic: Minimal research
@@ -176,7 +176,8 @@ class TestExtractResearchContext:
             ---
 
             # R-0099: Minimal
-        """)
+        """
+        )
         (research_dir / "R-0099.md").write_text(minimal_content)
 
         mgr = ResearchManager(research_dir)
@@ -211,7 +212,8 @@ class TestFindByTechnique:
 
     def test_returns_most_recent_when_multiple(self, research_dir):
         """Test that most recent match is returned."""
-        older_content = textwrap.dedent("""\
+        older_content = textwrap.dedent(
+            """\
             ---
             research_id: R-0001
             topic: Older research
@@ -222,7 +224,8 @@ class TestFindByTechnique:
             ---
 
             # Older
-        """)
+        """
+        )
         (research_dir / "R-0001.md").write_text(older_content)
 
         mgr = ResearchManager(research_dir)

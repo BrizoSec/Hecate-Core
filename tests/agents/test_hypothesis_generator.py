@@ -1,17 +1,17 @@
-"""Tests for athf.agents.llm.hypothesis_generator - LLM-powered hypothesis generation."""
+"""Tests for hecate_agent.agents.llm.hypothesis_generator - LLM-powered hypothesis generation."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from athf.agents.llm.hypothesis_generator import (
+from hecate_agent.agents.llm.hypothesis_generator import (
     HypothesisGenerationInput,
     HypothesisGenerationOutput,
     HypothesisGeneratorAgent,
     ResearchContext,
 )
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -181,17 +181,15 @@ class TestHypothesisGeneratorAgent:
         mock = MockProvider(response)
         agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
 
-        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+        with patch("hecate_agent.core.attack_matrix._get_provider") as mock_get_provider:
             mock_stix = MagicMock()
             mock_stix.is_stix.return_value = True
             mock_get_provider.return_value = mock_stix
-            with patch("athf.core.attack_matrix.get_technique") as mock_get_technique:
+            with patch("hecate_agent.core.attack_matrix.get_technique") as mock_get_technique:
                 mock_get_technique.side_effect = lambda tid: {"name": tid} if tid == "T1003.001" else None
                 # T9999.999 is fabricated, not merely deprecated -- ATT&CK has
                 # no successor for it, so it must still be dropped outright.
-                with patch(
-                    "athf.core.attack_matrix.get_superseding_technique_id", return_value=None
-                ):
+                with patch("hecate_agent.core.attack_matrix.get_superseding_technique_id", return_value=None):
                     result = agent.execute(_make_input())
 
         assert result.success is True
@@ -222,13 +220,13 @@ class TestHypothesisGeneratorAgent:
         )
         agent = HypothesisGeneratorAgent(provider=MockProvider(response), llm_enabled=True)
 
-        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+        with patch("hecate_agent.core.attack_matrix._get_provider") as mock_get_provider:
             mock_stix = MagicMock()
             mock_stix.is_stix.return_value = True
             mock_get_provider.return_value = mock_stix
-            with patch("athf.core.attack_matrix.get_technique", return_value=None):
+            with patch("hecate_agent.core.attack_matrix.get_technique", return_value=None):
                 with patch(
-                    "athf.core.attack_matrix.get_superseding_technique_id",
+                    "hecate_agent.core.attack_matrix.get_superseding_technique_id",
                     return_value="T1055.012",
                 ):
                     result = agent.execute(_make_input())
@@ -242,16 +240,16 @@ class TestHypothesisGeneratorAgent:
         technique must not leave a duplicate behind after remapping."""
         agent = HypothesisGeneratorAgent(provider=MockProvider("{}"), llm_enabled=True)
 
-        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+        with patch("hecate_agent.core.attack_matrix._get_provider") as mock_get_provider:
             mock_stix = MagicMock()
             mock_stix.is_stix.return_value = True
             mock_get_provider.return_value = mock_stix
             with patch(
-                "athf.core.attack_matrix.get_technique",
+                "hecate_agent.core.attack_matrix.get_technique",
                 side_effect=lambda tid: {"name": tid} if tid == "T1055.012" else None,
             ):
                 with patch(
-                    "athf.core.attack_matrix.get_superseding_technique_id",
+                    "hecate_agent.core.attack_matrix.get_superseding_technique_id",
                     return_value="T1055.012",
                 ):
                     valid, remapped, invalid = agent._validate_techniques(["T1093", "T1055.012"])
@@ -308,11 +306,11 @@ class TestHypothesisGeneratorAgent:
         mock = MockProvider(response)
         agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
 
-        with patch("athf.core.attack_matrix._get_provider") as mock_get_provider:
+        with patch("hecate_agent.core.attack_matrix._get_provider") as mock_get_provider:
             mock_stix = MagicMock()
             mock_stix.is_stix.return_value = True
             mock_get_provider.return_value = mock_stix
-            with patch("athf.core.attack_matrix.get_technique") as mock_get_technique:
+            with patch("hecate_agent.core.attack_matrix.get_technique") as mock_get_technique:
                 mock_get_technique.return_value = None
                 result = agent.execute(_make_input())
 

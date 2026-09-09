@@ -3,11 +3,11 @@
 # ── Quick start (you have an API key) ───────────────────────────────────────
 #   cp .env.example .env              # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   docker compose up -d
-#   docker compose exec athf bash
+#   docker compose exec hecate bash
 #
 # ── Quick start (no API key – uses local Ollama) ────────────────────────────
 #   docker compose --profile ollama up -d
-#   docker compose exec athf bash
+#   docker compose exec hecate bash
 #   # First run pulls the model (~2 GB); wait for ollama-pull to finish.
 #   # Override model: OLLAMA_MODEL=llama3.2:1b docker compose --profile ollama up -d
 #
@@ -15,12 +15,12 @@
 #   Uncomment the ~/.aws volume mount below and set AWS_PROFILE in your .env.
 
 services:
-  athf:
+  hecate:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: athf:latest
-    container_name: athf
+    image: hecate:latest
+    container_name: hecate
     volumes:
       - workspace:/workspace
       # Optional: mount AWS credentials for Bedrock
@@ -31,12 +31,12 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # ── Explicit overrides (optional) ────────────────────────────────────
-      - ATHF_LLM_PROVIDER=${ATHF_LLM_PROVIDER:-}
-      - ATHF_LLM_MODEL=${ATHF_LLM_MODEL:-}
-      # Overrides .athfconfig.yaml base_url so Docker reaches host Ollama
-      - ATHF_LLM_BASE_URL=${ATHF_LLM_BASE_URL:-http://host.docker.internal:11434}
+      - HECATE_LLM_PROVIDER=${HECATE_LLM_PROVIDER:-}
+      - HECATE_LLM_MODEL=${HECATE_LLM_MODEL:-}
+      # Overrides .hecateconfig.yaml base_url so Docker reaches host Ollama
+      - HECATE_LLM_BASE_URL=${HECATE_LLM_BASE_URL:-http://host.docker.internal:11434}
       # ── Ollama ────────────────────────────────────────────────────────────
-      # When using --profile ollama, override with: ATHF_LLM_BASE_URL=http://ollama:11434
+      # When using --profile ollama, override with: HECATE_LLM_BASE_URL=http://ollama:11434
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       # ── AWS Bedrock ───────────────────────────────────────────────────────
       - AWS_PROFILE=${AWS_PROFILE:-}

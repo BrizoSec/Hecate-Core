@@ -1,7 +1,7 @@
 """Tests for HuntResearcherAgent's STIX technique-grounding.
 
 Cold recall (asking a model "what is T1003.001?") measured ~30% accuracy via
-`athf eval`; handing the model MITRE's own technique name/description instead
+`hecate-agent eval`; handing the model MITRE's own technique name/description instead
 of asking it to recall them raised that to 100% on the same model. These
 tests cover the fix that applies that finding to the research prompts.
 
@@ -15,8 +15,8 @@ from unittest.mock import patch
 
 import pytest
 
-from athf.agents.llm.hunt_researcher import HuntResearcherAgent
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 
 class CapturingProvider(LLMProvider):
@@ -58,17 +58,17 @@ class TestTechniqueGrounding:
 
     def test_returns_empty_string_when_not_found(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)
-        with patch("athf.core.attack_matrix.get_technique", return_value=None):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=None):
             assert agent._technique_grounding("T9999.999") == ""
 
     def test_returns_empty_string_on_lookup_error(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)
-        with patch("athf.core.attack_matrix.get_technique", side_effect=RuntimeError("stix unavailable")):
+        with patch("hecate_agent.core.attack_matrix.get_technique", side_effect=RuntimeError("stix unavailable")):
             assert agent._technique_grounding("T1003.001") == ""
 
     def test_formats_found_technique(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)
-        with patch("athf.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
             grounding = agent._technique_grounding("T1053.005")
 
         assert "T1053.005" in grounding
@@ -78,7 +78,7 @@ class TestTechniqueGrounding:
     def test_truncates_long_descriptions(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)
         long_info = {**FAKE_TECHNIQUE_INFO, "description": "x" * 2000}
-        with patch("athf.core.attack_matrix.get_technique", return_value=long_info):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=long_info):
             grounding = agent._technique_grounding("T1053.005")
 
         assert len(grounding) < 600
@@ -90,7 +90,7 @@ class TestGroundingWiredIntoPrompts:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        with patch("athf.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
             agent._llm_summarize_tradecraft(
                 topic="Scheduled task abuse", technique="T1053.005", sources=[], search_results=None
             )
@@ -103,7 +103,7 @@ class TestGroundingWiredIntoPrompts:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        with patch("athf.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
             agent._llm_map_telemetry(
                 topic="Scheduled task abuse",
                 technique="T1053.005",
@@ -117,7 +117,7 @@ class TestGroundingWiredIntoPrompts:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        with patch("athf.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=FAKE_TECHNIQUE_INFO):
             agent._llm_synthesize(topic="Scheduled task abuse", technique="T1053.005", skills=[])
 
         assert "Scheduled Task" in provider.prompts[0]
@@ -126,9 +126,7 @@ class TestGroundingWiredIntoPrompts:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        agent._llm_summarize_tradecraft(
-            topic="General topic", technique=None, sources=[], search_results=None
-        )
+        agent._llm_summarize_tradecraft(topic="General topic", technique=None, sources=[], search_results=None)
 
         assert "MITRE ATT&CK ground truth" not in provider.prompts[0]
 
@@ -136,7 +134,7 @@ class TestGroundingWiredIntoPrompts:
         provider = CapturingProvider()
         agent = HuntResearcherAgent(llm_enabled=True, provider=provider)
 
-        with patch("athf.core.attack_matrix.get_technique", return_value=None):
+        with patch("hecate_agent.core.attack_matrix.get_technique", return_value=None):
             summary, findings = agent._llm_summarize_tradecraft(
                 topic="Unknown technique", technique="T9999.999", sources=[], search_results=None
             )

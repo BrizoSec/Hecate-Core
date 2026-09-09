@@ -1,12 +1,12 @@
-"""Tests for athf.core.eval_harness - known-answer model spot checks."""
+"""Tests for hecate_agent.core.eval_harness - known-answer model spot checks."""
 
 from typing import Dict, List, Optional
 from unittest.mock import patch
 
 import pytest
 
-from athf.core.eval_harness import FIXTURES, Fixture, build_grounded_fixtures, run_eval
-from athf.core.llm_provider import LLMProvider, LLMResponse
+from hecate_agent.core.eval_harness import FIXTURES, Fixture, build_grounded_fixtures, run_eval
+from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
 
 class FakeProvider(LLMProvider):
@@ -87,9 +87,7 @@ def test_run_eval_all_match_mode_requires_every_keyword() -> None:
 
 @pytest.mark.unit
 def test_run_eval_all_match_mode_passes_with_every_keyword() -> None:
-    provider = FakeProvider(
-        responses={MULTI_KEYWORD_FIXTURE.prompt: "Spearphishing via a malicious attachment."}
-    )
+    provider = FakeProvider(responses={MULTI_KEYWORD_FIXTURE.prompt: "Spearphishing via a malicious attachment."})
     report = run_eval(provider, fixtures=[MULTI_KEYWORD_FIXTURE])
     assert report.results[0].passed
 
@@ -138,7 +136,7 @@ def test_grounded_fixture_embeds_stix_description() -> None:
         "name": "LSASS Memory",
         "description": "Adversaries dump LSASS process memory to harvest credentials.",
     }
-    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+    with patch("hecate_agent.core.attack_matrix.get_technique", return_value=fake_info):
         grounded = build_grounded_fixtures([LSASS_FIXTURE])
 
     assert len(grounded) == 1
@@ -152,7 +150,7 @@ def test_grounded_fixture_embeds_stix_description() -> None:
 
 @pytest.mark.unit
 def test_grounded_fixtures_skip_missing_stix_data() -> None:
-    with patch("athf.core.attack_matrix.get_technique", return_value=None):
+    with patch("hecate_agent.core.attack_matrix.get_technique", return_value=None):
         grounded = build_grounded_fixtures([LSASS_FIXTURE])
 
     assert grounded == []
@@ -160,11 +158,9 @@ def test_grounded_fixtures_skip_missing_stix_data() -> None:
 
 @pytest.mark.unit
 def test_grounded_fixtures_exclude_non_technique_categories() -> None:
-    concept_fixture = Fixture(
-        id="lolbin", category="concept", prompt="What is a LOLBin?", keywords=["living off the land"]
-    )
+    concept_fixture = Fixture(id="lolbin", category="concept", prompt="What is a LOLBin?", keywords=["living off the land"])
     fake_info = {"id": "T1003.001", "name": "LSASS Memory", "description": "..."}
-    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+    with patch("hecate_agent.core.attack_matrix.get_technique", return_value=fake_info):
         grounded = build_grounded_fixtures([LSASS_FIXTURE, concept_fixture])
 
     # Only the mitre-technique fixture should produce a grounded variant.
@@ -175,7 +171,7 @@ def test_grounded_fixtures_exclude_non_technique_categories() -> None:
 @pytest.mark.unit
 def test_grounded_fixtures_preserve_match_mode() -> None:
     fake_info = {"id": "T1566.001", "name": "Spearphishing Attachment", "description": "Phishing via attachment."}
-    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+    with patch("hecate_agent.core.attack_matrix.get_technique", return_value=fake_info):
         grounded = build_grounded_fixtures([MULTI_KEYWORD_FIXTURE])
 
     assert grounded[0].match_mode == "all"
@@ -185,7 +181,7 @@ def test_grounded_fixtures_preserve_match_mode() -> None:
 @pytest.mark.unit
 def test_grounded_fixtures_default_to_module_fixtures_when_none_given() -> None:
     fake_info = {"id": "x", "name": "x", "description": "x"}
-    with patch("athf.core.attack_matrix.get_technique", return_value=fake_info):
+    with patch("hecate_agent.core.attack_matrix.get_technique", return_value=fake_info):
         grounded = build_grounded_fixtures()
 
     mitre_technique_count = sum(1 for f in FIXTURES if f.category == "mitre-technique")

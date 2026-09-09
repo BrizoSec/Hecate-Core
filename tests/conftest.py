@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for ATHF tests.
+Pytest configuration and shared fixtures for Hecate tests.
 """
 
 import shutil
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from athf.core import attack_matrix
+from hecate_agent.core import attack_matrix
 
 
 @pytest.fixture(autouse=True)
@@ -140,8 +140,8 @@ version: 0.2.2
 
 
 @pytest.fixture
-def athf_workspace(temp_dir, sample_config_content):
-    """Create a complete ATHF workspace structure for testing."""
+def hecate_workspace(temp_dir, sample_config_content):
+    """Create a complete Hecate workspace structure for testing."""
     # Create directories
     (temp_dir / "hunts").mkdir()
     (temp_dir / "queries").mkdir()
@@ -149,37 +149,37 @@ def athf_workspace(temp_dir, sample_config_content):
     (temp_dir / "templates").mkdir()
 
     # Create config file
-    config_path = temp_dir / ".athfconfig.yaml"
+    config_path = temp_dir / ".hecateconfig.yaml"
     config_path.write_text(sample_config_content)
 
     # Create AGENTS.md
     agents_path = temp_dir / "AGENTS.md"
-    agents_path.write_text("# ATHF AI Assistant Instructions\n\nTest content.")
+    agents_path.write_text("# Hecate AI Assistant Instructions\n\nTest content.")
 
     yield temp_dir
 
 
 @pytest.fixture
-def sample_hunt_file(athf_workspace, sample_hunt_content):
+def sample_hunt_file(hecate_workspace, sample_hunt_content):
     """Create a sample hunt file in the workspace."""
-    hunt_path = athf_workspace / "hunts" / "H-0001.md"
+    hunt_path = hecate_workspace / "hunts" / "H-0001.md"
     hunt_path.write_text(sample_hunt_content)
     return hunt_path
 
 
 @pytest.fixture
-def athf_workspace_with_hunts(athf_workspace, sample_hunt_content):
-    """Create an ATHF workspace with sample hunt files."""
+def hecate_workspace_with_hunts(hecate_workspace, sample_hunt_content):
+    """Create an Hecate workspace with sample hunt files."""
     # Create first hunt
-    hunt1_path = athf_workspace / "hunts" / "H-0001.md"
+    hunt1_path = hecate_workspace / "hunts" / "H-0001.md"
     hunt1_path.write_text(sample_hunt_content)
 
     # Create second hunt with different content
     hunt2_content = sample_hunt_content.replace("H-0001", "H-0002").replace("Test Hunt", "Second Hunt")
-    hunt2_path = athf_workspace / "hunts" / "H-0002.md"
+    hunt2_path = hecate_workspace / "hunts" / "H-0002.md"
     hunt2_path.write_text(hunt2_content)
 
-    return athf_workspace
+    return hecate_workspace
 
 
 # Custom markers for categorizing tests

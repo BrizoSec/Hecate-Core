@@ -16,14 +16,14 @@ Thumbs.db
 credentials/
 secrets/
 
-# User-specific ATHF config
-.athfconfig.yaml
+# User-specific Hecate config
+.hecateconfig.yaml
 
-# Workspace-local ATT&CK STIX cache (~52MB, regenerable via `athf attack
-# update`). Only lands here when the workspace has a .athfconfig.yaml, which
-# switches the cache from ~/.athf/ to the workspace -- so it is easy to stage
+# Workspace-local ATT&CK STIX cache (~52MB, regenerable via `hecate attack
+# update`). Only lands here when the workspace has a .hecateconfig.yaml, which
+# switches the cache from ~/.hecate/ to the workspace -- so it is easy to stage
 # by accident.
-.athf/
+.hecate/
 
 # Evidence artifacts (optional - uncomment if you want to exclude large files)
 # evidence/

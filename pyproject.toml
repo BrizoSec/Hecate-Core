@@ -3,17 +3,17 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentic-threat-hunting-framework"
+name = "hecate-agent"
 dynamic = ["version"]
 description = "Agentic Threat Hunting Framework - Memory and AI for threat hunters"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Sydney Marrone", email = "athf@nebulock.io"}
+    {name = "Sydney Marrone", email = "hecate@nebulock.io"}
 ]
 maintainers = [
-    {name = "Sydney Marrone", email = "athf@nebulock.io"}
+    {name = "Sydney Marrone", email = "hecate@nebulock.io"}
 ]
 keywords = [
     "threat-hunting",
@@ -96,7 +96,7 @@ ollama = [
 attack = [
     "mitreattack-python>=5.0.0",
 ]
-# Web search grounding for hunt-researcher (athf research new). Previously
+# Web search grounding for hunt-researcher (hecate-agent research new). Previously
 # only bundled inside `all`, which also drags in litellm/scikit-learn/mcp --
 # a workspace that just wants grounded research (this one) had no way to
 # declare that minimally, so a venv rebuild via the documented `pip install
@@ -113,14 +113,14 @@ llm = [
 ]
 # MCP server
 mcp = [
-    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (athf/mcp/server.py's import path); unverified against it
+    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
 ]
 all = [
     "litellm>=1.30.0",
     "scikit-learn>=1.0.0",
     "requests>=2.25.0",
     "tavily-python>=0.3.0",
-    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (athf/mcp/server.py's import path); unverified against it
+    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
     "mitreattack-python>=5.0.0",
 ]
 
@@ -132,17 +132,27 @@ Issues = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issue
 Discussions = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions"
 
 [project.scripts]
-athf = "athf.cli:main"
-athf-mcp = "athf.mcp.server:cli"
+hecate-agent = "hecate_agent.cli:main"
+hecate-agent-mcp = "hecate_agent.mcp.server:cli"
 
 [tool.setuptools]
-packages = ["athf", "athf.agents", "athf.agents.llm", "athf.commands", "athf.core", "athf.data", "athf.mcp", "athf.mcp.tools", "athf.utils"]
+packages = [
+    "hecate_agent",
+    "hecate_agent.agents",
+    "hecate_agent.agents.llm",
+    "hecate_agent.commands",
+    "hecate_agent.core",
+    "hecate_agent.data",
+    "hecate_agent.mcp",
+    "hecate_agent.mcp.tools",
+    "hecate_agent.utils",
+]
 
 [tool.setuptools.dynamic]
-version = {attr = "athf.__version__.__version__"}
+version = {attr = "hecate_agent.__version__.__version__"}
 
 [tool.setuptools.package-data]
-"athf.data" = [
+"hecate_agent.data" = [
     "templates/*.md",
     "knowledge/*.md",
     "knowledge/**/*.md",
@@ -202,7 +212,7 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = "athf.commands"
+module = "hecate_agent.commands"
 warn_unused_ignores = false
 
 # Ignore missing imports for optional dependencies
@@ -227,7 +237,7 @@ module = [
     "mitreattack.*",
     "stix2",
     "stix2.*",
-    "athf.core.metrics_tracker",
+    "hecate_agent.core.metrics_tracker",
     "mcp",
     "mcp.*",
 ]
@@ -247,7 +257,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["athf"]
+source = ["hecate_agent"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

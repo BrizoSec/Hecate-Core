@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from athf.core.web_search import TavilySearchClient
+from hecate_agent.core.web_search import TavilySearchClient
 
 
 def _raw_result(title: str, url: str, score: float) -> dict:
@@ -235,12 +235,12 @@ class TestDeadCodeSearchMethods:
 class TestCreateSearchClient:
     def test_returns_none_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
-        from athf.core.web_search import create_search_client
+        from hecate_agent.core.web_search import create_search_client
 
         assert create_search_client(api_key=None) is None
 
     def test_returns_client_with_api_key(self) -> None:
-        from athf.core.web_search import create_search_client
+        from hecate_agent.core.web_search import create_search_client
 
         result = create_search_client(api_key="fake-key")
         assert isinstance(result, TavilySearchClient)
