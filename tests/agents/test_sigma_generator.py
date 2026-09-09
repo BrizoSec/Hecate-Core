@@ -1,6 +1,8 @@
 """Tests for hecate_agent.agents.llm.sigma_generator - Sigma rule drafting for hunts."""
 
 import json
+import logging
+import sys
 from typing import Any, Dict
 from unittest.mock import patch
 
@@ -11,6 +13,7 @@ from hecate_agent.agents.llm.sigma_generator import (
     SigmaGenerationInput,
     SigmaGeneratorAgent,
     _placeholder_problem,
+    _pysigma_problem,
     applicable_logsources,
 )
 
@@ -115,7 +118,11 @@ def test_valid_rule_renders_parseable_sigma_yaml():
     assert doc["detection"]["condition"] == "selection and not filter"
     assert doc["status"] == "experimental"
     assert doc["tags"] == ["attack.t1059.003"]
-    assert doc["related"] == [{"id": "H-0612", "type": "derived"}]
+    # The hunt link is a custom key, not Sigma's `related:`. That field
+    # relates a rule to other Sigma rules and its id must be a UUID, so a
+    # hunt id there made every rule unparseable.
+    assert doc["hunt_id"] == "H-0612"
+    assert "related" not in doc
 
 
 def test_multi_platform_hunt_does_not_pin_a_product():
@@ -508,3 +515,76 @@ class TestPlaceholderGuard:
         """A path has a slash, a domain a dot, a flag a dash -- that is what
         separates them from a snake_case description."""
         assert _placeholder_problem(self._det("Image|contains", value), {}) is None
+
+
+# --- Rendered rules are validated as Sigma, not just as YAML ---------------
+
+
+class TestPySigmaValidation:
+    """The structural checks say whether a rule is coherent; they say nothing
+    about whether it is Sigma. Three rules in the live corpus were valid YAML,
+    passed every check, and could never match anything."""
+
+    VALID = (
+        "title: T\n"
+        "id: 5f0b1d5a-1c9e-4a4e-9a1e-2c3d4e5f6a7b\n"
+        "status: experimental\n"
+        "logsource:\n  category: process_creation\n"
+        "detection:\n  selection:\n    Image|endswith: \\cmd.exe\n  condition: selection\n"
+        "level: medium\n"
+    )
+
+    def test_a_valid_rule_passes(self):
+        assert _pysigma_problem(self.VALID) is None
+
+    def test_a_query_dsl_operator_is_rejected(self):
+        """H-0007 emitted a MongoDB-style `$or:` key, which Sigma reads as a
+        field named `$or` and never matches."""
+        bad = self.VALID.replace(
+            "  selection:\n    Image|endswith: \\cmd.exe\n",
+            "  selection:\n    $or:\n    - Image|endswith: \\cmd.exe\n",
+        )
+        assert "not valid Sigma" in _pysigma_problem(bad)
+
+    def test_an_unknown_modifier_is_rejected(self):
+        """H-0005 used `|in`, which is not a Sigma modifier."""
+        bad = self.VALID.replace("Image|endswith:", "Image|in:")
+        problem = _pysigma_problem(bad)
+        assert problem and "modifier" in problem.lower()
+
+    def test_an_empty_detection_is_rejected(self):
+        bad = self.VALID.replace(
+            "detection:\n  selection:\n    Image|endswith: \\cmd.exe\n  condition: selection\n",
+            "detection:\n  selection: {}\n  condition: selection\n",
+        )
+        assert _pysigma_problem(bad) is not None
+
+    def test_a_hunt_id_field_does_not_break_parsing(self):
+        """Regression: the hunt link used to go in Sigma's `related:`, whose
+        id must be a UUID. That made all 17 rules in the corpus unparseable."""
+        assert _pysigma_problem(self.VALID + "hunt_id: H-0007\n") is None
+
+    def test_a_related_block_with_a_hunt_id_would_be_rejected(self):
+        """Pins the bug itself, so the old shape cannot quietly come back."""
+        bad = self.VALID + "related:\n- id: H-0007\n  type: derived\n"
+        assert _pysigma_problem(bad) is not None
+
+    def test_a_missing_pysigma_warns_rather_than_passing_silently(self, monkeypatch, caplog):
+        """A validator that silently accepts everything is worse than none."""
+        import hecate_agent.agents.llm.sigma_generator as sg
+
+        monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
+        monkeypatch.setitem(sys.modules, "sigma.collection", None)
+        with caplog.at_level(logging.WARNING):
+            assert sg._pysigma_problem("anything") is None
+        assert "not being validated" in caplog.text.lower()
+
+    def test_the_missing_pysigma_warning_is_emitted_once(self, monkeypatch, caplog):
+        import hecate_agent.agents.llm.sigma_generator as sg
+
+        monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
+        monkeypatch.setitem(sys.modules, "sigma.collection", None)
+        with caplog.at_level(logging.WARNING):
+            sg._pysigma_problem("a")
+            sg._pysigma_problem("b")
+        assert caplog.text.lower().count("not being validated") == 1

@@ -1,0 +1,24 @@
+title: Suspicious Network Connection to Known Malicious IP
+id: e10f1b45-138a-4604-b26a-dbc5d6c4750a
+status: experimental
+description: Detects network connections initiated from a trusted process to known malicious IPs, which
+  could indicate identity impersonation and unauthorized access attempts.
+references:
+- https://unit42.paloaltonetworks.com/communication-channel-identity-risks/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-09'
+tags:
+- attack.t1090
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|endswith: '.123'
+  filter:
+    Image|contains: C:\Windows\System32\svchost.exe
+  condition: selection and not filter
+falsepositives:
+- Legitimate network traffic to a benign IP that happens to end with .123
+level: medium
+hunt_id: H-0005

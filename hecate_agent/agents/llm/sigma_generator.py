@@ -23,6 +23,7 @@ hunt against a backdoor with nine C2 URLs ends up scoped to process
 telemetry alone.
 """
 
+import logging
 import re
 import time
 import uuid
@@ -33,6 +34,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import yaml
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
+
+logger = logging.getLogger(__name__)
 
 # Sigma log source categories this agent will emit. Restricted to the ones
 # with well-established field names across backends -- an invented category
@@ -286,6 +289,47 @@ def _impossible_ipv4(value: str) -> bool:
 _SNAKE_PLACEHOLDER_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$")
 
 
+#: Set once, the first time pySigma is found missing, so the warning is
+#: emitted a single time per process rather than per rule.
+_PYSIGMA_WARNED = False
+
+
+def _pysigma_problem(rule_yaml: str) -> Optional[str]:
+    """Parse a rendered rule with pySigma; return why it is not valid Sigma.
+
+    The structural checks above catch what a rule needs to be *coherent* --
+    a condition that names its selections, a category we recognise. They say
+    nothing about whether the result is Sigma, and the model reliably invents
+    syntax that is valid YAML and meaningless to a Sigma backend: a
+    query-DSL ``$or:`` key, a nonexistent ``|in`` modifier, a detection whose
+    every block is empty. Each of those shipped in the corpus, each looked
+    like a rule, and none of them would ever match. pySigma is the reference
+    parser, so it is the honest arbiter of "is this Sigma".
+
+    Returns ``None`` when pySigma is not installed, after warning once. That
+    is a deliberate fallback rather than a hard failure -- the extra is
+    optional and drafting should not stop without it -- but it is *loud*,
+    because a validator that silently passes everything is worse than none.
+    """
+    global _PYSIGMA_WARNED
+    try:
+        from sigma.collection import SigmaCollection
+    except ImportError:
+        if not _PYSIGMA_WARNED:
+            _PYSIGMA_WARNED = True
+            logger.warning(
+                "pysigma is not installed, so generated rules are NOT being validated as "
+                "Sigma -- only structurally checked. Install it with: pip install -e '.[sigma]'"
+            )
+        return None
+
+    try:
+        SigmaCollection.from_yaml(rule_yaml)
+    except Exception as exc:  # pySigma raises a family of SigmaError subclasses
+        return f"not valid Sigma ({type(exc).__name__}: {str(exc)[:160]})"
+    return None
+
+
 def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Optional[str]:
     """Reject a rule whose detection matches on scaffolding.
 
@@ -482,9 +526,21 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "level": level,
         }
         if input_data.hunt_id:
-            document["related"] = [{"id": input_data.hunt_id, "type": "derived"}]
+            # Not Sigma's `related:`. That field relates a rule to *other Sigma
+            # rules* and its `id` must be a UUID, so putting a hunt id there
+            # made every rule we emitted fail to parse -- all 17 in the corpus,
+            # with `SigmaRelatedError: Sigma related identifier must be an
+            # UUID`. A custom key carries the same link and stays valid.
+            document["hunt_id"] = input_data.hunt_id
 
         rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
+
+        # Last gate, on the rendered rule rather than the model's JSON: this is
+        # the artifact an operator would actually run.
+        problem = _pysigma_problem(rule_yaml)
+        if problem:
+            return None, f"{category}: {problem}"
+
         return (
             SigmaRule(
                 logsource_category=category,

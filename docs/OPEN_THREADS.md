@@ -5,7 +5,7 @@ lose. Covers both repositories — `Hecate-Core` (the Hecate framework and the
 dogfooded hunting workspace) and `Hecate-Runner` (the autonomous orchestrator)
 — because most threads cross the boundary.
 
-**Last reviewed:** 2026-09-09 (C3, C4, E1, E3, G4, Q3 closed; G7 opened; G5, G6, G8, G9 closed; H1, H2, H3 closed; V1 closed (per-log-source Sigma generation); V2 accepted as-is)
+**Last reviewed:** 2026-09-09 (C2, C3, C4, C5, E1, E3, G4, Q3 closed; G7 opened; G5, G6, G8, G9 closed; H1, H2, H3 closed; V1 closed (per-log-source Sigma generation); V2 accepted as-is)
 
 Each item records *why it matters*, not just what it is, so a future reader can
 judge whether it still does. Evidence is cited by file and line where it exists,
@@ -43,9 +43,34 @@ because the field names a property of the estate. But the file currently
 describes an *example* estate, so the four data sources reporting "available"
 are the template's examples, and hunts are being scoped against them.
 
+**Observed cost, 2026-09-09.** H-0001 was drafted from an OTX pulse about a
+**Redis cryptomining botnet on Linux servers** — cron injection, XMRig, Monero,
+an exposed toolkit at 188.245.99.156. The draft came out scoped to Windows:
+
+```yaml
+platform: ["Windows"]
+data_sources: ["Windows Security Event Logs", ...]
+logsource: {category: file_event, product: windows}
+detection: {selection: {TargetFilename|endswith: .exe}, filter: {Image|contains: redis-cli.exe}}
+```
+
+The template is Windows-centric throughout — Windows Event Logs, `windows_logs`,
+Windows field names, Domain Controllers — so the estate it describes is the
+estate every hunt is scoped to, whatever the threat. Nothing else in the
+pipeline can correct this: platform narrowing only removes platforms the
+hypothesis contradicts, and the hypothesis had no reason to say Linux.
+
+The hunt is mechanically perfect — valid Sigma, 0 unsupported claims, a clean
+grounding table — and would find nothing, because it is hunting the wrong
+operating system. That is the failure mode worth taking seriously: the quality
+signals all read green.
+
 **Next step:** populate it, or tell me to make the derivation report `unknown`
 when the profile is still a template rather than reporting its examples as fact.
 The second is a real option and I can do it in an hour; the first is better.
+Given the above, a third option is now worth considering: refuse to scope a
+hunt's platform from a profile that still contains placeholder markers, and
+leave the field empty for the operator instead of asserting Windows.
 
 ---
 
@@ -102,19 +127,6 @@ past automatically.
 seed are in the session scratchpad. Left alone, MISP produces ~16 more curated
 hunts and then goes quiet until new events publish.
 
-### C2. `MISP_BACKFILL=true` should eventually be turned off — **You**
-
-Backfill drops the freshness floor so the archive can be walked oldest-first.
-Once the cursor reaches the present it converges into normal behaviour on its
-own, so leaving it on is harmless *until* the cursor is lost — at which point a
-fresh cursor restarts from the beginning of the archive rather than from the
-30-day window.
-
-**Next step:** turn it off once the cursor passes the present, or accept the
-restart risk knowingly.
-
----
-
 ## Query generation and execution
 
 ### Q1. `QUERY_PROVIDER=mock` — the Splunk backend is unproven — **You**
@@ -155,9 +167,12 @@ dropped.
 
 | Thread | Resolution |
 |--------|------------|
-| Non-actionable CTI drafted into hunts (C4) | Two halves. The empty case — no narrative field, no indicator inventory and no free-form prose — is now walked past (option 2). The commentary case is **parked, not skipped**: `cti_triage.py` holds back items whose publisher category names a commentary series (`the good, the bad and the ugly`, `threat source newsletter`, `company`, `product updates`) or whose title has a recurring recap shape, writing them whole to `<cti_queue>/parked/` with the reason. `hecate-runner parked list`, `parked show` and `parked restore` inspect and replay them. Parking is what makes gating on a heuristic acceptable at all: a dropped item is invisible and permanent because the cursor has already advanced, a parked one is a file with its reason attached. Measured on 36 live entries: 10 parked, all correctly. A model gate was measured first and rejected — 8/8 on hand-picked cases, then on the same 36 it parked 27 including three unambiguous DFIR Report writeups (Lynx ransomware, Bumblebee/AdaptixC2, BengalSEO → H-0616) and gave three different verdicts to three entries of one monthly series. `HECATE_RUNNER_CTI_TRIAGE=off` restores the old behaviour |
+| One-off guidance essays still draft invented hunts (C5) | **Accepted as-is 2026-09-09.** No code change. The rate is 2 in 11 (down from 3 in 15 before C4), both drafts carry `requires-human-review`, and an operator identifies them from the title alone — one review slot out of six a day. The alternative, widening the title patterns to guidance shapes, was judged not worth the brittleness at this volume. A model gate is separately ruled out: two formulations were measured, "is this actionable" (27 parked of 36) and the narrower "does it name a specific actor, malware family, campaign or CVE" (18 of 24), and both parked unambiguous intelligence including *ClearFake ... delivers Amatera stealer* and *Critical N-able N-central Vulnerability and Active Exploitation*, and both split one monthly series across contradictory verdicts. That is a property of the 14B local model, not the prompt. **Revisit if:** the daily draft quota rises (the same rate costs more in absolute terms), the rate climbs above roughly 2 in 11, a stronger model becomes available for intake, or the parked queue starts being reviewed routinely — which would make a broader gate cheap, since a wrong park would then cost a glance rather than a lost hunt |
+| `MISP_BACKFILL=true` left on after catching up (C2) | **Switched to normal operating mode 2026-09-09.** `HECATE_RUNNER_MISP_BACKFILL=false`; MISP now considers only the last 30 days. Verified the mechanism rather than assuming it: the effective query timestamp is `max(cursor, now-30d)`, so turning backfill off moved the window from the cursor (2026-07-21) straight to the freshness floor (2026-08-10) — no stranded cursor, no churn. Measured cost of that jump before making it: 96 events in the gap, of which exactly **1** was routable under the org allowlist and galaxy filter (ESET, *MoustachedBouncer: Espionage against foreign diplomats*). Backfill had run 2026-09-07 → 09-09, walking the cursor from its 2026-01-01 seed to 2026-07-21. The ~765 curated events still behind the cursor remain out of reach — that is **C1**, and reaching them needs a cursor reset, not just re-enabling this flag |
+| Non-actionable CTI drafted into hunts (C4) | Two halves. The empty case — no narrative field, no indicator inventory and no free-form prose — is now walked past (option 2). The commentary case is **parked, not skipped**: `cti_triage.py` holds back items whose publisher category names a commentary series (`the good, the bad and the ugly`, `threat source newsletter`, `company`, `product updates`) or whose title has a recurring recap shape, writing them whole to `<cti_queue>/parked/` with the reason. `hecate-runner parked list`, `parked show` and `parked restore` inspect and replay them. Parking is what makes gating on a heuristic acceptable at all: a dropped item is invisible and permanent because the cursor has already advanced, a parked one is a file with its reason attached. Measured on 36 live entries: 10 parked, all correctly. A model gate was measured first and rejected — 8/8 on hand-picked cases, then on the same 36 it parked 27 including three unambiguous DFIR Report writeups (Lynx ransomware, Bumblebee/AdaptixC2, BengalSEO → H-0616) and gave three different verdicts to three entries of one monthly series. `HECATE_RUNNER_CTI_TRIAGE=off` restores the old behaviour. **Scope correction:** this catches *recurring-series* commentary only. One-off guidance essays still route — see **C5** |
 | Ollama timed out during Sigma drafting (E3) | Resolved by the per-log-source split (V1), which is what this thread's own next step offered as the alternative to raising the deadline: it shortens each response instead. One call per log source now (`llm_calls: len(logsources)`), so the risk stopped scaling with how many log sources a hunt touches. Measured over the orchestrator log — before: 10 runs, median 87s, one timeout at the 180s ceiling (H-0617, ~1 hunt in 3 affected). After: **13 runs, zero timeouts**, median 35s, worst 143s — and that worst case covered two log sources, so ~70s per call against a per-call ceiling of 180s. Cross-category field leakage, the other reason for the split, is also gone: 15 detection fields across the current 8 rules, 0 out of category. `HECATE_OLLAMA_TIMEOUT_SEC` remains unset at its 180s default — residual risk on a bigger model or a contended GPU, mitigable any time with one line in `Hecate-Core/.env` |
 | MCP surface and config contracts still named `athf` (H3) | Renamed to **hecate**: MCP server `name="hecate"` and all 21 tools `hecate_*`, resource scheme `hecate://`, env vars `ATHF_*` → `HECATE_*`, `.athfconfig.yaml` → `.hecateconfig.yaml`, `.athf/stix-data/` → `.hecate/stix-data/`, Runner's `AthfClient`/`athf_client.py` → `HecateClient`/`hecate_client.py`. Live `.env` files, both STIX caches and the systemd unit migrated in the same pass. Verified end to end on a live MISP cycle |
+| Generated rules were never validated as Sigma | pySigma now parses every rendered rule in `_build_rule`; anything it rejects is dropped with the parser's own reason. This immediately found a systematic bug in our renderer: the hunt link was written into Sigma's `related:` field, whose `id` must be a UUID, so **all 17 rules in the corpus were unparseable** (`SigmaRelatedError`). The link is now a custom `hunt_id:` key, which pySigma accepts. With that fixed, 3 of 17 remained genuinely invalid and had passed every structural check: a query-DSL `$or:` key, a nonexistent `\|in` modifier, and a detection that was empty. Verified live — the model emitted an empty-detection `dns_query` rule and it was rejected, while the rules kept parse clean. `pysigma`is an optional extra (`.[sigma]`); when absent the validator warns loudly once and falls back to structural checks, because a validator that silently passes everything is worse than none |
 | Sigma drafts matched on literal placeholders (G6) | Two fixes. The prompt was seeding them: its JSON example used `"known-good"`, which came back as `known-good-script.exe` across four different hunts — it now states the shape's values are placeholders and are rejected. And `_placeholder_problem()` enforces that at validation, alongside empty values and impossible IPv4 (`123.456.789`). A value the source CTI actually supplied is never rejected, so genuine intelligence naming `malicious-update.example.com` still passes. Measured: **8 of 25** drafted rules would be rejected, not the 2 first recorded here — the original count grepped only four literal tokens. A live run then produced `signed_binary_path`, a placeholder no denylist anticipated, so a generic rule rejects bare snake_case identifiers: real detection content carries a separator (`\\`, `/`, `.`, `-`, `=`), a description does not |
 | Entity extraction named generic nouns, missed the real family (G9) | Root cause was a defeated anchor: `_MALWARE_COLLOCATION_RE` documented "a capitalised token" but carried a global `re.IGNORECASE`, so `[A-Z]` matched lowercase and the OTX tag "chrome rat" became a family named `chrome`. Flag now scoped to the category noun only. Stopwords extended with platform and language nouns (`Browser`, `JavaScript`, `IoT`, `Rust-based`) found by running the extractor over 50 live pulses. Added a bounded all-caps rule — only inside a sentence naming a malware category, minimum four characters — which recovers `PEEP`, `SNOWLIGHT`, `FDMTP`, `GLUTTON`, `ENDLESSDOORS`. Distinct entities across the live corpus fell 34 → 26, all eight removed being generic. Re-auditing real hunts then caught two false positives the corpus could not show, both from our own scaffolding: the template's `DRAFT` marker (reported UNSUPPORTED on every draft) and the `MISP` provider label; denying both recovered `Crysis` and `KadNap` from those same lines |
 | Publisher's domain graded as an asserted indicator (G5) | Indicator claims are now scoped to each Sigma rule's `detection:` section, not the whole rule. The audit had been reading `references:` — the citation of the article the hunt came from — and grading the publisher's host (`unit42.paloaltonetworks.com`, `socradar.io`) as an indicator *asserted by CTI*. A block with no `detection:` key is still audited whole, so the fabrication check keeps its fail-safe. Note the earlier framing here was wrong: nothing ever *hunted* for those domains — they never appeared in a `detection:` block, only in citations and the grounding table |
