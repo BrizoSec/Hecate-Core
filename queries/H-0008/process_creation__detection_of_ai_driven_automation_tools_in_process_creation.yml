@@ -1,0 +1,24 @@
+title: Detection of AI-driven automation tools in process creation
+id: c6397f22-3c9e-4241-b5b4-df501e2fad4e
+status: experimental
+description: Identifies suspicious processes that may indicate the use of agentic AI-driven tools for
+  automated decision-making and evasion, which are indicative of persistent access by threat actors.
+references:
+- https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-10'
+tags:
+- attack.t1218
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    CommandLine|contains: python
+  filter:
+    ParentImage|contains: explorer.exe
+  condition: selection and not filter
+falsepositives:
+- Legitimate use of Python for scripting or automation by administrators
+level: medium
+hunt_id: H-0008
