@@ -1,5 +1,6 @@
 """Tests for hecate_agent.agents.llm.sigma_generator - Sigma rule drafting for hunts."""
 
+import importlib.util
 import json
 import logging
 import sys
@@ -520,6 +521,10 @@ class TestPlaceholderGuard:
 # --- Rendered rules are validated as Sigma, not just as YAML ---------------
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("sigma") is None,
+    reason="pysigma not installed; these assert on its parse results",
+)
 class TestPySigmaValidation:
     """The structural checks say whether a rule is coherent; they say nothing
     about whether it is Sigma. Three rules in the live corpus were valid YAML,
@@ -569,22 +574,26 @@ class TestPySigmaValidation:
         bad = self.VALID + "related:\n- id: H-0007\n  type: derived\n"
         assert _pysigma_problem(bad) is not None
 
-    def test_a_missing_pysigma_warns_rather_than_passing_silently(self, monkeypatch, caplog):
-        """A validator that silently accepts everything is worse than none."""
-        import hecate_agent.agents.llm.sigma_generator as sg
 
-        monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
-        monkeypatch.setitem(sys.modules, "sigma.collection", None)
-        with caplog.at_level(logging.WARNING):
-            assert sg._pysigma_problem("anything") is None
-        assert "not being validated" in caplog.text.lower()
+# These two must run even without pysigma -- they are the guard against it
+# passing everything silently, which is the whole failure mode.
+def test_a_missing_pysigma_warns_rather_than_passing_silently(monkeypatch, caplog):
+    """A validator that silently accepts everything is worse than none."""
+    import hecate_agent.agents.llm.sigma_generator as sg
 
-    def test_the_missing_pysigma_warning_is_emitted_once(self, monkeypatch, caplog):
-        import hecate_agent.agents.llm.sigma_generator as sg
+    monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
+    monkeypatch.setitem(sys.modules, "sigma.collection", None)
+    with caplog.at_level(logging.WARNING):
+        assert sg._pysigma_problem("anything") is None
+    assert "not being validated" in caplog.text.lower()
 
-        monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
-        monkeypatch.setitem(sys.modules, "sigma.collection", None)
-        with caplog.at_level(logging.WARNING):
-            sg._pysigma_problem("a")
-            sg._pysigma_problem("b")
-        assert caplog.text.lower().count("not being validated") == 1
+
+def test_the_missing_pysigma_warning_is_emitted_once(monkeypatch, caplog):
+    import hecate_agent.agents.llm.sigma_generator as sg
+
+    monkeypatch.setattr(sg, "_PYSIGMA_WARNED", False)
+    monkeypatch.setitem(sys.modules, "sigma.collection", None)
+    with caplog.at_level(logging.WARNING):
+        sg._pysigma_problem("a")
+        sg._pysigma_problem("b")
+    assert caplog.text.lower().count("not being validated") == 1

@@ -54,9 +54,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Deliberately unmarked, unlike the copies in [dev]/[all]: asking for
+# [sigma] explicitly on 3.8/3.9 should fail loudly with pip's own
+# "requires Python >=3.10" rather than quietly installing nothing and
+# leaving the Sigma validator silently disabled.
 sigma = ["pysigma>=0.11"]
 dev = [
     "pytest>=7.0.0",
+    # Exercised by the Sigma validation tests. In [dev] rather than only
+    # [sigma] so CI actually runs them -- a validator whose tests silently
+    # skip is the same failure it exists to prevent. Marker matches
+    # mcp[cli] below: pySigma needs 3.10+, this project supports 3.8+, and
+    # without it `pip install -e ".[dev]"` fails outright on 3.8/3.9.
+    "pysigma>=0.11; python_version >= '3.10'",
     "pytest-cov>=4.0.0",
     "flake8>=6.0.0",
     "flake8-pyproject>=1.2.0",
@@ -117,7 +127,7 @@ mcp = [
     "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
 ]
 all = [
-    "pysigma>=0.11",
+    "pysigma>=0.11; python_version >= '3.10'",
     "litellm>=1.30.0",
     "scikit-learn>=1.0.0",
     "requests>=2.25.0",
