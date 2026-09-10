@@ -12,13 +12,18 @@ import importlib
 from unittest.mock import MagicMock
 
 import pytest
-from click.testing import CliRunner
+
+# `requests` ships in the [splunk] extra, not [dev], so CI installs without it
+# and importing the command module raises ModuleNotFoundError at collection.
+pytest.importorskip("requests", reason="Splunk optional dependency not installed")
+
+from click.testing import CliRunner  # noqa: E402 - must follow the importorskip guard above
 
 # Imported as a module rather than `from hecate_agent.commands import splunk`: the
 # package re-exports the Click group under that same name, so the plain
 # import (and monkeypatch's dotted-path form) resolves to the group, which
 # has no `get_client` attribute to patch.
-splunk_cli = importlib.import_module("hecate_agent.commands.splunk")
+splunk_cli = importlib.import_module("hecate_agent.commands.splunk")  # noqa: E402
 get_client = splunk_cli.get_client
 splunk = splunk_cli.splunk
 
