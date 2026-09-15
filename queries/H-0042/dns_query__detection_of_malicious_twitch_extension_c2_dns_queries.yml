@@ -1,0 +1,26 @@
+title: Detection of Malicious Twitch Extension C2 DNS Queries
+id: 1aaf0062-822b-4aa6-bd0e-06a7af0c0eeb
+status: experimental
+description: Detects DNS queries to known malicious domains and IP addresses associated with a specific
+  threat vector targeting OAuth tokens via malicious browser extensions.
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-15'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .jeetbot.cc
+    - .morphilina.me
+    - .dev
+  filter: {}
+  condition: selection
+falsepositives:
+- DNS queries to known malicious domains may occur if users have been compromised or are testing security
+  measures
+level: medium
+hunt_id: H-0042

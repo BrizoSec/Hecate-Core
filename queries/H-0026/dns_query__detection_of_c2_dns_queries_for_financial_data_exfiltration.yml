@@ -1,0 +1,23 @@
+title: Detection of C2 DNS Queries for Financial Data Exfiltration
+id: 42b9b106-b114-4918-b93e-2c0b44927a31
+status: experimental
+description: Detects DNS queries to known malicious domains used by adversaries in financial data exfiltration
+  campaigns. This is indicative of command and control (C2) communications.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: .gexwalltool.com
+  filter: {}
+  condition: selection
+falsepositives:
+- DNS queries to this domain may occur if the domain is used for legitimate purposes or by mistake in
+  a test environment
+level: medium
+hunt_id: H-0026

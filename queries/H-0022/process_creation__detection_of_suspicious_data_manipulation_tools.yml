@@ -1,0 +1,24 @@
+title: Detection of Suspicious Data Manipulation Tools
+id: 22201df2-39df-4998-8d00-fc6d06b0c51e
+status: experimental
+description: Identifies potential malicious activities where adversaries manipulate data inputs to evade
+  detection by misleading the scoring mechanism in Elastic Security. This rule aims to catch processes
+  that may be used for such manipulations.
+references:
+- https://www.elastic.co/security-labs/blog/entity-resolution-identity-scoring-elastic-security
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-12'
+tags:
+- attack.t1059.003
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: --modify-score
+  filter:
+    ParentImage|contains: elastic-siem.exe
+  condition: selection and not filter
+falsepositives:
+- Administrative scripts or tools that use similar command line arguments for legitimate purposes
+level: medium
+hunt_id: H-0022

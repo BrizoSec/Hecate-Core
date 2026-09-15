@@ -1,0 +1,33 @@
+title: Detection of DNS Queries to SloppyRAT C2 Domains
+id: 1d1054da-9a47-4cef-bc9c-4adebc6795be
+status: experimental
+description: Detects DNS queries to known malicious domains associated with the deployment of SloppyRAT,
+  which is used in multi-stage ransomware attacks.
+references:
+- https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .com
+    - .org
+    - .net
+  filter:
+    QueryName|contains:
+    - skipraid.com
+    - 9342371634011778.com
+    - linked4x.com
+    - api.truesmart.org
+    - api.telephoneip.net
+    - finger.linked4x.com
+  condition: selection and filter
+falsepositives:
+- DNS queries to known malicious domains may occur due to malware infections or user actions that inadvertently
+  access these sites
+level: medium
+hunt_id: H-0028

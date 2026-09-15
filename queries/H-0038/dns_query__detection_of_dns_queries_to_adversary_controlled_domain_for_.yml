@@ -1,0 +1,23 @@
+title: Detection of DNS Queries to Adversary-Controlled Domain for ScreenConnect
+id: 0ed09c3c-dfac-4d3b-8e3b-c9abe5f0c88b
+status: experimental
+description: Detects DNS queries to the adversary-controlled domain used in social engineering attacks
+  followed by attempts to establish remote access via ScreenConnect.
+references:
+- https://www.menlosecurity.com/blog/from-fake-docusign-to-screenconnect-web-attack-stopped-before-payload-delivery
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-15'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: .rshiahub.com
+  filter: {}
+  condition: selection
+falsepositives:
+- DNS queries to known-good domains that may accidentally match the pattern, administrative scripts or
+  configurations involving similar domain names
+level: medium
+hunt_id: H-0038

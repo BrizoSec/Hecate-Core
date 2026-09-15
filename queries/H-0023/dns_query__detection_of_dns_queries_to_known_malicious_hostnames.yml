@@ -1,0 +1,22 @@
+title: Detection of DNS Queries to Known Malicious Hostnames
+id: 5fe2e096-90c0-4014-9add-91ecfe8f946a
+status: experimental
+description: Identifies DNS queries made to known malicious hostnames associated with Artifactory exploitation
+  attempts. This helps in identifying potential unauthorized access or privilege escalation activities.
+references:
+- https://www.wiz.io/blog/artifactory-under-attack-in-the-wild-exploitation-of-cve-2026-42016-cve-2026-4201
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-12'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: .gitclone.org
+  filter: {}
+  condition: selection
+falsepositives:
+- DNS queries made during legitimate software updates or audits involving git clone operations
+level: medium
+hunt_id: H-0023

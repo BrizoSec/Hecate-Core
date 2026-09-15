@@ -1,0 +1,24 @@
+title: Detection of ScreenConnect ClientSetup.msi Download from Adversary-Controlled Domain
+id: 63d6f404-a165-4343-9e26-168df00a4d2b
+status: experimental
+description: Detects network connections to a known malicious domain used for distributing the ScreenConnect
+  client setup installer, which is indicative of an adversary's lateral movement and remote access activities
+  following social engineering attacks.
+references:
+- https://www.menlosecurity.com/blog/from-fake-docusign-to-screenconnect-web-attack-stopped-before-payload-delivery
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-15'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection_DestinationHostname:
+    DestinationHostname|endswith: .rshiahub.com
+  filter_Image:
+    Image|contains: msiexec.exe
+  condition: selection_DestinationHostname and filter_Image
+falsepositives:
+- Administrative use of msiexec to install legitimate software
+level: medium
+hunt_id: H-0038

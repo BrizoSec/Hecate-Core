@@ -1,0 +1,24 @@
+title: Connection to Known Malicious Domain
+id: 7d12206b-b450-4f5f-b228-510e8374c39b
+status: experimental
+description: Detects network connections initiated from a compromised PaperCut NG/MF installation to known
+  malicious domains associated with AI-driven malware.
+references:
+- https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-10'
+tags:
+- attack.t1021
+- attack.t1078
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|contains: .hiv
+  filter:
+    Image|contains: papercut
+  condition: selection and not filter
+falsepositives:
+- Legitimate network traffic to PaperCut NG/MF servers that may contain '.hiv' in the hostname
+level: medium
+hunt_id: H-0012

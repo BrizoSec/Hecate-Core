@@ -1,0 +1,23 @@
+title: Detection of Suspicious Use of Common Tools
+id: f501a5dc-8f14-4a25-8543-1ba68c14b58d
+status: experimental
+description: Identifies potential living-off-the-land behavior where common tools are used in an unusual
+  manner, indicative of evasion tactics.
+references:
+- https://www.elastic.co/security-labs/blog/alert-triage-agentic-soc-self-correcting-agents
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: netsh
+  filter:
+    ParentImage|contains: powershell.exe
+  condition: selection and not filter
+falsepositives:
+- Administrative use of netsh for network configuration
+level: medium
+hunt_id: H-0027

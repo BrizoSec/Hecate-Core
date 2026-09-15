@@ -1,0 +1,21 @@
+title: Djinn Stealer C2 Communication
+id: 84508e79-7c11-4927-8a0e-e02a8907e411
+status: experimental
+description: Detects network connections to a known Djinn Stealer Command and Control (C2) server IP address,
+  indicating potential exfiltration of sensitive data.
+references:
+- https://blackpointcyber.com/blog/threat-snapshot-djinn-stealer/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-12'
+tags:
+- attack.t1095
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp: 96.126.130.126
+  condition: selection
+falsepositives:
+- Legitimate network traffic to this IP address, if any exists
+level: medium
+hunt_id: H-0021

@@ -1,0 +1,37 @@
+title: Detection of Passkey-themed Social Engineering Attempts
+id: c8d6f2f8-7571-4662-9ec2-24254742a276
+status: experimental
+description: Identifies network connections to known malicious domains used in passkey-themed social engineering
+  attacks, which can lead to credential harvesting and unauthorized access.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-11'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|endswith: .com
+  filter:
+    DestinationHostname|contains:
+    - setupmypasskey.com
+    - validationsetupac.com
+    - portalsetuphub.com
+    - myconnectkey.com
+    - oskeysync.com
+    - keysyncos.com
+    - oskeyregister.com
+    - passkeyhelpdesk.com
+    - oskeysetup.com
+    - add-passkey.com
+    - company-name.integratedsso.com
+    - company-name.secure-passkey.com
+    - companyname.maliciousdomain.com
+    - contoso.add-passkey.com
+  condition: filter
+falsepositives:
+- Legitimate network connections to similar-looking but benign domains
+level: medium
+hunt_id: H-0018

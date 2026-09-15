@@ -1,0 +1,34 @@
+title: Detection of AI-driven Resource Depletion via Specific Malware Hashes
+id: cfe8dc3e-6bee-4db9-a14d-6bdca1fa329d
+status: experimental
+description: Identifies file events related to specific malware hashes indicative of low-intensity, persistent
+  attacks aimed at depleting system resources and evading detection.
+references:
+- https://blackpointcyber.com/blog/death-by-a-thousand-papercuts-ai-driven-exploitation-at-scale/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-12'
+tags:
+- attack.t1059.003
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: .exe
+  filter:
+    FileHash-SHA256:
+    - 08387ff35cc7854ddea1e2106b1150e9fe80646541c95c5a7121b77c9bc0228e
+    - 092788c6598784d91b411dde40f274c73448f6c803f57c8d0ca85a22d0516e19
+    - 243de5404091bcd920041cf2f4dd22e80f2c2922022854991d2b5e0ac78f2fee
+    - 4cd2a9d574febb1545966561d598c57194da47b09f9175dd888e6aa5d267f91c
+    - 5cc0eee4a1d8dbb737838e25f1e9ae37170a54ae757c431b5d6422904538bde3
+    - 6106fa15dc10764114d039f26a96d793c559f04b080a27af9f2f27c2eeb391e0
+    - 6b5c50c2f88861943426b054fe3ff42f59ffd29d3dcf3cb1bb6c785b12077ee3
+    - 844d80da0d8690586f156e1793cde12b5e93a24540e511d4ddb71489cf5a8796
+    - b1adeecb0f2df0d66298a4f3f9a866ddf4c83731892a13ec9b97d405fd50d7b9
+    - b3d73d0a9d26bde03be3511e7293bf67c907fb00d5b6bb8c189a8f37b15987fe
+  condition: filter
+falsepositives:
+- Administrative scripts or tools that may inadvertently trigger on known malicious hashes during system
+  audits or cleanup processes
+level: medium
+hunt_id: H-0019

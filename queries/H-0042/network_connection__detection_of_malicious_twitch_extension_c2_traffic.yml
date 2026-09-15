@@ -1,0 +1,31 @@
+title: Detection of Malicious Twitch Extension C2 Traffic
+id: f33d07c4-32c5-43a3-9a23-df45b8dce3bb
+status: experimental
+description: Detects network connections to known malicious domains and IP addresses used by a malicious
+  Twitch browser extension for OAuth token theft.
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-15'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection_network_connection:
+    DestinationHostname|contains:
+    - jeetbot.cc
+    - morphilina.me
+    - thebeholder-proxy.deno.dev
+    DestinationIp|in:
+    - 132.243.113.25
+    - 80.74.26.162
+  filter_network_connection:
+    Image|contains:
+    - chrome.exe
+    - firefox.exe
+  condition: selection_network_connection and not filter_network_connection
+falsepositives:
+- Legitimate network traffic to known good domains or IP addresses
+level: medium
+hunt_id: H-0042

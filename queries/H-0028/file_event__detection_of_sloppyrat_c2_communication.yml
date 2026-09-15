@@ -1,0 +1,23 @@
+title: Detection of SloppyRAT C2 Communication
+id: 6e4d8808-40c2-4798-a305-d4eab8cff00b
+status: experimental
+description: Detects file events related to known malicious hashes and URLs associated with the initial
+  infection vector for multi-stage ransomware attacks.
+references:
+- https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: /default2
+    Image: http://skipraid.com/dsVGmQTrzX/default2
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate network requests to known good URLs
+level: medium
+hunt_id: H-0028
