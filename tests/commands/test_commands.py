@@ -651,7 +651,7 @@ class TestHuntValidateCommand:
 
         result = runner.invoke(hunt, ["validate", "H-9999"])
 
-        assert result.exit_code == 0  # Command runs but shows error message
+        assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
 
@@ -1408,9 +1408,9 @@ class TestHuntCoverageOutput:
 
 
 class TestHuntValidateFailOnError:
-    """Tests for 'hecate-agent hunt validate --fail-on-error'."""
+    """Tests for the exit status of 'hecate-agent hunt validate'."""
 
-    def test_fail_on_error_exits_nonzero_when_invalid(self, runner, temp_workspace):
+    def test_exits_nonzero_when_invalid(self, runner, temp_workspace):
         import yaml as _yaml
 
         (temp_workspace / "hunts").mkdir(exist_ok=True)
@@ -1432,15 +1432,18 @@ class TestHuntValidateFailOnError:
 
         hunt_file.write_text(f"---\n{yaml.dump(fm)}---{parts[2]}")
 
-        result = runner.invoke(hunt, ["validate", "--fail-on-error"])
-        assert result.exit_code != 0
+        result = runner.invoke(hunt, ["validate"])
+        # 1, not merely non-zero: click exits 2 for an unparseable command
+        # line, which is how this test passed while still passing the
+        # long-removed --fail-on-error flag.
+        assert result.exit_code == 1
 
-    def test_fail_on_error_exits_zero_when_valid(self, runner, temp_workspace):
+    def test_exits_zero_when_valid(self, runner, temp_workspace):
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         runner.invoke(hunt, ["new", "--title", "Hunt", "--technique", "T1003.001", "--non-interactive"])
 
         # Rename file to match hunt_id (validation check)
-        result = runner.invoke(hunt, ["validate", "--fail-on-error"])
+        result = runner.invoke(hunt, ["validate"])
         # May pass or fail depending on whether hunt_id matches filename;
         # either way the command should not crash
         assert result.exit_code in (0, 1)

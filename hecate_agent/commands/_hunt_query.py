@@ -258,10 +258,7 @@ def _report_validation(hunt_files: List[Path]) -> Tuple[int, int, int]:
 
 @click.command()
 @click.argument("hunt_id", required=False)
-@click.option(
-    "--fail-on-error", is_flag=True, help="Exit with non-zero status if any validation errors are found (useful for CI)"
-)
-def validate(hunt_id: str, fail_on_error: bool) -> None:
+def validate(hunt_id: str) -> None:
     """Validate hunt file structure and metadata.
 
     \b
@@ -277,12 +274,8 @@ def validate(hunt_id: str, fail_on_error: bool) -> None:
       # Validate specific hunt
       hecate-agent hunt validate H-0042
 
-      # Validate all hunts
+      # Validate all hunts (exits 1 if invalid)
       hecate-agent hunt validate
-
-      # CI-safe: exit non-zero on errors
-      hecate-agent hunt validate --fail-on-error
-
     \b
     Use this to:
     • Catch formatting errors before committing
@@ -292,12 +285,12 @@ def validate(hunt_id: str, fail_on_error: bool) -> None:
     if hunt_id:
         hunt_file = _resolve_hunt_for_validation(hunt_id)
         if hunt_file is None:
-            return
+            import sys
+            sys.exit(1)
 
         is_valid, _ = _validate_single_hunt(hunt_file)
-        if fail_on_error and not is_valid:
+        if not is_valid:
             import sys
-
             sys.exit(1)
     else:
         # Validate all hunts
@@ -320,9 +313,8 @@ def validate(hunt_id: str, fail_on_error: bool) -> None:
         if warned_count:
             summary += f", {warned_count} with metadata gaps"
         console.print(summary)
-        if fail_on_error and invalid_count > 0:
+        if invalid_count > 0:
             import sys
-
             sys.exit(1)
 
 
