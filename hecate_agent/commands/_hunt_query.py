@@ -36,8 +36,8 @@ def _validate_single_hunt(hunt_file: Path) -> tuple:
         for error in errors:
             console.print(f"  - {error}")
 
-    # Warnings never change is_valid (and so never affect --fail-on-error):
-    # an auto-generated draft awaiting review is legitimately incomplete. They
+    # Warnings never change is_valid (and so never fail the command): an
+    # auto-generated draft awaiting review is legitimately incomplete. They
     # are surfaced because "Hunt is valid!" on a hunt with empty tactics and
     # platform reads as a clean bill of health while the hunt is invisible to
     # `hecate-agent hunt coverage`.

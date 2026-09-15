@@ -12,7 +12,7 @@ could not be followed for exactly the fields most likely to need correcting.
 
 The gaps are reported as warnings rather than errors: a draft awaiting human
 review is legitimately incomplete, and promoting them would fail every draft
-and break `--fail-on-error` in CI.
+and so fail `hecate-agent hunt validate` in CI.
 """
 
 import os
@@ -106,7 +106,7 @@ class TestValidatorSurfacesEmptyRequiredFields:
         assert any("Missing recommended frontmatter field: data_sources" in w for w in parser.collect_warnings())
 
     def test_warnings_never_make_a_hunt_invalid(self, tmp_path):
-        """A draft awaiting review must not fail --fail-on-error in CI."""
+        """A draft awaiting review must not fail `hunt validate` in CI."""
         (tmp_path / "hunts").mkdir()
         path = _write_hunt(tmp_path, platform=[], tactics=[], techniques=[])
 

@@ -201,7 +201,7 @@ class HuntParser:
         `hecate-agent hunt coverage` -- four auto-generated drafts passed validation
         while the program showed 0% coverage across every tactic. Promoting
         these to errors would instead fail every draft that is legitimately
-        still awaiting human review, and would break `--fail-on-error` in CI.
+        still awaiting human review, and so fail `hunt validate` in CI.
         """
         warnings: List[str] = []
         for field in _RECOMMENDED_FIELDS:

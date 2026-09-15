@@ -1407,7 +1407,7 @@ class TestHuntCoverageOutput:
         assert "Coverage" in result.output or "tactic" in result.output.lower()
 
 
-class TestHuntValidateFailOnError:
+class TestHuntValidateExitStatus:
     """Tests for the exit status of 'hecate-agent hunt validate'."""
 
     def test_exits_nonzero_when_invalid(self, runner, temp_workspace):
@@ -1435,7 +1435,7 @@ class TestHuntValidateFailOnError:
         result = runner.invoke(hunt, ["validate"])
         # 1, not merely non-zero: click exits 2 for an unparseable command
         # line, which is how this test passed while still passing the
-        # long-removed --fail-on-error flag.
+        # since-removed --fail-on-error flag.
         assert result.exit_code == 1
 
     def test_exits_zero_when_valid(self, runner, temp_workspace):
