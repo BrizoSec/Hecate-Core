@@ -13,10 +13,11 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
+from hecate_agent.core.ocsf_fields import is_ocsf_field, suggest
+from hecate_agent.core.workspace import knowledge_file
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,41 @@ _LLM_ERROR_KEY_FINDING = "Error during LLM analysis"
 # environment profile. An empty result is rendered as this visible gap rather
 # than a blank section, so a reviewer sees the absence.
 _NO_TELEMETRY_KEY_FINDING = "No telemetry mapped - the source describes no behavior to detect"
+
+
+#: A telemetry finding looks like "process.cmd_line: what it captures". Only
+#: the part before the colon is a field name.
+_FIELD_IN_FINDING = re.compile(r"^\s*`?([A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z0-9_.]+)`?\s*:")
+
+
+def _flag_invented_fields(key_findings: List[str]) -> List[str]:
+    """Mark telemetry findings whose field name is not a real OCSF path.
+
+    Handing the model the schema reference did not stop it inventing paths --
+    `process.execution.command_line`, `file.file_name`,
+    `network.tcp.connection.remote_address` all appeared with the reference
+    loaded. They are dotted and lowercase and entirely fictional, and a hunt
+    built on them queries nothing.
+
+    Flagged rather than dropped, for the same reason the grounding audit
+    reports a fabricated claim instead of deleting it: the reviewer needs to
+    see that the model invented something, and silently removing every field
+    would leave a telemetry section that looks merely empty.
+    """
+    flagged: List[str] = []
+    for finding in key_findings:
+        match = _FIELD_IN_FINDING.match(finding)
+        if match is None:
+            flagged.append(finding)
+            continue
+        name = match.group(1)
+        if is_ocsf_field(name):
+            flagged.append(finding)
+            continue
+        hint = suggest(name)
+        note = f" [NOT AN OCSF FIELD{'; did you mean ' + hint + '?' if hint else ''}]"
+        flagged.append(finding.replace(name, name + note, 1))
+    return flagged
 
 
 def _llm_call_failed(key_findings: List[str]) -> bool:
@@ -637,12 +673,17 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         else:
             summary = "Telemetry mapping for {} - requires LLM for" " detailed analysis".format(topic)
             key_findings = [
-                "Common fields: process.name, process.command_line," " actor.user.name",
-                "Check OCSF_SCHEMA_REFERENCE.md for field population" " rates",
+                "Common fields: process.name, process.cmd_line, actor.user.name",
+                # Not "population rates": the prompt forbids stating them,
+                # because this estate has not been measured and any figure
+                # would be invented. The reference carries field *names*.
+                "See knowledge/OCSF_SCHEMA_REFERENCE.md for canonical field names",
             ]
 
         if not key_findings:
             key_findings = [_NO_TELEMETRY_KEY_FINDING]
+
+        key_findings = _flag_invented_fields(key_findings)
 
         # Add schema reference as source
         sources.append(
@@ -650,7 +691,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "title": "OCSF Schema Reference",
                 "url": "knowledge/OCSF_SCHEMA_REFERENCE.md",
                 "snippet": (
-                    "Internal schema documentation with field population" " rates"
+                    "Canonical OCSF field names for the classes this program hunts in"
                     if schema_available
                     else "Schema file not found — field findings are based on model recall"
                 ),
@@ -1048,17 +1089,24 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             )
 
     def _load_ocsf_schema(self) -> str:
-        """Load OCSF schema reference content."""
-        schema_path = Path.cwd() / "knowledge" / "OCSF_SCHEMA_REFERENCE.md"
+        """Load OCSF schema reference content.
+
+        Resolved against the workspace rather than the working directory, so
+        a caller that does not chdir into the workspace first still finds it.
+        """
+        schema_path = knowledge_file("OCSF_SCHEMA_REFERENCE.md")
         if schema_path.exists():
             return schema_path.read_text(encoding="utf-8")[:5000]  # Limit size
         return "OCSF schema reference not found"
 
     def _load_environment(self) -> str:
-        """Load environment.md content."""
-        env_path = Path.cwd() / "knowledge" / "environment.md"
+        """Load environment.md content.
+
+        Workspace-relative for the same reason as the schema above.
+        """
+        env_path = knowledge_file("environment.md")
         if env_path.exists():
-            return env_path.read_text(encoding="utf-8")[:2000]  # Limit size
+            return env_path.read_text(encoding="utf-8")  # Limit size
         return "Environment file not found"
 
     def _extract_hypothesis(
