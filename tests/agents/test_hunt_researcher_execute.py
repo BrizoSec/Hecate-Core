@@ -300,6 +300,10 @@ class TestSkill3TelemetryMapping:
         knowledge.mkdir()
         (knowledge / "OCSF_SCHEMA_REFERENCE.md").write_text("# schema content")
         (knowledge / "environment.md").write_text("# environment content")
+        # Knowledge files resolve against the workspace, not the working
+        # directory. Pin it explicitly: an exported HECATE_WORKSPACE would
+        # otherwise send these loaders at the real workspace.
+        monkeypatch.setenv("HECATE_WORKSPACE", str(tmp_path))
         monkeypatch.chdir(tmp_path)
 
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
@@ -309,10 +313,11 @@ class TestSkill3TelemetryMapping:
         # "Internal schema documentation" source snippet, not the
         # "not found" fallback text.
         assert output.confidence == 0.4 or output.confidence == 0.9  # LLM disabled path forces via _llm_call_failed check
-        assert "Internal schema documentation" in output.sources[0]["snippet"]
+        assert "Canonical OCSF field names" in output.sources[0]["snippet"]
 
     def test_missing_ocsf_files_use_not_found_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(tmp_path)  # no knowledge/ dir here
+        monkeypatch.setenv("HECATE_WORKSPACE", str(tmp_path))  # no knowledge/ dir here
+        monkeypatch.chdir(tmp_path)
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
 
         output = agent._skill_3_telemetry_mapping("ValleyRAT", None)

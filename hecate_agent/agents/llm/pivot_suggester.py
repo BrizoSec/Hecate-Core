@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
+from hecate_agent.core.workspace import knowledge_file
 
 
 @dataclass
@@ -316,11 +317,10 @@ class PivotSuggesterAgent(LLMAgent[PivotInput, PivotOutput]):
     def _load_environment(self) -> str:
         """Load knowledge/environment.md if available."""
         try:
-            from pathlib import Path
 
-            env_file = Path("knowledge") / "environment.md"
+            env_file = knowledge_file("environment.md")
             if env_file.exists():
-                return env_file.read_text(encoding="utf-8")[:2000]
+                return env_file.read_text(encoding="utf-8")
         except Exception:
             pass
         return ""
