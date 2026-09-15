@@ -7,7 +7,7 @@ name = "hecate-agent"
 dynamic = ["version"]
 description = "Agentic Threat Hunting Framework - Memory and AI for threat hunters"
 readme = {file = "README.md", content-type = "text/markdown"}
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Sydney Marrone", email = "hecate@nebulock.io"}
@@ -266,6 +266,7 @@ markers = [
     "unit: Unit tests (fast, isolated)",
     "integration: Integration tests (slower, multiple components)",
     "slow: Slow tests (skipped in quick runs)",
+    "network: Hits an external service; opt in with -m network",
 ]
 
 [tool.coverage.run]
