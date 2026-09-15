@@ -21,6 +21,7 @@ Files here are GitHub/developer-facing and are not deployed into workspaces:
 - [Using Hecate](USING_HECATE.md) — Adoption guide for teams
 - [Hunt Showcase](SHOWCASE.md) — Example completed hunts
 - [Open Threads](OPEN_THREADS.md) — Known unfinished work across Hecate-Core and Hecate-Runner, with owner and next step
+- [Future Enhancements](FUTURE_ENHANCEMENTS.md) — Capability work worth building, and the knowledge inputs that most affect hunt quality
 
 ## Developer Internals
 
