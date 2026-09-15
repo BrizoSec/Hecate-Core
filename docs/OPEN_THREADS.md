@@ -7,6 +7,10 @@ dogfooded hunting workspace) and `Hecate-Runner` (the autonomous orchestrator)
 
 **Last reviewed:** 2026-09-09 (C2, C3, C4, C5, E1, E3, G4, Q3 closed; G7 opened; G5, G6, G8, G9 closed; H1, H2, H3 closed; V1 closed (per-log-source Sigma generation); V2 accepted as-is)
 
+Capability work that nothing is blocked on lives in
+[FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md) instead: an item there is a
+proposal, an item here is a debt.
+
 Each item records *why it matters*, not just what it is, so a future reader can
 judge whether it still does. Evidence is cited by file and line where it exists,
 so a claim here can be checked rather than believed.
