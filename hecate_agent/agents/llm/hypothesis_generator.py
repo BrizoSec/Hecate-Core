@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
+from hecate_agent.core.hunting_knowledge import HYPOTHESIS_SECTIONS, is_enabled, load_sections
 
 
 @dataclass
@@ -96,6 +97,12 @@ def _bullet_block(heading: str, items: List[str]) -> List[str]:
     if not items:
         return []
     return [heading] + ["  - {}".format(item) for item in items]
+
+
+#: Character budget for the tradecraft excerpt. Sections 1, 2 and 5 total
+#: ~63 KB, which would crowd the CTI out of a local model's context; this
+#: keeps the framing without drowning the intel the hunt is actually about.
+_HUNTING_KNOWLEDGE_BUDGET = 12000
 
 
 class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGenerationOutput]):
@@ -438,6 +445,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "{past_hunts}\n\n"
             "**Available Environment:**\n"
             "{environment}\n\n"
+            "{hunting_knowledge}"
             "{research_section}"
             "Generate a hypothesis following this format:\n"
             "{hypothesis_format}"
@@ -458,21 +466,24 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "- Behavior: The specific TTP or behavior pattern to hunt for, "
             "more concrete/actionable than the hypothesis's own [behavior] "
             "clause.\n"
-            "- Location: The systems, networks, or environments to hunt in "
-            '(e.g. "Windows domain-joined endpoints", "AWS CloudTrail '
-            'across all accounts") -- must be consistent with the '
-            "environment/data sources given above, not a platform absent "
-            "from them.\n"
+            "- Location: The systems, networks, or environments to hunt in. "
+            "Name the platforms the environment above actually lists, and "
+            "the ones the threat intel implicates -- do not default to "
+            "Windows or to domain-joined endpoints unless one of those two "
+            "sources says so. A Linux server compromise scoped to Windows "
+            "endpoints finds nothing.\n"
             "- Evidence: The specific data sources and key fields a hunter "
             "would actually query to test this hypothesis.\n\n"
             "**IMPORTANT:** Return your response as a JSON object matching "
-            "this schema:\n"
+            "this schema. The values below show the *shape* only -- anything "
+            "in angle brackets is a placeholder, and copying it, or any "
+            "example value from the instructions above, into your answer is "
+            "an error:\n"
             "{{\n"
             '  "hypothesis": "string",\n'
             '  "justification": "string",\n'
             '  "mitre_techniques": ["T1234.001", "T5678.002"],\n'
-            '  "data_sources": '
-            '["ClickHouse nocsf_unified_events", "CloudTrail"],\n'
+            '  "data_sources": ["<data source from the environment above>"],\n'
             '  "expected_observables": '
             '["Process execution", "Network connections"],\n'
             '  "known_false_positives": '
@@ -494,7 +505,24 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             past_hunts=json.dumps(input_data.past_hunts, indent=2),
             environment=json.dumps(input_data.environment, indent=2),
             research_section=self._build_research_section(input_data.research),
+            hunting_knowledge=self._build_hunting_knowledge_section(),
         )
+
+    @staticmethod
+    def _build_hunting_knowledge_section() -> str:
+        """Tradecraft from `knowledge/hunting-knowledge.md`, if present.
+
+        Sections 1, 2 and 5 -- hypothesis patterns, TTP-to-observable
+        mapping, and the framework mental models -- are what the knowledge
+        base itself says to read before generating a hypothesis. Returns ""
+        when the file is absent so the prompt simply omits the block.
+        """
+        if not is_enabled():
+            return ""
+        body = load_sections(HYPOTHESIS_SECTIONS, _HUNTING_KNOWLEDGE_BUDGET)
+        if not body:
+            return ""
+        return "**Hunting Tradecraft (apply this, do not merely cite it):**\n" f"{body}\n\n"
 
     def _build_research_section(self, research: Optional[ResearchContext]) -> str:
         """Build the research context section for the prompt.
