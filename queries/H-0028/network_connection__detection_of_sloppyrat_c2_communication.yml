@@ -1,0 +1,22 @@
+title: Detection of SloppyRAT C2 Communication
+id: c007f3a9-bf31-4f42-b799-e685e2468088
+status: experimental
+description: Detects network connections to known malicious domains and URLs associated with the deployment
+  of SloppyRAT, which is often used in multi-stage ransomware attacks.
+references:
+- https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|contains: skipraid.com
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate network traffic to the domain might occur if it was previously whitelisted or misconfigured
+level: medium
+hunt_id: H-0028

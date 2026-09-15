@@ -1,0 +1,27 @@
+title: Detection of DNS Queries to LegionLoader C2 Domains via ClickFix Exploit
+id: 517903c2-6701-4a6a-a1f8-5cae12177db4
+status: experimental
+description: This rule aims to identify malicious DNS queries that are indicative of the exploitation
+  of a trusted tool (ClickFix) for distributing LegionLoader malware. The detection focuses on specific
+  domain names used by the threat actors.
+references:
+- https://asec.ahnlab.com/en/95374/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-14'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .com
+  filter:
+    QueryName|contains:
+    - dallasbackstage.com
+    - gemscocl.com
+  condition: selection and filter
+falsepositives:
+- DNS queries to known malicious domains by security tools for analysis
+level: medium
+hunt_id: H-0032

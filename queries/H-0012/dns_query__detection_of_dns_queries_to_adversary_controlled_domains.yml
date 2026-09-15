@@ -1,0 +1,30 @@
+title: Detection of DNS Queries to Adversary-Controlled Domains
+id: 726b6991-fd2c-47fe-be91-4d3dc71c6847
+status: experimental
+description: Detects DNS queries to domains associated with compromised PaperCut NG/MF installations and
+  potential C2 communication.
+references:
+- https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-10'
+tags:
+- attack.t1021
+- attack.t1078
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .hiv
+  filter:
+    QueryName|contains:
+    - pc-sec
+    - pc-security
+    - pc-sys-reg
+    - pc-sys
+    - pc-system
+  condition: selection and filter
+falsepositives:
+- DNS queries to benign domains with similar naming conventions
+level: medium
+hunt_id: H-0012

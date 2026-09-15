@@ -1,0 +1,34 @@
+title: Connection to Known Adversary Servers for Financial Data Exfiltration
+id: ab38d9b8-efa6-4c66-b8be-679fc766616d
+status: experimental
+description: Detects network connections initiated from compromised systems to specific IP addresses and
+  domains associated with adversaries exfiltrating financial data. This rule aims to identify potential
+  C2 communications used by sophisticated threat actors.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection:
+    $or:
+    - DestinationIp: 162.201.178.68
+    - DestinationIp: 115.201.178.68
+    - DestinationIp: 116.181.62.50
+    - DestinationIp: 128.200.178.68
+    - DestinationIp: 129.202.178.68
+    - DestinationIp: 135.201.178.68
+    - DestinationIp: 181.202.178.68
+    - DestinationIp: 209.99.188.28
+    - DestinationIp: 76.180.62.50
+    - DestinationIp: 85.182.62.50
+    - DestinationHostname|endswith: .gexwalltool.com
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate network traffic to known good domains or IP addresses
+level: medium
+hunt_id: H-0026

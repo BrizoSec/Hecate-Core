@@ -1,0 +1,22 @@
+title: Detection of Financial Data Exfiltration via Known Malicious Domain
+id: d2cbb981-e24f-4d92-bbd1-8a5183f2b4b9
+status: experimental
+description: Detects file events related to a known malicious domain used for C2 communications and data
+  exfiltration from compromised systems.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-13'
+tags:
+- attack.t1059.003
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: gexwalltool.com
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate network traffic to a domain that has been compromised or misused by adversaries
+level: medium
+hunt_id: H-0026

@@ -1,0 +1,23 @@
+title: Detection of Malicious DNS Queries Related to GTA VI Social Engineering
+id: 1fec2c0e-7a74-4ff7-807a-c29526bd6e4a
+status: experimental
+description: Identifies DNS queries related to known malicious hostnames associated with social engineering
+  tactics exploiting user excitement around the release of Grand Theft Auto VI.
+references:
+- https://www.huntress.com/blog/fake-gta6-download-malware-analysis
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-11'
+tags:
+- attack.t1566.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: .xsph.ru
+  filter:
+    QueryName|contains: a0700877.xsph.ru
+  condition: selection and not filter
+falsepositives:
+- DNS queries to legitimate subdomains of xsph.ru
+level: medium
+hunt_id: H-0013

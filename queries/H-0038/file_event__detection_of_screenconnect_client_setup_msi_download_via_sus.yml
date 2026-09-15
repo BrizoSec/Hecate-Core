@@ -1,0 +1,24 @@
+title: Detection of ScreenConnect Client Setup MSI Download via Suspicious URL
+id: f99db6ca-4563-4362-8537-f5df59a63747
+status: experimental
+description: Detects the download of a specific ScreenConnect client setup file from a suspicious URL
+  associated with adversary activity. This is indicative of an initial foothold established through social
+  engineering followed by lateral movement.
+references:
+- https://www.menlosecurity.com/blog/from-fake-docusign-to-screenconnect-web-attack-stopped-before-payload-delivery
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-15'
+tags:
+- attack.t1059.003
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: .msi
+  filter:
+    Image|contains: http://admin.rshiahub.com/Bin/ScreenConnect.ClientSetup.msi
+  condition: selection and not filter
+falsepositives:
+- Administrative scripting involving known-good URLs
+level: medium
+hunt_id: H-0038

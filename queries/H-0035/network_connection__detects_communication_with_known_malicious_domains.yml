@@ -1,0 +1,23 @@
+title: Detects Communication with Known Malicious Domains
+id: cf7047cb-ee81-4553-b1bf-8aa284ca433c
+status: experimental
+description: Identifies network connections to known malicious domains used by adversaries for executive
+  impersonation and financial fraud.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/10/protecting-organizations-ai-assisted-executive-impersonation-invoice-fraud/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-14'
+tags:
+- attack.t1059.003
+logsource:
+  category: network_connection
+detection:
+  selection_DestinationHostname:
+    DestinationHostname|endswith:
+    - .domainlify.net
+    - .service-nowinc.com
+  condition: selection_DestinationHostname
+falsepositives:
+- None known, but potential false positives may occur if benign services use similar domain names or subdomains
+level: medium
+hunt_id: H-0035

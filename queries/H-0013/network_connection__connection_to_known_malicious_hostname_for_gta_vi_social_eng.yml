@@ -1,0 +1,22 @@
+title: Connection to Known Malicious Hostname for GTA VI Social Engineering Attack
+id: 28019bc7-4e81-482f-8aea-3867e3c8c4d7
+status: experimental
+description: Detects network connections initiated from systems potentially compromised by social engineering
+  tactics related to the release of Grand Theft Auto VI, specifically targeting known malicious hostnames.
+references:
+- https://www.huntress.com/blog/fake-gta6-download-malware-analysis
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-11'
+tags:
+- attack.t1566.001
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|endswith: a0700877.xsph.ru
+  condition: selection
+falsepositives:
+- Connections to this hostname may occur if users have been tricked into visiting a malicious site related
+  to the game release
+level: medium
+hunt_id: H-0013

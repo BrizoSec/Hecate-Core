@@ -1,0 +1,23 @@
+title: Suspicious Reconnaissance Tool Usage
+id: dcfc11d3-19d8-45b8-b0f2-09eda2fd3ab6
+status: experimental
+description: Detects the execution of a known reconnaissance tool that is commonly used by adversaries
+  to gather information about networks and systems before deploying malware.
+references:
+- https://www.huntress.com/blog/security-incident-investigations-partner-view
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-12'
+tags:
+- attack.t1059.003
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|endswith: .exe
+  filter:
+    ParentImage|contains: powershell.exe
+  condition: selection and not filter
+falsepositives:
+- Legitimate use of PowerShell to execute benign scripts or tools
+level: medium
+hunt_id: H-0024

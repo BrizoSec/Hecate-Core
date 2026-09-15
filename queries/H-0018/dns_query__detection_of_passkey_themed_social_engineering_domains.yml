@@ -1,0 +1,38 @@
+title: Detection of Passkey-themed Social Engineering Domains
+id: 3b6e970f-8d86-41fc-b81b-78f9ca6ad7d5
+status: experimental
+description: Identifies DNS queries to domains commonly used in passkey-themed social engineering attacks,
+  which may be indicative of credential harvesting attempts.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-11'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .com
+  filter:
+    QueryName|contains:
+    - setupmypasskey.com
+    - validationsetupac.com
+    - portalsetuphub.com
+    - myconnectkey.com
+    - oskeysync.com
+    - keysyncos.com
+    - oskeyregister.com
+    - passkeyhelpdesk.com
+    - oskeysetup.com
+    - add-passkey.com
+    - company-name.integratedsso.com
+    - company-name.secure-passkey.com
+    - companyname.maliciousdomain.com
+    - contoso.add-passkey.com
+  condition: selection and filter
+falsepositives:
+- DNS queries to known malicious domains by compromised systems
+level: medium
+hunt_id: H-0018
