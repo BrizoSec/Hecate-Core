@@ -314,6 +314,7 @@ This file is gitignored by default — it is machine-local config (your LLM key,
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HECATE_WORKSPACE` | cwd walk-up | Explicit workspace root path (MCP server) |
+| `HECATE_HUNTING_KNOWLEDGE` | unset (off) | Inject `knowledge/hunting-knowledge.md` tradecraft into agent prompts. **Off by default** — it measurably degraded hypothesis quality, see FUTURE_ENHANCEMENTS.md §1.3 |
 | `HECATE_STIX_CACHE` | `~/.hecate/stix-data/` | Directory for ATT&CK STIX JSON cache |
 
 ---
