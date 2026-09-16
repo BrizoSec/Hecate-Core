@@ -133,7 +133,12 @@ class HuntParser:
         report every technique as unknown for anyone who has not run
         `hecate-agent attack update`. Tactics work with either provider.
         """
-        from hecate_agent.core.attack_matrix import get_sorted_tactics, get_technique, is_using_stix
+        from hecate_agent.core.attack_matrix import (
+            canonical_tactic,
+            get_sorted_tactics,
+            get_technique,
+            is_using_stix,
+        )
 
         errors: List[str] = []
 
@@ -142,9 +147,12 @@ class HuntParser:
                 if isinstance(technique, str) and technique and get_technique(technique) is None:
                     errors.append(f"Unknown MITRE technique: {technique} (not found in ATT&CK matrix — typo?)")
 
+        # Renamed tactics resolve to their current shortname first: a hunt
+        # written as "defense-evasion" names a tactic ATT&CK still has, it
+        # just calls it "stealth" since v18.
         valid_tactics = set(get_sorted_tactics())
         for tactic in self.frontmatter.get("tactics", []):
-            if isinstance(tactic, str) and tactic and tactic not in valid_tactics:
+            if isinstance(tactic, str) and tactic and canonical_tactic(tactic) not in valid_tactics:
                 errors.append(
                     f"Unknown MITRE tactic: '{tactic}' — did you mean one of: "
                     + ", ".join(sorted(valid_tactics)[:5])
