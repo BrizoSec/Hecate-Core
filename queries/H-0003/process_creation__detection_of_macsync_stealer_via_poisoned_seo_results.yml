@@ -1,0 +1,25 @@
+title: Detection of MacSync Stealer via Poisoned SEO Results
+id: 8f975713-e241-4b80-af64-797f541ea702
+status: experimental
+description: Identifies the execution of MacSync Stealer on macOS systems through poisoned search engine
+  optimization (SEO) results, targeting users searching for 'Claude'. This rule aims to detect the initial
+  infection vector and prevent data theft.
+references:
+- https://www.huntress.com/blog/fake-claude-macsync
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1098
+- attack.t1217
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: macsync
+  filter:
+    ParentImage|contains: /Applications/Safari.app
+  condition: selection and not filter
+falsepositives:
+- Legitimate use of search engines or browsers that may mistakenly download malicious files
+level: medium
+hunt_id: H-0003

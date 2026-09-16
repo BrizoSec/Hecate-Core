@@ -47,6 +47,13 @@ VALID_LOGSOURCE_CATEGORIES = {
     "file_event",
     "registry_event",
     "image_load",
+    # Every other category here is host/endpoint telemetry. Without an
+    # authentication category no credential-access technique mapped anywhere,
+    # so `applicable_logsources` fell through to its process_creation fallback
+    # and the model was asked to detect credential stuffing in process command
+    # lines. It answered `CommandLine|contains: login`, which is the best
+    # available answer to an impossible question.
+    "authentication",
 }
 
 #: Field names each log source actually carries, so the prompt for one
@@ -59,6 +66,13 @@ _LOGSOURCE_FIELDS = {
     "file_event": "TargetFilename, Image, User",
     "registry_event": "TargetObject, Details, EventType, Image",
     "image_load": "ImageLoaded, Image, Signed, Signature",
+    # Sigma's cross-platform authentication taxonomy. Deliberately not Windows
+    # EventCode: a rule pinned to Security 4625 stops matching the moment the
+    # hunt is scoped to Linux or a SaaS identity provider.
+    "authentication": (
+        "TargetUserName, SubjectUserName, LogonType, AuthenticationPackageName, "
+        "WorkstationName, IpAddress, Status, SubStatus"
+    ),
 }
 
 VALID_LEVELS = {"informational", "low", "medium", "high", "critical"}
@@ -84,6 +98,16 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1547": {"registry_event"},
     "T1543": {"registry_event", "process_creation"},
     "T1112": {"registry_event"},
+    # Credential access and account abuse. These are observable in
+    # authentication telemetry and essentially nowhere else -- mapping them to
+    # nothing is what forced them into process_creation.
+    "T1110": {"authentication"},
+    "T1078": {"authentication"},
+    "T1098": {"authentication"},
+    "T1621": {"authentication"},
+    "T1550": {"authentication"},
+    "T1556": {"authentication", "registry_event"},
+    "T1187": {"authentication", "network_connection"},
 }
 
 # MISP/OTX attribute type -> log source category. The indicator types a CTI
@@ -142,6 +166,17 @@ def applicable_logsources(
         found |= _INDICATOR_LOGSOURCES.get(str(indicator_type).lower().strip(), set())
 
     if not found:
+        # Reported, not silent. This fallback is how a credential-stuffing hunt
+        # ended up with a process_creation rule: nothing matched, the default
+        # was substituted, and the draft gave no sign that its log source was a
+        # guess rather than a derivation. A rule still beats no rule, but the
+        # reader needs to know which one they are holding.
+        logger.warning(
+            "No log source maps to techniques %s or indicator types %s; "
+            "falling back to process_creation, which may not carry this behaviour",
+            list(techniques or []),
+            list(indicator_types or []),
+        )
         return ["process_creation"]
     # Stable order so a rerun on identical input yields identical filenames.
     return sorted(found)
@@ -330,6 +365,150 @@ def _pysigma_problem(rule_yaml: str) -> Optional[str]:
     return None
 
 
+#: Parent processes a browser-borne delivery hunt must not exclude. Narrow on
+#: purpose: this is the one self-defeating exclusion actually observed, where a
+#: hunt about a poisoned search result delivering a macOS stealer filtered out
+#: `ParentImage|contains: /Applications/Safari.app` -- the exact parent the
+#: hypothesis predicts. The rule was valid Sigma and passed every structural
+#: check while excluding its own primary scenario.
+_BROWSER_PARENTS = (
+    "safari",
+    "chrome",
+    "firefox",
+    "msedge",
+    "microsoftedge",
+    "brave",
+    "opera",
+    "chromium",
+)
+
+#: Hypothesis language that means "the browser is the delivery path". Only when
+#: one of these is present does excluding a browser parent become a defect
+#: rather than a reasonable noise filter.
+_BROWSER_DELIVERY_TERMS = (
+    "seo",
+    "search result",
+    "search engine",
+    "poisoned search",
+    "drive-by",
+    "driveby",
+    "malvertis",
+    "download",
+    "browser",
+    "watering hole",
+)
+
+
+def _strip_empty_filters(detection: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop filter blocks that match nothing, and the condition terms naming them.
+
+    Repaired rather than rejected. `filter: {}` with a `condition` of
+    "selection and not filter" is a no-op that reads to a reviewer as a
+    deliberate exclusion, but the selection around it can be perfectly good --
+    and a rejected rule is not retried, so refusing the whole rule costs the
+    draft its entire detection section over a cosmetic defect.
+    """
+    empty = [
+        key
+        for key, block in detection.items()
+        if key != "condition" and isinstance(block, dict) and not block
+    ]
+    if not empty:
+        return detection
+
+    cleaned = {key: block for key, block in detection.items() if key not in empty}
+    condition = str(cleaned.get("condition", ""))
+    for name in empty:
+        quoted = re.escape(name)
+        # Longest form first: "x and not filter" must not leave a dangling "not".
+        condition = re.sub(rf"\s+and\s+not\s+{quoted}\b", "", condition)
+        condition = re.sub(rf"\s+and\s+{quoted}\b", "", condition)
+        condition = re.sub(rf"\bnot\s+{quoted}\b", "", condition)
+        condition = re.sub(rf"\b{quoted}\b", "", condition)
+    condition = re.sub(r"\s+", " ", condition).strip()
+    if condition:
+        cleaned["condition"] = condition
+    return cleaned
+
+
+def _partial_indicator_problem(
+    detection: Dict[str, Any], supplied: Dict[str, List[str]], category: str
+) -> Optional[str]:
+    """Reject a rule that reproduces a supplied indicator only in part.
+
+    Targets fragmentation, not absence. A behavioural rule that uses no
+    indicator at all is legitimate and often worth more than one matching a
+    single hash -- the prompt asks for exactly that where generalising is
+    right, and an earlier version of this check that demanded an indicator
+    rejected every rule on three consecutive live cycles, leaving drafts with
+    no detection section at all.
+
+    What is actually wrong is a *fragment*. The drafted DNS rule turned the
+    supplied `domainlify.net` into `QueryName|endswith: .net` plus
+    `QueryName|contains: domainlify`. That matches every .net domain, silently
+    widens the rule far past its evidence, and leaves no complete indicator for
+    the grounding audit to find, so the hunt was graded as carrying no CTI
+    evidence at all.
+
+    Only indicator types this log source can match are considered, via the same
+    map that chose the log source. A value that is itself a complete supplied
+    indicator always passes, including a hostname that also appears inside a
+    supplied URL.
+    """
+    matchable: List[str] = []
+    for indicator_type, values in (supplied or {}).items():
+        categories = _INDICATOR_LOGSOURCES.get(str(indicator_type).lower().strip(), set())
+        if category in categories:
+            matchable.extend(str(v).strip().lower() for v in values if str(v).strip())
+
+    if not matchable:
+        return None
+    complete = set(matchable)
+
+    for value in _detection_values(detection):
+        cleaned = value.strip()
+        lowered = cleaned.lower()
+        # Short values are ordinary rule vocabulary ("exe", "tmp") and collide
+        # with indicator substrings by accident.
+        if len(lowered) < 4 or lowered in complete:
+            continue
+        for indicator in matchable:
+            if lowered != indicator and lowered in indicator:
+                return (
+                    f"detection matches on {cleaned!r}, a fragment of the supplied "
+                    f"indicator {indicator!r}; match the indicator in full or "
+                    f"describe the behaviour instead"
+                )
+    return None
+
+
+def _self_defeating_filter_problem(
+    detection: Dict[str, Any], hypothesis: str
+) -> Optional[str]:
+    """Reject an exclusion that removes the hunt's own stated attack path.
+
+    Also rejects an empty filter block: `filter: {}` referenced by a condition
+    is a no-op that reads as a deliberate exclusion to whoever reviews it.
+    """
+    lowered_hypothesis = (hypothesis or "").lower()
+
+    for key, block in detection.items():
+        if key == "condition" or not key.lower().startswith("filter"):
+            continue
+        if not any(term in lowered_hypothesis for term in _BROWSER_DELIVERY_TERMS):
+            continue
+        for value in _detection_values({key: block}):
+            lowered = value.lower()
+            for browser in _BROWSER_PARENTS:
+                if browser in lowered:
+                    return (
+                        f"{key!r} excludes {value!r}, but the hypothesis describes "
+                        "browser-borne delivery -- this filters out the rule's own "
+                        "primary scenario"
+                    )
+    return None
+
+
 def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Optional[str]:
     """Reject a rule whose detection matches on scaffolding.
 
@@ -498,10 +677,17 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         detection, problem = self._normalise_detection(raw)
         if problem:
             return None, f"{category}: {problem}"
+        detection = _strip_empty_filters(detection)
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"
         problem = _placeholder_problem(detection, input_data.indicators)
+        if problem:
+            return None, f"{category}: {problem}"
+        problem = _partial_indicator_problem(detection, input_data.indicators, category)
+        if problem:
+            return None, f"{category}: {problem}"
+        problem = _self_defeating_filter_problem(detection, input_data.hypothesis)
         if problem:
             return None, f"{category}: {problem}"
 
@@ -725,15 +911,23 @@ RULES OF THE TASK:
    another category matches nothing and fails silently at conversion.
 3. Prefer the concrete indicators above over generic patterns. A rule that
    matches the actual C2 hostnames or the actual masquerading path is worth
-   more than one matching "suspicious command line".
+   more than one matching "suspicious command line". If you use an indicator,
+   reproduce it WHOLE in one match value. Never split one into fragments:
+   "bad.example.net" written as `|endswith: .net` plus `|contains: bad`
+   matches every .net domain, loses the evidence, and is rejected. Using no
+   indicator at all is fine when the behaviour is the better rule.
 4. Where you must generalise, express the *behaviour* the hypothesis
    describes, not a restatement of the indicator list.
 5. Every `detection` MUST contain a `condition` key. It is not optional, and
    it may only name selection blocks you defined in the same rule. If you
    define both a selection and a filter, say so explicitly, e.g.
    "selection and not filter".
-6. Give realistic falsepositives. "None" is never a correct answer.
-7. The JSON below shows the *shape* only. Its values are placeholders, not
+6. A `filter` must never exclude the attack path the hypothesis describes.
+   On a hunt about malware delivered through the browser, excluding the
+   browser as the parent process removes the very thing being hunted. An
+   empty filter block is rejected: omit it instead.
+7. Give realistic falsepositives. "None" is never a correct answer.
+8. The JSON below shows the *shape* only. Its values are placeholders, not
    examples to copy: "FieldName", "value" and "known-good" must never appear
    in what you return, and a rule matching on them is rejected. Neither may
    invented stand-ins of your own -- "bad_command", "malicious.exe",

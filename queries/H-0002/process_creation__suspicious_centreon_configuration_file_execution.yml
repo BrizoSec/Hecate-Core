@@ -1,0 +1,23 @@
+title: Suspicious Centreon Configuration File Execution
+id: b09efd09-da73-4d43-9fc8-d31f5d1f7fe4
+status: experimental
+description: Detects the execution of suspicious configuration files related to Centreon system exploitation,
+  which could indicate malicious activities such as code execution and C2 communications.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1041
+- attack.t1071.001
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: /tmp/.applocktx
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate administrative scripts or commands that may use similar file paths for configuration purposes
+level: medium
+hunt_id: H-0002

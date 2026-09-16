@@ -302,6 +302,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         super().__init__(llm_enabled=llm_enabled, provider=provider)
         self.tavily_api_key = tavily_api_key or os.getenv("TAVILY_API_KEY")
         self._search_client: Optional[Any] = None
+        self._search_client_failed = False
+        self._search_failed = False
         self._total_cost = 0.0
         self._llm_calls = 0
         self._web_searches = 0
@@ -320,7 +322,13 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._total_cost += cost_usd
 
     def _get_search_client(self) -> Optional[Any]:
-        """Get or create Tavily search client."""
+        """Get or create Tavily search client.
+
+        A failure here is reported, not swallowed. Returning None silently
+        makes the caller skip web search, so research completes and looks
+        successful while being entirely ungrounded -- the exact degradation
+        that is hardest to notice from the finished document.
+        """
         if self._search_client is None and self.tavily_api_key:
             try:
                 from hecate_agent.core.web_search import TavilySearchClient
@@ -328,9 +336,34 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 self._search_client = TavilySearchClient(
                     api_key=self.tavily_api_key,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                if not self._search_client_failed:
+                    # Once per agent: this is called per skill, and a repeated
+                    # traceback per research run buries the first one.
+                    logger.warning(
+                        "Web search client unavailable, research will run UNGROUNDED: %s",
+                        exc,
+                    )
+                    self._search_client_failed = True
         return self._search_client
+
+    def _note_search_failure(self, exc: BaseException) -> None:
+        """Report a failed web search once per agent.
+
+        Swallowing this is how grounding stayed off unnoticed. The client built
+        fine and the key was set, so every check upstream looked healthy, while
+        the search itself returned 403 "exceeds your plan's set usage limit" on
+        every call -- research completed, recorded `web_searches: 0`, and read
+        as a finished document.
+        """
+        if self._search_failed:
+            return
+        self._search_failed = True
+        logger.warning(
+            "Web search FAILED, research for this run is UNGROUNDED: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
 
     def _technique_grounding(self, technique: Optional[str]) -> str:
         """Ground truth for a technique ID from local STIX data, if available.
@@ -537,8 +570,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                             "snippet": snippet,
                         }
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_search_failure(exc)
 
         # Generate summary using LLM
         if self.llm_enabled:
@@ -610,8 +643,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                             "snippet": snippet,
                         }
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_search_failure(exc)
 
         # Generate summary using LLM
         if self.llm_enabled:
@@ -736,8 +769,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         key_findings: List[str] = []
 
         # Use similarity search to find related hunts
+        similar_hunts: List[Dict[str, Any]] = []
         try:
-            from hecate_agent.commands.similar import _find_similar_hunts
+            from hecate_agent.commands.similar import (
+                SimilarityUnavailable,
+                _find_similar_hunts,
+            )
 
             similar_hunts = _find_similar_hunts(
                 topic,
@@ -767,8 +804,20 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     )
                 )
 
-        except Exception:
-            key_findings.append("No similar hunts found or similarity search unavailable")
+        except SimilarityUnavailable as exc:
+            # Never fold this into "no similar hunts found". A search that
+            # could not run and a search that ran and matched nothing say
+            # opposite things about how novel the topic is, and the model
+            # reads this line as evidence.
+            logger.warning("Related-hunt similarity unavailable: %s", exc)
+            key_findings.append(
+                "Similarity search unavailable - related-hunt coverage was NOT checked"
+            )
+        except Exception as exc:
+            logger.warning("Related-hunt similarity failed: %s", exc)
+            key_findings.append(
+                "Similarity search failed - related-hunt coverage was NOT checked"
+            )
 
         summary = "Found {} related hunts for {}".format(
             len(sources),

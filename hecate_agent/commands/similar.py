@@ -11,6 +11,16 @@ from rich.table import Table
 
 console = Console()
 
+
+class SimilarityUnavailable(RuntimeError):
+    """Similarity search cannot run because scikit-learn is not installed.
+
+    Distinct from "ran and found nothing" on purpose. `_find_similar_hunts` is
+    a library function -- the research agent and the MCP server both call it --
+    and collapsing an absent dependency into an empty result list let the
+    runner report "no similar hunts found" for a search that never happened.
+    """
+
 SIMILAR_EPILOG = """
 \b
 Examples:
@@ -114,7 +124,11 @@ def similar(
         query_text = query or ""  # Should never be None due to validation above
 
     # Find similar hunts
-    results = _find_similar_hunts(query_text, limit=limit, threshold=threshold, exclude_hunt=hunt, include_sessions=sessions)
+    try:
+        results = _find_similar_hunts(query_text, limit=limit, threshold=threshold, exclude_hunt=hunt, include_sessions=sessions)
+    except SimilarityUnavailable as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise click.Abort() from exc
 
     # Format and display results
     if output_format == "json":
@@ -217,10 +231,14 @@ def _find_similar_hunts(
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.metrics.pairwise import cosine_similarity
-    except ImportError:
-        console.print("[red]Error: scikit-learn not installed[/red]")
-        console.print("[dim]Install with: pip install scikit-learn[/dim]")
-        raise click.Abort()
+    except ImportError as exc:
+        # Raised, not printed. Click output goes to the wrong place when the
+        # caller is the research agent or the MCP server, and click.Abort
+        # carries no meaning outside a Click app. The CLI command renders it.
+        raise SimilarityUnavailable(
+            "scikit-learn is required for similarity search. "
+            "Install with: pip install 'hecate-agent[similarity]'"
+        ) from exc
 
     # Load all hunts (HuntManager handles recursive search + deduplication)
     from hecate_agent.core.hunt_manager import HuntManager

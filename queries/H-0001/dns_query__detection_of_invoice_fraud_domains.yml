@@ -1,0 +1,23 @@
+title: Detection of Invoice Fraud Domains
+id: bbf68c63-5ef1-469f-a272-24df70d82f88
+status: experimental
+description: Identifies DNS queries to domains associated with AI-powered tools mimicking executives for
+  invoice fraud.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/10/protecting-organizations-ai-assisted-executive-impersonation-invoice-fraud/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1059.003
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: .net
+    QueryName|contains: domainlify
+  filter: {}
+  condition: selection
+falsepositives:
+- DNS queries to known benign .NET domains
+level: medium
+hunt_id: H-0001

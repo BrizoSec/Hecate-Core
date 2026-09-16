@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
+import logging
+
 import pytest
 
 from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
@@ -354,7 +356,29 @@ class TestSkill4RelatedWork:
             output = agent._skill_4_related_work("Some topic")
 
         assert output.sources == []
-        assert output.key_findings == ["No similar hunts found or similarity search unavailable"]
+        assert output.key_findings == ["Similarity search failed - related-hunt coverage was NOT checked"]
+
+    def test_similarity_unavailable_is_not_reported_as_no_results(self) -> None:
+        """A search that could not run must not read as a search that found nothing.
+
+        The model treats this line as evidence about how novel the topic is,
+        so collapsing the two states told it the opposite of the truth
+        whenever scikit-learn was missing.
+        """
+        agent = HuntResearcherAgent(llm_enabled=True, provider=CapturingProvider())
+        with patch.object(
+            _similar_mod,
+            "_find_similar_hunts",
+            side_effect=_similar_mod.SimilarityUnavailable("scikit-learn is required"),
+        ):
+            output = agent._skill_4_related_work("Some topic")
+
+        assert output.sources == []
+        assert output.key_findings == [
+            "Similarity search unavailable - related-hunt coverage was NOT checked"
+        ]
+        # The distinction is the point: it must not claim an empty result.
+        assert "No similar hunts found" not in output.key_findings[0]
 
 
 @pytest.mark.unit
@@ -370,3 +394,53 @@ class TestSkill5Synthesis:
             "Review individual skill outputs for findings",
         ]
         assert output.sources == []
+
+
+@pytest.mark.unit
+class TestWebSearchFailureIsReported:
+    """Grounding stayed off unnoticed because the search call was wrapped in a
+    bare `except Exception: pass`. The client built fine and the key was set,
+    so every upstream check looked healthy while every search returned 403."""
+
+    def test_a_failing_search_is_logged_not_swallowed(self, caplog) -> None:
+        agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
+
+        class Failing:
+            def search_system_internals(self, *a, **k):
+                raise RuntimeError("exceeds your plan's set usage limit")
+
+        with patch.object(agent, "_get_search_client", return_value=Failing()):
+            with caplog.at_level(logging.WARNING):
+                agent._skill_1_system_research("Some topic", "advanced", True)
+
+        assert "UNGROUNDED" in caplog.text
+        assert "usage limit" in caplog.text
+
+    def test_it_is_reported_once_per_agent(self, caplog) -> None:
+        """Called per skill; a traceback per skill buries the first one."""
+        agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
+
+        class Failing:
+            def search_system_internals(self, *a, **k):
+                raise RuntimeError("boom")
+
+        with patch.object(agent, "_get_search_client", return_value=Failing()):
+            with caplog.at_level(logging.WARNING):
+                agent._skill_1_system_research("T1", "advanced", True)
+                agent._skill_1_system_research("T2", "advanced", True)
+
+        assert caplog.text.count("UNGROUNDED") == 1
+
+    def test_research_still_completes(self, caplog) -> None:
+        """Reported, not fatal: an ungrounded document is still worth more than
+        no document, as long as the degradation is visible."""
+        agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
+
+        class Failing:
+            def search_system_internals(self, *a, **k):
+                raise RuntimeError("boom")
+
+        with patch.object(agent, "_get_search_client", return_value=Failing()):
+            output = agent._skill_1_system_research("Some topic", "advanced", True)
+
+        assert output is not None

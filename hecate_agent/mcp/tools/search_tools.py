@@ -49,7 +49,11 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
         # asyncio.to_thread dispatch would), two concurrent hecate_similar
         # calls chdir-ing into place could race each other's cwd.
         workspace = get_workspace()
-        from hecate_agent.commands.similar import _find_similar_hunts, _get_hunt_text
+        from hecate_agent.commands.similar import (
+            SimilarityUnavailable,
+            _find_similar_hunts,
+            _get_hunt_text,
+        )
 
         if hunt_id:
             query_text = _get_hunt_text(hunt_id, workspace=workspace)
@@ -57,8 +61,6 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
                 return _json_result({"error": f"Hunt not found: {hunt_id}"})
         else:
             query_text = query or ""
-
-        import click
 
         try:
             results = _find_similar_hunts(
@@ -68,18 +70,11 @@ def register_search_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]
                 exclude_hunt=hunt_id,
                 workspace=workspace,
             )
-        except (ImportError, click.Abort):
-            # _find_similar_hunts prints a click-flavored error and raises
-            # click.Abort (not ImportError) when scikit-learn is missing --
-            # it was only ever called from CLI/click contexts before this
-            # tool. Catch both so a missing optional dependency degrades to
-            # a normal JSON error response here instead of an unhandled
-            # click exception with no meaning outside a Click app.
-            return _json_result(
-                {
-                    "error": "scikit-learn is required for similarity search. Install with: pip install 'hecate-agent[similarity]'"
-                }
-            )
+        except SimilarityUnavailable as exc:
+            # A missing optional dependency degrades to a normal JSON error
+            # response here rather than escaping as an exception with no
+            # meaning outside a Click app.
+            return _json_result({"error": str(exc)})
 
         return _json_result({"count": len(results), "results": results})
 

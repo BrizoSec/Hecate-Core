@@ -1,0 +1,27 @@
+title: Detection of Unauthorized Registry Modification for Centreon Exploitation
+id: 477a7488-1804-4181-a4c2-d24415651e8a
+status: experimental
+description: Identifies potential unauthorized modifications to the registry that could be indicative
+  of Centreon system exploitation by adversaries. This rule focuses on specific file paths and configurations
+  known to be used in malicious activities.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1041
+- attack.t1071.001
+logsource:
+  category: registry_event
+detection:
+  selection:
+    TargetObject|endswith:
+    - /tmp/.applocktx
+    - /tmp/.applock
+    - configtx.json
+  filter: {}
+  condition: selection
+falsepositives:
+- Administrative scripts or processes that legitimately use these file paths
+level: medium
+hunt_id: H-0002

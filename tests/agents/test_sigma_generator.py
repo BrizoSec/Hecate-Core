@@ -13,9 +13,16 @@ import yaml
 from hecate_agent.agents.llm.sigma_generator import (
     SigmaGenerationInput,
     SigmaGeneratorAgent,
+    _partial_indicator_problem,
     _placeholder_problem,
+    _strip_empty_filters,
     _pysigma_problem,
+    _self_defeating_filter_problem,
     applicable_logsources,
+)
+from hecate_agent.agents.llm.sigma_generator import (
+    VALID_LOGSOURCE_CATEGORIES,
+    _LOGSOURCE_FIELDS,
 )
 
 # The technique list and indicator types of the reference event (MISP 476,
@@ -597,3 +604,212 @@ def test_the_missing_pysigma_warning_is_emitted_once(monkeypatch, caplog):
         sg._pysigma_problem("a")
         sg._pysigma_problem("b")
     assert caplog.text.lower().count("not being validated") == 1
+
+
+@pytest.mark.unit
+class TestIndicatorGrounding:
+    """A rule that ignores the indicators its own intelligence supplied is
+    detecting something else. Both cases below are drafted rules, not
+    hypotheticals."""
+
+    SUPPLIED = {"domain": ["domainlify.net", "service-nowinc.com"]}
+
+    def test_a_split_indicator_is_rejected(self):
+        """The drafted rule turned `domainlify.net` into two partial matches,
+        broadening it to every .net domain and leaving no complete indicator
+        for the grounding audit to find."""
+        detection = {
+            "selection": {"QueryName|endswith": ".net", "QueryName|contains": "domainlify"},
+            "condition": "selection",
+        }
+        problem = _partial_indicator_problem(detection, self.SUPPLIED, "dns_query")
+        assert problem is not None
+        assert "domainlify.net" in problem
+
+    def test_a_behavioural_rule_using_no_indicator_passes(self):
+        """The check targets fragmentation, not absence. An earlier version
+        demanded an indicator and rejected every rule on three consecutive live
+        cycles, leaving drafts with no detection section at all -- while the
+        prompt itself asks for behaviour where generalising is right."""
+        detection = {
+            "selection": {"Image|endswith": "\\powershell.exe", "CommandLine|contains": "-enc"},
+            "condition": "selection",
+        }
+        assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
+
+    def test_a_hostname_that_also_sits_inside_a_supplied_url_passes(self):
+        supplied = {
+            "hostname": ["admin.rshiahub.com"],
+            "url": ["http://admin.rshiahub.com/bin/x.msi"],
+        }
+        detection = {"selection": {"DestinationHostname": "admin.rshiahub.com"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, supplied, "network_connection") is None
+
+    def test_a_complete_indicator_passes(self):
+        detection = {
+            "selection": {"QueryName|contains": ["domainlify.net", "service-nowinc.com"]},
+            "condition": "selection",
+        }
+        assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
+
+    def test_one_complete_indicator_is_enough(self):
+        detection = {"selection": {"QueryName|contains": "domainlify.net"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
+
+    def test_a_process_rule_is_not_judged_against_a_domain(self):
+        """Type-aware on purpose, using the same map that picked the log
+        source: process telemetry cannot match a domain."""
+        detection = {"selection": {"CommandLine|contains": "rundll32"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, self.SUPPLIED, "process_creation") is None
+
+    def test_short_values_are_not_treated_as_fragments(self):
+        """"exe" and "tmp" are ordinary rule vocabulary and collide with
+        indicator substrings by accident."""
+        detection = {"selection": {"QueryName|contains": "net"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
+
+    def test_no_supplied_indicators_means_no_constraint(self):
+        detection = {"selection": {"QueryName|contains": "anything"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, {}, "dns_query") is None
+
+
+@pytest.mark.unit
+class TestSelfDefeatingFilter:
+    """An exclusion that removes the hunt's own attack path. Valid Sigma,
+    passes every structural check, detects nothing it was written for."""
+
+    def test_excluding_the_browser_on_a_browser_delivery_hunt_is_rejected(self):
+        detection = {
+            "selection": {"CommandLine|contains": "macsync"},
+            "filter": {"ParentImage|contains": "/Applications/Safari.app"},
+            "condition": "selection and not filter",
+        }
+        hypothesis = "Adversaries use poisoned SEO results to deliver MacSync Stealer to macOS users"
+        problem = _self_defeating_filter_problem(detection, hypothesis)
+        assert problem is not None
+        assert "primary scenario" in problem
+
+    def test_an_empty_filter_is_repaired_not_rejected(self):
+        """Cosmetic, so it must not cost the draft its whole detection section.
+        A rejected rule is not retried, and the selection may be perfectly
+        good."""
+        detection = {
+            "selection": {"QueryName|contains": "evil-domain.test"},
+            "filter": {},
+            "condition": "selection and not filter",
+        }
+        repaired = _strip_empty_filters(detection)
+        assert "filter" not in repaired
+        assert repaired["condition"] == "selection"
+        assert _self_defeating_filter_problem(repaired, "some hypothesis") is None
+
+    def test_a_browser_filter_is_fine_when_delivery_is_not_browser_borne(self):
+        """Narrow deliberately: excluding browser noise from, say, a scheduled
+        task hunt is a reasonable filter, not a defect."""
+        detection = {
+            "selection": {"CommandLine|contains": "schtasks /create"},
+            "filter": {"ParentImage|contains": "chrome.exe"},
+            "condition": "selection and not filter",
+        }
+        hypothesis = "Adversaries establish persistence via scheduled tasks after SMB lateral movement"
+        assert _self_defeating_filter_problem(detection, hypothesis) is None
+
+    def test_a_rule_with_no_filter_passes(self):
+        detection = {"selection": {"CommandLine|contains": "whoami"}, "condition": "selection"}
+        assert _self_defeating_filter_problem(detection, "any hypothesis with download in it") is None
+
+
+@pytest.mark.unit
+class TestStripEmptyFilters:
+    def test_and_not_filter_collapses_cleanly(self):
+        detection = {"selection": {"a": "b"}, "filter": {}, "condition": "selection and not filter"}
+        assert _strip_empty_filters(detection) == {"selection": {"a": "b"}, "condition": "selection"}
+
+    def test_plain_and_filter_collapses_too(self):
+        detection = {"selection": {"a": "b"}, "filter": {}, "condition": "selection and filter"}
+        assert _strip_empty_filters(detection)["condition"] == "selection"
+
+    def test_a_populated_filter_is_left_alone(self):
+        detection = {
+            "selection": {"a": "b"},
+            "filter": {"x": "y"},
+            "condition": "selection and not filter",
+        }
+        assert _strip_empty_filters(detection) == detection
+
+    def test_a_detection_with_no_filter_is_unchanged(self):
+        detection = {"selection": {"a": "b"}, "condition": "selection"}
+        assert _strip_empty_filters(detection) == detection
+
+
+@pytest.mark.unit
+class TestAuthenticationLogSource:
+    """Every other category is host/endpoint telemetry. Without this one, no
+    credential-access technique mapped anywhere, so the derivation fell through
+    to its process_creation fallback and the model was asked to detect
+    credential stuffing in process command lines. It answered
+    `CommandLine|contains: login` -- the best available answer to an impossible
+    question."""
+
+    @pytest.mark.parametrize("technique", ["T1110", "T1078", "T1098", "T1621", "T1550"])
+    def test_credential_techniques_map_to_authentication(self, technique):
+        assert applicable_logsources([technique], []) == ["authentication"]
+
+    def test_the_drafted_hunts_technique_set_no_longer_falls_back(self):
+        """H-0007 carried exactly these and got a process_creation rule."""
+        assert applicable_logsources(["T1098", "T1110"], []) == ["authentication"]
+
+    def test_sub_techniques_inherit_via_prefix_match(self):
+        assert applicable_logsources(["T1110.003"], []) == ["authentication"]
+
+    def test_the_category_is_accepted(self):
+        assert "authentication" in VALID_LOGSOURCE_CATEGORIES
+
+    def test_it_has_its_own_field_list(self):
+        """A borrowed field name matches nothing and fails silently at
+        conversion, so the prompt must not offer process fields here."""
+        fields = _LOGSOURCE_FIELDS["authentication"]
+        assert "TargetUserName" in fields
+        assert "LogonType" in fields
+        assert "CommandLine" not in fields
+        assert "Image" not in fields
+
+    def test_techniques_with_a_real_mapping_are_unaffected(self):
+        assert applicable_logsources(["T1059"], []) == ["process_creation"]
+
+    def test_a_rendered_authentication_rule_is_valid_sigma(self):
+        rule = (
+            "title: Repeated failed logons from one source\n"
+            "id: 11111111-2222-3333-4444-555555555555\n"
+            "status: experimental\n"
+            "logsource:\n"
+            "  category: authentication\n"
+            "detection:\n"
+            "  selection:\n"
+            "    LogonType: 3\n"
+            "    Status|contains: FAILURE\n"
+            "  condition: selection\n"
+            "level: medium\n"
+        )
+        assert _pysigma_problem(rule) is None
+
+
+@pytest.mark.unit
+class TestLogSourceFallbackIsReported:
+    def test_an_unmapped_technique_warns(self, caplog):
+        """The fallback gave a credential-stuffing hunt a process_creation rule
+        with no sign that its log source was a guess rather than a derivation."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            assert applicable_logsources(["T9999"], []) == ["process_creation"]
+
+        assert "falling back to process_creation" in caplog.text
+
+    def test_a_mapped_technique_does_not_warn(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            applicable_logsources(["T1059"], [])
+
+        assert "falling back" not in caplog.text

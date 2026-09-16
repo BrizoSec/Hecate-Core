@@ -1,0 +1,25 @@
+title: Suspicious Connection to Known Malicious Centreon File Paths
+id: 9d51afb7-7f4b-41f4-b008-db9b35b29e0f
+status: experimental
+description: Detects network connections involving known malicious file paths associated with Centreon
+  exploitation attempts. This is indicative of potential C2 communications or unauthorized code execution.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1041
+- attack.t1071.001
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|endswith:
+    - .applocktx
+    - .applock
+  filter: {}
+  condition: selection
+falsepositives:
+- Administrative scripts or tools using similar naming conventions for temporary files
+level: medium
+hunt_id: H-0002
