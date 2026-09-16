@@ -30,7 +30,7 @@ def generate_hypothesis(
     research_ctx = None
 
     if workspace:
-        research_mgr = ResearchManager(workspace)
+        research_mgr = ResearchManager(workspace / "research")
         if research_id:
             research_doc = research_mgr.get_research(research_id)
             if research_doc:
@@ -66,7 +66,7 @@ def generate_research(
     workspace: Optional[Path] = None,
 ) -> Tuple[ResearchOutput, Path]:
     """Execute research and create the research document."""
-    manager = ResearchManager(workspace) if workspace else ResearchManager()
+    manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     research_id = manager.get_next_research_id()
     
     agent = HuntResearcherAgent(llm_enabled=True)
@@ -194,5 +194,5 @@ def link_research_to_hunt(
         workspace: Path to Hecate workspace. If None, uses current directory.
     """
     from hecate_agent.core.research_manager import ResearchManager
-    manager = ResearchManager(workspace) if workspace else ResearchManager()
+    manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     return manager.link_hunt_to_research(research_id, hunt_id)

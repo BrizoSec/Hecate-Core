@@ -1,0 +1,26 @@
+title: Suspicious File Creation in /tmp Directory
+id: 7781c119-bb86-4352-b5b5-883cabbdbd5f
+status: experimental
+description: Detects the creation of specific files in the /tmp directory that are associated with Centreon
+  system exploitation attempts.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1041
+- attack.t1071.001
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith:
+    - /applocktx
+    - /applock
+    - /configtx.json
+  filter: {}
+  condition: selection
+falsepositives:
+- Legitimate scripts or applications creating temporary files in /tmp
+level: medium
+hunt_id: H-0002
