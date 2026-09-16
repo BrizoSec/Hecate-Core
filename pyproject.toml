@@ -35,9 +35,6 @@ classifiers = [
     "Topic :: System :: Monitoring",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -50,23 +47,16 @@ dependencies = [
     "rich>=10.0.0",
     "jinja2>=3.0.0",
     "python-dotenv>=0.19.0",
-    "importlib_resources>=5.0.0; python_version < '3.9'",
 ]
 
 [project.optional-dependencies]
-# Deliberately unmarked, unlike the copies in [dev]/[all]: asking for
-# [sigma] explicitly on 3.8/3.9 should fail loudly with pip's own
-# "requires Python >=3.10" rather than quietly installing nothing and
-# leaving the Sigma validator silently disabled.
 sigma = ["pysigma>=0.11"]
 dev = [
     "pytest>=7.0.0",
     # Exercised by the Sigma validation tests. In [dev] rather than only
     # [sigma] so CI actually runs them -- a validator whose tests silently
-    # skip is the same failure it exists to prevent. Marker matches
-    # mcp[cli] below: pySigma needs 3.10+, this project supports 3.8+, and
-    # without it `pip install -e ".[dev]"` fails outright on 3.8/3.9.
-    "pysigma>=0.11; python_version >= '3.10'",
+    # skip is the same failure it exists to prevent.
+    "pysigma>=0.11",
     "pytest-cov>=4.0.0",
     "flake8>=6.0.0",
     "flake8-pyproject>=1.2.0",
@@ -76,7 +66,7 @@ dev = [
     "bandit[toml]>=1.7.0",
     "pre-commit>=3.0.0",
     "types-PyYAML>=6.0.0",
-    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",
+    "mcp[cli]>=1.0.0,<2.0.0",
 ]
 docs = [
     "mkdocs>=1.5.0",
@@ -124,15 +114,15 @@ llm = [
 ]
 # MCP server
 mcp = [
-    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
+    "mcp[cli]>=1.0.0,<2.0.0",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
 ]
 all = [
-    "pysigma>=0.11; python_version >= '3.10'",
+    "pysigma>=0.11",
     "litellm>=1.30.0",
     "scikit-learn>=1.0.0",
     "requests>=2.25.0",
     "tavily-python>=0.3.0",
-    "mcp[cli]>=1.0.0,<2.0.0; python_version >= '3.10'",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
+    "mcp[cli]>=1.0.0,<2.0.0",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
     "mitreattack-python>=5.0.0",
 ]
 
@@ -179,7 +169,7 @@ version = {attr = "hecate_agent.__version__.__version__"}
 
 [tool.black]
 line-length = 127
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ['py311', 'py312', 'py313']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -206,7 +196,7 @@ use_parentheses = true
 ensure_newline_before_comments = true
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
