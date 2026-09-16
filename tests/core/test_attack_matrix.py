@@ -13,12 +13,12 @@ import pytest
 class TestFallbackProvider:
     """Test the hardcoded fallback provider."""
 
-    def test_get_tactics_returns_14(self):
+    def test_get_tactics_returns_15(self):
         from hecate_agent.core.attack_matrix import FallbackProvider
 
         provider = FallbackProvider()
         tactics = provider.get_tactics()
-        assert len(tactics) == 14
+        assert len(tactics) == 15
 
     def test_get_tactics_has_expected_keys(self):
         from hecate_agent.core.attack_matrix import FallbackProvider
@@ -53,7 +53,7 @@ class TestFallbackProvider:
 
         provider = FallbackProvider()
         keys = provider.get_sorted_tactic_keys()
-        assert len(keys) == 14
+        assert len(keys) == 15
         assert keys[0] == "reconnaissance"
         assert keys[-1] == "impact"
 
@@ -114,7 +114,7 @@ class TestBackwardCompatibility:
         from hecate_agent.core.attack_matrix import ATTACK_TACTICS  # noqa: F811
 
         assert isinstance(ATTACK_TACTICS, dict)
-        assert len(ATTACK_TACTICS) == 14
+        assert len(ATTACK_TACTICS) == 15
         assert "credential-access" in ATTACK_TACTICS
 
     def test_import_total_techniques(self):
@@ -150,7 +150,7 @@ class TestBackwardCompatibility:
         from hecate_agent.core.attack_matrix import get_sorted_tactics
 
         tactics = get_sorted_tactics()
-        assert len(tactics) == 14
+        assert len(tactics) == 15
         assert tactics[0] == "reconnaissance"
 
     def test_attack_tactics_tactic_info_shape(self):

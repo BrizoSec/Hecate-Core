@@ -152,17 +152,23 @@ def lookup_technique(technique_id: str) -> Dict[str, Any]:
         raise RuntimeError("stix_unavailable")
         
     tech = get_technique(technique_id)
+    # Provenance of this call, not a property of the technique. Writing it
+    # onto `tech` mutated the STIX provider's memoized index in place, so
+    # every later lookup of the superseding ID -- and every tactic listing
+    # handing back the same dict -- reported it as superseded from whatever
+    # revoked ID happened to be asked for first.
+    superseded_from = ""
     if not tech:
         # Check for superseded IDs
         latest = get_superseding_technique_id(technique_id)
         if latest and latest != technique_id:
             tech = get_technique(latest)
             if tech:
-                tech["superseded_from"] = technique_id
-    
+                superseded_from = technique_id
+
     if not tech:
         return {"found": False}
-        
+
     return {
         "found": True,
         "technique_id": tech.get("id", ""),
@@ -172,7 +178,7 @@ def lookup_technique(technique_id: str) -> Dict[str, Any]:
         "platforms": tech.get("platforms", []),
         "data_sources": tech.get("data_sources", []),
         "is_subtechnique": tech.get("is_subtechnique", False),
-        "superseded_from": tech.get("superseded_from", ""),
+        "superseded_from": superseded_from,
     }
 
 def link_research_to_hunt(
