@@ -421,7 +421,12 @@ def _apply_attack_field(fm: dict, changed: List[str], field: str, values: Tuple)
     provider carries no per-technique data, so checking against it would
     reject every valid ID.
     """
-    from hecate_agent.core.attack_matrix import get_sorted_tactics, get_technique, is_using_stix
+    from hecate_agent.core.attack_matrix import (
+        canonical_tactic,
+        get_sorted_tactics,
+        get_technique,
+        is_using_stix,
+    )
 
     if field == "techniques":
         if is_using_stix():
@@ -432,7 +437,7 @@ def _apply_attack_field(fm: dict, changed: List[str], field: str, values: Tuple)
                 return False
     else:
         valid_tactics = set(get_sorted_tactics())
-        unknown_tactics = [t for t in values if t not in valid_tactics]
+        unknown_tactics = [t for t in values if canonical_tactic(t) not in valid_tactics]
         if unknown_tactics:
             console.print(f"[red]Error: Unknown MITRE tactic(s): {', '.join(unknown_tactics)}[/red]")
             console.print(f"[dim]Valid tactics: {', '.join(sorted(valid_tactics))}[/dim]")

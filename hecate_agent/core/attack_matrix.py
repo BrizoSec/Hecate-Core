@@ -48,33 +48,42 @@ class TechniqueInfo(TypedDict, total=False):
 
 
 # ---------------------------------------------------------------------------
-# Fallback data (MITRE ATT&CK Enterprise Matrix v14, January 2024)
+# Fallback data (MITRE ATT&CK Enterprise Matrix v19, current as of this file)
 # ---------------------------------------------------------------------------
+#
+# Keep this vocabulary in step with the STIX bundle `attack update` downloads.
+# When the two disagree a hunt is valid or invalid depending on whether the
+# machine happens to have STIX installed: drafts written on a workstation with
+# live data failed CI, which has none. Tactic *renames* are absorbed by
+# _TACTIC_RENAMES below rather than by holding this table back.
+#
+# technique_count is parent techniques only, excluding sub-techniques, which is
+# what the v14 table it replaced counted.
 
 _FALLBACK_TACTICS: Dict[str, TacticInfo] = {
     "reconnaissance": {
         "name": "Reconnaissance",
-        "technique_count": 10,
+        "technique_count": 12,
         "order": 1,
     },
     "resource-development": {
         "name": "Resource Development",
-        "technique_count": 7,
+        "technique_count": 9,
         "order": 2,
     },
     "initial-access": {
         "name": "Initial Access",
-        "technique_count": 9,
+        "technique_count": 11,
         "order": 3,
     },
     "execution": {
         "name": "Execution",
-        "technique_count": 12,
+        "technique_count": 20,
         "order": 4,
     },
     "persistence": {
         "name": "Persistence",
-        "technique_count": 19,
+        "technique_count": 22,
         "order": 5,
     },
     "privilege-escalation": {
@@ -82,46 +91,62 @@ _FALLBACK_TACTICS: Dict[str, TacticInfo] = {
         "technique_count": 13,
         "order": 6,
     },
-    "defense-evasion": {
-        "name": "Defense Evasion",
-        "technique_count": 42,
+    "stealth": {
+        "name": "Stealth",
+        "technique_count": 30,
         "order": 7,
+    },
+    "defense-impairment": {
+        "name": "Defense Impairment",
+        "technique_count": 18,
+        "order": 8,
     },
     "credential-access": {
         "name": "Credential Access",
-        "technique_count": 15,
-        "order": 8,
+        "technique_count": 17,
+        "order": 9,
     },
     "discovery": {
         "name": "Discovery",
-        "technique_count": 30,
-        "order": 9,
+        "technique_count": 34,
+        "order": 10,
     },
     "lateral-movement": {
         "name": "Lateral Movement",
         "technique_count": 9,
-        "order": 10,
+        "order": 11,
     },
     "collection": {
         "name": "Collection",
         "technique_count": 17,
-        "order": 11,
+        "order": 12,
     },
     "command-and-control": {
         "name": "Command and Control",
-        "technique_count": 16,
-        "order": 12,
+        "technique_count": 18,
+        "order": 13,
     },
     "exfiltration": {
         "name": "Exfiltration",
         "technique_count": 9,
-        "order": 13,
+        "order": 14,
     },
     "impact": {
         "name": "Impact",
-        "technique_count": 13,
-        "order": 14,
+        "technique_count": 15,
+        "order": 15,
     },
+}
+
+
+#: Tactic shortnames ATT&CK has renamed, mapped old -> current. v18 renamed
+#: TA0005 "Defense Evasion" to "Stealth" and split the impair/disable behaviors
+#: out into TA0112 "Defense Impairment". Hunts, docs and Sigma tags written
+#: against the old vocabulary are still describing a real tactic, so callers
+#: translate before rejecting -- the same courtesy get_superseding_technique_id()
+#: extends to revoked technique IDs.
+_TACTIC_RENAMES: Dict[str, str] = {
+    "defense-evasion": "stealth",
 }
 
 
@@ -318,24 +343,10 @@ class StixProvider(AttackDataProvider):
         tactics: Dict[str, TacticInfo] = {}
         stix_tactics = self._attack_data.get_tactics(remove_revoked_deprecated=True)
 
-        # Sort by kill chain order (x_mitre_shortname field maps to order)
-        tactic_order = [
-            "reconnaissance",
-            "resource-development",
-            "initial-access",
-            "execution",
-            "persistence",
-            "privilege-escalation",
-            "defense-evasion",
-            "credential-access",
-            "discovery",
-            "lateral-movement",
-            "collection",
-            "command-and-control",
-            "exfiltration",
-            "impact",
-        ]
-        order_map = {k: i + 1 for i, k in enumerate(tactic_order)}
+        # Kill-chain order, shared with the fallback table so both providers
+        # agree. A tactic the table has not caught up with sorts last rather
+        # than being dropped.
+        order_map = {k: v["order"] for k, v in _FALLBACK_TACTICS.items()}
 
         for stix_tactic in stix_tactics:
             shortname = stix_tactic.get("x_mitre_shortname", "")
@@ -602,6 +613,7 @@ def get_tactic_display_name(tactic_key: str) -> str:
     Returns:
         Display name (e.g., "Credential Access")
     """
+    tactic_key = canonical_tactic(tactic_key)
     tactics = _get_provider().get_tactics()
     if tactic_key in tactics:
         return tactics[tactic_key]["name"]
@@ -617,6 +629,7 @@ def get_tactic_technique_count(tactic_key: str) -> int:
     Returns:
         Total technique count for the tactic
     """
+    tactic_key = canonical_tactic(tactic_key)
     tactics = _get_provider().get_tactics()
     if tactic_key in tactics:
         return tactics[tactic_key]["technique_count"]
@@ -658,6 +671,23 @@ def get_technique(technique_id: str) -> Optional[TechniqueInfo]:
     return _get_provider().get_technique_by_id(technique_id)
 
 
+def canonical_tactic(tactic_key: str) -> str:
+    """Return the current ATT&CK shortname for a possibly-renamed tactic.
+
+    ATT&CK renames tactics as well as revoking technique IDs -- v18 turned
+    TA0005 "Defense Evasion" into "Stealth". Content written against the old
+    name still names a live tactic, so validation translates before rejecting.
+    Unknown keys pass through untouched for the caller to reject.
+
+    Args:
+        tactic_key: Tactic shortname (e.g., "defense-evasion")
+
+    Returns:
+        The current shortname (e.g., "stealth"), or the input unchanged.
+    """
+    return _TACTIC_RENAMES.get(tactic_key, tactic_key)
+
+
 def get_superseding_technique_id(technique_id: str) -> Optional[str]:
     """Return the current ATT&CK ID that replaced a revoked technique ID.
 
@@ -687,7 +717,7 @@ def get_techniques_for_tactic(tactic_key: str) -> List[TechniqueInfo]:
     Returns:
         List of TechniqueInfo dicts. Empty if using fallback provider.
     """
-    return _get_provider().get_techniques_for_tactic(tactic_key)
+    return _get_provider().get_techniques_for_tactic(canonical_tactic(tactic_key))
 
 
 def get_sub_techniques(parent_id: str) -> List[TechniqueInfo]:

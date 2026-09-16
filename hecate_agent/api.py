@@ -168,7 +168,7 @@ def lookup_technique(technique_id: str) -> Dict[str, Any]:
         "technique_id": tech.get("id", ""),
         "name": tech.get("name", ""),
         "description": tech.get("description", ""),
-        "tactics": tech.get("tactics", []),
+        "tactics": tech.get("tactic_shortnames", []),
         "platforms": tech.get("platforms", []),
         "data_sources": tech.get("data_sources", []),
         "is_subtechnique": tech.get("is_subtechnique", False),

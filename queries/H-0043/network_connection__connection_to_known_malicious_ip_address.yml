@@ -1,0 +1,21 @@
+title: Connection to Known Malicious IP Address
+id: a0485a9a-79cb-4bcb-995e-f239dcc7e71e
+status: experimental
+description: Detects network connections initiated from IoT devices to a known malicious IPv4 address
+  used by adversaries for command and control.
+references:
+- https://www.nozominetworks.com/blog/kataru-iot-malware-adopts-public-lpe-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-16'
+tags:
+- attack.t1095
+logsource:
+  category: network_connection
+detection:
+  selection_network_connection:
+    DestinationIp: 160.191.242.92
+  condition: selection_network_connection
+falsepositives:
+- Legitimate network traffic to this IP address, if any exists
+level: medium
+hunt_id: H-0043
