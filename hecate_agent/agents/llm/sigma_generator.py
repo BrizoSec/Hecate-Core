@@ -75,6 +75,16 @@ _LOGSOURCE_FIELDS = {
     ),
 }
 
+#: Sigma aggregation grammar: ``<func>(<field>?) [by <field>] <op> <number>``.
+#: The functions the specification defines, plus the comparison operators a
+#: threshold can use.
+_AGGREGATION_RE = re.compile(
+    r"^(?:count|min|max|avg|sum)\s*\(\s*[A-Za-z0-9_.\-]*\s*\)"
+    r"(?:\s+by\s+[A-Za-z0-9_.\-]+)?"
+    r"\s*(?:>=|<=|==|!=|>|<|=)\s*\d+(?:\.\d+)?$",
+    re.IGNORECASE,
+)
+
 VALID_LEVELS = {"informational", "low", "medium", "high", "critical"}
 
 # technique prefix -> log source categories that technique is observable in.
@@ -871,9 +881,30 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     @staticmethod
     def _unresolved_condition_token(condition: str, selections: List[str]) -> Optional[str]:
-        """Report the first condition token that names no defined block."""
+        """Report the first condition token that names no defined block.
+
+        A Sigma condition may carry an aggregation after a pipe:
+        ``selection | count() by TargetUserName > 25``. Everything right of
+        the pipe is aggregation grammar, not selection names, and splitting
+        the whole string on whitespace read ``count()``, ``>`` and ``25`` as
+        undefined selections -- so every volume-based rule the model produced
+        was discarded before pySigma ever saw it. Volume is how Sigma
+        expresses "an unusual number of", which is exactly what a
+        credential-stuffing or brute-force hunt needs.
+        """
+        search, pipe, aggregation = condition.partition("|")
+        problem = SigmaGeneratorAgent._unresolved_search_token(search, selections)
+        if problem:
+            return problem
+        if pipe:
+            return SigmaGeneratorAgent._aggregation_problem(aggregation, selections)
+        return None
+
+    @staticmethod
+    def _unresolved_search_token(search: str, selections: List[str]) -> Optional[str]:
+        """Validate the search half of a condition against the defined blocks."""
         keywords = {"and", "or", "not", "of", "them", "all", "1", "any", "selection"}
-        tokens = {token.strip("()|") for token in condition.replace("(", " ").replace(")", " ").split()}
+        tokens = {token.strip("()") for token in search.replace("(", " ").replace(")", " ").split()}
         for token in tokens:
             if not token or token in keywords or token.isdigit():
                 continue
@@ -883,6 +914,30 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 continue
             if token not in selections:
                 return f"condition references undefined selection {token!r}"
+        return None
+
+    @staticmethod
+    def _aggregation_problem(aggregation: str, selections: List[str]) -> Optional[str]:
+        """Validate the aggregation half of a condition.
+
+        Checked rather than waved through: a malformed aggregation is still
+        valid YAML and still looks like a threshold, so it would reach a
+        reviewer as though it counted something.
+        """
+        text = aggregation.strip()
+        if not text:
+            return "condition ends in '|' with no aggregation"
+
+        # `near` takes a search expression, not a numeric comparison.
+        if text.startswith("near "):
+            return SigmaGeneratorAgent._unresolved_search_token(text[len("near ") :], selections)
+
+        match = _AGGREGATION_RE.match(text)
+        if not match:
+            return (
+                f"aggregation {text!r} is not a Sigma aggregation; expected e.g. "
+                "'count() > 25' or 'count(DestinationIp) by User > 10'"
+            )
         return None
 
     @staticmethod
@@ -997,12 +1052,18 @@ RULES OF THE TASK:
    it may only name selection blocks you defined in the same rule. If you
    define both a selection and a filter, say so explicitly, e.g.
    "selection and not filter".
-6. A `filter` must never exclude the attack path the hypothesis describes.
+6. When the hypothesis is about an unusual *number* of events -- brute force,
+   credential stuffing, password spraying, beaconing, mass enumeration -- put
+   the threshold in the condition with an aggregation, or the rule fires on a
+   single ordinary event. Sigma writes it as
+   "selection | count() > 25" or "selection | count(IpAddress) by TargetUserName > 10".
+   Only use one when volume is what makes the behaviour suspicious.
+7. A `filter` must never exclude the attack path the hypothesis describes.
    On a hunt about malware delivered through the browser, excluding the
    browser as the parent process removes the very thing being hunted. An
    empty filter block is rejected: omit it instead.
-7. Give realistic falsepositives. "None" is never a correct answer.
-8. The JSON below shows the *shape* only. Its values are placeholders, not
+8. Give realistic falsepositives. "None" is never a correct answer.
+9. The JSON below shows the *shape* only. Its values are placeholders, not
    examples to copy: "FieldName", "value" and "known-good" must never appear
    in what you return, and a rule matching on them is rejected. Neither may
    invented stand-ins of your own -- "bad_command", "malicious.exe",
