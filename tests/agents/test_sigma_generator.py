@@ -13,6 +13,7 @@ import yaml
 from hecate_agent.agents.llm.sigma_generator import (
     SigmaGenerationInput,
     SigmaGeneratorAgent,
+    _field_type_problem,
     _partial_indicator_problem,
     _placeholder_problem,
     _strip_empty_filters,
@@ -813,3 +814,99 @@ class TestLogSourceFallbackIsReported:
             applicable_logsources(["T1059"], [])
 
         assert "falling back" not in caplog.text
+
+
+@pytest.mark.unit
+class TestFieldTypeMismatch:
+    """Both cases below are rules that reached production. The model fills
+    whatever indicator it has into whatever field it picked, so a hunt whose
+    only indicators were domains matched them against an address field. Valid
+    Sigma, passes every other check, matches nothing on any backend ever."""
+
+    @staticmethod
+    def _det(field, value):
+        return {"selection": {field: value}, "condition": "selection"}
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("IpAddress|endswith", ".jeetbot.cc"),
+            ("IpAddress|contains", "telegram.org"),
+            ("DestinationIp", "evil.example.test"),
+        ],
+    )
+    def test_a_hostname_in_an_address_field_is_rejected(self, field, value):
+        problem = _field_type_problem(self._det(field, value))
+        assert problem is not None
+        assert "never matches" in problem
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("IpAddress|endswith", ".133"),
+            ("DestinationIp|contains", "192.168."),
+            ("DestinationIp", "10.0.0.1"),
+            ("DestinationIp", "2001:db8::1"),
+            ("DestinationIp", "10.0.0.0/8"),
+        ],
+    )
+    def test_address_values_and_fragments_pass(self, field, value):
+        """`192.168.` and `.133` are legitimate contains/endswith idioms and
+        this module already treats partial addresses as valid."""
+        assert _field_type_problem(self._det(field, value)) is None
+
+    def test_a_domain_in_a_name_field_is_fine(self):
+        """The check is about the field, not the value: QueryName is exactly
+        where a domain belongs."""
+        assert _field_type_problem(self._det("QueryName|contains", "telegram.org")) is None
+
+    def test_a_non_numeric_port_is_rejected(self):
+        problem = _field_type_problem(self._det("DestinationPort", "https"))
+        assert problem is not None
+        assert "port number" in problem
+
+    def test_a_numeric_port_passes(self):
+        assert _field_type_problem(self._det("DestinationPort", 443)) is None
+
+    def test_list_values_are_checked_individually(self):
+        detection = {
+            "selection": {"DestinationIp": ["10.0.0.1", "evil.example.test"]},
+            "condition": "selection",
+        }
+        assert _field_type_problem(detection) is not None
+
+
+@pytest.mark.unit
+class TestTechniqueMapCoverage:
+    """Taken from the fallback warning's own output over four days of live
+    drafting. Each of these fell through to process_creation, so the model was
+    asked to express phishing or adversary-in-the-middle as process
+    telemetry."""
+
+    @pytest.mark.parametrize(
+        "techniques",
+        [
+            ["T1566.002", "T1036"],
+            ["T1566.001", "T1021.004"],
+            ["T1203", "T1598"],
+            ["T1068", "T1557"],
+        ],
+    )
+    def test_previously_unmapped_sets_now_derive_real_log_sources(self, techniques, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            sources = applicable_logsources(techniques, [])
+
+        assert sources
+        assert "falling back" not in caplog.text
+
+    def test_phishing_maps_to_delivery_telemetry_not_process(self):
+        assert applicable_logsources(["T1566"], []) == ["file_event", "network_connection"]
+
+    def test_adversary_in_the_middle_maps_to_network_and_auth(self):
+        assert applicable_logsources(["T1557"], []) == ["authentication", "network_connection"]
+
+    def test_a_hunt_with_no_techniques_still_falls_back(self):
+        """Legitimate: there is nothing to derive from, and a rule beats none."""
+        assert applicable_logsources([], []) == ["process_creation"]
