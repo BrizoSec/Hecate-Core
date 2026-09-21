@@ -910,3 +910,85 @@ class TestTechniqueMapCoverage:
     def test_a_hunt_with_no_techniques_still_falls_back(self):
         """Legitimate: there is nothing to derive from, and a rule beats none."""
         assert applicable_logsources([], []) == ["process_creation"]
+
+
+@pytest.mark.unit
+class TestAggregationConditions:
+    """Sigma expresses "an unusual number of" with an aggregation after a pipe.
+    The condition validator split the whole string on whitespace and read
+    `count()`, `>` and `25` as undefined selection names, so every volume-based
+    rule was discarded before pySigma ever saw it -- which is why zero of 92
+    drafted rules carried a threshold and a credential-stuffing rule fired on a
+    single failed logon."""
+
+    F = staticmethod(SigmaGeneratorAgent._unresolved_condition_token)
+
+    @pytest.mark.parametrize(
+        "condition",
+        [
+            "selection | count() > 25",
+            "selection | count(DestinationIp) by User > 10",
+            "selection | min(field) >= 5",
+            "selection | max(field) < 3",
+            "selection | sum(bytes) > 1000",
+            "selection | avg(field) = 7",
+            "selection and not filter | count() > 25",
+        ],
+    )
+    def test_valid_aggregations_are_accepted(self, condition):
+        assert self.F(condition, ["selection", "filter"]) is None
+
+    def test_near_takes_a_search_expression(self):
+        assert self.F("selection | near filter", ["selection", "filter"]) is None
+
+    def test_near_still_validates_its_selections(self):
+        problem = self.F("selection | near missing", ["selection"])
+        assert problem is not None
+        assert "missing" in problem
+
+    @pytest.mark.parametrize(
+        "condition,fragment",
+        [
+            ("missing | count() > 5", "undefined selection"),
+            ("selection | count() >", "not a Sigma aggregation"),
+            ("selection | totally bogus", "not a Sigma aggregation"),
+            ("selection |", "no aggregation"),
+            ("selection | count() > many", "not a Sigma aggregation"),
+        ],
+    )
+    def test_malformed_conditions_are_still_rejected(self, condition, fragment):
+        """A malformed aggregation is valid YAML and looks like a threshold, so
+        waving it through would put a rule that counts nothing in front of a
+        reviewer."""
+        problem = self.F(condition, ["selection"])
+        assert problem is not None
+        assert fragment in problem
+
+    @pytest.mark.parametrize(
+        "condition",
+        ["selection", "selection and not filter", "selection or filter", "all of sel*"],
+    )
+    def test_plain_conditions_are_unaffected(self, condition):
+        assert self.F(condition, ["selection", "filter", "sel1"]) is None
+
+    def test_an_aggregation_survives_the_whole_build_and_pysigma(self):
+        agent = SigmaGeneratorAgent(llm_enabled=False)
+        raw = {
+            "logsource_category": "authentication",
+            "title": "Credential stuffing burst",
+            "level": "medium",
+            "detection": {
+                "selection": {"Status|contains": "failure"},
+                "condition": "selection | count() by TargetUserName > 25",
+            },
+            "falsepositives": ["Scheduled password rotation"],
+        }
+        inp = SigmaGenerationInput(
+            hypothesis="Adversaries brute force SSO accounts",
+            techniques=["T1110"],
+            platforms=["Windows"],
+        )
+        rule, problem = agent._build_rule(raw, inp)
+        assert problem is None, problem
+        assert "count() by TargetUserName > 25" in rule.rule_yaml
+        assert _pysigma_problem(rule.rule_yaml) is None

@@ -106,7 +106,7 @@ in `cti/get_provider()` and a cursor file. Cost is mostly the blurb builder.
 |--------|-------|--------|-------|
 | **TAXII 2.1 client** | Highest | ~1 day | One provider unlocks ISACs, CISA AIS, commercial feeds, other MISP instances. STIX in, so techniques and indicators arrive structured rather than scraped |
 | **CISA KEV** | Medium | ~half day | Free, no auth, authoritative. Vulnerability-shaped rather than behaviour-shaped, so hunts become "is this CVE exploited here" |
-| **abuse.ch** (ThreatFox / URLhaus / MalwareBazaar) | Low | ~half day | Free and high volume, but pure indicators — feeds the sweep path only |
+| ~~**abuse.ch**~~ (ThreatFox / URLhaus / MalwareBazaar) | Low | ~half day | Free and high volume, but pure indicators — feeds the sweep path only |
 | **NVD / GitHub advisories** | Low | ~half day | Same shape as KEV, noisier and less curated |
 
 Note the sequencing argument: while **G1** and **G7** stand, a new source's
