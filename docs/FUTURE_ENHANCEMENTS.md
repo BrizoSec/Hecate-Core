@@ -20,60 +20,6 @@ rest on judgement.
 Ranked by effect, and all of it upstream of hunt quality. Two of these are
 cheap and neither is exotic — the pipeline already looks for the files.
 
-### 1.1 `knowledge/OCSF_SCHEMA_REFERENCE.md` — **done**
-
-The file exists (4,417 bytes, inside the loader's 5,000-char budget so nothing
-is cut) and loads both from inside the workspace and via `HECATE_WORKSPACE`.
-Generated from the official schema at <https://schema.ocsf.io>: eight event
-classes with their UIDs, ten objects with their hunting-relevant fields, and a
-table of the inventions actually observed in generated research
-(`process_name`, `process.command_line`, `event_id`).
-
-Deliberately a **field dictionary, not worked examples** — it is injected
-beside "now produce your answer", and hunt-shaped prose there becomes the next
-thing the model copies. Tests assert no `powershell`, `download cradle`,
-`clickhouse` or `domain-joined` appears in it, and an opt-in drift test
-(`pytest -m network`) re-checks the documented fields against the live schema
-so it cannot go stale unnoticed.
-
-**The reference alone did not fix field naming**, which is the part worth
-remembering. With it loaded, research still produced
-`process.execution.command_line`, `file.file_name` and
-`network.tcp.connection.remote_address`; a later run produced a different set
-again — `process_activity.cmd_line`, `file_activity.path` — prefixing object
-paths with *class* names. The model reproduces the shape of an OCSF path
-without consulting the dictionary in front of it.
-
-So validation was added alongside it (`core/ocsf_fields.py`): the canonical
-set is parsed from the reference itself, so the document the model reads and
-the rule its output is checked against cannot drift apart. Invented fields are
-**flagged in place**, not dropped:
-
-```text
-process_activity.cmd_line [NOT AN OCSF FIELD; did you mean process.cmd_line?]: ...
-```
-
-Flagged rather than dropped for the same reason the grounding audit reports a
-fabricated claim instead of deleting it: silently removing all six would leave
-a telemetry section that merely looked empty. Verified live — 6 of 6
-inventions caught on a real research run.
-
-**Remaining, if you want it:** the suggestions are hints and two of six were
-wrong (`process_activity.name` → `file.name`, where `process.name` was meant).
-Ambiguity deliberately returns no suggestion rather than a confident wrong
-one, since a wrong correction would be copied. Sharpening that is optional
-polish, not a defect.
-
-### 1.2 `knowledge/environment.md` — **done**
-
-The file is 8,161 bytes. `_load_environment()` truncates at 2,000, so **about
-a quarter of it reaches the model.** Whatever matters most — platforms,
-which OS families actually exist, the real SIEM and EDR — has to be in the
-first quarter or it is not in the prompt at all.
-
-Populating it is **G1**; the truncation is what makes *where* you populate it
-matter, and is worth raising if the profile grows.
-
 ### 1.3 `knowledge/hunting-knowledge.md` — wired, gated off, needs tuning
 
 Not a documentation question: the file is meant to educate the model, and the
@@ -159,7 +105,6 @@ in `cti/get_provider()` and a cursor file. Cost is mostly the blurb builder.
 | Option | Value | Effort | Notes |
 |--------|-------|--------|-------|
 | **TAXII 2.1 client** | Highest | ~1 day | One provider unlocks ISACs, CISA AIS, commercial feeds, other MISP instances. STIX in, so techniques and indicators arrive structured rather than scraped |
-| **More vendor RSS** | High | **done** | Config only — add URLs to `HECATE_RUNNER_RSS_FEED_URLS`. RSS already produces the narrative-rich hunts; Google TAG, Mandiant, Sekoia, Volexity, ESET are not yet subscribed |
 | **CISA KEV** | Medium | ~half day | Free, no auth, authoritative. Vulnerability-shaped rather than behaviour-shaped, so hunts become "is this CVE exploited here" |
 | **abuse.ch** (ThreatFox / URLhaus / MalwareBazaar) | Low | ~half day | Free and high volume, but pure indicators — feeds the sweep path only |
 | **NVD / GitHub advisories** | Low | ~half day | Same shape as KEV, noisier and less curated |
@@ -170,64 +115,8 @@ current ones. More sources multiply volume, not quality.
 
 ---
 
-## 3. Source configuration UX
 
-Enabling and disabling sources already works — `HECATE_RUNNER_CTI_MULTI_PROVIDERS`
-is a comma-separated list, `doctor` validates it, and an unknown name raises
-`ValueError: Unknown CTI provider`. What is missing is discoverability: you
-have to know the variable exists.
 
-Proposed: `hecate-runner sources list | enable <name> | disable <name>`,
-showing each source's configured state, whether its credentials are present,
-and where its cursor sits. Small, and it makes the existing mechanism
-visible.
-
----
-
-## 4. Grounding precision
-
-### 4.1 A path is not a domain — **done**
-
-H-0003's `MacSync.app` was graded **UNSUPPORTED — domain in no source**. It
-is a macOS bundle, and the detection reads
-`TargetFilename|endswith: /MacSync.app`. `.app` is a real TLD, and
-`_FILE_SUFFIXES` deliberately excludes real TLDs so that `.com` C2 domains
-cannot be exempted from the fabrication check.
-
-Fix without weakening that rule: **a value containing `/` or `\` is a path.**
-General, and removes the class rather than the instance.
-
-### 4.2 Unresolvable technique IDs reach the frontmatter — **done**
-
-H-0006 carries `T1438`, which does not exist in Enterprise ATT&CK (a
-deprecated Mobile ID). `hecate-agent attack lookup T1438` returns
-`{"error": "not_found"}`, and `hunt validate` marks the hunt invalid.
-
-The orchestrator already records `TechniqueFact(valid=meta.found)` for the
-grounding audit but does not drop the ID. Keeping it may be deliberate —
-dropping would hide the model's error — but the current outcome is a hunt the
-project's own validator rejects. Decide which.
-
-### 4.3 `hunt validate` exits 0 on invalid hunts — **done**
-
-The CI job "Validate Hunt Examples" only failed because an unparseable file
-raised an uncaught `ValueError`. A hunt that is merely *invalid* passes the
-job. Either the exit code should reflect validity, or the job's name
-overstates what it checks.
-
----
-
-## 5. Review workflow
-
-Intake triage parks commentary rather than discarding it (**C4**), which is
-what makes gating on a heuristic acceptable. That guarantee only holds if
-someone reads the parked queue — otherwise it is a slower delete.
-
-Worth adding when the volume justifies it: parked items surfaced in
-`hecate-runner status`, an age-out policy, and a note in the Slack draft
-notification (**E2**) when something was held back.
-
----
 
 ## 6. Intake classification, revisited
 
@@ -243,3 +132,30 @@ design already removes most of the risk of trying.
 
 A cheaper use of the same idea: have the model **label** a draft's likely
 value for the reviewer rather than gate on it. A wrong label costs nothing.
+
+---
+
+## 7. Autonomous Execution & Full Agency
+
+To transition Hecate from an automated draft generator to a **fully agentic** threat hunting platform, the system needs to close the loop between generation, execution, and iteration. 
+
+### 7.1 Autonomous Query Execution & Tuning
+Currently, the pipeline stops at drafting a query and leaves it in `planning` status for human review. A fully agentic platform should execute the query against the SIEM/EDR automatically. 
+- **Validation loops:** If a query errors out (syntax), the agent should read the error and rewrite it. If it returns 10 million events, the agent should recognize it's too broad and autonomously tune out false positives. 
+- **Result:** The human operator reviews a *proven* query that is guaranteed to execute and yield a manageable volume of hits.
+
+### 7.2 Automated Pivoting & Sub-Hunting
+When a hunt actually yields anomalous results, the agent shouldn't just stop. It should autonomously pivot.
+- **Dynamic exploration:** If a query finds a suspicious `powershell.exe` execution, the agent should automatically spawn sub-queries to fetch the parent process (`cmd.exe`), any child network connections, and file modifications within a 5-minute window, assembling a complete attack graph for the analyst.
+
+### 7.3 Human-in-the-Loop Feedback Integration
+Right now, if an analyst fixes a broken Sigma rule or adjusts a drafted hypothesis, that knowledge stays in the SIEM or the specific Markdown file.
+- **Continuous learning:** The platform should monitor git commits or review actions. When an operator edits a drafted hunt before execution, the agent should extract the diff and automatically append the correction to `knowledge/hunting-knowledge.md` or a vector database to ensure it never makes the same mistake twice.
+
+### 7.4 Dynamic Intelligence Gathering
+Current CTI sources (MISP, OTX, RSS) are largely static and rely on pre-existing feeds. 
+- **Active scraping:** Deploy a specialized sub-agent that autonomously crawls threat intel blogs, social media, and dark web forums. When it identifies a new TTP, it should parse the unstructured text, summarize the observables, and push it directly into the triage queue without waiting for a vendor to publish a structured feed.
+
+### 7.5 Self-Healing & Continuous Validation
+Log schemas change, and old hunts break.
+- **Automated regression:** The agent should periodically re-run historical, successful hunts against recent telemetry. If a previously working query suddenly throws a schema error (e.g., a field name changed from `process.name` to `process.executable`), the agent should autonomously rewrite the query, validate the fix, and submit the update for review.

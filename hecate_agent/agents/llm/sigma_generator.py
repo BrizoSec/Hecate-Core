@@ -108,6 +108,16 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1550": {"authentication"},
     "T1556": {"authentication", "registry_event"},
     "T1187": {"authentication", "network_connection"},
+    # Added from the fallback warning's own output: these fell through to
+    # process_creation over four days of live drafting, so the model was asked
+    # to express phishing and adversary-in-the-middle as process telemetry.
+    "T1566": {"file_event", "network_connection"},
+    "T1598": {"network_connection"},
+    "T1036": {"process_creation", "file_event"},
+    "T1203": {"process_creation", "image_load"},
+    "T1068": {"process_creation"},
+    "T1557": {"network_connection", "authentication"},
+    "T1021": {"authentication", "network_connection"},
 }
 
 # MISP/OTX attribute type -> log source category. The indicator types a CTI
@@ -431,6 +441,64 @@ def _strip_empty_filters(detection: Dict[str, Any]) -> Dict[str, Any]:
     return cleaned
 
 
+#: Fields that hold a network address, not a name. The model fills whatever
+#: indicator it has into whatever field it picked, so a hunt whose only
+#: indicators were domains produced `IpAddress|endswith: .jeetbot.cc` and
+#: `IpAddress|contains: telegram.org`. Both are valid Sigma, pass every other
+#: check, and can never match anything.
+_IP_FIELDS = frozenset(
+    {"ipaddress", "destinationip", "sourceip", "srcip", "dstip", "clientip", "serverip"}
+)
+
+#: Fields that hold a port number.
+_PORT_FIELDS = frozenset({"destinationport", "sourceport", "srcport", "dstport"})
+
+
+def _looks_like_address(value: str) -> bool:
+    """Whether `value` could be part of an IP address or CIDR range.
+
+    Deliberately permissive about fragments: `192.168.` and `.133` are
+    legitimate `contains`/`endswith` idioms and this module already treats
+    them as such. What it rejects is a value that is not an address at all.
+    """
+    cleaned = value.strip()
+    if not cleaned:
+        return False
+    if ":" in cleaned:
+        # IPv6, which is the only form allowed to carry letters.
+        return all(c in "0123456789abcdefABCDEF:./" for c in cleaned)
+    return all(c in "0123456789./" for c in cleaned)
+
+
+def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
+    """Reject a value that cannot occur in the field it is matched against.
+
+    A type mismatch is the one rule defect that needs no judgement: an address
+    field holding a hostname matches nothing on any backend, in any
+    environment, forever. Caught here rather than left to review because it
+    looks exactly like a working rule.
+    """
+    for block_name, block in detection.items():
+        if block_name == "condition" or not isinstance(block, dict):
+            continue
+        for field, raw_value in block.items():
+            base = str(field).split("|")[0].strip().lower()
+            values = raw_value if isinstance(raw_value, list) else [raw_value]
+            for value in values:
+                text = str(value)
+                if base in _IP_FIELDS and not _looks_like_address(text):
+                    return (
+                        f"{field} holds a network address, but the detection matches "
+                        f"on {text!r}; a hostname in an address field never matches"
+                    )
+                if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
+                    return (
+                        f"{field} holds a port number, but the detection matches "
+                        f"on {text!r}"
+                    )
+    return None
+
+
 def _partial_indicator_problem(
     detection: Dict[str, Any], supplied: Dict[str, List[str]], category: str
 ) -> Optional[str]:
@@ -690,6 +758,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         problem = _self_defeating_filter_problem(detection, input_data.hypothesis)
         if problem:
             return None, f"{category}: {problem}"
+        problem = _field_type_problem(detection)
+        if problem:
+            return None, f"{category}: {problem}"
 
         level = str(raw.get("level", "medium")).strip().lower()
         if level not in VALID_LEVELS:
@@ -908,7 +979,11 @@ Fields available in {logsource}: {fields}
 RULES OF THE TASK:
 1. Return JSON only. Do NOT write YAML - the caller renders it.
 2. Use only field names that exist in {logsource}. A field borrowed from
-   another category matches nothing and fails silently at conversion.
+   another category matches nothing and fails silently at conversion. Match the
+   value to the field's type: an address field (IpAddress, DestinationIp) takes
+   an IP or CIDR, never a hostname, and a port field takes a number. If your
+   only indicator is a domain and this log source has no name field for it,
+   write a behavioural rule instead.
 3. Prefer the concrete indicators above over generic patterns. A rule that
    matches the actual C2 hostnames or the actual masquerading path is worth
    more than one matching "suspicious command line". If you use an indicator,
