@@ -73,10 +73,24 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    - name: Install Hecate
+    - name: Set current month for STIX cache key
+      id: date
+      run: echo "month=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
+
+    - name: Cache STIX Data
+      uses: actions/cache@v4
+      with:
+        path: ~/.hecate/stix-data
+        key: stix-data-${{ steps.date.outputs.month }}
+
+    - name: Install Hecate with ATT&CK support
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        pip install -e ".[attack]"
+
+    - name: Provision STIX data
+      run: |
+        hecate-agent attack update
 
     - name: Validate all hunts
       run: |
