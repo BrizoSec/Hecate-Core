@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is **Hecate (Agentic Threat Hunting Framework)** — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is published as the `hecate-agent` PyPI package, with the `hecate-agent` entry point.
 
-**This repository is dual-purpose:** it is both the framework's source (`hecate/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using Hecate against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
+**This repository is dual-purpose:** it is both the framework's source (`hecate_agent/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using Hecate against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
 
 ## Development Setup
 
@@ -84,7 +84,7 @@ hecate-agent-mcp  # standalone entry point
 ### Package Structure
 
 ```
-hecate/
+hecate_agent/
 ├── cli.py                  # Click CLI root; registers all command groups + plugin system
 ├── plugin_system.py        # Entry-point-based plugin discovery (hecate_agent.commands / hecate_agent.mcp_tools groups)
 ├── commands/               # Click command groups (one file per top-level command)
@@ -139,7 +139,9 @@ hecate/
 
 **CLI-first invariant:** The CLI (and MCP tools) are the only sanctioned way to create/validate hunt files. Direct file writes bypass ID sequencing and YAML frontmatter generation — never create hunt/investigation/research files manually.
 
-**LLM provider auto-detection:** `hecate_agent.core.llm_provider.create_provider()` inspects environment variables in priority order (LiteLLM → OpenAI → Anthropic → Bedrock → Ollama). All optional LLM dependencies use lazy imports so the base package installs without any AI SDK.
+**LLM provider resolution:** `hecate_agent.core.llm_provider.create_provider()` resolves in four layers, highest precedence first: an explicit `config` dict → `HECATE_LLM_PROVIDER` / `HECATE_LLM_MODEL` → the `llm` section of `.hecateconfig.yaml` → auto-detection. Auto-detection probes `ANTHROPIC_API_KEY` (via LiteLLM) → `OPENAI_API_KEY` → `AWS_PROFILE`/`AWS_ACCESS_KEY_ID` (Bedrock) → a locally running Ollama, and raises `RuntimeError` if none match.
+
+Note that this workspace sets `HECATE_LLM_PROVIDER=ollama` in `.env`, so auto-detection never runs here — changing which model is used means editing that, not adding an API key. All optional LLM dependencies use lazy imports so the base package installs without any AI SDK.
 
 **HuntManager caching:** `HuntManager` uses a class-level cache keyed on a filesystem fingerprint (file count + max mtime). Fresh instances are created per CLI invocation and per MCP tool call, making the class-level cache the right scope for deduplication without stale-data risk.
 
@@ -159,11 +161,23 @@ hecate/
 | `[bedrock]` | `boto3` for AWS Bedrock |
 | `[attack]` | `mitreattack-python` for live STIX data |
 | `[mcp]` | `mcp[cli]<2.0.0` for MCP server |
-| `[all]` | Everything above |
+| `[sigma]` | `pysigma` — Sigma rule validation |
+| `[research]` | `tavily-python` — web-search grounding for `hecate-agent research new` |
+| `[docs]` | `mkdocs` + `mkdocs-material` |
+| `[all]` | `[sigma]`, `[litellm]`, `[similarity]`, `[splunk]`, `[research]`, `[mcp]`, `[attack]` |
+
+`[all]` is **not** every extra: it deliberately omits the direct provider SDKs
+(`[anthropic]`, `[openai]`, `[bedrock]`, `[ollama]`) and `[docs]`, since LiteLLM
+already covers the providers. An Ollama workspace still needs `[ollama]`.
 
 ### Code Style
 
 - Line length: 127 characters (black + flake8 + isort all configured to 127)
-- Python 3.8+ compatibility required (no walrus operator, no `match`, use `Optional[X]` not `X | None`)
-- mypy strict mode enabled; all functions need type annotations
+- Python 3.11+ (`requires-python = ">=3.11"`; CI tests 3.11/3.12/3.13)
+- Typing style is `Optional[X]` / `Dict[...]`, not `X | None` — 41 modules use it
+  against 1 that does not. This is consistency with the surrounding code, not a
+  version constraint: the 3.11 floor permits either.
+- mypy is configured per-flag rather than `strict = true` (`disallow_untyped_defs`,
+  `disallow_incomplete_defs`, `check_untyped_defs`, `no_implicit_optional`,
+  `warn_return_any`); all functions need type annotations
 - Bandit security linting skips `B101` (assert statements)

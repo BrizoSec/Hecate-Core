@@ -14,7 +14,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 - **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Expert hunting frameworks and analytical methods
 - **Browse past hunts** - Search hunt history before suggesting new hypotheses
 - Reference lessons learned when generating queries
-- Use [knowledge/knowledge/environment.md](knowledge/knowledge/environment.md) to understand available data sources
+- Use [knowledge/environment.md](knowledge/environment.md) to understand available data sources
 - **Focus on behaviors and TTPs (top of Pyramid of Pain), not indicators**
 
 ---
@@ -126,7 +126,7 @@ hecate/                           # CLI source code
     └── integrations/           # Integration guides
 ```
 
-### User Workspace (Created by hecate-agent init)
+### User Workspace (created on first use)
 
 ```
 /

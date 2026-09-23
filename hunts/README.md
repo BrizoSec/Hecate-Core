@@ -8,25 +8,24 @@ For template structure details, see [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md)
 
 ```
 hunts/
-├── production/          ← Production hunts
-│   └── 2026/
-│       └── Q1/
-│           ├── H-0001.md    ← macOS Data Collection via AppleScript Detection (T1005)
-│           ├── H-0002.md    ← Linux Crontab Persistence Detection (T1053.003)
-│           └── H-0003.md    ← AWS Lambda Persistence Detection (T1546.004)
-└── test/                ← Test hunts
+├── 2026/                ← Production hunts, filed by year and quarter
+│   └── Q3/
+│       └── H-####.md
+└── test/                ← Test hunts (hecate-agent hunt new --test)
     └── 2026/
-        └── Q1/
-            └── H-####.md    ← Your next test hunt
+        └── Q3/
+            └── H-####.md
 ```
+
+The year and quarter are taken from the creation date, so a hunt lands in
+`hunts/{YYYY}/{QX}/` (or `hunts/test/{YYYY}/{QX}/` with `--test`). You never
+build those paths yourself — `hecate-agent hunt new` does it.
 
 Each file is a complete hunt from planning through execution results.
 
 ## Quick Start
 
 ### 1. Create a New Hunt
-
-**Using CLI (Recommended):**
 
 ```bash
 # Interactive mode - prompts you for details
@@ -36,15 +35,12 @@ hecate-agent hunt new
 hecate-agent hunt new --technique T1110.001 --title "SSH Brute Force Detection" --platform linux
 ```
 
-**Manual Method (Alternative):**
+Always create hunts through the CLI. Copying `templates/HUNT_LOCK.md` by hand
+bypasses ID sequencing and YAML frontmatter generation, which is what produces
+duplicate IDs and hunts that `hecate-agent hunt validate` rejects. See
+[AGENTS.md](../AGENTS.md) for the full CLI-first rules.
 
-Copy the template and fill it out:
-
-```bash
-cp ../templates/HUNT_LOCK.md hunts/H-0100.md
-```
-
-**Either way, start with the LEARN section:**
+**Start with the LEARN section:**
 
 - Write your hypothesis
 - Fill out ABLE scoping table (Actor, Behavior, Location, Evidence)
@@ -119,37 +115,40 @@ hecate-agent hunt stats
 
 ### Manual Grep (Fallback)
 
+Hunts are nested under `hunts/{YYYY}/{QX}/`, so these recurse rather than
+globbing a flat directory.
+
 ```bash
 # Find hunts by MITRE technique
-grep -l "T1110.001" hunts/H-*.md
+grep -rl "T1110.001" hunts/
 
 # Find by behavior
-grep -i "brute force" hunts/H-*.md
+grep -ri "brute force" hunts/
 
 # Find by technology
-grep -i "powershell" hunts/H-*.md
+grep -ri "powershell" hunts/
 
 # See completed hunts
-grep "Status.*Completed" hunts/H-*.md
+grep -r "Status.*Completed" hunts/
 
 # Learn from past lessons
-grep "Lessons Learned" -A 5 hunts/H-*.md
+grep -r "Lessons Learned" -A 5 hunts/
 ```
 
 ## Hunt Status Tracking
 
 ```bash
 # List all hunts
-ls hunts/H-*.md
+find hunts -name 'H-*.md'
 
 # Count total hunts
-ls hunts/H-*.md | wc -l
+find hunts -name 'H-*.md' | wc -l
 
 # Find in-progress hunts
-grep "Status.*In Progress" hunts/H-*.md
+grep -r "Status.*In Progress" hunts/
 
 # Find hunts that need follow-up
-grep "Follow-up Actions" -A 10 hunts/H-*.md | grep "\[ \]"
+grep -r "Follow-up Actions" -A 10 hunts/ | grep "\[ \]"
 ```
 
 ## Level 3: MCP Integration
@@ -229,9 +228,8 @@ Claude:
 - **In Progress** = Actively executing and collecting data
 - **Completed** = Results documented, lessons captured
 
-## Example Hunts
+## Examples and reference
 
-- [H-0001.md](production/2026/Q1/H-0001.md) - macOS Data Collection via AppleScript Detection (T1005, T1059.002, T1555.003)
-- [H-0002.md](production/2026/Q1/H-0002.md) - Linux Crontab Persistence Detection (T1053.003)
-- [H-0003.md](production/2026/Q1/H-0003.md) - AWS Lambda Persistence Detection (T1546.004, T1098)
-- [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md) - Template structure reference
+- [FORMAT_GUIDELINES.md](FORMAT_GUIDELINES.md) — template structure reference
+- [docs/SHOWCASE.md](../docs/SHOWCASE.md) — worked examples of completed hunts
+- `hecate-agent hunt list` — what is actually in this workspace right now

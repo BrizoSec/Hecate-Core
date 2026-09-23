@@ -2,7 +2,7 @@
 
 ## Core Framework Docs
 
-The canonical framework documentation lives in [`hecate_agent/data/docs/`](../hecate_agent/data/docs/) — these are the files deployed into your workspace by `hecate-agent init`.
+The canonical framework documentation lives in [`hecate_agent/data/docs/`](../hecate_agent/data/docs/) — these ship as package data inside `hecate-agent`. The copies in this directory are kept byte-identical to them so they render on GitHub; edit the `hecate_agent/data/docs/` copy and mirror it here.
 
 - [Getting Started](../hecate_agent/data/docs/getting-started.md)
 - [The LOCK Pattern](../hecate_agent/data/docs/lock-pattern.md)
@@ -22,7 +22,3 @@ Files here are GitHub/developer-facing and are not deployed into workspaces:
 - [Hunt Showcase](SHOWCASE.md) — Example completed hunts
 - [Open Threads](OPEN_THREADS.md) — Known unfinished work across Hecate-Core and Hecate-Runner, with owner and next step
 - [Future Enhancements](FUTURE_ENHANCEMENTS.md) — Capability work worth building, and the knowledge inputs that most affect hunt quality
-
-## Developer Internals
-
-- [MCP Envelope-Reduction Contract](internals/envelope-reduction-contract.md) — Internal contract for MCP tool response format

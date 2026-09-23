@@ -136,21 +136,22 @@ Always maintain human oversight:
 
 **[Start the Splunk MCP walkthrough →](MCP_CATALOG.md)**
 
-## Level 4 Preview
+## Level 4: Agentic
 
-Once you have MCP integrations working, Level 4 (Agentic) becomes possible. Instead of you asking Claude to run hunts, **autonomous agents** can:
+Level 3 gives Claude the **tools**. Level 4 gives it **agency** — and it is built,
+not a preview: [Hecate-Runner](https://github.com/BrizoSec/Hecate-Runner) runs on a
+systemd timer, polls CTI (OTX, RSS, MISP, CISA KEV, abuse.ch), grounds each item
+with web research, and writes draft hunts into this workspace.
 
-- Monitor CTI feeds and generate draft hunts
-- Execute scheduled hunts automatically
-- Enrich findings with threat intel
-- Create tickets for analyst review
-
-Level 3 gives Claude the **tools**. Level 4 gives it **agency**.
+Note what it deliberately does not do. Drafts land as `status: planning` for human
+review, and no query it writes is ever executed unattended — query execution stays
+behind an explicit human propose/approve step. See
+[level4-agentic-workflows.md](https://github.com/BrizoSec/Hecate-Core/blob/main/hecate_agent/data/docs/level4-agentic-workflows.md).
 
 ## Support
 
 - **MCP Documentation:** <https://modelcontextprotocol.io>
 - **Claude Code MCP Guide:** <https://docs.claude.com/claude-code/mcp>
-- **Hecate Issues:** <https://github.com/Nebulock-Inc/hecate-agent/issues>
+- **Hecate Issues:** <https://github.com/BrizoSec/Hecate-Core/issues>
 
 Happy hunting!
