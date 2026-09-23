@@ -12,6 +12,10 @@ Thumbs.db
 
 # Sensitive data
 *.env
+# Backups and variants (sed -i.bak, editor copies) hold the same secrets.
+.env.*
+*.env.*
+!.env.example
 !config/.env.example
 credentials/
 secrets/

@@ -13,6 +13,8 @@ import yaml
 from hecate_agent.agents.llm.sigma_generator import (
     SigmaGenerationInput,
     SigmaGeneratorAgent,
+    _anchor_bare_filenames,
+    _breadth_problem,
     _field_type_problem,
     _partial_indicator_problem,
     _placeholder_problem,
@@ -992,3 +994,122 @@ class TestAggregationConditions:
         assert problem is None, problem
         assert "count() by TargetUserName > 25" in rule.rule_yaml
         assert _pysigma_problem(rule.rule_yaml) is None
+
+
+class TestBreadthProblem:
+    """A rule matching only an extension or wildcard matches everything.
+
+    Observed on H-0002: `Image|endswith: .exe` minus one NVIDIA filter.
+    """
+
+    @staticmethod
+    def _det(selection: Dict[str, Any], condition: str = "selection") -> Dict[str, Any]:
+        return {"selection": selection, "condition": condition}
+
+    @pytest.mark.parametrize("value", [".exe", "*.exe", "*", ".dll", "\\"])
+    def test_extension_or_wildcard_only_is_rejected(self, value):
+        assert _breadth_problem(self._det({"Image|endswith": value})) is not None
+
+    def test_h0002_process_rule_is_rejected(self):
+        detection = {
+            "selection": {"Image|endswith": ".exe"},
+            "filter": {"OriginalFileName": "nvidia*.dll"},
+            "condition": "selection and not filter",
+        }
+        assert "names no particular" in _breadth_problem(detection)
+
+    @pytest.mark.parametrize(
+        "value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"]
+    )
+    def test_a_named_file_passes(self, value):
+        assert _breadth_problem(self._det({"Image|endswith": value})) is None
+
+    def test_one_specific_value_is_enough(self):
+        selection = {"Image|endswith": ".exe", "ParentImage|endswith": "\\msbuild.exe"}
+        assert _breadth_problem(self._det(selection)) is None
+
+    def test_a_filter_value_does_not_make_the_rule_specific(self):
+        detection = {
+            "selection": {"Image|endswith": ".exe"},
+            "filter": {"Image|startswith": "C:\\Windows\\System32\\svchost.exe"},
+            "condition": "selection and not filter",
+        }
+        assert _breadth_problem(detection) is not None
+
+    def test_a_positively_used_filter_block_counts_as_a_selection(self):
+        """The model names a second positive block "filter" ("selection and filter")."""
+        detection = {
+            "selection": {"Image|endswith": ".exe"},
+            "filter": {"Image|endswith": "\\nvidia-sysruntime.exe"},
+            "condition": "selection and filter",
+        }
+        assert _breadth_problem(detection) is None
+
+    def test_a_wildcard_negation_still_excludes_its_blocks(self):
+        detection = {
+            "selection": {"Image|endswith": ".exe"},
+            "filter_vendor": {"Image|endswith": "\\nvidia-sysruntime.exe"},
+            "condition": "selection and not 1 of filter_*",
+        }
+        assert _breadth_problem(detection) is not None
+
+    def test_an_aggregation_makes_volume_the_signal(self):
+        detection = self._det({"Image|endswith": ".exe"}, "selection | count() by Computer > 500")
+        assert _breadth_problem(detection) is None
+
+    def test_build_rule_rejects_a_broad_rule(self):
+        rule = _rule(
+            detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"}
+        )
+        built, problem = _agent()._build_rule(rule, _input())
+        assert built is None
+        assert "names no particular" in problem
+
+
+def test_prompt_lists_the_drafts_observables():
+    prompt = _agent()._build_prompt(
+        _input(observables=["Process execution of nvidia-sysruntime.exe"]), "process_creation"
+    )
+    assert "nvidia-sysruntime.exe" in prompt
+    assert "unverified" in prompt
+
+
+def test_prompt_says_none_when_there_are_no_observables():
+    prompt = _agent()._build_prompt(_input(), "process_creation")
+    assert "OBSERVABLES THE HUNT DRAFT NAMED" in prompt
+
+
+class TestAnchorBareFilenames:
+    """`Image` is a full path, so `Image: name.exe` never matches."""
+
+    def test_a_bare_filename_on_a_path_field_is_anchored(self):
+        detection = {"selection": {"Image": "nvidia-sysruntime.exe"}, "condition": "selection"}
+        repaired = _anchor_bare_filenames(detection)
+        assert repaired["selection"] == {"Image|endswith": "\\nvidia-sysruntime.exe"}
+        assert repaired["condition"] == "selection"
+
+    def test_a_list_of_bare_filenames_is_anchored(self):
+        detection = {"selection": {"ParentImage": ["a.exe", "b.exe"]}, "condition": "selection"}
+        assert _anchor_bare_filenames(detection)["selection"] == {
+            "ParentImage|endswith": ["\\a.exe", "\\b.exe"]
+        }
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("Image", "C:\\Windows\\System32\\svchost.exe"),
+            ("Image", "*\\svchost.exe"),
+            ("Image|endswith", "svchost.exe"),
+            ("OriginalFileName", "svchost.exe"),
+            ("CommandLine", "whoami"),
+        ],
+    )
+    def test_everything_else_is_left_alone(self, field, value):
+        detection = {"selection": {field: value}, "condition": "selection"}
+        assert _anchor_bare_filenames(detection) == detection
+
+    def test_build_rule_repairs_rather_than_rejects(self):
+        rule = _rule(detection={"selection": {"Image": "nvidia-sysruntime.exe"}, "condition": "selection"})
+        built, problem = _agent()._build_rule(rule, _input())
+        assert problem is None
+        assert "Image|endswith: \\nvidia-sysruntime.exe" in built.rule_yaml
