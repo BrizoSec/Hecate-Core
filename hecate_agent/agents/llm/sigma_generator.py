@@ -215,6 +215,11 @@ class SigmaGenerationInput:
     # {"hostname": ["api.wiresguard.com"], "filename": ["...svchost.exe"]}.
     indicators: Dict[str, List[str]] = field(default_factory=dict)
     references: List[str] = field(default_factory=list)
+    # Behavioural observables the hunt draft named -- process names, paths,
+    # channels -- mostly from grounded research. Model output, so they steer
+    # the prompt and are never required: an earlier check that demanded an
+    # indicator rejected every rule on three consecutive live cycles.
+    observables: List[str] = field(default_factory=list)
     # Explicit override; when empty the log sources are derived.
     logsources: List[str] = field(default_factory=list)
 
@@ -451,6 +456,42 @@ def _strip_empty_filters(detection: Dict[str, Any]) -> Dict[str, Any]:
     return cleaned
 
 
+#: Fields whose value is a full path, so an exact match on a bare filename
+#: can never succeed: Sysmon's Image is C:\\...\\nvidia-sysruntime.exe, never
+#: nvidia-sysruntime.exe.
+_FULL_PATH_FIELDS = frozenset({"image", "parentimage", "targetfilename", "imageloaded"})
+
+
+def _anchor_bare_filenames(detection: Dict[str, Any]) -> Dict[str, Any]:
+    """Rewrite `Image: name.exe` as `Image|endswith: \\name.exe`.
+
+    Repaired rather than rejected, for the same reason as empty filters: the
+    rule's intent is unambiguous and a rejected rule is not retried. Observed
+    on H-0002's regeneration, where the rule's one specific value -- the
+    masquerading filename from research -- sat in exactly this form.
+    """
+
+    def bare(value: Any) -> bool:
+        return isinstance(value, str) and bool(value) and not any(c in value for c in "\\/*")
+
+    def repair_block(block: Any) -> Any:
+        if isinstance(block, list):
+            return [repair_block(item) for item in block]
+        if not isinstance(block, dict):
+            return block
+        repaired: Dict[str, Any] = {}
+        for key, value in block.items():
+            values = value if isinstance(value, list) else [value]
+            if key.lower() in _FULL_PATH_FIELDS and values and all(bare(v) for v in values):
+                anchored = ["\\" + v for v in values]
+                repaired[f"{key}|endswith"] = anchored if isinstance(value, list) else anchored[0]
+            else:
+                repaired[key] = value
+        return repaired
+
+    return {key: (block if key == "condition" else repair_block(block)) for key, block in detection.items()}
+
+
 #: Fields that hold a network address, not a name. The model fills whatever
 #: indicator it has into whatever field it picked, so a hunt whose only
 #: indicators were domains produced `IpAddress|endswith: .jeetbot.cc` and
@@ -584,6 +625,61 @@ def _self_defeating_filter_problem(
                         "browser-borne delivery -- this filters out the rule's own "
                         "primary scenario"
                     )
+    return None
+
+
+#: A match value that is nothing but a file extension, after wildcards.
+_EXTENSION_ONLY_RE = re.compile(r"^\.?[a-z0-9]{1,5}$")
+
+
+def _nonspecific(value: str) -> bool:
+    """A match value that names no particular thing: a bare extension or wildcard."""
+    stripped = value.strip().strip("*").strip()
+    if not stripped or set(stripped) <= set("\\/.:*"):
+        return True
+    return bool(_EXTENSION_ONLY_RE.match(stripped.lower())) and (
+        stripped.startswith(".") or value.strip().startswith("*")
+    )
+
+
+def _negated_blocks(detection: Dict[str, Any], condition: str) -> Set[str]:
+    """Names of detection blocks the condition excludes with `not`."""
+    negated: Set[str] = set()
+    for match in re.finditer(r"\bnot\s+(?:(?:1|all)\s+of\s+)?([\w*]+)", condition):
+        pattern = re.compile("^" + re.escape(match.group(1)).replace("\\*", ".*") + "$")
+        negated.update(key for key in detection if key != "condition" and pattern.match(key))
+    return negated
+
+
+def _breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
+    """Reject a rule whose selections match only extensions or wildcards.
+
+    Observed on H-0002: `Image|endswith: .exe` minus one filter matched every
+    process on the host. Structurally valid, so nothing else stopped it, and it
+    reached review looking like a real rule. A count threshold in the condition
+    makes volume the signal, so aggregated rules are left alone.
+
+    A block is an exclusion only if the condition negates it. The model
+    regularly names a second positive block "filter" ("selection and filter",
+    seen on H-0002's regeneration), and that block narrows the rule.
+
+    Judged across all selections together: one specific value anywhere is
+    enough. That misses a broad selection OR-ed with a specific one, which is
+    the price of not parsing conditions.
+    """
+    condition = str(detection.get("condition", ""))
+    if "|" in condition:
+        return None
+    negated = _negated_blocks(detection, condition)
+    values = [
+        value
+        for key, block in detection.items()
+        if key != "condition" and key not in negated
+        for value in _detection_values({key: block})
+    ]
+    if values and all(_nonspecific(v) for v in values):
+        shown = ", ".join(sorted({v.strip() for v in values}))
+        return f"selections match only {shown!r}, which names no particular file, process or host"
     return None
 
 
@@ -755,22 +851,22 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         detection, problem = self._normalise_detection(raw)
         if problem:
             return None, f"{category}: {problem}"
-        detection = _strip_empty_filters(detection)
+        detection = _anchor_bare_filenames(_strip_empty_filters(detection))
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"
-        problem = _placeholder_problem(detection, input_data.indicators)
-        if problem:
-            return None, f"{category}: {problem}"
-        problem = _partial_indicator_problem(detection, input_data.indicators, category)
-        if problem:
-            return None, f"{category}: {problem}"
-        problem = _self_defeating_filter_problem(detection, input_data.hypothesis)
-        if problem:
-            return None, f"{category}: {problem}"
-        problem = _field_type_problem(detection)
-        if problem:
-            return None, f"{category}: {problem}"
+        # Each check sees a structurally valid rule; the first to object wins.
+        checks = (
+            lambda d: _placeholder_problem(d, input_data.indicators),
+            lambda d: _partial_indicator_problem(d, input_data.indicators, category),
+            lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
+            _field_type_problem,
+            _breadth_problem,
+        )
+        for check in checks:
+            problem = check(detection)
+            if problem:
+                return None, f"{category}: {problem}"
 
         level = str(raw.get("level", "medium")).strip().lower()
         if level not in VALID_LEVELS:
@@ -1008,6 +1104,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
+        observable_block = (
+            "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
+        )
         techniques = ", ".join(input_data.techniques) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
@@ -1026,6 +1125,9 @@ PLATFORMS: {platforms}
 INDICATORS FROM THE SOURCE INTELLIGENCE:
 {indicator_block}
 
+OBSERVABLES THE HUNT DRAFT NAMED (from research; unverified, use where they fit):
+{observable_block}
+
 Write EXACTLY ONE rule, for this Sigma log source category and no other:
     {logsource}
 
@@ -1039,9 +1141,11 @@ RULES OF THE TASK:
    an IP or CIDR, never a hostname, and a port field takes a number. If your
    only indicator is a domain and this log source has no name field for it,
    write a behavioural rule instead.
-3. Prefer the concrete indicators above over generic patterns. A rule that
-   matches the actual C2 hostnames or the actual masquerading path is worth
-   more than one matching "suspicious command line". If you use an indicator,
+3. Prefer the concrete indicators and observables above over generic
+   patterns. A rule that matches the actual C2 hostnames or the actual
+   masquerading filename is worth more than one matching "suspicious command
+   line". A selection that matches only a file extension (`|endswith: .exe`)
+   or a wildcard matches every file of that type and is rejected. If you use an indicator,
    reproduce it WHOLE in one match value. Never split one into fragments:
    "bad.example.net" written as `|endswith: .net` plus `|contains: bad`
    matches every .net domain, loses the evidence, and is rejected. Using no
