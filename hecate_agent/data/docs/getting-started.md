@@ -4,7 +4,7 @@ This guide walks you through setting up the Agentic Threat Hunting Framework, fr
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
-> **Configuration reference:** For a complete list of API keys, environment variables, `.hecateconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](CONFIGURATION.md).
+> **Configuration reference:** For a complete list of API keys, environment variables, `.hecateconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/CONFIGURATION.md).
 
 ## Step 1: Choose Your Setup Path
 
@@ -16,8 +16,8 @@ Install the Python CLI for convenience commands:
 
 ```bash
 # Clone and install
-git clone https://github.com/Nebulock-Inc/hecate-agent
-cd hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core
+cd Hecate-Core
 pip install -e .
 
 # Verify installation
@@ -32,8 +32,8 @@ Use the framework structure without CLI tools:
 
 ```bash
 # Clone only
-git clone https://github.com/Nebulock-Inc/hecate-agent
-cd hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core
+cd Hecate-Core
 ```
 
 **Benefits:** Maximum simplicity, full control, no dependencies
@@ -69,7 +69,7 @@ hecate-agent/
 
 - [templates/](../templates/) - Ready-to-use LOCK hunt templates
 - [hunts/](../hunts/) - Example hunts showing the LOCK pattern
-- [AGENTS.md](../AGENTS.md) - Template for AI context (customize later)
+- [AGENTS.md](https://github.com/BrizoSec/Hecate-Core/blob/main/AGENTS.md) - Template for AI context (customize later)
 
 ## Step 3: Document Your First Hunt (Level 1)
 
@@ -122,7 +122,7 @@ hecate-agent hunt list
 
 ### Example Structure
 
-See [hunts/H-0001.md](../hunts/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
+See [hunts/H-0001.md](https://github.com/BrizoSec/Hecate-Core/blob/main/hecate_agent/data/hunts/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
 
 ```markdown
 # H-0001: SSH Brute Force Detection
@@ -157,7 +157,7 @@ To make your hunts AI-accessible, add context files that describe your environme
 
 ### Customize AGENTS.md
 
-1. Open [AGENTS.md](../AGENTS.md)
+1. Open [AGENTS.md](https://github.com/BrizoSec/Hecate-Core/blob/main/AGENTS.md)
 2. Update the following sections:
    - **Data Sources:** Replace placeholders with your actual SIEM indexes, EDR platforms, etc.
    - **Technology Stack:** List your security tools
@@ -222,7 +222,7 @@ export HECATE_LLM_PROVIDER=openai
 export HECATE_LLM_MODEL=gpt-4o
 ```
 
-See [`.env.example`](../.env.example) for all supported variables.
+See [`.env.example`](https://github.com/BrizoSec/Hecate-Core/blob/main/.env.example) for all supported variables.
 
 ### Test AI Integration and Agent Framework (v0.3.0+)
 
@@ -294,7 +294,7 @@ tags: [linux, cron, persistence]
 
 1. Keep the existing markdown metadata section below the title for human readability
 
-**Full documentation:** See [hunts/FORMAT_GUIDELINES.md](../hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
+**Full documentation:** See [hunts/FORMAT_GUIDELINES.md](https://github.com/BrizoSec/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
 
 **Why Both YAML and Markdown Metadata?**
 
@@ -429,12 +429,14 @@ hecate-agent hunt stats                         # Show statistics
 hecate-agent hunt coverage                      # MITRE ATT&CK coverage
 ```
 
-### Workspace Initialization
+### Workspace health
 
 ```bash
-hecate-agent init                               # Interactive setup
-hecate-agent init --non-interactive             # Use defaults
+hecate-agent env check                          # Dependency + workspace checklist
 ```
+
+There is no initialization step. `hunts/`, `research/` and `queries/` are created
+the first time a command needs them.
 
 **Full documentation:** [CLI Reference](CLI_REFERENCE.md)
 
@@ -491,6 +493,6 @@ A: Yes! The CLI commands (`hecate-agent hunt list`, `hecate-agent hunt search`, 
 - Browse [docs/](.) for detailed guides
 - Check [integrations/](../integrations/) for tool-specific setup
 - Review [hunts/](../hunts/) for example hunts
-- Open an issue on [GitHub](https://github.com/Nebulock-Inc/hecate-agent/issues)
+- Open an issue on [GitHub](https://github.com/BrizoSec/Hecate-Core/issues)
 
 Happy thrunting!

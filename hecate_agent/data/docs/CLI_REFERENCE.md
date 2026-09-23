@@ -6,7 +6,6 @@ Complete reference for all `hecate-agent` command-line interface commands.
 
 | Command | Category | Description |
 |---------|----------|-------------|
-| [`hecate-agent init`](#hecate-agent-init) | Setup | Initialize Hecate workspace directory structure |
 | [`hecate-agent env setup`](#hecate-agent-env) | Environment | Setup Python virtual environment with dependencies |
 | [`hecate-agent env info`](#hecate-agent-env) | Environment | Show virtual environment information |
 | [`hecate-agent agent list`](#hecate-agent-agent-list) | Agent Framework | List all available agents |
@@ -15,17 +14,27 @@ Complete reference for all `hecate-agent` command-line interface commands.
 | [`hecate-agent research new`](#hecate-agent-research-new) | Research | Create new research document with web search |
 | [`hecate-agent research list`](#hecate-agent-research-list) | Research | List all research documents |
 | [`hecate-agent research view`](#hecate-agent-research-view) | Research | View research document |
+| [`hecate-agent research link`](#hecate-agent-research-link) | Research | Back-link a hunt to its source research document |
+| [`hecate-agent research search`](#hecate-agent-research-search) | Research | Full-text search across research documents |
+| [`hecate-agent research stats`](#hecate-agent-research-stats) | Research | Show research program statistics |
 | [`hecate-agent hunt new`](#hecate-agent-hunt-new) | Hunt Management | Create new hunt from template with auto-generated ID |
 | [`hecate-agent hunt list`](#hecate-agent-hunt-list) | Hunt Management | List all hunts with optional filtering |
 | [`hecate-agent hunt validate`](#hecate-agent-hunt-validate) | Hunt Management | Validate hunt file structure and metadata |
 | [`hecate-agent hunt stats`](#hecate-agent-hunt-stats) | Hunt Management | Display hunt statistics and success metrics |
 | [`hecate-agent hunt search`](#hecate-agent-hunt-search) | Hunt Management | Full-text search across all hunts |
 | [`hecate-agent hunt coverage`](#hecate-agent-hunt-coverage) | Hunt Management | Display MITRE ATT&CK coverage heatmap |
+| [`hecate-agent hunt new-baseline`](#hecate-agent-hunt-new-baseline) | Hunt Management | Create a hypothesis-free baseline (EDA) hunt |
+| [`hecate-agent hunt new-model-assisted`](#hecate-agent-hunt-new-model-assisted) | Hunt Management | Create a model-assisted (M-ATH) hunt |
+| [`hecate-agent hunt update`](#hecate-agent-hunt-update) | Hunt Management | Patch hunt frontmatter fields in place |
+| [`hecate-agent hunt promote`](#hecate-agent-hunt-promote) | Hunt Management | Promote a hunt from test to production |
+| [`hecate-agent hunt operationalize`](#hecate-agent-hunt-operationalize) | Hunt Management | Generate a Sigma rule stub from a hunt |
+| [`hecate-agent hunt brief`](#hecate-agent-hunt-brief) | Hunt Management | Render a stakeholder-facing hunt summary |
+| [`hecate-agent hunt export`](#hecate-agent-hunt-export) | Hunt Management | Export hunt data as structured JSON |
 | [`hecate-agent attack update`](#hecate-agent-attack-update) | ATT&CK Data | Download/refresh STIX data from MITRE |
 | [`hecate-agent attack status`](#hecate-agent-attack-status) | ATT&CK Data | Show provider type, version, and cache info |
 | [`hecate-agent attack lookup`](#hecate-agent-attack-lookup) | ATT&CK Data | Look up technique metadata by ID |
 | [`hecate-agent attack techniques`](#hecate-agent-attack-techniques) | ATT&CK Data | List all techniques for a tactic |
-| [`hecate-agent hunt execute`](#hecate-agent-hunt-execute) | Hunt Management | Execute hunt workflow with agent orchestration |
+| [`hecate-agent attack gap`](#hecate-agent-attack-gap) | ATT&CK Data | List techniques no hunt covers yet |
 | [`hecate-agent investigate new`](#hecate-agent-investigate-new) | Investigation | Create new investigation file for exploratory work |
 | [`hecate-agent investigate list`](#hecate-agent-investigate-list) | Investigation | List all investigations with optional filtering |
 | [`hecate-agent investigate search`](#hecate-agent-investigate-search) | Investigation | Full-text search across investigations |
@@ -33,12 +42,13 @@ Complete reference for all `hecate-agent` command-line interface commands.
 | [`hecate-agent investigate promote`](#hecate-agent-investigate-promote) | Investigation | Promote investigation to formal hunt |
 | [`hecate-agent context`](#hecate-agent-context) | AI Optimization | Export AI-optimized context bundle (saves ~75% tokens) |
 | [`hecate-agent similar`](#hecate-agent-similar) | AI Optimization | Find similar hunts using semantic search |
+| [`hecate-agent eval`](#hecate-agent-eval) | Model Quality | Score a model against known-answer fixtures |
+| [`hecate-agent mcp serve`](#hecate-agent-mcp-serve) | Integration | Serve Hecate operations as MCP tools |
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Global Options](#global-options)
-- [hecate-agent init](#hecate-agent-init)
 - [hecate-agent env](#hecate-agent-env)
 - [hecate-agent agent list](#hecate-agent-agent-list)
 - [hecate-agent agent info](#hecate-agent-agent-info)
@@ -46,6 +56,9 @@ Complete reference for all `hecate-agent` command-line interface commands.
 - [hecate-agent research new](#hecate-agent-research-new)
 - [hecate-agent research list](#hecate-agent-research-list)
 - [hecate-agent research view](#hecate-agent-research-view)
+- [hecate-agent research link](#hecate-agent-research-link)
+- [hecate-agent research search](#hecate-agent-research-search)
+- [hecate-agent research stats](#hecate-agent-research-stats)
 - [hecate-agent context](#hecate-agent-context)
 - [hecate-agent similar](#hecate-agent-similar)
 - [hecate-agent hunt new](#hecate-agent-hunt-new)
@@ -54,12 +67,21 @@ Complete reference for all `hecate-agent` command-line interface commands.
 - [hecate-agent hunt stats](#hecate-agent-hunt-stats)
 - [hecate-agent hunt search](#hecate-agent-hunt-search)
 - [hecate-agent hunt coverage](#hecate-agent-hunt-coverage)
-- [hecate-agent hunt execute](#hecate-agent-hunt-execute)
+- [hecate-agent hunt new-baseline](#hecate-agent-hunt-new-baseline)
+- [hecate-agent hunt new-model-assisted](#hecate-agent-hunt-new-model-assisted)
+- [hecate-agent hunt update](#hecate-agent-hunt-update)
+- [hecate-agent hunt promote](#hecate-agent-hunt-promote)
+- [hecate-agent hunt operationalize](#hecate-agent-hunt-operationalize)
+- [hecate-agent hunt brief](#hecate-agent-hunt-brief)
+- [hecate-agent hunt export](#hecate-agent-hunt-export)
 - [hecate-agent investigate new](#hecate-agent-investigate-new)
 - [hecate-agent investigate list](#hecate-agent-investigate-list)
 - [hecate-agent investigate search](#hecate-agent-investigate-search)
 - [hecate-agent investigate validate](#hecate-agent-investigate-validate)
 - [hecate-agent investigate promote](#hecate-agent-investigate-promote)
+- [hecate-agent attack gap](#hecate-agent-attack-gap)
+- [hecate-agent eval](#hecate-agent-eval)
+- [hecate-agent mcp serve](#hecate-agent-mcp-serve)
 - [Configuration](#configuration)
 - [Exit Codes](#exit-codes)
 
@@ -71,7 +93,7 @@ Complete reference for all `hecate-agent` command-line interface commands.
 pip install hecate-agent
 ```
 
-See [INSTALL.md](INSTALL.md) for detailed installation instructions.
+See [INSTALL.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/INSTALL.md) for detailed installation instructions.
 
 ---
 
@@ -84,95 +106,6 @@ hecate-agent --version          # Show version and exit
 hecate-agent --help             # Show help message
 hecate-agent <command> --help   # Show help for specific command
 ```
-
----
-
-## hecate-agent init
-
-Initialize Hecate directory structure in the current directory.
-
-### Synopsis
-
-```bash
-hecate-agent init [OPTIONS]
-```
-
-### Description
-
-Creates the standard Hecate directory structure with templates, configuration files, and documentation. This is typically the first command you run when setting up a new threat hunting workspace.
-
-### Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--non-interactive` | Flag | False | Skip interactive prompts and use defaults |
-| `--siem` | Choice | splunk | SIEM platform: `splunk`, `sentinel`, `elastic` |
-| `--edr` | Choice | crowdstrike | EDR platform: `crowdstrike`, `sentinelone`, `defender` |
-| `--hunt-prefix` | String | H | Prefix for hunt IDs (e.g., H-0001) |
-| `--retention-days` | Integer | 90 | Default data retention in days |
-
-### Examples
-
-**Interactive mode** (recommended for first-time setup):
-
-```bash
-hecate-agent init
-```
-
-You'll be prompted for:
-```
-SIEM platform [splunk/sentinel/elastic]: splunk
-EDR platform [crowdstrike/sentinelone/defender]: crowdstrike
-Hunt ID prefix [H]: HUNT
-Default data retention (days) [90]: 180
-```
-
-**Non-interactive mode** (use defaults):
-
-```bash
-hecate-agent init --non-interactive
-```
-
-**Custom configuration**:
-
-```bash
-hecate-agent init \
-  --siem sentinel \
-  --edr defender \
-  --hunt-prefix TH \
-  --retention-days 180
-```
-
-### Directory Structure Created
-
-```
-.
-├── .hecateconfig.yaml           # Configuration file
-├── AGENTS.md                  # AI assistant instructions
-├── hunts/                     # Hunt documentation
-├── queries/                   # Reusable query library
-├── runs/                      # Hunt execution logs
-└── templates/                 # Hunt templates
-    └── HUNT_LOCK.md
-```
-
-### Configuration File
-
-Creates `.hecateconfig.yaml`:
-
-```yaml
-siem: splunk
-edr: crowdstrike
-hunt_prefix: H
-retention_days: 90
-initialized: 2025-12-02T14:30:00
-version: 0.2.1
-```
-
-### Exit Codes
-
-- `0`: Success
-- `1`: Directory already initialized (`.hecateconfig.yaml` exists)
 
 ---
 
@@ -470,6 +403,7 @@ Uses semantic similarity (TF-IDF) to find related hunts even when terminology di
 | `--limit` | Integer | 10 | Maximum number of results |
 | `--format` | Choice | table | Output format: `table`, `json`, `yaml` |
 | `--threshold` | Float | 0.1 | Minimum similarity score (0-1) |
+| `--sessions` | Flag | False | Include session logs as separate results |
 
 **Note:** Must provide either `QUERY` or `--hunt` option.
 
@@ -591,11 +525,17 @@ Creates a new hunt file with proper YAML frontmatter and LOCK structure. Automat
 | `--non-interactive` | Flag | False | Skip interactive prompts |
 | `--technique` | String | Required* | MITRE ATT&CK technique (e.g., T1003.001) |
 | `--title` | String | Required* | Hunt title |
-| `--tactics` | String | - | Comma-separated tactics (e.g., credential-access,defense-evasion) |
-| `--platforms` | String | - | Comma-separated platforms (e.g., windows,linux,macos) |
-| `--data-sources` | String | - | Comma-separated data sources |
-| `--hunter` | String | AI Assistant | Your name or handle |
-| `--severity` | Choice | medium | Severity: `low`, `medium`, `high`, `critical` |
+| `--tactic` | String | - | MITRE tactic; repeatable |
+| `--platform` | String | - | Target platform; repeatable |
+| `--data-source` | String | - | Data source; repeatable |
+| `--hunter` | String | config, then `Analyst` | Your name or handle |
+| `--assignee` | String | - | Assign the hunt to a team member |
+| `--test` | Flag | False | Create under `hunts/test/` instead of production |
+| `--clone` | String | - | Clone metadata from an existing hunt (e.g., H-0013) |
+
+`--tactic`, `--platform` and `--data-source` are singular and repeatable —
+`--platform Windows --platform Linux`. Passing one comma-separated value also
+lands as separate entries, but repeating the flag is the supported form.
 
 **Rich Content Options (for AI assistants & automation):**
 
@@ -608,6 +548,7 @@ Creates a new hunt file with proper YAML frontmatter and LOCK structure. Automat
 | `--location` | String | Location/scope description (for ABLE framework) |
 | `--evidence` | String | Evidence description (for ABLE framework) |
 | `--research` | String | Research document ID (e.g., R-0001) to link to this hunt |
+| `--hypothesis-duration` | Float | Hypothesis generation time in minutes, for automated callers |
 
 \* Required in non-interactive mode
 
@@ -621,13 +562,11 @@ hecate-agent hunt new
 
 Prompts:
 ```
-MITRE ATT&CK Technique (e.g., T1003.001): T1558.003
-Hunt Title: Kerberoasting Detection via Unusual TGS Requests
-Primary Tactic [credential-access]: credential-access
-Target Platforms (comma-separated) [windows]: windows
-Data Sources (comma-separated) [windows-event-logs]: windows-event-logs,edr-telemetry
-Your Name [Your Name]: Jane Doe
-Severity [medium]: high
+1. MITRE ATT&CK Technique (e.g., T1003.001): T1558.003
+2. Hunt Title: Kerberoasting Detection via Unusual TGS Requests
+   Tactics [credential-access]: credential-access
+   Platforms [Windows]: Windows
+   Data Sources [SIEM, EDR]: windows-event-logs,edr-telemetry
 ```
 
 **Non-interactive mode**:
@@ -636,11 +575,10 @@ Severity [medium]: high
 hecate-agent hunt new \
   --technique T1558.003 \
   --title "Kerberoasting Detection" \
-  --tactics credential-access \
-  --platforms windows \
-  --data-sources "windows-event-logs,edr-telemetry" \
+  --tactic credential-access \
+  --platform Windows \
+  --data-source windows-event-logs --data-source edr-telemetry \
   --hunter "Jane Doe" \
-  --severity high \
   --non-interactive
 ```
 
@@ -660,8 +598,8 @@ hecate-agent hunt new \
   --research R-0001 \
   --technique T1003.001 \
   --title "LSASS Memory Dumping Hunt" \
-  --tactics credential-access \
-  --platforms windows \
+  --tactic credential-access \
+  --platform Windows \
   --non-interactive
 ```
 
@@ -675,9 +613,9 @@ This links the hunt to research document `R-0001` (created via `hecate-agent res
 hecate-agent hunt new \
   --title "macOS Unix Shell Abuse for Reconnaissance" \
   --technique "T1059.004" \
-  --tactics "execution,defense-evasion" \
-  --platforms "macos" \
-  --data-sources "EDR process telemetry" \
+  --tactic execution --tactic defense-evasion \
+  --platform macOS \
+  --data-source "EDR process telemetry" \
   --hypothesis "Adversaries execute malicious commands via native macOS shells to perform reconnaissance and staging activities" \
   --threat-context "macOS developer workstations are high-value targets for supply chain attacks and credential theft" \
   --actor "Generic adversary (malware droppers, supply chain attackers, insider threats)" \
@@ -764,12 +702,18 @@ Display all hunts in a formatted table. Supports filtering by status, tactic, te
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--status` | Choice | - | Filter by status: `in-progress`, `completed`, `paused`, `archived` |
+| `--status` | String | - | Filter by status: `planning`, `active`, `in_review`, `completed` |
 | `--tactic` | String | - | Filter by MITRE ATT&CK tactic |
 | `--technique` | String | - | Filter by technique (e.g., T1003.001) |
 | `--platform` | String | - | Filter by platform |
+| `--type` | Choice | - | Filter by hunt type: `hypothesis-driven`, `baseline`, `model-assisted` |
+| `--assignee` | String | - | Filter by assigned team member |
 | `--directory` | Choice | - | Filter by environment directory: `test`, `production` |
 | `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
+
+`--type` is how you isolate the hunts made by
+[`hunt new-baseline`](#hecate-agent-hunt-new-baseline) and
+[`hunt new-model-assisted`](#hecate-agent-hunt-new-model-assisted).
 
 ### Examples
 
@@ -852,7 +796,7 @@ hecate-agent hunt list --output yaml
 ### Exit Codes
 
 - `0`: Success
-- `1`: No hunts directory found (run `hecate-agent init` first)
+- `1`: No hunts directory found (run `hecate-agent hunt new` to create one)
 
 ---
 
@@ -967,8 +911,8 @@ Calculate and display statistics about your hunts, including success rates, true
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--period` | Choice | all | Time period: `all`, `30d`, `90d`, `1y` |
-| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
+| `--trend` | Flag | False | Show a quarterly breakdown of hunt activity |
+| `--save-context` | Flag | False | Append a hunt-program metrics block to `knowledge/environment.md` for agent context |
 
 ### Examples
 
@@ -1008,16 +952,17 @@ Unique Tactics:           8
 Platforms Covered:        4 (Windows, Linux, macOS, AWS)
 ```
 
-**Last 30 days**:
+**Quarterly breakdown**:
 
 ```bash
-hecate-agent hunt stats --period 30d
+hecate-agent hunt stats --trend
 ```
 
-**JSON output**:
+**Write a metrics block into `knowledge/environment.md`** so agents pick the
+figures up as context:
 
 ```bash
-hecate-agent hunt stats --output json
+hecate-agent hunt stats --save-context
 ```
 
 Output:
@@ -1067,9 +1012,6 @@ Search hunt content (including frontmatter, LOCK sections, queries, and findings
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--directory` | Choice | - | Filter by environment directory: `test`, `production` |
-| `--case-sensitive` | Flag | False | Enable case-sensitive search |
-| `--regex` | Flag | False | Treat query as regex pattern |
-| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
 
 ### Examples
 
@@ -1109,23 +1051,15 @@ hecate-agent hunt search "kerberoasting" --directory production
 hecate-agent hunt search "T1003.001"
 ```
 
-**Regex search**:
+**Restrict to test or production hunts**:
 
 ```bash
-hecate-agent hunt search "lsass|mimikatz|procdump" --regex
+hecate-agent hunt search kerberoasting --directory production
 ```
 
-**Case-sensitive search**:
-
-```bash
-hecate-agent hunt search "LSASS" --case-sensitive
-```
-
-**JSON output**:
-
-```bash
-hecate-agent hunt search kerberoasting --output json
-```
+Search is a plain case-insensitive substring match across hunt files; there is
+no regex, case-sensitivity or output-format flag. For anything more selective,
+use `grep -r` over `hunts/` directly.
 
 Output:
 ```json
@@ -1184,6 +1118,7 @@ Displays a comprehensive visual coverage heatmap of all 14 MITRE ATT&CK tactics,
 |--------|------|---------|-------------|
 | `--tactic` | String | - | Filter by specific tactic (or 'all' for all tactics) |
 | `--detailed` | Flag | False | Show detailed technique coverage with hunt references |
+| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
 
 ### Examples
 
@@ -1274,6 +1209,398 @@ Persistence (2 hunts, 7 unique techniques)
 
 - `0`: Success
 - `1`: No hunts found
+
+---
+
+## hecate-agent hunt new-baseline
+
+Create a baseline (EDA) hunt — PEAK's hypothesis-free hunt type.
+
+### Synopsis
+
+```bash
+hecate-agent hunt new-baseline [OPTIONS]
+```
+
+### Description
+
+A baseline hunt has no hypothesis. Instead of testing a claim, it characterizes
+what "normal" looks like for one dimension — a field, a behavior pattern — so
+that candidate anomalies can be identified and spun out into hypothesis-driven
+follow-up hunts later.
+
+It shares the `H-XXXX` ID sequence and LOCK section headings with every other
+hunt type, so `hunt list`, `hunt validate`, `hunt export` and `hunt brief` all
+work on it unchanged. Filter to just these with `hunt list --type baseline`.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--title` | String | prompted | Baseline hunt title |
+| `--dimension` | String | prompted | Field or behavior being characterized |
+| `--platform` | String | — | Target platforms (repeatable) |
+| `--data-source` | String | — | Data sources (repeatable) |
+| `--objective` | String | — | Why this baseline matters |
+| `--hunter` | String | config, then `Analyst` | Hunter name |
+| `--test` | Flag | False | Create under `hunts/test/` |
+| `--non-interactive` | Flag | False | Skip interactive prompts |
+
+### Examples
+
+```bash
+hecate-agent hunt new-baseline --title "Parent-Child Process Baseline" \
+    --dimension "parent_process -> child_process pairs" \
+    --platform Windows --data-source EDR --non-interactive
+```
+
+### Workflow after creation
+
+1. Run frequency, cardinality and rarity queries; document what is normal.
+2. Record candidate anomalies in the KEEP section.
+3. For anomalies worth pursuing, run `hecate-agent hunt new`, set its
+   `spawned_from` to this baseline's ID, and add the new hunt's ID to this
+   baseline's `related_hunts`.
+
+### Exit Codes
+
+- `0`: Hunt created
+
+---
+
+## hecate-agent hunt new-model-assisted
+
+Create a model-assisted (M-ATH) hunt — PEAK's third Execute-phase hunt type.
+
+### Synopsis
+
+```bash
+hecate-agent hunt new-model-assisted [OPTIONS]
+```
+
+### Description
+
+Where a baseline hunt characterizes normal by hand, a model-assisted hunt runs a
+statistical or ML model (clustering, z-score, IQR, isolation forest) over
+telemetry to surface anomalies at scale — for when data volume makes manual EDA
+impractical. Anomalies it surfaces become leads for hypothesis-driven follow-ups.
+
+Uses the same `H-XXXX` sequence and LOCK headings as other hunt types; filter
+with `hunt list --type model-assisted`.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--title` | String | prompted | Hunt title |
+| `--model-type` | String | prompted | `clustering`, `z-score`, `IQR`, `isolation-forest`, `other` |
+| `--features` | String | — | Comma-separated fields fed into the model |
+| `--anomaly-threshold` | String | — | Anomaly score cutoff |
+| `--dataset` | String | — | Table, index or data source being modeled |
+| `--platform` | String | — | Target platforms (repeatable) |
+| `--data-source` | String | — | Data sources (repeatable) |
+| `--objective` | String | — | Why model-assisted rather than manual EDA |
+| `--hunter` | String | config, then `Analyst` | Hunter name |
+| `--test` | Flag | False | Create under `hunts/test/` |
+| `--non-interactive` | Flag | False | Skip interactive prompts |
+
+### Examples
+
+```bash
+hecate-agent hunt new-model-assisted --title "Process Execution Clustering" \
+    --model-type clustering \
+    --features "process.name,parent.process.name,user.name" \
+    --dataset "endpoint_events" --platform Windows --data-source EDR \
+    --non-interactive
+```
+
+### Exit Codes
+
+- `0`: Hunt created
+
+---
+
+## hecate-agent hunt update
+
+Patch YAML frontmatter fields in a hunt file in place.
+
+### Synopsis
+
+```bash
+hecate-agent hunt update HUNT_ID [OPTIONS]
+```
+
+### Description
+
+Updates frontmatter without touching the markdown body. This is the sanctioned
+way to change a hunt's status or record its findings — hand-editing frontmatter
+is what the CLI-first rule in `AGENTS.md` exists to prevent.
+
+Technique IDs passed with `--technique` are validated against the ATT&CK matrix.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt ID (e.g., H-0042) |
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--status` | String | `planning`, `active`, `in_review`, `completed`, `archived` |
+| `--title` | String | Update hunt title |
+| `--hunter` | String | Update hunter name |
+| `--assignee` | String | Assign to a team member |
+| `--reviewer` | String | Set the reviewer |
+| `--true-positives` | Integer | Set true positive count |
+| `--false-positives` | Integer | Set false positive count |
+| `--findings-count` | Integer | Set findings count |
+| `--add-tag` | String | Add tag(s) (repeatable) |
+| `--remove-tag` | String | Remove tag(s) (repeatable) |
+| `--technique` | String | Set technique ID(s), **replacing** any existing (repeatable) |
+| `--tactic` | String | Set tactic(s), **replacing** any existing (repeatable) |
+| `--platform` | String | Set platform(s), **replacing** any existing (repeatable) |
+
+Note that `--technique`, `--tactic` and `--platform` replace rather than append,
+unlike `--add-tag`.
+
+### Examples
+
+```bash
+# Mark a hunt completed
+hecate-agent hunt update H-0042 --status completed
+
+# Record findings
+hecate-agent hunt update H-0042 --true-positives 3 --false-positives 1
+
+# Add tags
+hecate-agent hunt update H-0042 --add-tag lateral-movement --add-tag rdp
+
+# Correct an ATT&CK mapping (IDs are checked against the matrix)
+hecate-agent hunt update H-0042 --technique T1219 --technique T1071 \
+    --tactic command-and-control
+
+# Fill in a platform an auto-generated draft left empty
+hecate-agent hunt update H-0042 --platform Windows
+```
+
+### Exit Codes
+
+- `0`: Always — including when the hunt is not found or a technique ID fails
+  validation. Both print an `Error:` line to stdout but do not set a non-zero
+  status, so a script must check the output rather than the exit code.
+
+---
+
+## hecate-agent hunt promote
+
+Promote a hunt from test to production.
+
+### Synopsis
+
+```bash
+hecate-agent hunt promote HUNT_ID [OPTIONS]
+```
+
+### Description
+
+Moves a hunt file out of `hunts/test/{YYYY}/{QX}/` into the production directory
+`hunts/{YYYY}/{QX}/`, preserving the hunt ID — there is no renumbering.
+
+The destination year and quarter come from **today's date, not the hunt's
+original ones**, so a hunt created in Q1 and promoted in Q3 lands under `Q3`.
+The command refuses rather than overwrites if the destination file already
+exists.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt ID (e.g., H-0042) |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `-y`, `--yes` | Flag | False | Skip the confirmation prompt |
+
+### Examples
+
+```bash
+# Promote a test hunt, with confirmation
+hecate-agent hunt promote H-0042
+
+# Skip the prompt
+hecate-agent hunt promote H-0042 --yes
+```
+
+### Exit Codes
+
+- `0`: Promoted, cancelled at the prompt, or refused because the destination exists
+
+---
+
+## hecate-agent hunt operationalize
+
+Generate a Sigma detection rule stub from a completed hunt.
+
+### Synopsis
+
+```bash
+hecate-agent hunt operationalize HUNT_ID [OPTIONS]
+```
+
+### Description
+
+Extracts the hunt's query from its CHECK section and writes a Sigma YAML stub to
+`detections/<hunt_id>.yml`.
+
+This is a stub, not a finished rule: the original detection logic is preserved as
+a comment and the `detection.selection` block is a placeholder. A hunter
+translates it into real Sigma field conditions. Unless `--no-patch` is given, the
+hunt's frontmatter is updated with the `detection_rule` path.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt ID (e.g., H-0042) |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--query-index` | Integer | prompted | 1-based index of the query to use when the hunt has several |
+| `--output` | Path | `detections/<hunt_id>.yml` | Sigma rule output path |
+| `--no-patch` | Flag | False | Leave the hunt frontmatter's `detection_rule` alone |
+
+### Examples
+
+```bash
+# Interactive — pick a query when several are found
+hecate-agent hunt operationalize H-0042
+
+# Non-interactive — take the first query
+hecate-agent hunt operationalize H-0042 --query-index 1
+
+# Custom output path
+hecate-agent hunt operationalize H-0042 --output sigma/lsass-dump.yml
+```
+
+### Workflow after generation
+
+1. Open `detections/<hunt_id>.yml`.
+2. Replace the placeholder `detection.selection` block with real conditions.
+3. Validate with `sigma check detections/<hunt_id>.yml`.
+
+### Exit Codes
+
+- `0`: Always — including when the hunt is not found or no query could be
+  extracted from the CHECK section. As with `hunt update`, failures are printed
+  rather than signalled through the exit status.
+
+---
+
+## hecate-agent hunt brief
+
+Render a condensed, stakeholder-facing summary of a hunt.
+
+### Synopsis
+
+```bash
+hecate-agent hunt brief HUNT_ID [OPTIONS]
+```
+
+### Description
+
+The PEAK framework's "Brief" step. Emits the hypothesis, executive summary,
+findings and detection/automation outcome — deliberately omitting the
+query-iteration detail and lessons-learned notes, which are written for the
+hunter rather than the audience.
+
+Writes to stdout unless `--output` is given.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt ID (e.g., H-0027) |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--output` | Path | stdout | Write the brief to a file |
+
+### Examples
+
+```bash
+hecate-agent hunt brief H-0027
+hecate-agent hunt brief H-0027 --output brief-0027.md
+```
+
+### Exit Codes
+
+- `0`: Brief rendered
+- `1`: Hunt not found
+
+---
+
+## hecate-agent hunt export
+
+Export hunt data as structured JSON.
+
+### Synopsis
+
+```bash
+hecate-agent hunt export [HUNT_ID] [OPTIONS]
+```
+
+### Description
+
+Exports frontmatter, LOCK sections and associated session data (decisions,
+findings, queries) as JSON — for feeding dashboards, analytics pipelines, graph
+databases, or archival in a machine-readable form.
+
+Pass a `HUNT_ID` for one hunt, or `--all` for the whole program.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `HUNT_ID` | String | Hunt ID to export (omit when using `--all`) |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--all` | Flag | False | Export every hunt |
+| `--output` | Path | stdout | Write to a file |
+| `--include-content` | Flag | False | Include the raw markdown body |
+| `--no-sessions` | Flag | False | Exclude session data |
+| `--status` | String | — | Filter by status when using `--all` |
+
+### Examples
+
+```bash
+# One hunt, to stdout
+hecate-agent hunt export H-0027
+
+# Everything
+hecate-agent hunt export --all
+
+# To a file, with the raw markdown included
+hecate-agent hunt export H-0027 --include-content --output hunt-0027.json
+
+# Only completed hunts
+hecate-agent hunt export --all --status completed
+```
+
+### Exit Codes
+
+- `0`: Export written
+- `1`: Hunt not found
 
 ---
 
@@ -1718,53 +2045,32 @@ Next steps:
 
 ## hecate-agent agent list
 
-List all available agents in the Hecate framework.
+List the agents available in this installation.
 
 ### Synopsis
-
-```bash
-hecate-agent agent list [OPTIONS]
-```
-
-### Description
-
-Displays all 8 agents (6 core + 2 LLM) available for threat hunting workflows. Shows agent names, types, and brief descriptions.
-
-### Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
-
-### Examples
-
-**List all agents:**
 
 ```bash
 hecate-agent agent list
 ```
 
-Output:
-```
-Available Agents
+### Description
 
-Core Agents (6):
-  • context-loader        - Load hunt context and related files
-  • query-validator       - Validate SQL queries before execution
-  • coverage-analyzer     - Analyze MITRE ATT&CK coverage
-  • metrics-aggregator    - Aggregate hunt metrics and statistics
-  • similarity-scorer     - Find similar hunts using TF-IDF
-  • investigation-promoter - Promote investigations to hunts
+Shows each agent's name, type, availability and description. All four agents are
+LLM-backed and resolve their provider through the layered configuration
+described under [Configuration](#configuration); `hunt-researcher` and
+`pivot-suggester` additionally have heuristic fallbacks that run without an LLM.
 
-LLM Agents (2):
-  • hypothesis-generator  - Generate hunt hypotheses from threat intel
-  • research-agent        - Conduct pre-hunt research with web search
-```
+| Agent | Purpose |
+|-------|---------|
+| `hypothesis-generator` | Generates hunt hypotheses from threat intelligence |
+| `hunt-researcher` | Conducts pre-hunt research using the 5-skill methodology |
+| `sigma-generator` | Drafts portable Sigma rules for a hunt, before operator review |
+| `pivot-suggester` | Suggests next pivot queries given a suspicious finding |
 
-**JSON output:**
+### Examples
 
 ```bash
-hecate-agent agent list --output json
+hecate-agent agent list
 ```
 
 ### Exit Codes
@@ -1775,7 +2081,7 @@ hecate-agent agent list --output json
 
 ## hecate-agent agent info
 
-Show detailed information about a specific agent.
+Show detailed information about one agent.
 
 ### Synopsis
 
@@ -1785,59 +2091,50 @@ hecate-agent agent info AGENT_NAME
 
 ### Description
 
-Displays detailed information about an agent including capabilities, input requirements, output format, and usage examples.
+Prints the agent's type, availability, description, capabilities and worked
+usage examples.
 
 ### Arguments
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `AGENT_NAME` | String | Agent name (e.g., hypothesis-generator, context-loader) |
+| `AGENT_NAME` | String | One of the agents from `hecate-agent agent list` |
 
 ### Examples
 
-**Show agent details:**
-
 ```bash
 hecate-agent agent info hypothesis-generator
+hecate-agent agent info pivot-suggester
 ```
 
-Output:
+**Output:**
 ```
-Agent: hypothesis-generator
-Type: LLM Agent
-Description: Generate structured hunt hypotheses from threat intelligence
+Agent: pivot-suggester
+Type: LLM (auto-detect)
+Status: available
+
+Description:
+  Suggests next pivot queries given a suspicious finding
 
 Capabilities:
-  • Analyzes threat intel and TTPs
-  • Generates ABLE framework scoping
-  • Creates testable hypotheses
-  • Suggests data sources and queries
-
-Input Requirements:
-  • --threat-intel (required): Threat intelligence or context
-
-Output Format:
-  • hypothesis: Testable hypothesis statement
-  • actor: Threat actor description
-  • behavior: Expected behavior patterns
-  • location: Where to look (data sources)
-  • evidence: What evidence to collect
-
-Example Usage:
-  hecate-agent agent run hypothesis-generator \
-    --threat-intel "APT29 using WMI for persistence"
+  • Finding characterisation and ATT&CK technique mapping
+  • 3-5 prioritised, actionable next pivot queries
+  • Rationale grounded in adversary behaviour patterns
+  • Past hunt cross-reference via full-text search
+  • Environment context from knowledge/environment.md
+  • Heuristic fallback mode (no LLM required)
+  • Multi-provider support (Claude, GPT, Gemini, Ollama)
 ```
 
 ### Exit Codes
 
 - `0`: Success
-- `1`: Agent not found
 
 ---
 
 ## hecate-agent agent run
 
-Run an individual agent with specified parameters.
+Run one agent directly.
 
 ### Synopsis
 
@@ -1847,7 +2144,9 @@ hecate-agent agent run AGENT_NAME [OPTIONS]
 
 ### Description
 
-Executes a specific agent with provided inputs. Agents are autonomous components that perform specific tasks in the threat hunting workflow.
+Runs a single agent with the inputs it needs. Every option below lives on
+`agent run` itself — which ones apply depends on the agent, as noted in the
+table.
 
 ### Arguments
 
@@ -1855,38 +2154,30 @@ Executes a specific agent with provided inputs. Agents are autonomous components
 |----------|------|-------------|
 | `AGENT_NAME` | String | Agent to run (see `hecate-agent agent list`) |
 
-### Common Options
+### Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `--output` | Choice | Output format: `json`, `yaml`, `text` (default: text) |
+| Option | Type | Default | Applies to | Description |
+|--------|------|---------|-----------|-------------|
+| `--threat-intel` | String | - | hypothesis-generator | Threat intelligence context |
+| `--indicators-only` | Flag | False | hypothesis-generator | Threat intel is a bare indicator list with no narrative (a ThreatFox/Maltrail dump); keeps the hypothesis to indicator presence instead of inferring delivery, actor or technique |
+| `--topic` | String | - | hunt-researcher | Research topic |
+| `--depth` | Choice | basic | hunt-researcher | `basic` (~5 min) or `advanced` (~15-20 min) |
+| `--no-web-search` | Flag | False | hunt-researcher | Offline mode — skip web search |
+| `--technique` | String | - | hunt-researcher, pivot-suggester | MITRE ATT&CK technique |
+| `--finding` | String | - | pivot-suggester | Suspicious finding, as JSON or plain text |
+| `--hunt` | String | - | pivot-suggester | Current hunt ID, for context |
+| `--input-json` | File | - | sigma-generator | JSON file of `SigmaGenerationInput` fields (hypothesis, techniques, indicators, platforms, references) — a file rather than a dozen flags, since the indicator map is nested and can be long |
+| `--out-dir` | Directory | - | sigma-generator | Where to write generated `.yml` rules |
+| `--research` | String | - | any | Research document ID to load context from |
+| `--tactic` | String | - | any | MITRE tactic filter |
+| `--llm` / `--no-llm` | Flag | `--llm` | any | Enable or disable the LLM; the no-LLM path uses heuristic fallbacks |
+| `--output-format` | Choice | table | any | `table` or `json` |
 
-### Agent-Specific Options
-
-**hypothesis-generator:**
-- `--threat-intel` (required): Threat intelligence text
-- `--technique`: MITRE ATT&CK technique (optional)
-
-**context-loader:**
-- `--hunt`: Hunt ID to load context for
-- `--tactic`: Filter by tactic
-- `--platform`: Filter by platform
-
-**query-validator:**
-- `--sql`: SQL query to validate
-- `--target`: Target database (default: clickhouse)
-
-**coverage-analyzer:**
-- `--tactic`: Analyze specific tactic coverage
-
-**similarity-scorer:**
-- `--query`: Search query text
-- `--hunt`: Hunt ID to find similar hunts for
-- `--limit`: Max results (default: 10)
+Note the flag is `--output-format`, not `--output` as elsewhere in the CLI.
 
 ### Examples
 
-**Generate hypothesis:**
+**Generate a hypothesis from threat intel:**
 
 ```bash
 hecate-agent agent run hypothesis-generator \
@@ -1894,33 +2185,36 @@ hecate-agent agent run hypothesis-generator \
   --technique T1047
 ```
 
-**Load hunt context:**
+**Generate a hypothesis from a bare indicator dump:**
 
 ```bash
-hecate-agent agent run context-loader \
-  --hunt H-0013 \
-  --output json
+hecate-agent agent run hypothesis-generator \
+  --threat-intel "$(cat threatfox-dump.txt)" \
+  --indicators-only
 ```
 
-**Validate query:**
+**Run pre-hunt research:**
 
 ```bash
-hecate-agent agent run query-validator \
-  --sql "SELECT * FROM events WHERE time >= now() - INTERVAL 7 DAY LIMIT 100"
+hecate-agent agent run hunt-researcher \
+  --topic "LSASS dumping" --technique T1003.001 --depth advanced
 ```
 
-**Analyze coverage:**
+**Suggest pivots from a finding:**
 
 ```bash
-hecate-agent agent run coverage-analyzer --tactic credential-access
+hecate-agent agent run pivot-suggester \
+  --finding '{"process": "powershell.exe", "parent": "winword.exe"}'
+
+hecate-agent agent run pivot-suggester \
+  --finding "suspicious outbound DNS to rare domain" --hunt H-0042
 ```
 
-**Find similar hunts:**
+**Draft Sigma rules:**
 
 ```bash
-hecate-agent agent run similarity-scorer \
-  --query "password spraying" \
-  --limit 5
+hecate-agent agent run sigma-generator \
+  --input-json sigma-input.json --out-dir queries/H-0042
 ```
 
 ### Exit Codes
@@ -1955,8 +2249,9 @@ Conducts deep pre-hunt research using a 5-skill methodology: System Internals, A
 |--------|------|---------|-------------|
 | `--topic` | String | Required | Research topic (e.g., "LSASS dumping", "Pass-the-Hash") |
 | `--technique` | String | - | MITRE ATT&CK technique (e.g., T1003.001) |
-| `--depth` | Choice | advanced | Research depth: `basic`, `advanced` |
-| `--output` | Choice | markdown | Output format: `markdown`, `json`, `yaml` |
+| `--depth` | Choice | advanced | Research depth: `basic` (~5 min), `advanced` (~15-20 min) |
+| `--no-web-search` | Flag | False | Skip web search (offline mode) |
+| `--output` | Choice | table | Output format: `table`, `json` |
 
 ### Examples
 
@@ -2073,8 +2368,9 @@ Displays all research documents with filtering options.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--status` | Choice | - | Filter by status: `in-progress`, `completed` |
-| `--output` | Choice | table | Output format: `table`, `json`, `yaml` |
+| `--status` | String | - | Filter by status: `draft`, `in_progress`, `completed` |
+| `--technique` | String | - | Filter by MITRE technique |
+| `--output` | Choice | table | Output format: `table`, `json` |
 
 ### Examples
 
@@ -2115,6 +2411,12 @@ Displays the full content of a research document.
 |----------|------|-------------|
 | `RESEARCH_ID` | String | Research ID (e.g., R-0001) |
 
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--output` | Choice | markdown | Output format: `markdown`, `json` |
+
 ### Examples
 
 ```bash
@@ -2125,49 +2427,6 @@ hecate-agent research view R-0001
 
 - `0`: Success
 - `1`: Research not found
-
----
-
-## hecate-agent hunt execute
-
-Execute hunt workflow with agent orchestration.
-
-### Synopsis
-
-```bash
-hecate-agent hunt execute HUNT_ID [OPTIONS]
-```
-
-### Description
-
-Orchestrates the complete LOCK pattern workflow using autonomous agents. Loads context, validates queries, executes hunt, and generates findings.
-
-### Arguments
-
-| Argument | Type | Description |
-|----------|------|-------------|
-| `HUNT_ID` | String | Hunt to execute (e.g., H-0013) |
-
-### Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--dry-run` | Flag | False | Simulate execution without running queries |
-
-### Examples
-
-```bash
-# Execute hunt with orchestration
-hecate-agent hunt execute H-0013
-
-# Dry run to validate workflow
-hecate-agent hunt execute H-0013 --dry-run
-```
-
-### Exit Codes
-
-- `0`: Success
-- `1`: Execution failed
 
 ---
 
@@ -2285,6 +2544,12 @@ Shows technique metadata including name, platforms, data sources, tactics, type 
 |----------|------|-------------|
 | `TECHNIQUE_ID` | String | ATT&CK technique ID (e.g., T1003, T1003.001) |
 
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--json` | Flag | False | Print technique metadata as JSON instead of a formatted table |
+
 ### Examples
 
 ```bash
@@ -2371,27 +2636,393 @@ Credential Access (17 techniques)
 
 ---
 
+## hecate-agent research link
+
+Link a hunt to its source research document.
+
+### Synopsis
+
+```bash
+hecate-agent research link RESEARCH_ID --hunt HUNT_ID
+```
+
+### Description
+
+`hecate-agent hunt new --research R-XXXX` already creates this link. This exposes
+the same operation on its own, for a caller that generated the hunt itself and
+still owes the research document its back-link.
+
+Without it the link is one-directional: the hunt names the document in
+`spawned_from`, but the document still reports `linked_hunts: []`.
+
+The operation is idempotent — linking an already-linked hunt succeeds and
+changes nothing.
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `RESEARCH_ID` | String | Research document ID (e.g., R-0001) |
+
+### Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `--hunt` | String | Yes | Hunt ID to link (e.g., H-0612) |
+
+### Examples
+
+```bash
+hecate-agent research link R-0611 --hunt H-0612
+```
+
+### Exit Codes
+
+- `0`: Linked, or already linked
+- `1`: Research document or hunt not found
+
+---
+
+## hecate-agent research search
+
+Full-text search across research documents.
+
+### Synopsis
+
+```bash
+hecate-agent research search QUERY [OPTIONS]
+```
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `QUERY` | String | Search term |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--output` | Choice | table | `table` or `json` |
+
+### Examples
+
+```bash
+hecate-agent research search "kerberoasting"
+hecate-agent research search "infostealer" --output json
+```
+
+### Exit Codes
+
+- `0`: Success, including when nothing matches
+
+---
+
+## hecate-agent research stats
+
+Show research program statistics.
+
+### Synopsis
+
+```bash
+hecate-agent research stats [OPTIONS]
+```
+
+### Description
+
+Totals across all research documents: how many exist, how many are complete,
+accumulated LLM cost, and total, average and linked-hunt figures.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--output` | Choice | table | `table` or `json` |
+
+### Examples
+
+```bash
+hecate-agent research stats
+```
+
+**Output:**
+```
+Research Program Statistics
+Total Research: 42
+Completed: 38
+Total Cost: $1.8400
+Total Duration: 612 min
+Avg Duration: 14.6 min
+Linked Hunts: 31
+```
+
+### Exit Codes
+
+- `0`: Success
+
+---
+
+## hecate-agent attack gap
+
+Show ATT&CK techniques not yet covered by any hunt.
+
+### Synopsis
+
+```bash
+hecate-agent attack gap [OPTIONS]
+```
+
+### Description
+
+The inverse of `hecate-agent hunt coverage`: instead of what you have hunted,
+this lists what you have not. Requires STIX data — run `hecate-agent attack
+update` first.
+
+With `--generate` it goes a step further and drafts hunt files for the uncovered
+techniques via the hypothesis-generator agent. That makes one LLM call per
+technique, which is why `--limit` defaults to 5.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--tactic` | String | all | Limit to one tactic (e.g., `credential-access`) |
+| `--platform` | String | all | Only techniques for this platform |
+| `--no-subtechniques` | Flag | False | Exclude sub-techniques |
+| `--output` | Choice | table | `table` or `json` |
+| `--generate` | Flag | False | Draft hunt files for uncovered techniques |
+| `--limit` | Integer | 5 | Max hunt files to generate with `--generate` |
+
+### Examples
+
+```bash
+# Everything uncovered
+hecate-agent attack gap
+
+# Narrow to a tactic and platform
+hecate-agent attack gap --tactic persistence --platform Windows
+
+# JSON, for scripting
+hecate-agent attack gap --output json
+
+# Draft hunts for the top 5 uncovered credential-access techniques
+hecate-agent attack gap --tactic credential-access --generate
+
+# Draft up to 10
+hecate-agent attack gap --generate --limit 10
+```
+
+### JSON Output
+
+```json
+[
+  {
+    "tactic": "credential-access",
+    "id": "T1003",
+    "name": "OS Credential Dumping",
+    "is_subtechnique": false,
+    "platforms": ["Linux", "macOS", "Windows"]
+  }
+]
+```
+
+### Exit Codes
+
+- `0`: Success (or no STIX data, with a message)
+
+---
+
+## hecate-agent eval
+
+Run known-answer fixtures against an LLM provider and score the result.
+
+### Synopsis
+
+```bash
+hecate-agent eval [OPTIONS]
+```
+
+### Description
+
+Scores a model against 10 unambiguous, known-answer fixtures — 8 MITRE ATT&CK
+technique-ID recall questions and 2 concept questions. It exists to catch
+confident hallucination, such as a model answering "System Information
+Discovery" for `T1003.001` instead of "OS Credential Dumping: LSASS Memory".
+
+This is a spot check, not a general capability benchmark. One LLM call is made
+per fixture, so a local model may take a few minutes.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--provider` | String | configured | Override the LLM provider (e.g. `ollama`, `litellm`, `bedrock`) |
+| `--model` | String | configured | Override the model |
+| `--output` | Choice | table | `table` or `json` |
+| `--temperature` | Float | 0.0 | Sampling temperature; the default keeps runs reproducible |
+| `--grounded` | Flag | False | Score STIX-grounded fixtures instead of cold recall |
+
+### Cold recall vs. grounded
+
+By default the fixtures ask the model to recall a technique unaided. `--grounded`
+instead hands it MITRE's real technique name and description (from the same STIX
+data `hecate-agent attack lookup` uses — no LLM involved) and asks it to
+summarize.
+
+The two scores answer different questions: whether the model *knows* a fact, and
+whether it can correctly *use* one it is given. A pipeline that looks techniques
+up via STIX before prompting only depends on the second. A large gap between the
+scores says to fix retrieval and prompting; a low grounded score says the model
+itself is the limit.
+
+### Examples
+
+**Score the configured provider and model**:
+
+```bash
+hecate-agent eval
+```
+
+**Score a specific model without editing `.env`**:
+
+```bash
+hecate-agent eval --provider ollama --model qwen2.5:14b-instruct-q4_K_M
+```
+
+**Compare two models**:
+
+```bash
+hecate-agent eval --model qwen2.5:7b-instruct-q4_K_M  --output json > 7b.json
+hecate-agent eval --model qwen2.5:14b-instruct-q4_K_M --output json > 14b.json
+```
+
+**Separate knowing a fact from using one**:
+
+```bash
+hecate-agent eval --grounded
+```
+
+### JSON Output
+
+```json
+{
+  "provider": "ollama",
+  "model": "qwen2.5:14b-instruct-q4_K_M",
+  "score": 0.9,
+  "passed": 9,
+  "total": 10,
+  "duration_ms": 41230,
+  "results": [
+    {
+      "id": "T1003.001",
+      "category": "mitre-technique",
+      "description": "OS Credential Dumping: LSASS Memory",
+      "passed": true,
+      "duration_ms": 3910,
+      "response_text": "...",
+      "error": null
+    }
+  ]
+}
+```
+
+### Exit Codes
+
+- `0`: Eval ran (including when fixtures fail — the score is the result, not the exit status)
+- `1`: No LLM provider could be created
+
+---
+
+## hecate-agent mcp serve
+
+Start the Hecate MCP server, exposing Hecate operations as tools an AI assistant
+can call directly.
+
+### Synopsis
+
+```bash
+hecate-agent mcp serve [OPTIONS]
+hecate-agent-mcp [OPTIONS]        # standalone entry point, same server
+```
+
+### Description
+
+Serves the MCP tools that mirror the CLI — hunts, investigations, research,
+agents, ATT&CK lookups and search — over the Model Context Protocol, so an
+assistant such as Claude Code can call them without shelling out.
+
+The server is built on `FastMCP` and therefore requires `mcp[cli]<2.0.0`; the
+2.0.0 release removed `mcp.server.fastmcp`. Install it with the `[mcp]` extra.
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--workspace` | String | auto-detected | Explicit workspace path |
+| `--transport` | Choice | stdio | `stdio`, `sse`, or `streamable-http` |
+| `--port` | Integer | 3100 | HTTP port, for the SSE and streamable-http transports |
+
+Workspace resolution order: `--workspace`, then `HECATE_WORKSPACE`, then the
+first ancestor of the current directory containing `.hecateconfig.yaml`.
+
+### Examples
+
+**Stdio, the transport Claude Code uses**:
+
+```bash
+hecate-agent mcp serve --workspace /path/to/hunts
+```
+
+**HTTP, for a web UI**:
+
+```bash
+hecate-agent mcp serve --transport streamable-http --port 3100
+```
+
+### Registering with Claude Code
+
+In `~/.claude/mcp-servers.json`:
+
+```json
+{
+  "hecate": {
+    "command": "hecate-agent-mcp",
+    "args": ["--workspace", "/path/to/hunts"]
+  }
+}
+```
+
+### Exit Codes
+
+- `0`: Server shut down cleanly
+- `1`: The `mcp` extra is not installed (clean error message)
+- `1`: The workspace could not be resolved — currently surfaces as an uncaught
+  `FileNotFoundError` traceback rather than a formatted error
+
+---
+
 ## Configuration
 
-Hecate uses `.hecateconfig.yaml` for configuration:
+Hecate reads `.hecateconfig.yaml` from `config/.hecateconfig.yaml`, falling back
+to the workspace root. The file is optional — every key has a default — and you
+write it by hand.
 
 ```yaml
-# SIEM platform
-siem: splunk  # Options: splunk, sentinel, elastic
+# Default data sources suggested for new hunts. Free text, not an enum:
+# use whatever names your stack actually goes by.
+siem: Splunk
+edr: CrowdStrike
 
-# EDR platform
-edr: crowdstrike  # Options: crowdstrike, sentinelone, defender
+# Hunt ID prefix. Generates H-0001, H-0002, ...
+hunt_prefix: H-
 
-# Hunt ID prefix
-hunt_prefix: H  # Generates: H-0001, H-0002, etc.
-
-# Default data retention
-retention_days: 90
-
-# Metadata (auto-generated)
-initialized: 2025-12-02T14:30:00
-version: 0.2.1
+# Default hunter name recorded on new hunts
+hunter: Analyst
 ```
+
+Those four keys are the ones any command reads. Other keys are preserved but
+ignored, so a workspace carrying `workspace_name` or `hunt_retention_days` from
+an older layout is valid and simply has no effect.
 
 ### Environment Variables
 
@@ -2462,7 +3093,7 @@ echo "# Weekly Hunt Report - $WEEK" > "$REPORT"
 echo "" >> "$REPORT"
 
 echo "## Statistics" >> "$REPORT"
-hecate-agent hunt stats --period 7d >> "$REPORT"
+hecate-agent hunt stats >> "$REPORT"
 
 echo "" >> "$REPORT"
 echo "## Completed Hunts" >> "$REPORT"
@@ -2515,8 +3146,8 @@ done
 ## See Also
 
 - [Getting Started Guide](getting-started.md)
-- [Installation Guide](INSTALL.md)
-- [Hunt Format Guidelines](../hunts/FORMAT_GUIDELINES.md)
+- [Installation Guide](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/INSTALL.md)
+- [Hunt Format Guidelines](https://github.com/BrizoSec/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md)
 - [MITRE ATT&CK Framework](https://attack.mitre.org/)
 
 ---
@@ -2524,6 +3155,5 @@ done
 ## Need Help?
 
 - **CLI help**: `hecate-agent --help` or `hecate <command> --help`
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Nebulock-Inc/hecate-agent/issues)
-- **Discussions**: [Ask questions and share ideas](https://github.com/Nebulock-Inc/hecate-agent/discussions)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/BrizoSec/Hecate-Core/issues)
 - **Documentation**: [docs/getting-started.md](getting-started.md)

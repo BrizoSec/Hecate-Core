@@ -15,12 +15,12 @@ Hecate teaches systems how to hunt with memory, learning, and augmentation.
 ### 1. Clone and Customize
 
 ```bash
-git clone https://github.com/Nebulock-Inc/hecate-agent
-cd hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core
+cd Hecate-Core
 
 # Option A: With CLI (Recommended)
 pip install -e .
-hecate-agent init
+hecate-agent hunt new
 
 # Option B: Markdown-Only
 # Just start documenting hunts in hunts/ folder
@@ -200,7 +200,7 @@ We'd love to hear how you're using Hecate:
 - Blog about your experience
 - Share anonymized metrics
 - Present at conferences
-- Open a discussion at [github.com/Nebulock-Inc/hecate-agent/discussions](https://github.com/Nebulock-Inc/hecate-agent/discussions)
+- Open an issue at [github.com/BrizoSec/Hecate-Core/issues](https://github.com/BrizoSec/Hecate-Core/issues)
 
 Your hunts, data, and lessons stay **yours**.
 

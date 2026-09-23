@@ -112,8 +112,16 @@ automation/loop.log
 *.pre-backfill.bak
 
 # flock targets for ID allocation — created on demand, contents never read.
-hunts/.hunt_id.lock
-research/.research_id.lock
+# Unanchored on purpose: a run from a different working directory drops these
+# at the repo root rather than beside the counter, and one such stray was
+# committed by mistake.
+.hunt_id.lock
+.research_id.lock
+
+# One-off patch/migration scripts. Written to rewrite one file once, then
+# spent; they are not re-runnable and must never be committed.
+/patch*.py
+
 .pending_queries/
 logs/
 cti_queue/

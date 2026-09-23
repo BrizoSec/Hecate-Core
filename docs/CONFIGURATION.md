@@ -85,7 +85,6 @@ Each LLM call is grounded with real data where possible:
 
 ```bash
 pip install hecate-agent
-hecate-agent init
 hecate-agent hunt new --technique T1003.001 --title "LSASS Dumping" --non-interactive
 ```
 
@@ -261,7 +260,7 @@ llm:
   base_url: http://localhost:11434
   timeout_sec: 300          # Ollama only
 
-# Workspace settings (set automatically by hecate-agent init)
+# Workspace settings (optional; written by hand)
 workspace:
   hunt_prefix: H            # Prefix for hunt IDs (default: H)
   research_prefix: R        # Prefix for research IDs (default: R)

@@ -8,10 +8,11 @@ The fastest way to get started:
 
 ```bash
 pip install hecate-agent
-hecate-agent init
+hecate-agent hunt new
 ```
 
-That's it! You're ready to start threat hunting.
+That's it! You're ready to start threat hunting — there is no separate
+initialization step, and the workspace directories are created on first use.
 
 ---
 
@@ -27,13 +28,10 @@ pip install hecate-agent
 
 # Verify installation
 hecate-agent --version
-
-# Initialize your workspace
-hecate-agent init
 ```
 
 **Requirements**:
-- Python 3.8 or higher
+- Python 3.11 or higher
 - pip (comes with Python)
 
 **Virtual Environment (Recommended)**:
@@ -58,8 +56,8 @@ pip install hecate-agent
 
 ```bash
 # Clone the repository
-git clone https://github.com/Nebulock-Inc/hecate-agent.git
-cd hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
 
 # Install in editable mode (changes take effect immediately)
 pip install -e .
@@ -79,8 +77,8 @@ hecate-agent --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/Nebulock-Inc/hecate-agent.git
-cd hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
 
 # Copy the template structure
 mkdir -p my-hunts/hunts my-hunts/queries my-hunts/runs
@@ -212,10 +210,10 @@ pytest tests/test_commands.py -v
 pytest tests/ -v --cov=hecate_agent --cov-report=term-missing
 
 # Run specific test
-pytest tests/test_commands.py::TestInitCommand::test_init_creates_structure_non_interactive -v
+pytest tests/commands/test_commands.py::TestHuntNewCommand::test_hunt_new_non_interactive -v
 ```
 
-Tests use Click's `CliRunner` to test actual CLI commands rather than mocks. See [tests/test_commands.py](../tests/test_commands.py) for examples.
+Tests use Click's `CliRunner` to test actual CLI commands rather than mocks. See [tests/commands/test_commands.py](../tests/commands/test_commands.py) for examples.
 
 **Documentation**: Keep your fork's documentation current:
 - **AGENTS.md** - Update with your environment details, data sources, team context
@@ -304,7 +302,7 @@ hecate-agent hunt list --status completed --output json | \
 
 Hecate includes a GitHub Actions workflow ([.github/workflows/tests.yml](../.github/workflows/tests.yml)) that runs:
 
-- Tests across Python 3.8-3.12 on Ubuntu, macOS, Windows
+- Tests across Python 3.11-3.13 on Ubuntu, macOS, Windows
 - Linting with flake8
 - Type checking with mypy
 - Hunt validation
@@ -316,7 +314,7 @@ Customize the workflow for your organization's needs.
 
 All tools are configured in `pyproject.toml`:
 
-- **Black**: Line length 127, targets Python 3.8-3.12
+- **Black**: Line length 127, targets Python 3.11-3.13
 - **isort**: Black-compatible profile
 - **mypy**: Strict type checking enabled
 - **pytest**: Test discovery, coverage reporting
@@ -396,12 +394,11 @@ hecate-agent --help
 # List available commands
 hecate-agent hunt --help
 
-# Initialize a test workspace
+# Create a test workspace
 mkdir hecate-test
 cd hecate-test
-hecate-agent init --non-interactive
 
-# Create a test hunt
+# Create a test hunt (hunts/ is created automatically)
 hecate-agent hunt new --technique T1003.001 --title "Test Hunt" --non-interactive
 
 # List hunts
@@ -465,7 +462,7 @@ python --version
 
 ### "ERROR: Could not find a version that satisfies the requirement"
 
-**Cause**: Python version too old (< 3.8).
+**Cause**: Python version too old (< 3.11).
 
 **Solution**:
 
@@ -473,7 +470,7 @@ python --version
 # Check Python version
 python --version
 
-# Upgrade Python to 3.8 or higher
+# Upgrade Python to 3.11 or higher
 # - macOS: brew install python3
 # - Linux: sudo apt install python3.11
 # - Windows: Download from python.org
@@ -568,11 +565,11 @@ Your hunt files are separate from the package installation, so uninstalling Heca
 
 After installation:
 
-1. **Initialize your workspace**: `hecate-agent init`
-2. **Read the getting started guide**: [getting-started.md](getting-started.md)
-3. **Review the CLI reference**: [CLI_REFERENCE.md](CLI_REFERENCE.md)
-4. **Create your first hunt**: `hecate-agent hunt new`
-5. **Explore example hunts**: [../hunts/production/2026/Q1/H-0001.md](../hunts/2026/Q1/H-0001.md)
+1. **Read the getting started guide**: [getting-started.md](getting-started.md)
+2. **Review the CLI reference**: [CLI_REFERENCE.md](CLI_REFERENCE.md)
+3. **Create your first hunt**: `hecate-agent hunt new`
+4. **Check your workspace**: `hecate-agent env check`
+5. **Explore worked examples**: [SHOWCASE.md](SHOWCASE.md)
 
 ---
 
@@ -580,14 +577,13 @@ After installation:
 
 - **CLI help**: `hecate-agent --help` or `hecate <command> --help`
 - **Documentation**: [getting-started.md](getting-started.md)
-- **Issues**: [GitHub Issues](https://github.com/Nebulock-Inc/hecate-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Nebulock-Inc/hecate-agent/discussions)
+- **Issues**: [GitHub Issues](https://github.com/BrizoSec/Hecate-Core/issues)
 
 ---
 
 ## System Requirements
 
-- **Python**: 3.8 or higher
+- **Python**: 3.11 or higher
 - **OS**: macOS, Linux, or Windows
 - **Disk Space**: ~5 MB for package, more for your hunt data
 - **Memory**: Minimal (< 50 MB)

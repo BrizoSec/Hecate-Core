@@ -1,0 +1,25 @@
+title: Detection of Malicious NVIDIA Executable
+id: 1d516d76-7999-47b3-ba69-e99b6c3daebb
+status: experimental
+description: Detects the execution of a malicious executable disguised as an NVIDIA file, which is indicative
+  of initial foothold and persistence establishment on Windows systems.
+references:
+- https://blackpointcyber.com/blog/threat-snapshot-labubarat/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-23'
+tags:
+- attack.t1027.004
+- attack.t1055.012
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: .exe
+  filter:
+    OriginalFileName: nvidia*.dll
+  condition: selection and not filter
+falsepositives:
+- Legitimate NVIDIA software updates or installations
+level: medium
+hunt_id: H-0002

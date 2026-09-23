@@ -142,7 +142,7 @@ AI: [Searches hunts/, reads environment.md, generates context-aware hypothesis]
 
 ### After Level 2 Workflows
 
-1. See real examples in [hunts/H-0001.md](../hunts/production/2026/Q1/H-0001.md) and [hunts/H-0002.md](../hunts/production/2026/Q1/H-0002.md)
+1. See worked examples in [docs/SHOWCASE.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/SHOWCASE.md), or `hecate-agent hunt list` for this workspace's own
 2. Review format guidelines in [hunts/FORMAT_GUIDELINES.md](../hunts/FORMAT_GUIDELINES.md)
 3. Consider Level 3 (MCP integrations) in [integrations/](../integrations/)
 
