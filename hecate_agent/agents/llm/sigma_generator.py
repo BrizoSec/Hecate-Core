@@ -756,6 +756,46 @@ def _negated_blocks(detection: Dict[str, Any], condition: str) -> Set[str]:
     return negated
 
 
+#: A complete dotted-quad IPv4 address, optionally with a port, and nothing else.
+_FULL_IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$")
+
+
+def _invented_ip_problem(
+    detection: Dict[str, Any], supplied: Dict[str, List[str]], observables: List[str]
+) -> Optional[str]:
+    """Reject a selection matching an exact IPv4 address no intel supplied.
+
+    An address is an indicator: it can only have come from the intelligence.
+    The model invents well-formed ones -- "1.2.3.4" reached a live phishing
+    hunt, "8.8.8.8" a DNS-exfiltration one -- and they pass every other check,
+    because nothing about them is malformed. So an exact address must be a
+    supplied indicator or appear in an observable the draft named.
+
+    Only selections are judged. An exclusion such as ``not 127.0.0.1`` is
+    ordinary rule-writing, and partial prefixes or CIDR ranges describe
+    behaviour rather than claim an indicator.
+    """
+    known = " ".join(
+        [str(v) for values in (supplied or {}).values() for v in values] + list(observables or [])
+    )
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+    for name, block in detection.items():
+        if name == "condition" or name in negated:
+            continue
+        for value in _detection_values({name: block}):
+            cleaned = value.strip()
+            if not _FULL_IPV4_RE.match(cleaned):
+                continue
+            address = cleaned.split(":", 1)[0]
+            if re.search(r"(?<![\d.])" + re.escape(address) + r"(?![\d])", known):
+                continue
+            return (
+                f"detection matches the address {address!r}, which no supplied indicator "
+                "or observable names; an invented IP matches nothing the intel describes"
+            )
+    return None
+
+
 def _breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
     """Reject a rule whose selections match only extensions or wildcards.
 
@@ -1021,6 +1061,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # Each check sees a structurally valid rule; the first to object wins.
         checks = (
             lambda d: _placeholder_problem(d, input_data.indicators),
+            lambda d: _invented_ip_problem(d, input_data.indicators, input_data.observables),
             lambda d: _partial_indicator_problem(d, input_data.indicators, category),
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
             _field_type_problem,
