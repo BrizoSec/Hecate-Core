@@ -285,7 +285,9 @@ def test_infers_condition_for_a_single_selection_block():
     one selection and no condition. With one block the intended condition
     has exactly one possible value."""
     raw = _rule(detection={"selection": {"QueryName|contains": ["api.wiresguard.com"]}})
-    rule, problem = _agent()._build_rule(raw, _input())
+    # Supplied, as a real run would: an exact domain nothing supplied is now
+    # rejected as invented, which is not what this test is about.
+    rule, problem = _agent()._build_rule(raw, _input(indicators={"hostname": ["api.wiresguard.com"]}))
     assert rule is not None
     assert problem is None
     assert yaml.safe_load(rule.rule_yaml)["detection"]["condition"] == "selection"
@@ -668,7 +670,7 @@ class TestIndicatorGrounding:
         assert _partial_indicator_problem(detection, self.SUPPLIED, "process_creation") is None
 
     def test_short_values_are_not_treated_as_fragments(self):
-        """"exe" and "tmp" are ordinary rule vocabulary and collide with
+        """ "exe" and "tmp" are ordinary rule vocabulary and collide with
         indicator substrings by accident."""
         detection = {"selection": {"QueryName|contains": "net"}, "condition": "selection"}
         assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
@@ -1082,9 +1084,7 @@ class TestBreadthProblem:
         }
         assert "names no particular" in _breadth_problem(detection)
 
-    @pytest.mark.parametrize(
-        "value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"]
-    )
+    @pytest.mark.parametrize("value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"])
     def test_a_named_file_passes(self, value):
         assert _breadth_problem(self._det({"Image|endswith": value})) is None
 
@@ -1122,18 +1122,14 @@ class TestBreadthProblem:
         assert _breadth_problem(detection) is None
 
     def test_build_rule_rejects_a_broad_rule(self):
-        rule = _rule(
-            detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"}
-        )
+        rule = _rule(detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"})
         built, problem = _agent()._build_rule(rule, _input())
         assert built is None
         assert "names no particular" in problem
 
 
 def test_prompt_lists_the_drafts_observables():
-    prompt = _agent()._build_prompt(
-        _input(observables=["Process execution of nvidia-sysruntime.exe"]), "process_creation"
-    )
+    prompt = _agent()._build_prompt(_input(observables=["Process execution of nvidia-sysruntime.exe"]), "process_creation")
     assert "nvidia-sysruntime.exe" in prompt
     assert "unverified" in prompt
 
@@ -1154,9 +1150,7 @@ class TestAnchorBareFilenames:
 
     def test_a_list_of_bare_filenames_is_anchored(self):
         detection = {"selection": {"ParentImage": ["a.exe", "b.exe"]}, "condition": "selection"}
-        assert _anchor_bare_filenames(detection)["selection"] == {
-            "ParentImage|endswith": ["\\a.exe", "\\b.exe"]
-        }
+        assert _anchor_bare_filenames(detection)["selection"] == {"ParentImage|endswith": ["\\a.exe", "\\b.exe"]}
 
     @pytest.mark.parametrize(
         "field,value",

@@ -796,6 +796,86 @@ def _invented_ip_problem(
     return None
 
 
+#: Fields whose value is a host name. Judged by field, not by value shape:
+#: "update.bin" and "svchost.exe" look like domains and are filenames.
+_HOST_FIELDS = frozenset(
+    {
+        "queryname",
+        "destinationhostname",
+        "sourcehostname",
+        "hostname",
+        "targethostname",
+        "dnsquery",
+        "cs-host",
+        "r-dns",
+    }
+)
+#: Fields whose value is a URL; the host part is judged.
+_URL_FIELDS = frozenset({"url", "uri", "c-uri", "cs-uri", "requesturl", "request_url"})
+
+_DOMAIN_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+_URL_HOST_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://)?([^/:?#\s]+)", re.IGNORECASE)
+_SECOND_LEVEL_SUFFIXES = frozenset({"co", "com", "net", "org", "gov", "ac", "edu"})
+
+
+def _registered_name(domain: str) -> str:
+    """``telegram`` for ``api.telegram.org``; ``example`` for ``www.example.co.uk``."""
+    labels = domain.split(".")
+    if len(labels) >= 3 and labels[-2] in _SECOND_LEVEL_SUFFIXES and len(labels[-1]) == 2:
+        return labels[-3]
+    return labels[-2] if len(labels) >= 2 else ""
+
+
+def _invented_domain_problem(
+    detection: Dict[str, Any], supplied: Dict[str, List[str]], context: List[str]
+) -> Optional[str]:
+    """Reject a selection matching a domain the intelligence never names.
+
+    The domain counterpart of ``_invented_ip_problem``. A host is accepted
+    when the whole name appears in a supplied indicator or the draft's own
+    text, or when its registered name does ("telegram" vouches for
+    api.telegram.org in a hunt about a Telegram-controlled backdoor): abusing
+    a real service is behaviour worth hunting, not an invented indicator.
+    What fails is a name nothing mentions -- "malicious-c2.net".
+
+    Only host and URL fields of selections are judged, so filenames that look
+    like domains, exclusion filters, and bare TLD fragments (".xyz", left to
+    the partial-indicator check) all pass.
+    """
+    known = " ".join(
+        [str(v) for values in (supplied or {}).values() for v in values]
+        + [str(c) for c in (context or []) if c]
+    ).lower()
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+    for name, block in detection.items():
+        if name == "condition" or name in negated or not isinstance(block, dict):
+            continue
+        for field_name, raw in block.items():
+            base = str(field_name).split("|")[0].strip().lower()
+            if base not in _HOST_FIELDS and base not in _URL_FIELDS:
+                continue
+            for value in raw if isinstance(raw, list) else [raw]:
+                text = str(value).strip().lower()
+                if base in _URL_FIELDS:
+                    match = _URL_HOST_RE.match(text)
+                    text = match.group(1) if match else ""
+                host = text.lstrip("*").lstrip(".")
+                if not _DOMAIN_RE.match(host):
+                    continue
+                if re.search(r"(?<![a-z0-9-])" + re.escape(host) + r"(?![a-z0-9-])", known):
+                    continue
+                registered = _registered_name(host)
+                if len(registered) >= 3 and re.search(
+                    r"(?<![a-z0-9])" + re.escape(registered) + r"(?![a-z0-9])", known
+                ):
+                    continue
+                return (
+                    f"detection matches the host {host!r}, which no supplied indicator or "
+                    "part of the draft names; an invented domain matches nothing the intel describes"
+                )
+    return None
+
+
 def _breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
     """Reject a rule whose selections match only extensions or wildcards.
 
@@ -1062,6 +1142,16 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         checks = (
             lambda d: _placeholder_problem(d, input_data.indicators),
             lambda d: _invented_ip_problem(d, input_data.indicators, input_data.observables),
+            lambda d: _invented_domain_problem(
+                d,
+                input_data.indicators,
+                [
+                    input_data.hypothesis,
+                    input_data.justification,
+                    *input_data.observables,
+                    *input_data.references,
+                ],
+            ),
             lambda d: _partial_indicator_problem(d, input_data.indicators, category),
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
             _field_type_problem,
