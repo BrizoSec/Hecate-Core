@@ -1,0 +1,22 @@
+title: Network Connection to Known Malicious IP Addresses
+id: 0e05a746-f2f3-4105-9b10-4ef7eda176b2
+status: experimental
+description: Detects network connections made by compromised GitHub accounts to known malicious IP addresses,
+  which is indicative of adversaries inserting and spreading malicious code through development branches.
+references:
+- https://socket.dev/blog/polinrider-github-packagist
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-23'
+tags:
+- attack.t1078
+- attack.t1547.006
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp: 166.88.134.62
+  condition: selection
+falsepositives:
+- Network traffic to known malicious IPs may occasionally occur due to compromised systems or misconfigurations
+level: medium
+hunt_id: H-0004

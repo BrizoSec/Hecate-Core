@@ -1,0 +1,24 @@
+title: Detection of Malicious Code Insertion in GitHub Repositories
+id: b0c77869-e801-417d-b7ad-b9039caab750
+status: experimental
+description: Identifies file modifications made by suspicious scripts or executables that could indicate
+  the insertion of malicious code into development branches of popular packages.
+references:
+- https://socket.dev/blog/polinrider-github-packagist
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-23'
+tags:
+- attack.t1547.006
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: .sh
+    Image: /usr/bin/git
+  filter:
+    User: gitbot
+  condition: selection and not filter
+falsepositives:
+- Legitimate use of git by developers for code updates
+level: medium
+hunt_id: H-0004
