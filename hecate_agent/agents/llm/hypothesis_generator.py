@@ -1,12 +1,15 @@
 """Hypothesis generator agent - LLM-powered hypothesis generation."""
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
 from hecate_agent.core.hunting_knowledge import HYPOTHESIS_SECTIONS, is_enabled, load_sections
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -541,7 +544,14 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         if input_data.research:
             parts.append(input_data.research.adversary_tradecraft_summary or "")
             parts.extend(input_data.research.adversary_tradecraft_findings or [])
-        block = format_candidates(candidate_techniques("\n".join(parts)))
+        candidates = candidate_techniques("\n".join(parts))
+        # Logged so a reviewer can tell "the model was never shown the right
+        # technique" from "it was shown it and chose something else".
+        logger.info(
+            "Candidate ATT&CK techniques offered to the model: %s",
+            ", ".join(f"{tid} {name}" for tid, name in candidates) or "none matched the intel's wording",
+        )
+        block = format_candidates(candidates)
         if not block:
             return ""
         return (
