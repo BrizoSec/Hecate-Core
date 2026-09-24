@@ -223,6 +223,46 @@ def _platform_consistent_logsources(logsources: List[str], platforms: List[str])
     return kept or ["process_creation"]
 
 
+#: Indicator type (MISP and OTX spellings, lowercased) -> the algorithm label
+#: Sysmon writes in its ``Hashes`` field, and the hex length a real value has.
+_HASH_TYPES: Dict[str, Tuple[str, int]] = {
+    "md5": ("MD5", 32),
+    "filehash-md5": ("MD5", 32),
+    "sha1": ("SHA1", 40),
+    "filehash-sha1": ("SHA1", 40),
+    "sha256": ("SHA256", 64),
+    "filehash-sha256": ("SHA256", 64),
+    "imphash": ("IMPHASH", 32),
+    "filehash-imphash": ("IMPHASH", 32),
+}
+
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def hash_selectors(indicators: Dict[str, List[str]]) -> List[str]:
+    """``ALGO=hex`` values for every well-formed hash indicator, in order.
+
+    Malformed values (wrong length, non-hex) are dropped rather than repaired:
+    a truncated hash matches nothing and would read as coverage.
+    """
+    selectors: List[str] = []
+    for itype, values in (indicators or {}).items():
+        spec = _HASH_TYPES.get(str(itype).lower().strip())
+        if not spec:
+            continue
+        label, length = spec
+        for value in values:
+            text = str(value).strip()
+            if len(text) == length and _HEX_RE.match(text):
+                # Lowercase, as intel publishes it: Sigma's `contains` is
+                # case-insensitive, and the grounding audit matches the rule's
+                # values against the CTI text.
+                selector = f"{label}={text.lower()}"
+                if selector not in selectors:
+                    selectors.append(selector)
+    return selectors
+
+
 @dataclass
 class SigmaGenerationInput:
     """Input for Sigma rule generation."""
@@ -820,6 +860,18 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             else:
                 rules.append(rule)
 
+        # Built from the indicators alone, with no model call. On the first
+        # live cycle with the fixed pipeline, a pulse carrying ten file hashes
+        # produced no rule that used any of them: the model's file_event rule
+        # matched only '.ps1' and was rejected, and its process rule was
+        # behavioural. Exact hashes are the one thing a rule can be written
+        # from without judgement, so they no longer depend on the model.
+        hash_rule, hash_problem = self._hash_ioc_rule(input_data)
+        if hash_rule is not None:
+            rules.append(hash_rule)
+        elif hash_problem:
+            rejected.append(hash_problem)
+
         if not rules:
             return AgentResult(
                 success=False,
@@ -842,6 +894,50 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 "llm_calls": len(logsources),
                 "duration_ms": int((time.monotonic() - start) * 1000),
             },
+        )
+
+    def _hash_ioc_rule(self, input_data: SigmaGenerationInput) -> Tuple[Optional[SigmaRule], Optional[str]]:
+        """A process_creation rule matching every supplied file hash, or nothing.
+
+        Uses Sysmon's ``Hashes`` field with ``ALGO=value`` substrings, the
+        convention SigmaHQ's own IOC rules follow, so one rule covers MD5,
+        SHA1, SHA256 and imphash regardless of which the sensor records.
+        Returns ``(None, None)`` when the intel carries no usable hash.
+        """
+        selectors = hash_selectors(input_data.indicators)
+        if not selectors:
+            return None, None
+        category = "process_creation"
+        title = "Execution of a file hash named in the source intelligence"
+        document: Dict[str, Any] = {
+            "title": title,
+            "id": str(uuid.uuid4()),
+            "status": "experimental",
+            "description": (
+                "Deterministic IOC rule built from the file hashes the source intelligence "
+                "published, with no model involvement. Matches a process whose image hash "
+                "is one of them."
+            ),
+            "references": list(input_data.references),
+            "author": "hecate (auto-generated from source indicators - requires analyst review)",
+            "date": date.today().isoformat(),
+            "tags": [],
+            "logsource": self._logsource_block(category, input_data.platforms),
+            "detection": {"selection": {"Hashes|contains": selectors}, "condition": "selection"},
+            "falsepositives": [
+                "None expected for exact hashes; confirm the sensor records the listed algorithms"
+            ],
+            "level": "high",
+        }
+        if input_data.hunt_id:
+            document["hunt_id"] = input_data.hunt_id
+        rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
+        problem = _pysigma_problem(rule_yaml)
+        if problem:
+            return None, f"{category} (hash IOC): {problem}"
+        return (
+            SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level="high"),
+            None,
         )
 
     def _generate_for_logsource(
