@@ -64,6 +64,7 @@ def generate_research(
     depth: str = "basic",
     web_search_enabled: bool = True,
     workspace: Optional[Path] = None,
+    source_context: Optional[str] = None,
 ) -> Tuple[ResearchOutput, Path]:
     """Execute research and create the research document."""
     manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
@@ -79,6 +80,7 @@ def generate_research(
             include_telemetry_mapping=True,
             web_search_enabled=web_search_enabled,
             research_id=research_id,
+            source_context=source_context,
         )
     )
     
