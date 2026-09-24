@@ -202,6 +202,27 @@ def applicable_logsources(
     return sorted(found)
 
 
+#: Log sources that exist on only some platforms. H-0004, scoped to macOS and
+#: Linux, was drafted a Windows registry rule because one of its (wrong)
+#: techniques mapped to registry persistence.
+_PLATFORM_ONLY_LOGSOURCES: Dict[str, str] = {"registry_event": "windows"}
+
+
+def _platform_consistent_logsources(logsources: List[str], platforms: List[str]) -> List[str]:
+    """Drop log sources none of the hunt's platforms can produce.
+
+    An empty platform list means scope is unknown, not that nothing applies,
+    so nothing is dropped then.
+    """
+    known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
+    if not known:
+        return logsources
+    kept = [ls for ls in logsources if _PLATFORM_ONLY_LOGSOURCES.get(ls, "") in known | {""}]
+    for dropped in sorted(set(logsources) - set(kept)):
+        logger.info("Skipping %s: no platform of this hunt (%s) produces it", dropped, ", ".join(sorted(known)))
+    return kept or ["process_creation"]
+
+
 @dataclass
 class SigmaGenerationInput:
     """Input for Sigma rule generation."""
@@ -492,6 +513,50 @@ def _anchor_bare_filenames(detection: Dict[str, Any]) -> Dict[str, Any]:
     return {key: (block if key == "condition" else repair_block(block)) for key, block in detection.items()}
 
 
+def _complete_indicator_lists(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Widen a field matching some supplied indicators to all of that type.
+
+    The model reliably picks one example and stops: H-0004's CTI carried four
+    C2 IPs and both its network and authentication rules matched only
+    ``166.88.134.62``. Which value it picked is arbitrary, and a hunt that
+    checks one of four addresses misses three quarters of the evidence it was
+    handed. Repaired rather than rejected -- the rule's intent (match these
+    indicators in this field) is unambiguous.
+
+    Only selections are widened, never a block the condition negates, and only
+    a field whose every value is an exact supplied indicator: ``|endswith``
+    on a path, or a value the model wrote itself, is left alone.
+    """
+    by_value: Dict[str, str] = {}
+    for itype, values in (supplied or {}).items():
+        for value in values:
+            by_value.setdefault(str(value).strip().lower(), itype)
+    if not by_value:
+        return detection
+
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+
+    def widen(block: Dict[str, Any]) -> Dict[str, Any]:
+        widened: Dict[str, Any] = {}
+        for key, value in block.items():
+            values = value if isinstance(value, list) else [value]
+            types = {by_value.get(str(v).strip().lower()) for v in values}
+            if values and None not in types:
+                full: List[str] = []
+                for itype in sorted(t for t in types if t):
+                    full.extend(str(v) for v in supplied[itype])
+                full = list(dict.fromkeys([*map(str, values), *full]))
+                widened[key] = full if len(full) > 1 else full[0]
+            else:
+                widened[key] = value
+        return widened
+
+    return {
+        name: (widen(block) if name != "condition" and name not in negated and isinstance(block, dict) else block)
+        for name, block in detection.items()
+    }
+
+
 #: Fields that hold a network address, not a name. The model fills whatever
 #: indicator it has into whatever field it picked, so a hunt whose only
 #: indicators were domains produced `IpAddress|endswith: .jeetbot.cc` and
@@ -725,6 +790,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             input_data.techniques,
             list(input_data.indicators.keys()),
         )
+        logsources = _platform_consistent_logsources(logsources, input_data.platforms)
 
         if not self.llm_enabled:
             return AgentResult(
@@ -852,6 +918,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         if problem:
             return None, f"{category}: {problem}"
         detection = _anchor_bare_filenames(_strip_empty_filters(detection))
+        detection = _complete_indicator_lists(detection, input_data.indicators)
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"

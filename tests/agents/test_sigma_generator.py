@@ -15,6 +15,8 @@ from hecate_agent.agents.llm.sigma_generator import (
     SigmaGeneratorAgent,
     _anchor_bare_filenames,
     _breadth_problem,
+    _complete_indicator_lists,
+    _platform_consistent_logsources,
     _field_type_problem,
     _partial_indicator_problem,
     _placeholder_problem,
@@ -674,6 +676,68 @@ class TestIndicatorGrounding:
     def test_no_supplied_indicators_means_no_constraint(self):
         detection = {"selection": {"QueryName|contains": "anything"}, "condition": "selection"}
         assert _partial_indicator_problem(detection, {}, "dns_query") is None
+
+
+@pytest.mark.unit
+class TestPlatformConsistentLogsources:
+    def test_registry_is_dropped_for_a_non_windows_hunt(self):
+        """H-0004 (macOS, Linux) was drafted a registry_event rule."""
+        kept = _platform_consistent_logsources(["network_connection", "registry_event"], ["macOS", "Linux"])
+        assert kept == ["network_connection"]
+
+    def test_registry_is_kept_when_windows_is_in_scope(self):
+        kept = _platform_consistent_logsources(["registry_event"], ["Windows", "Linux"])
+        assert kept == ["registry_event"]
+
+    def test_unknown_scope_drops_nothing(self):
+        assert _platform_consistent_logsources(["registry_event"], []) == ["registry_event"]
+
+    def test_never_leaves_nothing_to_draft(self):
+        assert _platform_consistent_logsources(["registry_event"], ["macOS"]) == ["process_creation"]
+
+
+@pytest.mark.unit
+class TestCompleteIndicatorLists:
+    """H-0004: four C2 IPs supplied, both network rules matched one."""
+
+    SUPPLIED = {
+        "IPv4": ["166.88.134.62", "23.27.13.135", "166.88.73.46", "193.247.144.38"],
+        "domain": ["pipicka.xyz"],
+    }
+
+    def test_one_supplied_ip_is_widened_to_all_of_them(self):
+        detection = {"selection": {"DestinationIp": "166.88.134.62"}, "condition": "selection"}
+        widened = _complete_indicator_lists(detection, self.SUPPLIED)
+        assert widened["selection"]["DestinationIp"] == self.SUPPLIED["IPv4"]
+
+    def test_only_the_matching_type_is_added(self):
+        detection = {"selection": {"QueryName": "pipicka.xyz"}, "condition": "selection"}
+        assert _complete_indicator_lists(detection, self.SUPPLIED)["selection"]["QueryName"] == "pipicka.xyz"
+
+    def test_a_value_the_model_wrote_itself_is_left_alone(self):
+        detection = {
+            "selection": {"DestinationIp": ["166.88.134.62", "10.0.0.1"]},
+            "condition": "selection",
+        }
+        assert _complete_indicator_lists(detection, self.SUPPLIED) == detection
+
+    def test_a_negated_block_is_not_widened(self):
+        detection = {
+            "selection": {"Image|endswith": "\\curl.exe"},
+            "filter": {"DestinationIp": "166.88.134.62"},
+            "condition": "selection and not filter",
+        }
+        assert _complete_indicator_lists(detection, self.SUPPLIED) == detection
+
+    def test_a_widened_rule_survives_the_full_build(self):
+        rule = _rule(
+            logsource_category="network_connection",
+            title="C2 beacon",
+            detection={"selection": {"DestinationIp": "166.88.134.62"}, "condition": "selection"},
+        )
+        built, problem = _agent()._build_rule(rule, _input(indicators=self.SUPPLIED))
+        assert problem is None
+        assert "193.247.144.38" in built.rule_yaml
 
 
 @pytest.mark.unit
