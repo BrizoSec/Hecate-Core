@@ -1240,7 +1240,7 @@ RULES OF THE TASK:
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
-
+10. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
 Return exactly this JSON shape, with a single entry in "rules":
 {{
   "rules": [

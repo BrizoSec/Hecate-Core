@@ -1,0 +1,23 @@
+title: Detection of Sandworm C2 Communication via Registry Modification
+id: 040b575d-ff8e-42f7-b931-cebf9b3671c4
+status: experimental
+description: This rule aims to detect potential exfiltration activities by Sandworm actors through registry
+  modifications that are indicative of command and control (C2) communication. It focuses on specific
+  filenames associated with known malicious activity.
+references:
+- https://localhost:8443/events/view/1642
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-24'
+tags:
+- attack.t1041
+- attack.t1071.001
+logsource:
+  category: registry_event
+detection:
+  selection:
+    TargetObject|endswith: /tmp/.applocktx
+  condition: selection
+falsepositives:
+- Administrative scripts or processes that use similar filenames for benign purposes
+level: medium
+hunt_id: H-0008
