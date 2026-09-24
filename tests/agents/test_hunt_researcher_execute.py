@@ -156,6 +156,61 @@ class TestExecuteHappyPath:
         assert result.metadata["research_id"] == "R-0500"
         mock_manager_cls.return_value.get_next_research_id.assert_not_called()
 
+    def test_source_context_reaches_every_llm_skill(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The topic is a search label. Research built from it alone never saw
+        the report it was about: a PolinRider pulse describing Git history
+        rewriting and font-file payloads was researched from its headline."""
+        provider = CapturingProvider()
+        agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key=None)
+        monkeypatch.setattr(agent, "_get_search_client", lambda: None)
+
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
+            mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
+            result = agent.execute(
+                ResearchInput(
+                    topic="PolinRider",
+                    source_context="Operators hid payloads in font files and rewrote Git history.",
+                )
+            )
+
+        assert result.success is True
+        assert len(provider.prompts) == 4
+        assert all("hid payloads in font files" in prompt for prompt in provider.prompts)
+
+    def test_no_source_context_adds_no_source_section(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        provider = CapturingProvider()
+        agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key=None)
+        monkeypatch.setattr(agent, "_get_search_client", lambda: None)
+
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
+            mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
+            agent.execute(ResearchInput(topic="Some topic"))
+
+        assert not any("Source Intelligence" in prompt for prompt in provider.prompts)
+
+    def test_a_cve_the_source_cites_survives_the_unsupported_cve_filter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        provider = CapturingProvider(
+            {"summary": "s", "key_findings": ["Initial access exploits CVE-2026-4021."]}
+        )
+        agent = HuntResearcherAgent(llm_enabled=True, provider=provider, tavily_api_key=None)
+        monkeypatch.setattr(agent, "_get_search_client", lambda: None)
+
+        with ExitStack() as stack:
+            mock_manager_cls = stack.enter_context(patch("hecate_agent.core.research_manager.ResearchManager"))
+            stack.enter_context(patch.object(_similar_mod, "_find_similar_hunts", return_value=[]))
+            mock_manager_cls.return_value.get_next_research_id.return_value = "R-0001"
+            result = agent.execute(
+                ResearchInput(topic="Some topic", source_context="The actor exploited CVE-2026-4021.")
+            )
+
+        assert "Initial access exploits CVE-2026-4021." in result.data.adversary_tradecraft.key_findings
+
     def test_execute_web_search_disabled_flag_skips_all_search(
         self, fake_search_client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
