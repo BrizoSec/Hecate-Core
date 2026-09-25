@@ -875,6 +875,18 @@ def _registered_name(domain: str) -> str:
     return labels[-2] if len(labels) >= 2 else ""
 
 
+def _invented_hash_problem(detection: dict, supplied: dict) -> str | None:
+    """Reject a selection matching a specific file hash no intel supplied."""
+    import re
+    known = " ".join(" ".join(map(str, v)).lower() for k, v in supplied.items() if "hash" in k.lower() or k.lower() in ("md5", "sha1", "sha256", "imphash"))
+    for value in _detection_values(detection):
+        cleaned = value.strip().lower()
+        if len(cleaned) in (32, 40, 64) and re.match(r"^[0-9a-f]+$", cleaned):
+            if cleaned not in known:
+                return f"detection matches the hash {cleaned!r}, which no supplied indicator names; an invented hash matches nothing the intel describes"
+    return None
+
+
 def _invented_domain_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]], context: List[str]) -> Optional[str]:
     """Reject a selection matching a domain the intelligence never names.
 
@@ -1320,6 +1332,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         checks = (
             lambda d: _placeholder_problem(d, input_data.indicators),
             lambda d: _invented_ip_problem(d, input_data.indicators, input_data.observables),
+            lambda d: _invented_hash_problem(d, input_data.indicators),
             lambda d: _invented_domain_problem(
                 d,
                 input_data.indicators,
@@ -1580,10 +1593,20 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     # --- Prompt ----------------------------------------------------------------
 
+    def _relevant_techniques_for_prompt(self, techniques: list[str], logsource: str) -> list[str]:
+        relevant = []
+        for t in techniques:
+            norm = t.upper().strip()
+            for prefix, sources in _TECHNIQUE_LOGSOURCES.items():
+                if norm.startswith(prefix) and logsource in sources:
+                    relevant.append(t)
+                    break
+        return relevant or techniques
+
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
         observable_block = "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
-        techniques = ", ".join(self._relevant_techniques(input_data.techniques, logsource)) or "(none supplied)"
+        techniques = ", ".join(self._relevant_techniques_for_prompt(input_data.techniques, logsource)) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
 
@@ -1618,17 +1641,16 @@ RULES OF THE TASK:
    a file hash (MD5, SHA1, SHA256) into a command-line or filename field; hashes
    belong ONLY in a `Hashes` field. If your only indicator is a domain and this 
    log source has no name field for it, write a behavioural rule instead.
-3. Prefer the concrete indicators and observables above over generic
-   patterns. A rule that matches the actual C2 hostnames or the actual
-   masquerading filename is worth more than one matching "suspicious command
-   line". A selection that matches only a file extension (`|endswith: .exe`)
-   or a wildcard matches every file of that type and is rejected. If you use an indicator,
-   reproduce it WHOLE in one match value. Never split one into fragments:
-   "bad.example.net" written as `|endswith: .net` plus `|contains: bad`
-   matches every .net domain, loses the evidence, and is rejected. Using no
-   indicator at all is fine when the behaviour is the better rule.
-4. Where you must generalise, express the *behaviour* the hypothesis
-   describes, not a restatement of the indicator list.
+3. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
+   For example, a rule that looks for `ParentImage|endswith: \winword.exe` spawning
+   `Image|endswith: \cmd.exe` is a high-quality, generic behavioral rule that works
+   everywhere. Using no indicator at all is completely fine, and often preferred,
+   when the behaviour itself is the better rule.
+4. If you DO use a specific indicator, reproduce it WHOLE in one match value. Never
+   split one into fragments: "bad.example.net" written as `|endswith: .net` plus
+   `|contains: bad` matches every .net domain, loses the evidence, and is rejected.
+   A selection that matches only a file extension (`|endswith: .exe`) or a wildcard
+   matches every file of that type and is rejected.
 5. Every `detection` MUST contain a `condition` key. It is not optional, and
    it may only name selection blocks you defined in the same rule. If you
    define both a selection and a filter, say so explicitly, e.g.
