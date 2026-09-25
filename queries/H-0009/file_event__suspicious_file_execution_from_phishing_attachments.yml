@@ -1,0 +1,22 @@
+title: Suspicious File Execution from Phishing Attachments
+id: 15c33060-6598-4592-abf4-abbfa667c1ed
+status: experimental
+description: Detects the execution of files with suspicious names that are indicative of phishing attacks,
+  which could be used for persistence and evasion.
+references:
+- https://unit42.paloaltonetworks.com/ai-enabled-malware-analysis/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-24'
+tags:
+- attack.t1074
+- attack.t1566
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: malware
+  condition: selection
+falsepositives:
+- Legitimate software updates or patches that use similar naming conventions
+level: medium
+hunt_id: H-0009

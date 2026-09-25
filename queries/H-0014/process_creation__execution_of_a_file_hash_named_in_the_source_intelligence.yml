@@ -1,0 +1,23 @@
+title: Execution of a file hash named in the source intelligence
+id: f6609d81-cca8-48f6-8de1-abeb1b4a8d48
+status: experimental
+description: Deterministic IOC rule built from the file hashes the source intelligence published, with
+  no model involvement. Matches a process whose image hash is one of them.
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-09-25'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=0e81d80b40eaacbf6cb1e817fb1824c30a824af5cb4faca4aa9b03fd506d480f
+    - SHA256=0f6e757e82c4d91df5bd249f775b9970b59dee42cc0dfe40f879d77fc16821c6
+    - SHA256=2ff2945b13a4cd0e9a65c85af29ea1539e162a516466c0de682dbf9f8a4000b1
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hunt_id: H-0014

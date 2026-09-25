@@ -1,0 +1,24 @@
+title: Suspicious C2 Communication Detected
+id: 13355f30-d480-4841-bf53-e8e469505a71
+status: experimental
+description: Detects network connections to known malicious IP addresses indicative of command and control
+  (C2) communication, which is a common technique used by adversaries for maintaining persistence and
+  exfiltrating data.
+references:
+- https://unit42.paloaltonetworks.com/ai-enabled-malware-analysis/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-24'
+tags:
+- attack.t1074
+- attack.t1566
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp|endswith: 1.2.3.4
+  condition: selection
+falsepositives:
+- Legitimate network traffic to known good IP addresses might be incorrectly flagged if the malicious
+  indicator is reused or coincidentally matches
+level: medium
+hunt_id: H-0009
