@@ -128,6 +128,11 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1068": {"process_creation"},
     "T1557": {"network_connection", "authentication"},
     "T1021": {"authentication", "network_connection"},
+    "T1190": {"network_connection", "process_creation"},
+    "T1133": {"network_connection", "authentication"},
+    "T1486": {"file_event", "process_creation"},
+    "T1053": {"process_creation", "file_event"},
+    "T1037": {"process_creation", "file_event", "registry_event"},
 }
 
 # MISP/OTX attribute type -> log source category. The indicator types a CTI
@@ -1578,7 +1583,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
         observable_block = "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
-        techniques = ", ".join(input_data.techniques) or "(none supplied)"
+        techniques = ", ".join(self._relevant_techniques(input_data.techniques, logsource)) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
 
