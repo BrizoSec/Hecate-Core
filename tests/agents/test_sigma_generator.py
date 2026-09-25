@@ -15,6 +15,8 @@ from hecate_agent.agents.llm.sigma_generator import (
     SigmaGeneratorAgent,
     _anchor_bare_filenames,
     _breadth_problem,
+    _complete_indicator_lists,
+    _platform_consistent_logsources,
     _field_type_problem,
     _partial_indicator_problem,
     _placeholder_problem,
@@ -283,7 +285,9 @@ def test_infers_condition_for_a_single_selection_block():
     one selection and no condition. With one block the intended condition
     has exactly one possible value."""
     raw = _rule(detection={"selection": {"QueryName|contains": ["api.wiresguard.com"]}})
-    rule, problem = _agent()._build_rule(raw, _input())
+    # Supplied, as a real run would: an exact domain nothing supplied is now
+    # rejected as invented, which is not what this test is about.
+    rule, problem = _agent()._build_rule(raw, _input(indicators={"hostname": ["api.wiresguard.com"]}))
     assert rule is not None
     assert problem is None
     assert yaml.safe_load(rule.rule_yaml)["detection"]["condition"] == "selection"
@@ -666,7 +670,7 @@ class TestIndicatorGrounding:
         assert _partial_indicator_problem(detection, self.SUPPLIED, "process_creation") is None
 
     def test_short_values_are_not_treated_as_fragments(self):
-        """"exe" and "tmp" are ordinary rule vocabulary and collide with
+        """ "exe" and "tmp" are ordinary rule vocabulary and collide with
         indicator substrings by accident."""
         detection = {"selection": {"QueryName|contains": "net"}, "condition": "selection"}
         assert _partial_indicator_problem(detection, self.SUPPLIED, "dns_query") is None
@@ -674,6 +678,68 @@ class TestIndicatorGrounding:
     def test_no_supplied_indicators_means_no_constraint(self):
         detection = {"selection": {"QueryName|contains": "anything"}, "condition": "selection"}
         assert _partial_indicator_problem(detection, {}, "dns_query") is None
+
+
+@pytest.mark.unit
+class TestPlatformConsistentLogsources:
+    def test_registry_is_dropped_for_a_non_windows_hunt(self):
+        """H-0004 (macOS, Linux) was drafted a registry_event rule."""
+        kept = _platform_consistent_logsources(["network_connection", "registry_event"], ["macOS", "Linux"])
+        assert kept == ["network_connection"]
+
+    def test_registry_is_kept_when_windows_is_in_scope(self):
+        kept = _platform_consistent_logsources(["registry_event"], ["Windows", "Linux"])
+        assert kept == ["registry_event"]
+
+    def test_unknown_scope_drops_nothing(self):
+        assert _platform_consistent_logsources(["registry_event"], []) == ["registry_event"]
+
+    def test_never_leaves_nothing_to_draft(self):
+        assert _platform_consistent_logsources(["registry_event"], ["macOS"]) == ["process_creation"]
+
+
+@pytest.mark.unit
+class TestCompleteIndicatorLists:
+    """H-0004: four C2 IPs supplied, both network rules matched one."""
+
+    SUPPLIED = {
+        "IPv4": ["166.88.134.62", "23.27.13.135", "166.88.73.46", "193.247.144.38"],
+        "domain": ["pipicka.xyz"],
+    }
+
+    def test_one_supplied_ip_is_widened_to_all_of_them(self):
+        detection = {"selection": {"DestinationIp": "166.88.134.62"}, "condition": "selection"}
+        widened = _complete_indicator_lists(detection, self.SUPPLIED)
+        assert widened["selection"]["DestinationIp"] == self.SUPPLIED["IPv4"]
+
+    def test_only_the_matching_type_is_added(self):
+        detection = {"selection": {"QueryName": "pipicka.xyz"}, "condition": "selection"}
+        assert _complete_indicator_lists(detection, self.SUPPLIED)["selection"]["QueryName"] == "pipicka.xyz"
+
+    def test_a_value_the_model_wrote_itself_is_left_alone(self):
+        detection = {
+            "selection": {"DestinationIp": ["166.88.134.62", "10.0.0.1"]},
+            "condition": "selection",
+        }
+        assert _complete_indicator_lists(detection, self.SUPPLIED) == detection
+
+    def test_a_negated_block_is_not_widened(self):
+        detection = {
+            "selection": {"Image|endswith": "\\curl.exe"},
+            "filter": {"DestinationIp": "166.88.134.62"},
+            "condition": "selection and not filter",
+        }
+        assert _complete_indicator_lists(detection, self.SUPPLIED) == detection
+
+    def test_a_widened_rule_survives_the_full_build(self):
+        rule = _rule(
+            logsource_category="network_connection",
+            title="C2 beacon",
+            detection={"selection": {"DestinationIp": "166.88.134.62"}, "condition": "selection"},
+        )
+        built, problem = _agent()._build_rule(rule, _input(indicators=self.SUPPLIED))
+        assert problem is None
+        assert "193.247.144.38" in built.rule_yaml
 
 
 @pytest.mark.unit
@@ -1018,9 +1084,7 @@ class TestBreadthProblem:
         }
         assert "names no particular" in _breadth_problem(detection)
 
-    @pytest.mark.parametrize(
-        "value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"]
-    )
+    @pytest.mark.parametrize("value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"])
     def test_a_named_file_passes(self, value):
         assert _breadth_problem(self._det({"Image|endswith": value})) is None
 
@@ -1058,18 +1122,14 @@ class TestBreadthProblem:
         assert _breadth_problem(detection) is None
 
     def test_build_rule_rejects_a_broad_rule(self):
-        rule = _rule(
-            detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"}
-        )
+        rule = _rule(detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"})
         built, problem = _agent()._build_rule(rule, _input())
         assert built is None
         assert "names no particular" in problem
 
 
 def test_prompt_lists_the_drafts_observables():
-    prompt = _agent()._build_prompt(
-        _input(observables=["Process execution of nvidia-sysruntime.exe"]), "process_creation"
-    )
+    prompt = _agent()._build_prompt(_input(observables=["Process execution of nvidia-sysruntime.exe"]), "process_creation")
     assert "nvidia-sysruntime.exe" in prompt
     assert "unverified" in prompt
 
@@ -1090,9 +1150,7 @@ class TestAnchorBareFilenames:
 
     def test_a_list_of_bare_filenames_is_anchored(self):
         detection = {"selection": {"ParentImage": ["a.exe", "b.exe"]}, "condition": "selection"}
-        assert _anchor_bare_filenames(detection)["selection"] == {
-            "ParentImage|endswith": ["\\a.exe", "\\b.exe"]
-        }
+        assert _anchor_bare_filenames(detection)["selection"] == {"ParentImage|endswith": ["\\a.exe", "\\b.exe"]}
 
     @pytest.mark.parametrize(
         "field,value",

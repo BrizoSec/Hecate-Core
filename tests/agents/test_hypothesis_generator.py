@@ -549,6 +549,46 @@ class TestHypothesisGeneratorAgent:
         assert "Event 4769" in prompt
         assert "No SPN audit logging" in prompt
 
+    def test_build_prompt_offers_techniques_the_intel_names(self):
+        """H-0002: "masquerade as NVIDIA software" got T1027.004 from memory."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+        with patch(
+            "hecate_agent.core.technique_candidates.candidate_techniques",
+            return_value=[("T1036", "Masquerading")],
+        ) as candidates:
+            prompt = agent._build_prompt(_make_input(threat_intel="It masquerades as NVIDIA software."))
+
+        assert "Candidate ATT&CK techniques" in prompt
+        assert "T1036: Masquerading" in prompt
+        assert "It masquerades as NVIDIA software." in candidates.call_args.args[0]
+
+    def test_build_prompt_offers_no_candidates_for_an_indicator_dump(self):
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+        input_data = HypothesisGenerationInput(
+            threat_intel="Attributes (245 total): domain (146)",
+            past_hunts=[],
+            environment={},
+            intel_is_indicator_only=True,
+        )
+        with patch(
+            "hecate_agent.core.technique_candidates.candidate_techniques",
+            return_value=[("T1036", "Masquerading")],
+        ):
+            prompt = agent._build_prompt(input_data)
+
+        assert "Candidate ATT&CK techniques" not in prompt
+
+    def test_schema_example_carries_no_copyable_observables(self):
+        """Every one of H-0002..H-0007 listed "Legitimate software updates"
+        and "Administrative tools" as what normal looks like -- the schema's
+        example values, copied."""
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+        prompt = agent._build_prompt(_make_input())
+
+        assert '"Legitimate software"' not in prompt
+        assert '"Administrative tools"' not in prompt
+        assert '["Process execution", "Network connections"]' not in prompt
+
 
 @pytest.mark.unit
 class TestHypothesisGeneratorDuration:
