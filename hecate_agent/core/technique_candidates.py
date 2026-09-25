@@ -31,12 +31,26 @@ _WORD_RE = re.compile(r"[a-z0-9]+")
 #: "masquerades" and "masquerade" all reduce to "masquerad". A fixed-length
 #: prefix was tried and failed both ways: six letters let "Screensaver" match
 #: "screen" and "Systemctl" match "system"; longer ones lost "masquerades".
-_SUFFIXES = ("ation", "ing", "ion", "ed", "es", "er", "s", "e")
+#: A plural "s" comes off first, so "containers" and "Container" agree.
+_SUFFIXES = ("ation", "ated", "ating", "ing", "ion", "ed", "er", "e")
+
+#: Derivational suffixes that leave a different word behind when the root is
+#: short: "portion" is not "port", "region" is not "reg".
+_LONG_ROOT_SUFFIXES = frozenset({"ation", "ion"})
 
 
 def _stem(word: str) -> str:
+    """Reduce a word to the form its variants share.
+
+    Kept in step with hecate-runner's grounding audit, which stems the same
+    way: the two decide from the same words whether a source describes a
+    technique, and drifting apart is how one proposed what the other dropped.
+    """
+    if word.endswith("s") and not word.endswith("ss") and len(word) - 1 >= 4:
+        word = word[:-1]
     for suffix in _SUFFIXES:
-        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+        floor = 5 if suffix in _LONG_ROOT_SUFFIXES else 4
+        if word.endswith(suffix) and len(word) - len(suffix) >= floor:
             return word[: -len(suffix)]
     return word
 
@@ -53,7 +67,7 @@ _GENERIC_NAME_WORDS = frozenset(
         "match", "module", "modules", "name", "network", "other", "process",
         "protocol", "remote", "resource", "service", "services", "software",
         "standard", "system", "systems", "tool", "tools", "user", "using",
-        "with", "over", "through", "abuse", "deployment",
+        "with", "over", "through", "abuse", "deployment", "malicious",
     }
 )  # fmt: skip
 
@@ -83,7 +97,9 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
     "T1056.001": ("keylogger", "keylogging"),
     "T1195.002": ("supply chain", "supply-chain"),
     "T1566": ("phishing",),
-    "T1204.002": ("malicious file", "fake job interview", "fake job interviews"),
+    # Not "malicious file": nearly every report says it, whoever ran the file.
+    # It put User Execution on a VeloCloud exploit that involved no user.
+    "T1204.002": ("fake job interview", "fake job interviews"),
     "T1102": ("dead drop", "dead-drop", "etherhiding"),
     "T1003.001": ("lsass",),
     "T1218.011": ("rundll32",),
@@ -93,7 +109,25 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
     "T1543.004": ("launchdaemon", "launch daemon"),
     "T1543.001": ("launchagent", "launch agent"),
     "T1068": ("privilege escalation", "elevation of privilege"),
-    "T1190": ("remote code execution", "rce", "exploit public-facing", "zero-day", "0-day"),
+    # Not "zero-day" or "0-day": they say a bug was unknown, not where it was.
+    # They put T1190 on DarkMe, a campaign that had abandoned exploits, and on
+    # a browser 0-day that is client-side (T1203/T1189), not public-facing.
+    "T1190": ("remote code execution", "rce", "exploit public-facing", "public-facing", "internet-facing"),
+    # ATT&CK now names this sub-technique just "DLL", which is too short to
+    # match as a name, so without these DLL hijacking was never proposed.
+    "T1574.001": (
+        "dll hijacking",
+        "dll hijack",
+        "dll search order hijacking",
+        "search order hijacking",
+        "dll sideloading",
+        "dll side-loading",
+        "sideloads",
+        "sideloading",
+        "side-loading",
+        "sideloaded",
+    ),
+    "T1036": ("disguised as",),
 }
 
 
@@ -105,11 +139,14 @@ _JOINERS = frozenset({"a", "an", "and", "or", "the", "of", "for", "to", "via", "
 def _name_tokens(name: str) -> List[str]:
     """A technique name as the stems a report would have to use, in order.
 
-    Empty for a one-word name that says nothing specific ("Services"): as a
-    phrase of its own it would match every report.
+    Empty for a name that says nothing specific ("Services", "Malicious
+    File"): as a phrase of its own it would match every report. "Malicious
+    File" put User Execution on a VeloCloud advisory for "malicious files".
     """
     tokens = [w for w in _WORD_RE.findall(name.lower()) if w not in _JOINERS]
-    if len(tokens) == 1 and (tokens[0] in _GENERIC_NAME_WORDS or len(tokens[0]) < 4):
+    if all(t in _GENERIC_NAME_WORDS for t in tokens):
+        return []
+    if len(tokens) == 1 and len(tokens[0]) < 4:
         return []
     return [_stem(t) for t in tokens]
 
@@ -120,7 +157,10 @@ def _phrase_in(tokens: List[str], words: List[str]) -> bool:
     if not n:
         return False
     for i in range(len(words) - n + 1):
-        if all(words[i + j].startswith(tokens[j]) for j in range(n)):
+        # Equal stems, not a shared prefix: prefix matching read "VCO
+        # deployments contain a critical vulnerability" as T1610 Deploy
+        # Container.
+        if all(words[i + j] == tokens[j] for j in range(n)):
             return True
     return False
 

@@ -8,7 +8,7 @@ import pytest
 
 from hecate_agent.core import attack_matrix
 from hecate_agent.core.attack_matrix import FallbackProvider, TechniqueInfo
-from hecate_agent.core.technique_candidates import candidate_techniques, format_candidates
+from hecate_agent.core.technique_candidates import _stem, candidate_techniques, format_candidates
 
 
 def _t(tid: str, name: str, tactic: str) -> TechniqueInfo:
@@ -28,6 +28,11 @@ _TECHNIQUES: Dict[str, TechniqueInfo] = {
         _t("T1583.001", "Domains", "resource-development"),
         _t("T1587.001", "Malware", "resource-development"),
         _t("T1127.001", "MSBuild", "stealth"),
+        _t("T1610", "Deploy Container", "execution"),
+        _t("T1204.002", "Malicious File", "execution"),
+        _t("T1190", "Exploit Public-Facing Application", "initial-access"),
+        _t("T1574.001", "DLL", "stealth"),
+        _t("T1571", "Non-Standard Port", "command-and-control"),
     ]
 }
 
@@ -102,6 +107,39 @@ def test_unreadable_attack_data_yields_nothing_rather_than_raising() -> None:
 
     attack_matrix.reset_provider(Broken())
     assert candidate_techniques("masquerading") == []
+
+
+def test_a_shared_prefix_across_a_phrase_is_not_a_match() -> None:
+    """25 Sep: "VCO deployments contain a critical vulnerability" was read as
+    T1610 Deploy Container."""
+    assert "T1610" not in _ids("On-premises deployments contain a critical vulnerability.")
+    assert "T1610" in _ids("The actor tried to deploy containers on the cluster.")
+
+
+def test_a_short_root_under_a_derivational_suffix_is_a_different_word() -> None:
+    """ "portion" is not "port"; the longer roots still meet their variants."""
+    assert _stem("portion") != _stem("port")
+    assert _stem("obfuscation") == _stem("obfuscated")
+    assert _stem("containers") == _stem("container")
+    assert "T1571" in _ids("Beacons used a non-standard port for C2.")
+
+
+def test_a_name_of_only_generic_words_is_never_matched() -> None:
+    """ "Malicious File" put User Execution on an advisory saying "malicious
+    files" about an exploit no user ran."""
+    assert "T1204.002" not in _ids("Indicators include malicious files and suspicious HTTP headers.")
+
+
+def test_zero_day_alone_does_not_propose_a_public_facing_exploit() -> None:
+    """DarkMe "abandoned zero-day exploits"; UTA0565's 0-days were in Chrome."""
+    assert "T1190" not in _ids("Previously notable for weaponizing zero-day exploits, it now phishes.")
+    assert "T1190" not in _ids("Chrome and Windows 0-day exploits delivered from fake websites.")
+    assert "T1190" in _ids("A remote code execution flaw in the internet-facing appliance.")
+
+
+def test_dll_hijacking_is_proposed_although_its_attack_name_is_just_dll() -> None:
+    assert "T1574.001" in _ids("The ClickFix campaign sideloads a malicious mscoree.dll.")
+    assert "T1574.001" in _ids("Detecting DLL hijacking with Elastic Defend")
 
 
 def test_format_candidates() -> None:
