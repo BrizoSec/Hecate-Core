@@ -263,6 +263,64 @@ def hash_selectors(indicators: Dict[str, List[str]]) -> List[str]:
     return selectors
 
 
+_IP_TYPES = frozenset({"ip-dst", "ip-src", "ipv4", "ipv6", "ip-dst|port", "ip-src|port"})
+_NAME_TYPES = frozenset({"domain", "hostname"})
+_URL_TYPES = frozenset({"url", "uri", "link"})
+
+
+def _global_ip(value: str) -> Optional[str]:
+    """The address in ``1.2.3.4``, ``1.2.3.4|443`` or ``1.2.3.4:443``, if routable."""
+    import ipaddress
+
+    text = value.strip().split("|", 1)[0]
+    if text.count(":") == 1:  # IPv4 with a port; IPv6 has several colons
+        text = text.split(":", 1)[0]
+    try:
+        address = ipaddress.ip_address(text.strip("[]"))
+    except ValueError:
+        return None
+    return str(address) if address.is_global else None
+
+
+def _classify_network_value(kind: str, value: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """(address, exact name, ``.domain`` suffix) one indicator value contributes."""
+    if kind in _IP_TYPES:
+        return _global_ip(value), None, None
+    if kind == "domain|ip":
+        name, _, address = value.partition("|")
+        name = name.lower()
+        return _global_ip(address), name if _DOMAIN_RE.match(name) else None, None
+    if kind not in _NAME_TYPES and kind not in _URL_TYPES:
+        return None, None, None
+    if kind in _URL_TYPES:
+        match = _URL_HOST_RE.match(value)
+        value = match.group(1) if match else ""
+    name = value.lower().rstrip(".")
+    if _global_ip(name):
+        return _global_ip(name), None, None
+    if not _DOMAIN_RE.match(name):
+        return None, None, None
+    return None, name, "." + name if kind == "domain" else None
+
+
+def network_selectors(indicators: Dict[str, List[str]]) -> Tuple[List[str], List[str], List[str]]:
+    """(addresses, exact host names, ``.domain`` suffixes) from supplied indicators.
+
+    Only routable addresses and well-formed names survive; a private address
+    or a malformed name matches nothing the intel describes. Suffixes are
+    built from ``domain`` indicators only, so a supplied registrable domain
+    also covers its subdomains, while a specific ``hostname`` stays exact.
+    """
+    buckets: Tuple[List[str], List[str], List[str]] = ([], [], [])
+    for itype, values in (indicators or {}).items():
+        kind = str(itype).lower().strip()
+        for raw in values:
+            for bucket, found in zip(buckets, _classify_network_value(kind, str(raw).strip())):
+                if found and found not in bucket:
+                    bucket.append(found)
+    return buckets
+
+
 @dataclass
 class SigmaGenerationInput:
     """Input for Sigma rule generation."""
@@ -494,11 +552,7 @@ def _strip_empty_filters(detection: Dict[str, Any]) -> Dict[str, Any]:
     and a rejected rule is not retried, so refusing the whole rule costs the
     draft its entire detection section over a cosmetic defect.
     """
-    empty = [
-        key
-        for key, block in detection.items()
-        if key != "condition" and isinstance(block, dict) and not block
-    ]
+    empty = [key for key, block in detection.items() if key != "condition" and isinstance(block, dict) and not block]
     if not empty:
         return detection
 
@@ -602,9 +656,7 @@ def _complete_indicator_lists(detection: Dict[str, Any], supplied: Dict[str, Lis
 #: indicators were domains produced `IpAddress|endswith: .jeetbot.cc` and
 #: `IpAddress|contains: telegram.org`. Both are valid Sigma, pass every other
 #: check, and can never match anything.
-_IP_FIELDS = frozenset(
-    {"ipaddress", "destinationip", "sourceip", "srcip", "dstip", "clientip", "serverip"}
-)
+_IP_FIELDS = frozenset({"ipaddress", "destinationip", "sourceip", "srcip", "dstip", "clientip", "serverip"})
 
 #: Fields that hold a port number.
 _PORT_FIELDS = frozenset({"destinationport", "sourceport", "srcport", "dstport"})
@@ -648,16 +700,11 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                         f"on {text!r}; a hostname in an address field never matches"
                     )
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
-                    return (
-                        f"{field} holds a port number, but the detection matches "
-                        f"on {text!r}"
-                    )
+                    return f"{field} holds a port number, but the detection matches " f"on {text!r}"
     return None
 
 
-def _partial_indicator_problem(
-    detection: Dict[str, Any], supplied: Dict[str, List[str]], category: str
-) -> Optional[str]:
+def _partial_indicator_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]], category: str) -> Optional[str]:
     """Reject a rule that reproduces a supplied indicator only in part.
 
     Targets fragmentation, not absence. A behavioural rule that uses no
@@ -706,9 +753,7 @@ def _partial_indicator_problem(
     return None
 
 
-def _self_defeating_filter_problem(
-    detection: Dict[str, Any], hypothesis: str
-) -> Optional[str]:
+def _self_defeating_filter_problem(detection: Dict[str, Any], hypothesis: str) -> Optional[str]:
     """Reject an exclusion that removes the hunt's own stated attack path.
 
     Also rejects an empty filter block: `filter: {}` referenced by a condition
@@ -742,9 +787,7 @@ def _nonspecific(value: str) -> bool:
     stripped = value.strip().strip("*").strip()
     if not stripped or set(stripped) <= set("\\/.:*"):
         return True
-    return bool(_EXTENSION_ONLY_RE.match(stripped.lower())) and (
-        stripped.startswith(".") or value.strip().startswith("*")
-    )
+    return bool(_EXTENSION_ONLY_RE.match(stripped.lower())) and (stripped.startswith(".") or value.strip().startswith("*"))
 
 
 def _negated_blocks(detection: Dict[str, Any], condition: str) -> Set[str]:
@@ -760,9 +803,7 @@ def _negated_blocks(detection: Dict[str, Any], condition: str) -> Set[str]:
 _FULL_IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$")
 
 
-def _invented_ip_problem(
-    detection: Dict[str, Any], supplied: Dict[str, List[str]], observables: List[str]
-) -> Optional[str]:
+def _invented_ip_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]], observables: List[str]) -> Optional[str]:
     """Reject a selection matching an exact IPv4 address no intel supplied.
 
     An address is an indicator: it can only have come from the intelligence.
@@ -775,9 +816,7 @@ def _invented_ip_problem(
     ordinary rule-writing, and partial prefixes or CIDR ranges describe
     behaviour rather than claim an indicator.
     """
-    known = " ".join(
-        [str(v) for values in (supplied or {}).values() for v in values] + list(observables or [])
-    )
+    known = " ".join([str(v) for values in (supplied or {}).values() for v in values] + list(observables or []))
     negated = _negated_blocks(detection, str(detection.get("condition", "")))
     for name, block in detection.items():
         if name == "condition" or name in negated:
@@ -826,9 +865,7 @@ def _registered_name(domain: str) -> str:
     return labels[-2] if len(labels) >= 2 else ""
 
 
-def _invented_domain_problem(
-    detection: Dict[str, Any], supplied: Dict[str, List[str]], context: List[str]
-) -> Optional[str]:
+def _invented_domain_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]], context: List[str]) -> Optional[str]:
     """Reject a selection matching a domain the intelligence never names.
 
     The domain counterpart of ``_invented_ip_problem``. A host is accepted
@@ -843,8 +880,7 @@ def _invented_domain_problem(
     the partial-indicator check) all pass.
     """
     known = " ".join(
-        [str(v) for values in (supplied or {}).values() for v in values]
-        + [str(c) for c in (context or []) if c]
+        [str(v) for values in (supplied or {}).values() for v in values] + [str(c) for c in (context or []) if c]
     ).lower()
     negated = _negated_blocks(detection, str(detection.get("condition", "")))
     for name, block in detection.items():
@@ -865,9 +901,7 @@ def _invented_domain_problem(
                 if re.search(r"(?<![a-z0-9-])" + re.escape(host) + r"(?![a-z0-9-])", known):
                     continue
                 registered = _registered_name(host)
-                if len(registered) >= 3 and re.search(
-                    r"(?<![a-z0-9])" + re.escape(registered) + r"(?![a-z0-9])", known
-                ):
+                if len(registered) >= 3 and re.search(r"(?<![a-z0-9])" + re.escape(registered) + r"(?![a-z0-9])", known):
                     continue
                 return (
                     f"detection matches the host {host!r}, which no supplied indicator or "
@@ -986,11 +1020,14 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # matched only '.ps1' and was rejected, and its process rule was
         # behavioural. Exact hashes are the one thing a rule can be written
         # from without judgement, so they no longer depend on the model.
-        hash_rule, hash_problem = self._hash_ioc_rule(input_data)
-        if hash_rule is not None:
-            rules.append(hash_rule)
-        elif hash_problem:
-            rejected.append(hash_problem)
+        # The same now holds for domains and addresses: both DNS rules in the
+        # 25 Sep review were rejected (the model matched '.com' and '.xyz'),
+        # leaving hunts with supplied C2 domains no DNS coverage at all.
+        for ioc_rule, ioc_problem in self._ioc_rules(input_data):
+            if ioc_rule is not None:
+                rules.append(ioc_rule)
+            elif ioc_problem:
+                rejected.append(ioc_problem)
 
         if not rules:
             return AgentResult(
@@ -1016,37 +1053,99 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             },
         )
 
-    def _hash_ioc_rule(self, input_data: SigmaGenerationInput) -> Tuple[Optional[SigmaRule], Optional[str]]:
-        """A process_creation rule matching every supplied file hash, or nothing.
+    def _ioc_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """Rules built from the supplied indicators alone, with no model call.
 
-        Uses Sysmon's ``Hashes`` field with ``ALGO=value`` substrings, the
-        convention SigmaHQ's own IOC rules follow, so one rule covers MD5,
-        SHA1, SHA256 and imphash regardless of which the sensor records.
-        Returns ``(None, None)`` when the intel carries no usable hash.
+        One per kind the intel carries: file hashes (process_creation, via
+        Sysmon's ``Hashes`` field and SigmaHQ's ``ALGO=value`` convention),
+        domains and hosts (dns_query), and addresses (network_connection).
         """
-        selectors = hash_selectors(input_data.indicators)
-        if not selectors:
-            return None, None
-        category = "process_creation"
-        title = "Execution of a file hash named in the source intelligence"
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        hashes = hash_selectors(input_data.indicators)
+        if hashes:
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="process_creation",
+                    label="hash IOC",
+                    title="Execution of a file hash named in the source intelligence",
+                    description="Matches a process whose image hash is one the source published.",
+                    detection={"selection": {"Hashes|contains": hashes}, "condition": "selection"},
+                    falsepositives="None expected for exact hashes; confirm the sensor records the listed algorithms",
+                )
+            )
+        addresses, names, suffixes = network_selectors(input_data.indicators)
+        if names:
+            detection: Dict[str, Any] = {"selection_exact": {"QueryName": names}}
+            if suffixes:
+                detection["selection_subdomain"] = {"QueryName|endswith": suffixes}
+            detection["condition"] = "1 of selection_*"
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="dns_query",
+                    label="domain IOC",
+                    title="DNS lookup of a domain named in the source intelligence",
+                    description=(
+                        "Matches a DNS query for a domain or host the source published, "
+                        "or a subdomain of a published domain."
+                    ),
+                    detection=detection,
+                    falsepositives="Security tooling or analysts resolving the indicators themselves",
+                )
+            )
+        if addresses or names:
+            detection = {}
+            if addresses:
+                detection["selection_address"] = {"DestinationIp": addresses}
+            if names:
+                detection["selection_host"] = {"DestinationHostname": names}
+            if suffixes:
+                detection["selection_subdomain"] = {"DestinationHostname|endswith": suffixes}
+            detection["condition"] = "1 of selection_*"
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="network_connection",
+                    label="network IOC",
+                    title="Connection to an address or host named in the source intelligence",
+                    description=(
+                        "Matches an outbound connection to an address the source published, "
+                        "or to a host whose name it published."
+                    ),
+                    detection=detection,
+                    falsepositives="Shared hosting or CDN addresses reused by unrelated sites",
+                )
+            )
+        return results
+
+    def _ioc_rule(
+        self,
+        input_data: SigmaGenerationInput,
+        *,
+        category: str,
+        label: str,
+        title: str,
+        description: str,
+        detection: Dict[str, Any],
+        falsepositives: str,
+    ) -> Tuple[Optional[SigmaRule], Optional[str]]:
+        """Render and validate one deterministic IOC rule."""
         document: Dict[str, Any] = {
             "title": title,
             "id": str(uuid.uuid4()),
             "status": "experimental",
             "description": (
-                "Deterministic IOC rule built from the file hashes the source intelligence "
-                "published, with no model involvement. Matches a process whose image hash "
-                "is one of them."
+                "Deterministic IOC rule built from the indicators the source intelligence "
+                "published, with no model involvement. " + description
             ),
             "references": list(input_data.references),
             "author": "hecate (auto-generated from source indicators - requires analyst review)",
             "date": date.today().isoformat(),
             "tags": [],
             "logsource": self._logsource_block(category, input_data.platforms),
-            "detection": {"selection": {"Hashes|contains": selectors}, "condition": "selection"},
-            "falsepositives": [
-                "None expected for exact hashes; confirm the sensor records the listed algorithms"
-            ],
+            "detection": detection,
+            "falsepositives": [falsepositives],
             "level": "high",
         }
         if input_data.hunt_id:
@@ -1054,7 +1153,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
         problem = _pysigma_problem(rule_yaml)
         if problem:
-            return None, f"{category} (hash IOC): {problem}"
+            return None, f"{category} ({label}): {problem}"
         return (
             SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level="high"),
             None,
@@ -1398,9 +1497,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
-        observable_block = (
-            "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
-        )
+        observable_block = "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
         techniques = ", ".join(input_data.techniques) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
