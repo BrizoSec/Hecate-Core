@@ -1241,7 +1241,18 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 return str(exc)
             if not isinstance(payload.get("rules"), list) or not payload["rules"]:
                 return "response must contain a non-empty 'rules' array"
-            return None
+                
+            problems = []
+            for raw in payload["rules"]:
+                rule, problem = self._build_rule(raw, input_data)
+                if problem:
+                    problems.append(problem)
+                elif rule and rule.logsource_category == logsource:
+                    return None  # We successfully built the requested rule!
+                    
+            if problems:
+                return "Your generated rules failed validation. Fix these errors:\n" + "\n".join(f"- {p}" for p in problems)
+            return f"No valid rule was generated for the requested log source category '{logsource}'."
 
         try:
             # Low temperature: detection logic is not a place for invention.
@@ -1591,7 +1602,7 @@ OBSERVABLES THE HUNT DRAFT NAMED (from research; unverified, use where they fit)
 Write EXACTLY ONE rule, for this Sigma log source category and no other:
     {logsource}
 
-Fields available in {logsource}: {fields}
+Fields available in {logsource}: {fields}\nStandard Sigma Modifiers available: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
 
 RULES OF THE TASK:
 1. Return JSON only. Do NOT write YAML - the caller renders it.
