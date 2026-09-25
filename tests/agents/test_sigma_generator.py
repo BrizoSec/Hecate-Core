@@ -231,6 +231,44 @@ def test_rule_falls_back_to_hunt_techniques_when_model_tags_nothing():
     assert yaml.safe_load(rule.rule_yaml)["tags"] == ["attack.t1041", "attack.t1071.001"]
 
 
+def test_rule_is_untagged_when_the_hunt_has_no_techniques():
+    """H-0014: no hunt techniques, and the model's own T1059.003 went through
+    unchecked onto a Linux hunt."""
+    rule, _ = _agent()._build_rule(_rule(techniques=["T1059.003"]), _input(techniques=[]))
+    assert rule is not None
+    assert yaml.safe_load(rule.rule_yaml)["tags"] == []
+
+
+def test_modifier_written_into_the_value_is_rejected():
+    """H-0012: `CommandLine: "|contains: '0928...'"` is an exact match on a
+    string starting with a pipe, and pySigma accepts it."""
+    detection = {
+        "selection": {"CommandLine": "|contains: 'invoke-payload'", "Image|endswith": "\\rundll32.exe"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "modifier inside the value" in reason
+
+
+def test_a_library_as_the_process_image_is_rejected():
+    """H-0013: `Image|endswith: mscoree.dll` in process_creation, which can
+    never match; the load is an image_load event."""
+    detection = {"selection": {"Image|endswith": "\\mscoree.dll"}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "image_load" in reason
+
+
+def test_a_library_in_image_load_is_accepted():
+    detection = {
+        "selection": {"ImageLoaded|endswith": "\\mscoree.dll", "Image|contains": "\\AppData\\"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="image_load", detection=detection), _input())
+    assert rule is not None, reason
+
+
 # --- execute() -------------------------------------------------------------
 
 

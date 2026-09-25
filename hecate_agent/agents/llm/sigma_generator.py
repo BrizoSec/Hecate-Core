@@ -1007,6 +1007,64 @@ def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str
     return None
 
 
+_MODIFIER_IN_VALUE_RE = re.compile(
+    r"^\s*\|\s*(?:contains|startswith|endswith|re|all|cidr|base64|base64offset|windash|wide|utf16le|exists)\b",
+    re.IGNORECASE,
+)
+
+
+def _modifier_in_value_problem(detection: Dict[str, Any]) -> Optional[str]:
+    """Reject a selection whose modifier was written into the value.
+
+    Observed on H-0012: ``CommandLine: "|contains: '0928d3...'"``. Valid YAML
+    and valid Sigma, so pySigma accepts it, but it is an exact match on a
+    string that begins with a pipe, and it matches nothing anywhere.
+    """
+    for block_name, block in detection.items():
+        if block_name == "condition" or not isinstance(block, dict):
+            continue
+        for field, raw_value in block.items():
+            values = raw_value if isinstance(raw_value, list) else [raw_value]
+            for value in values:
+                if isinstance(value, str) and _MODIFIER_IN_VALUE_RE.match(value):
+                    return (
+                        f"{field} carries its modifier inside the value ({value.strip()!r}); "
+                        f"a modifier belongs on the field name, as in {field}|contains"
+                    )
+    return None
+
+
+#: Fields that name the executable a process was started from.
+_PROCESS_IMAGE_FIELDS = frozenset({"image", "parentimage", "originalfilename"})
+_LIBRARY_SUFFIXES = (".dll", ".sys", ".ocx", ".drv")
+
+
+def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Optional[str]:
+    """Reject a process_creation rule whose process image is a library.
+
+    Observed on H-0013: ``Image|endswith: mscoree.dll`` for a DLL-hijacking
+    hunt. A DLL or driver is never the image of a process, so the rule matched
+    nothing while reading as the hunt's one detection. The load is visible in
+    image_load, as ``ImageLoaded``.
+    """
+    if category != "process_creation":
+        return None
+    for block_name, block in detection.items():
+        if block_name == "condition" or not isinstance(block, dict):
+            continue
+        for field, raw_value in block.items():
+            if str(field).split("|")[0].strip().lower() not in _PROCESS_IMAGE_FIELDS:
+                continue
+            values = raw_value if isinstance(raw_value, list) else [raw_value]
+            for value in values:
+                if str(value).strip().lower().endswith(_LIBRARY_SUFFIXES):
+                    return (
+                        f"{field} matches {str(value).strip()!r}, but a library or driver is never "
+                        "a process image; a load belongs in image_load as ImageLoaded"
+                    )
+    return None
+
+
 class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput]):
     """Drafts Sigma rules covering each log source a hunt applies to."""
 
@@ -1285,6 +1343,8 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             ),
             lambda d: _partial_indicator_problem(d, input_data.indicators, category),
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
+            _modifier_in_value_problem,
+            lambda d: _library_as_process_problem(d, category),
             _field_type_problem,
             _breadth_problem,
         )
@@ -1505,7 +1565,11 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # invented ID impossible without needing the ATT&CK matrix here.
         supplied = {t.upper() for t in input_data.techniques}
         if not supplied:
-            return sorted(set(cleaned))
+            # Nothing to intersect against, so the model's tags are its own
+            # unchecked guesses. H-0014 had no techniques and its rule came
+            # back tagged T1059.003 (Windows Command Shell) on a Linux hunt.
+            # Untagged is honest; a guessed tag reads as a mapping.
+            return []
 
         grounded = [t for t in cleaned if t in supplied]
         if grounded:
