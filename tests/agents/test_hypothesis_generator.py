@@ -558,7 +558,9 @@ class TestHypothesisGeneratorAgent:
         ) as candidates:
             prompt = agent._build_prompt(_make_input(threat_intel="It masquerades as NVIDIA software."))
 
-        assert "Candidate ATT&CK techniques" in prompt
+        # The block's own header: the phrase alone also appears in the fixed
+        # instructions ("If 'Candidate ATT&CK techniques' are listed above").
+        assert "**Candidate ATT&CK techniques**" in prompt
         assert "T1036: Masquerading" in prompt
         assert "It masquerades as NVIDIA software." in candidates.call_args.args[0]
 
@@ -576,7 +578,8 @@ class TestHypothesisGeneratorAgent:
         ):
             prompt = agent._build_prompt(input_data)
 
-        assert "Candidate ATT&CK techniques" not in prompt
+        assert "**Candidate ATT&CK techniques**" not in prompt
+        assert "T1036" not in prompt
 
     def test_schema_example_carries_no_copyable_observables(self):
         """Every one of H-0002..H-0007 listed "Legitimate software updates"
