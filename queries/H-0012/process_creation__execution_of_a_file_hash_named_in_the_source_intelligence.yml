@@ -1,0 +1,31 @@
+title: Execution of a file hash named in the source intelligence
+id: cb83b017-b4fe-4edf-b205-a216021b5173
+status: experimental
+description: Deterministic IOC rule built from the file hashes the source intelligence published, with
+  no model involvement. Matches a process whose image hash is one of them.
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-09-25'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=0928d307c1fe675079d40c3a3d1f5c78
+    - SHA1=88bdcc4c6a78430a21d41ee088ffc0dac518a17d
+    - SHA256=1c923c685f97e556f241d0f1880283500a61dc7ecae8cafe75f34c720ff6b918
+    - SHA256=3052352ac811c48590f0239281312c35560fc06b4dc39790e365eb1e7cab8634
+    - SHA256=394c93dfbb7581c66a23c52b20cd90b31415c0825a2eab7107e60ee3fe693c04
+    - SHA256=4a18f65ab7de7be385cbcebc78c9ae49334294f93726822b8900f9b7a324a6b0
+    - SHA256=52b242047a8055c0936b384b952c1c16c1072a590610140b01f4acefa8ae883a
+    - SHA256=54ed18aa883b53794810be0428b3a0167758183c5b3ba5660af747dc81dd5b76
+    - SHA256=9fb5888f9ac99227a35f3e08ca08bfb9eed676e1f91638599eba0d7a5aac847f
+    - SHA256=d7185bd7b450b478c793ece3025bdd867eed70bb7b739a5f26375b5ba6cf0d93
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hunt_id: H-0012

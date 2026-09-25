@@ -1,12 +1,15 @@
 """Hypothesis generator agent - LLM-powered hypothesis generation."""
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
 from hecate_agent.core.hunting_knowledge import HYPOTHESIS_SECTIONS, is_enabled, load_sections
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -337,6 +340,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         if input_data.research:
             mentioned += list(input_data.research.mitre_techniques)
         grounding = self._technique_grounding(list(dict.fromkeys(mentioned)))
+        candidates = "" if input_data.intel_is_indicator_only else self._candidate_section(input_data)
 
         # Placed directly after the intel and before the step-1 assessment:
         # it's a fact about the input the model needs while reading it, not
@@ -404,6 +408,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "**Threat Intel:**\n"
             "{threat_intel}\n\n"
             "{indicator_only_note}"
+            "{candidates}"
             "**Step 1 -- assess the threat intel above before doing "
             "anything else:** does it actually describe adversary behavior "
             "that was observed or reported -- an attack, campaign, TTP, or "
@@ -450,7 +455,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "Generate a hypothesis following this format:\n"
             "{hypothesis_format}"
             "- Justification: Why this hypothesis is valuable\n"
-            "- MITRE Techniques: Only include real ATT&CK technique IDs you are certain exist. MUST MATCH THE TARGET OS: Do not include Windows-only techniques (like T1207 Rogue Domain Controller or T1047 WMI) if the threat intel describes a Linux or macOS threat.\n"
+            "- MITRE Techniques: Only include real ATT&CK technique IDs you are certain exist. "
+            "Prefer the candidates listed above where they describe the reported behavior. "
+            "MUST MATCH THE TARGET OS: Do not include Windows-only techniques (like T1207 Rogue Domain Controller or T1047 WMI) if the threat intel describes a Linux or macOS threat.\n"
             "- Data Sources: Which data sources to query. MUST MATCH THE TARGET OS: If the threat intel targets Linux or macOS, you MUST NOT list Windows-only data sources like `registry_events` or `wmi`.\n"
             "- Expected Observables: What we expect to find\n"
             "- Known False Positives: Common benign patterns\n"
@@ -485,9 +492,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '  "mitre_techniques": ["T1234.001", "T5678.002"],\n'
             '  "data_sources": ["<data source from the environment above>"],\n'
             '  "expected_observables": '
-            '["Process execution", "Network connections"],\n'
+            '["<a specific artifact from the intel: file name, command line, domain, registry path>"],\n'
             '  "known_false_positives": '
-            '["Legitimate software", "Administrative tools"],\n'
+            '["<a named benign activity that produces the same artifact in this hunt>"],\n'
             '  "time_range_suggestion": "7 days (justification)",\n'
             '  "actor": "string (or empty string if unknown)",\n'
             '  "behavior": "string",\n'
@@ -501,6 +508,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             grounding=grounding,
             threat_intel=input_data.threat_intel,
             indicator_only_note=indicator_only_note,
+            candidates=candidates,
             hypothesis_format=hypothesis_format,
             past_hunts=json.dumps(input_data.past_hunts, indent=2),
             environment=json.dumps(input_data.environment, indent=2),
@@ -523,6 +531,36 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         if not body:
             return ""
         return "**Hunting Tradecraft (apply this, do not merely cite it):**\n" f"{body}\n\n"
+
+    def _candidate_section(self, input_data: HypothesisGenerationInput) -> str:
+        """Techniques the intel's own wording names, as a prompt block.
+
+        Matched on the threat intel and research's tradecraft findings (what
+        the retrieved sources said), not its gaps or telemetry mapping (what
+        the model speculated). See ``technique_candidates`` for why.
+        """
+        from hecate_agent.core.technique_candidates import candidate_techniques, format_candidates
+
+        parts = [input_data.threat_intel]
+        if input_data.research:
+            parts.append(input_data.research.adversary_tradecraft_summary or "")
+            parts.extend(input_data.research.adversary_tradecraft_findings or [])
+        candidates = candidate_techniques("\n".join(parts))
+        # Logged so a reviewer can tell "the model was never shown the right
+        # technique" from "it was shown it and chose something else".
+        logger.info(
+            "Candidate ATT&CK techniques offered to the model: %s",
+            ", ".join(f"{tid} {name}" for tid, name in candidates) or "none matched the intel's wording",
+        )
+        block = format_candidates(candidates)
+        if not block:
+            return ""
+        return (
+            "**Candidate ATT&CK techniques** -- matched on the source's own "
+            "wording, not guessed. Choose from these first, with these exact "
+            "IDs, where they describe the reported behavior; add another only "
+            "if the intel plainly describes it:\n" + block + "\n\n"
+        )
 
     def _build_research_section(self, research: Optional[ResearchContext]) -> str:
         """Build the research context section for the prompt.

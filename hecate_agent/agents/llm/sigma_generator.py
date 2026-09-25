@@ -202,6 +202,67 @@ def applicable_logsources(
     return sorted(found)
 
 
+#: Log sources that exist on only some platforms. H-0004, scoped to macOS and
+#: Linux, was drafted a Windows registry rule because one of its (wrong)
+#: techniques mapped to registry persistence.
+_PLATFORM_ONLY_LOGSOURCES: Dict[str, str] = {"registry_event": "windows"}
+
+
+def _platform_consistent_logsources(logsources: List[str], platforms: List[str]) -> List[str]:
+    """Drop log sources none of the hunt's platforms can produce.
+
+    An empty platform list means scope is unknown, not that nothing applies,
+    so nothing is dropped then.
+    """
+    known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
+    if not known:
+        return logsources
+    kept = [ls for ls in logsources if _PLATFORM_ONLY_LOGSOURCES.get(ls, "") in known | {""}]
+    for dropped in sorted(set(logsources) - set(kept)):
+        logger.info("Skipping %s: no platform of this hunt (%s) produces it", dropped, ", ".join(sorted(known)))
+    return kept or ["process_creation"]
+
+
+#: Indicator type (MISP and OTX spellings, lowercased) -> the algorithm label
+#: Sysmon writes in its ``Hashes`` field, and the hex length a real value has.
+_HASH_TYPES: Dict[str, Tuple[str, int]] = {
+    "md5": ("MD5", 32),
+    "filehash-md5": ("MD5", 32),
+    "sha1": ("SHA1", 40),
+    "filehash-sha1": ("SHA1", 40),
+    "sha256": ("SHA256", 64),
+    "filehash-sha256": ("SHA256", 64),
+    "imphash": ("IMPHASH", 32),
+    "filehash-imphash": ("IMPHASH", 32),
+}
+
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def hash_selectors(indicators: Dict[str, List[str]]) -> List[str]:
+    """``ALGO=hex`` values for every well-formed hash indicator, in order.
+
+    Malformed values (wrong length, non-hex) are dropped rather than repaired:
+    a truncated hash matches nothing and would read as coverage.
+    """
+    selectors: List[str] = []
+    for itype, values in (indicators or {}).items():
+        spec = _HASH_TYPES.get(str(itype).lower().strip())
+        if not spec:
+            continue
+        label, length = spec
+        for value in values:
+            text = str(value).strip()
+            if len(text) == length and _HEX_RE.match(text):
+                # Lowercase, as intel publishes it: Sigma's `contains` is
+                # case-insensitive, and the grounding audit matches the rule's
+                # values against the CTI text.
+                selector = f"{label}={text.lower()}"
+                if selector not in selectors:
+                    selectors.append(selector)
+    return selectors
+
+
 @dataclass
 class SigmaGenerationInput:
     """Input for Sigma rule generation."""
@@ -492,6 +553,50 @@ def _anchor_bare_filenames(detection: Dict[str, Any]) -> Dict[str, Any]:
     return {key: (block if key == "condition" else repair_block(block)) for key, block in detection.items()}
 
 
+def _complete_indicator_lists(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Widen a field matching some supplied indicators to all of that type.
+
+    The model reliably picks one example and stops: H-0004's CTI carried four
+    C2 IPs and both its network and authentication rules matched only
+    ``166.88.134.62``. Which value it picked is arbitrary, and a hunt that
+    checks one of four addresses misses three quarters of the evidence it was
+    handed. Repaired rather than rejected -- the rule's intent (match these
+    indicators in this field) is unambiguous.
+
+    Only selections are widened, never a block the condition negates, and only
+    a field whose every value is an exact supplied indicator: ``|endswith``
+    on a path, or a value the model wrote itself, is left alone.
+    """
+    by_value: Dict[str, str] = {}
+    for itype, values in (supplied or {}).items():
+        for value in values:
+            by_value.setdefault(str(value).strip().lower(), itype)
+    if not by_value:
+        return detection
+
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+
+    def widen(block: Dict[str, Any]) -> Dict[str, Any]:
+        widened: Dict[str, Any] = {}
+        for key, value in block.items():
+            values = value if isinstance(value, list) else [value]
+            types = {by_value.get(str(v).strip().lower()) for v in values}
+            if values and None not in types:
+                full: List[str] = []
+                for itype in sorted(t for t in types if t):
+                    full.extend(str(v) for v in supplied[itype])
+                full = list(dict.fromkeys([*map(str, values), *full]))
+                widened[key] = full if len(full) > 1 else full[0]
+            else:
+                widened[key] = value
+        return widened
+
+    return {
+        name: (widen(block) if name != "condition" and name not in negated and isinstance(block, dict) else block)
+        for name, block in detection.items()
+    }
+
+
 #: Fields that hold a network address, not a name. The model fills whatever
 #: indicator it has into whatever field it picked, so a hunt whose only
 #: indicators were domains produced `IpAddress|endswith: .jeetbot.cc` and
@@ -651,6 +756,126 @@ def _negated_blocks(detection: Dict[str, Any], condition: str) -> Set[str]:
     return negated
 
 
+#: A complete dotted-quad IPv4 address, optionally with a port, and nothing else.
+_FULL_IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$")
+
+
+def _invented_ip_problem(
+    detection: Dict[str, Any], supplied: Dict[str, List[str]], observables: List[str]
+) -> Optional[str]:
+    """Reject a selection matching an exact IPv4 address no intel supplied.
+
+    An address is an indicator: it can only have come from the intelligence.
+    The model invents well-formed ones -- "1.2.3.4" reached a live phishing
+    hunt, "8.8.8.8" a DNS-exfiltration one -- and they pass every other check,
+    because nothing about them is malformed. So an exact address must be a
+    supplied indicator or appear in an observable the draft named.
+
+    Only selections are judged. An exclusion such as ``not 127.0.0.1`` is
+    ordinary rule-writing, and partial prefixes or CIDR ranges describe
+    behaviour rather than claim an indicator.
+    """
+    known = " ".join(
+        [str(v) for values in (supplied or {}).values() for v in values] + list(observables or [])
+    )
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+    for name, block in detection.items():
+        if name == "condition" or name in negated:
+            continue
+        for value in _detection_values({name: block}):
+            cleaned = value.strip()
+            if not _FULL_IPV4_RE.match(cleaned):
+                continue
+            address = cleaned.split(":", 1)[0]
+            if re.search(r"(?<![\d.])" + re.escape(address) + r"(?![\d])", known):
+                continue
+            return (
+                f"detection matches the address {address!r}, which no supplied indicator "
+                "or observable names; an invented IP matches nothing the intel describes"
+            )
+    return None
+
+
+#: Fields whose value is a host name. Judged by field, not by value shape:
+#: "update.bin" and "svchost.exe" look like domains and are filenames.
+_HOST_FIELDS = frozenset(
+    {
+        "queryname",
+        "destinationhostname",
+        "sourcehostname",
+        "hostname",
+        "targethostname",
+        "dnsquery",
+        "cs-host",
+        "r-dns",
+    }
+)
+#: Fields whose value is a URL; the host part is judged.
+_URL_FIELDS = frozenset({"url", "uri", "c-uri", "cs-uri", "requesturl", "request_url"})
+
+_DOMAIN_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+_URL_HOST_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://)?([^/:?#\s]+)", re.IGNORECASE)
+_SECOND_LEVEL_SUFFIXES = frozenset({"co", "com", "net", "org", "gov", "ac", "edu"})
+
+
+def _registered_name(domain: str) -> str:
+    """``telegram`` for ``api.telegram.org``; ``example`` for ``www.example.co.uk``."""
+    labels = domain.split(".")
+    if len(labels) >= 3 and labels[-2] in _SECOND_LEVEL_SUFFIXES and len(labels[-1]) == 2:
+        return labels[-3]
+    return labels[-2] if len(labels) >= 2 else ""
+
+
+def _invented_domain_problem(
+    detection: Dict[str, Any], supplied: Dict[str, List[str]], context: List[str]
+) -> Optional[str]:
+    """Reject a selection matching a domain the intelligence never names.
+
+    The domain counterpart of ``_invented_ip_problem``. A host is accepted
+    when the whole name appears in a supplied indicator or the draft's own
+    text, or when its registered name does ("telegram" vouches for
+    api.telegram.org in a hunt about a Telegram-controlled backdoor): abusing
+    a real service is behaviour worth hunting, not an invented indicator.
+    What fails is a name nothing mentions -- "malicious-c2.net".
+
+    Only host and URL fields of selections are judged, so filenames that look
+    like domains, exclusion filters, and bare TLD fragments (".xyz", left to
+    the partial-indicator check) all pass.
+    """
+    known = " ".join(
+        [str(v) for values in (supplied or {}).values() for v in values]
+        + [str(c) for c in (context or []) if c]
+    ).lower()
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+    for name, block in detection.items():
+        if name == "condition" or name in negated or not isinstance(block, dict):
+            continue
+        for field_name, raw in block.items():
+            base = str(field_name).split("|")[0].strip().lower()
+            if base not in _HOST_FIELDS and base not in _URL_FIELDS:
+                continue
+            for value in raw if isinstance(raw, list) else [raw]:
+                text = str(value).strip().lower()
+                if base in _URL_FIELDS:
+                    match = _URL_HOST_RE.match(text)
+                    text = match.group(1) if match else ""
+                host = text.lstrip("*").lstrip(".")
+                if not _DOMAIN_RE.match(host):
+                    continue
+                if re.search(r"(?<![a-z0-9-])" + re.escape(host) + r"(?![a-z0-9-])", known):
+                    continue
+                registered = _registered_name(host)
+                if len(registered) >= 3 and re.search(
+                    r"(?<![a-z0-9])" + re.escape(registered) + r"(?![a-z0-9])", known
+                ):
+                    continue
+                return (
+                    f"detection matches the host {host!r}, which no supplied indicator or "
+                    "part of the draft names; an invented domain matches nothing the intel describes"
+                )
+    return None
+
+
 def _breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
     """Reject a rule whose selections match only extensions or wildcards.
 
@@ -725,6 +950,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             input_data.techniques,
             list(input_data.indicators.keys()),
         )
+        logsources = _platform_consistent_logsources(logsources, input_data.platforms)
 
         if not self.llm_enabled:
             return AgentResult(
@@ -754,6 +980,18 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             else:
                 rules.append(rule)
 
+        # Built from the indicators alone, with no model call. On the first
+        # live cycle with the fixed pipeline, a pulse carrying ten file hashes
+        # produced no rule that used any of them: the model's file_event rule
+        # matched only '.ps1' and was rejected, and its process rule was
+        # behavioural. Exact hashes are the one thing a rule can be written
+        # from without judgement, so they no longer depend on the model.
+        hash_rule, hash_problem = self._hash_ioc_rule(input_data)
+        if hash_rule is not None:
+            rules.append(hash_rule)
+        elif hash_problem:
+            rejected.append(hash_problem)
+
         if not rules:
             return AgentResult(
                 success=False,
@@ -776,6 +1014,50 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 "llm_calls": len(logsources),
                 "duration_ms": int((time.monotonic() - start) * 1000),
             },
+        )
+
+    def _hash_ioc_rule(self, input_data: SigmaGenerationInput) -> Tuple[Optional[SigmaRule], Optional[str]]:
+        """A process_creation rule matching every supplied file hash, or nothing.
+
+        Uses Sysmon's ``Hashes`` field with ``ALGO=value`` substrings, the
+        convention SigmaHQ's own IOC rules follow, so one rule covers MD5,
+        SHA1, SHA256 and imphash regardless of which the sensor records.
+        Returns ``(None, None)`` when the intel carries no usable hash.
+        """
+        selectors = hash_selectors(input_data.indicators)
+        if not selectors:
+            return None, None
+        category = "process_creation"
+        title = "Execution of a file hash named in the source intelligence"
+        document: Dict[str, Any] = {
+            "title": title,
+            "id": str(uuid.uuid4()),
+            "status": "experimental",
+            "description": (
+                "Deterministic IOC rule built from the file hashes the source intelligence "
+                "published, with no model involvement. Matches a process whose image hash "
+                "is one of them."
+            ),
+            "references": list(input_data.references),
+            "author": "hecate (auto-generated from source indicators - requires analyst review)",
+            "date": date.today().isoformat(),
+            "tags": [],
+            "logsource": self._logsource_block(category, input_data.platforms),
+            "detection": {"selection": {"Hashes|contains": selectors}, "condition": "selection"},
+            "falsepositives": [
+                "None expected for exact hashes; confirm the sensor records the listed algorithms"
+            ],
+            "level": "high",
+        }
+        if input_data.hunt_id:
+            document["hunt_id"] = input_data.hunt_id
+        rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
+        problem = _pysigma_problem(rule_yaml)
+        if problem:
+            return None, f"{category} (hash IOC): {problem}"
+        return (
+            SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level="high"),
+            None,
         )
 
     def _generate_for_logsource(
@@ -852,12 +1134,24 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         if problem:
             return None, f"{category}: {problem}"
         detection = _anchor_bare_filenames(_strip_empty_filters(detection))
+        detection = _complete_indicator_lists(detection, input_data.indicators)
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"
         # Each check sees a structurally valid rule; the first to object wins.
         checks = (
             lambda d: _placeholder_problem(d, input_data.indicators),
+            lambda d: _invented_ip_problem(d, input_data.indicators, input_data.observables),
+            lambda d: _invented_domain_problem(
+                d,
+                input_data.indicators,
+                [
+                    input_data.hypothesis,
+                    input_data.justification,
+                    *input_data.observables,
+                    *input_data.references,
+                ],
+            ),
             lambda d: _partial_indicator_problem(d, input_data.indicators, category),
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
             _field_type_problem,

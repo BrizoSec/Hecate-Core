@@ -102,6 +102,11 @@ def _no_telemetry_mapped(key_findings: List[str]) -> bool:
 # relevant to an otherwise-vague CTI topic). A hard filter can't catch that
 # long tail; asking the model to weigh source authority when it already has
 # the title/snippet in front of it can.
+#: How much of the source item reaches each prompt. Enough for a full OTX or
+#: MISP blurb including its key indicators; the local model's context is the
+#: constraint, and the skills already carry schema and search context.
+_SOURCE_CONTEXT_MAX_CHARS = 4000
+
 _GROUNDING_INSTRUCTION = (
     "Base your summary and findings strictly on the Research Context above. "
     "Do not invent facts, statistics, named campaigns, or technical details "
@@ -232,6 +237,12 @@ class ResearchInput:
     # banner would name a document that never gets written. None means this
     # agent allocates its own.
     research_id: Optional[str] = None
+    # The intelligence item this research is about, verbatim. The topic is a
+    # short label for web search; without this the skills saw only the label,
+    # so a PolinRider pulse describing Git history rewriting, font-file
+    # payloads and IDE-task autorun was researched from its headline alone,
+    # and a pun in a title ("We'll Call Your APIs") became a telemetry gap.
+    source_context: Optional[str] = None
 
 
 @dataclass
@@ -411,6 +422,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._total_cost = 0.0
         self._llm_calls = 0
         self._web_searches = 0
+        # Read by every skill's prompt; set once before the skills fan out.
+        self._source_context = (input_data.source_context or "").strip()[
+            :_SOURCE_CONTEXT_MAX_CHARS
+        ]
 
         try:
             # Get next research ID
@@ -468,7 +483,9 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             # is worse than a vague one -- it is specific, checkable, and
             # propagates into the hunt as grounding.
             for skill in (skill_1, skill_2, skill_3, skill_4, skill_5):
-                self._drop_unsupported_cve_findings(skill, input_data.topic)
+                self._drop_unsupported_cve_findings(
+                    skill, " ".join([input_data.topic, self._source_context])
+                )
 
             # Extract synthesis outputs
             mitre_techniques = [input_data.mitre_technique] if input_data.mitre_technique else []
@@ -884,6 +901,17 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             duration_ms=duration_ms,
         )
 
+    def _source_block(self) -> str:
+        """The source intelligence, framed as primary evidence, or nothing."""
+        text = getattr(self, "_source_context", "")
+        if not text:
+            return ""
+        return (
+            "Source Intelligence (the report this research is about -- primary"
+            " evidence; where web results disagree with it, it wins):\n"
+            "{}\n\n".format(text)
+        )
+
     def _llm_summarize_system_research(
         self,
         topic: str,
@@ -916,6 +944,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "You are a security researcher studying system"
                 " internals.\n\n"
                 "Topic: {topic}\n\n"
+                "{source}"
                 "Research Context:\n{context}\n\n"
                 "{grounding}\n\n"
                 "Based on this context, provide:\n"
@@ -926,7 +955,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '{{\n  "summary": "string",\n'
                 '  "key_findings": ["finding1", "finding2",'
                 ' "finding3"]\n}}'
-            ).format(topic=topic, context=context, grounding=_GROUNDING_INSTRUCTION)
+            ).format(
+                topic=topic,
+                source=self._source_block(),
+                context=context,
+                grounding=_GROUNDING_INSTRUCTION,
+            )
 
             response = self._call_llm(prompt, max_tokens=2048)
             data = self._parse_json_response(response)
@@ -978,6 +1012,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 " adversary techniques.\n\n"
                 "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
+                "{source}"
                 "Research Context:\n{context}\n\n"
                 "{anti_hallucination}\n\n"
                 "Based on this context, provide:\n"
@@ -994,6 +1029,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 anti_hallucination=_GROUNDING_INSTRUCTION,
                 topic=topic,
                 technique_str=technique_str,
+                source=self._source_block(),
                 context=context,
             )
 
@@ -1027,10 +1063,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 " behaviors to telemetry.\n\n"
                 "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
+                "{source}"
                 "OCSF Schema Reference (partial):\n"
                 "{ocsf_schema}\n\n"
                 "Environment:\n{environment_data}\n\n"
-                "FIRST decide: does the topic itself describe adversary"
+                "FIRST decide: does the topic or source intelligence describe adversary"
                 " behavior -- actions, tooling or technique? A bare list of"
                 " indicators (domains, IP addresses, file hashes, URLs) does"
                 " not. If it does not, return an empty key_findings list and"
@@ -1057,6 +1094,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 grounding=grounding,
                 topic=topic,
                 technique_str=technique_str,
+                source=self._source_block(),
                 ocsf_schema=ocsf_schema[:3000],
                 environment_data=environment_data[:1000],
             )
@@ -1100,6 +1138,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 " research for a hunt.\n\n"
                 "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
+                "{source}"
                 "Research Findings:\n{context}\n\n"
                 "Based on all research findings, provide:\n"
                 "1. An executive summary (2-3 sentences)"
@@ -1121,6 +1160,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 grounding=grounding,
                 topic=topic,
                 technique_str=technique_str,
+                source=self._source_block(),
                 context=context,
             )
 
