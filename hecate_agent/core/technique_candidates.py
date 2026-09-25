@@ -92,6 +92,8 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
     "T1053.003": ("crontab", "cron job"),
     "T1543.004": ("launchdaemon", "launch daemon"),
     "T1543.001": ("launchagent", "launch agent"),
+    "T1068": ("privilege escalation", "elevation of privilege"),
+    "T1190": ("remote code execution", "rce", "exploit public-facing", "zero-day", "0-day"),
 }
 
 

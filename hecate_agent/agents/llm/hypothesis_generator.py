@@ -456,7 +456,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "{hypothesis_format}"
             "- Justification: Why this hypothesis is valuable\n"
             "- MITRE Techniques: Only include real ATT&CK technique IDs you are certain exist. "
-            "Prefer the candidates listed above where they describe the reported behavior. "
+            "If 'Candidate ATT&CK techniques' are listed above, YOU MUST select your IDs from that list. "
+            "Do NOT guess or infer techniques from memory unless the threat intel explicitly and undeniably describes them. "
             "MUST MATCH THE TARGET OS: Do not include Windows-only techniques (like T1207 Rogue Domain Controller or T1047 WMI) if the threat intel describes a Linux or macOS threat.\n"
             "- Data Sources: Which data sources to query. MUST MATCH THE TARGET OS: If the threat intel targets Linux or macOS, you MUST NOT list Windows-only data sources like `registry_events` or `wmi`.\n"
             "- Expected Observables: What we expect to find\n"
@@ -557,9 +558,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             return ""
         return (
             "**Candidate ATT&CK techniques** -- matched on the source's own "
-            "wording, not guessed. Choose from these first, with these exact "
-            "IDs, where they describe the reported behavior; add another only "
-            "if the intel plainly describes it:\n" + block + "\n\n"
+            "wording, not guessed. YOU MUST choose from these exact IDs. "
+            "Add another ID ONLY if the intel plainly and undeniably describes it:\n" + block + "\n\n"
         )
 
     def _build_research_section(self, research: Optional[ResearchContext]) -> str:
