@@ -949,8 +949,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "{grounding}\n\n"
                 "Based on this context, provide:\n"
                 "1. A concise summary (2-3 sentences) of how this"
-                " system/technology normally works\n"
-                "2. 3-5 key findings about normal behavior\n\n"
+                " system/technology normally works from the perspective of an endpoint or network sensor.\n"
+                "2. 3-5 key findings about normal behavior, focusing on the specific processes, files, network connections, or telemetry generated. Avoid generic corporate IT descriptions.\n\n"
                 "Return JSON format:\n"
                 '{{\n  "summary": "string",\n'
                 '  "key_findings": ["finding1", "finding2",'
@@ -1142,13 +1142,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "Research Findings:\n{context}\n\n"
                 "Based on all research findings, provide:\n"
                 "1. An executive summary (2-3 sentences)"
-                " synthesizing all findings\n"
+                " synthesizing all findings with a strict focus on technical hunt tradecraft (DO NOT include generic security awareness or IT admin advice)\n"
                 "2. A recommended hypothesis statement in the"
                 ' format: "Adversaries use [behavior] to [goal]'
                 ' on [target]"\n'
-                "3. 2-3 gaps identified in current coverage or"
-                " knowledge\n"
-                "4. 2-3 recommended focus areas for the hunt\n\n"
+                "3. 2-3 specific, technical gaps identified in our ability to detect this behavior (e.g., missing specific telemetry, encryption blinding the payload, etc.). Do NOT list generic security awareness gaps like 'missing SPF/DKIM' or 'employee training'.\n"
+                "4. 2-3 recommended technical focus areas for the hunt\n\n"
                 "Return JSON format:\n"
                 '{{\n  "summary": "string",\n'
                 '  "key_findings": [\n'
