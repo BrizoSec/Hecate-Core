@@ -548,7 +548,7 @@ def _strip_unreferenced_blocks(detection: dict, condition: str) -> dict:
     import re
     referenced = set()
     # Match identifiers possibly ending with a wildcard
-    for match in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*\*?)\b", condition):
+    for match in re.finditer(r"(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*\*?)(?![A-Za-z0-9_])", condition):
         word = match.group(1)
         if word not in ("and", "or", "not", "of", "all", "1", "by", "count", "min", "max", "avg", "sum"):
             referenced.add(word)
