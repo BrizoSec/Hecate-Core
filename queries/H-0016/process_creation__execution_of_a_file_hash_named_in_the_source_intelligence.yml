@@ -1,0 +1,21 @@
+title: Execution of a file hash named in the source intelligence
+id: f5e380a2-c1bf-4173-a955-8e75d4bd7ccc
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is one the source published.
+references:
+- https://www.arista.com/en/support/advisories-notices/security-advisory/24765-security-advisory-0183
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-09-25'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=dc78e206eaeadec59fc5801fe4556bd0
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hunt_id: H-0016
