@@ -543,33 +543,6 @@ _BROWSER_DELIVERY_TERMS = (
 )
 
 
-def _strip_unreferenced_blocks(detection: dict, condition: str) -> dict:
-    """Drop any blocks not referenced in the condition."""
-    import re
-    referenced = set()
-    # Match identifiers possibly ending with a wildcard
-    for match in re.finditer(r"(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*\*?)(?![A-Za-z0-9_])", condition):
-        word = match.group(1)
-        if word not in ("and", "or", "not", "of", "all", "1", "by", "count", "min", "max", "avg", "sum"):
-            referenced.add(word)
-            
-    for key in list(detection.keys()):
-        if key == "condition": continue
-        is_ref = False
-        for ref in referenced:
-            if "*" in ref:
-                pattern = "^" + re.escape(ref).replace("\\*", ".*") + "$"
-                if re.match(pattern, key):
-                    is_ref = True
-                    break
-            elif ref == key:
-                is_ref = True
-                break
-        if not is_ref:
-            del detection[key]
-    return detection
-
-
 def _strip_empty_filters(detection: Dict[str, Any]) -> Dict[str, Any]:
     """Drop filter blocks that match nothing, and the condition terms naming them.
 
