@@ -49,9 +49,15 @@ def report_urls(threat_intel: str, limit: int = 2) -> List[str]:
     return urls
 
 
+def refang(value: str) -> str:
+    """Undo report defanging ("hxxp", "[.]", "(.)") so the value matches real telemetry."""
+    value = value.replace("[.]", ".").replace("(.)", ".")
+    return re.sub(r"hxxp", "http", value, flags=re.IGNORECASE)
+
+
 def _normalise(text: str) -> str:
-    """Lowercase, refang ("hxxp", "[.]") and collapse whitespace and path separators."""
-    text = text.lower().replace("[.]", ".").replace("(.)", ".").replace("hxxp", "http")
+    """Lowercase, refang and collapse whitespace and doubled path separators."""
+    text = refang(text).lower()
     text = text.replace("\\\\", "\\")
     return re.sub(r"\s+", " ", text).strip()
 
@@ -71,8 +77,10 @@ def verbatim_artifacts(candidates: List[Any], source_text: str) -> Tuple[List[st
         if not value:
             continue
         if _normalise(value) in haystack:
-            if value not in kept:
-                kept.append(value)
+            # Kept refanged: a rule or MISP attribute matching "evil[.]com" matches nothing.
+            usable = refang(value)
+            if usable not in kept:
+                kept.append(usable)
         else:
             dropped.append(value)
     return kept, dropped

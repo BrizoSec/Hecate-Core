@@ -108,3 +108,11 @@ def test_credentials_come_from_the_environment(monkeypatch):
     for module in (enrichment, misp_publisher):
         source = open(module.__file__).read()
         assert 'API_KEY = "' not in source and 'TOKEN = "' not in source
+
+
+def test_defanged_artifacts_are_returned_refanged():
+    """Live Volexity run: artifacts came back as `chinadigitaltimes[.]top`, unusable in a rule."""
+    kept, _ = ax.verbatim_artifacts(
+        ["chinadigitaltimes[.]top", "hxxps://americanprgoress[.]top/x.exe"], PAGE + " hxxps://americanprgoress[.]top/x.exe"
+    )
+    assert kept == ["chinadigitaltimes.top", "https://americanprgoress.top/x.exe"]

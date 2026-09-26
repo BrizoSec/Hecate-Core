@@ -225,11 +225,12 @@ workflow.add_node("hunt_writer", hunt_writer_agent)
 workflow.add_node("misp_publisher", misp_publisher_agent)
 
 # Set Entry Point
-workflow.set_entry_point("research")
+
 
 # Add Conditional Edges
-workflow.add_conditional_edges("research", route_errors, {"next": "artifact_extractor", END: END})
-workflow.add_conditional_edges("artifact_extractor", route_errors, {"next": "enrichment", END: END})
+workflow.set_entry_point("artifact_extractor")
+workflow.add_conditional_edges("artifact_extractor", route_errors, {"next": "research", END: END})
+workflow.add_conditional_edges("research", route_errors, {"next": "enrichment", END: END})
 workflow.add_conditional_edges("enrichment", route_errors, {"next": "hypothesis", END: END})
 workflow.add_conditional_edges("hypothesis", route_errors, {"next": "sigma_drafter", END: END})
 workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": "hunt_writer", END: END})
