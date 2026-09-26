@@ -274,11 +274,7 @@ def new(
     # Resolve hunter: CLI flag > config > fallback
     hunter = hunter or config.get("hunter") or "Analyst"
 
-    # Get next hunt ID
     manager = HuntManager()
-    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
-
-    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     # --clone: pre-populate metadata from an existing hunt
     if clone_id:
@@ -294,6 +290,11 @@ def new(
     if details is None:
         return
     hunt_title, hunt_technique, hunt_tactics, hunt_platforms, hunt_data_sources = details
+
+    # Allocated only now, after every prompt: the ID is reserved in the shared
+    # counter, so an abandoned prompt would otherwise spend one.
+    hunt_id = manager.allocate_hunt_id(prefix=hunt_prefix)
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     # Render template
     hunt_content = render_hunt_template(
@@ -407,9 +408,6 @@ def new_baseline(
     hunter = hunter or config.get("hunter") or "Analyst"
 
     manager = HuntManager()
-    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
-
-    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     if non_interactive:
         if not title:
@@ -436,6 +434,11 @@ def new_baseline(
         default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
         ds_input = Prompt.ask("   Data Sources", default=default_sources)
         baseline_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    # Allocated only now, after every prompt: the ID is reserved in the shared
+    # counter, so an abandoned prompt would otherwise spend one.
+    hunt_id = manager.allocate_hunt_id(prefix=hunt_prefix)
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     baseline_content = render_baseline_template(
         hunt_id=hunt_id,
@@ -534,9 +537,6 @@ def new_model_assisted(
     hunter = hunter or config.get("hunter") or "Analyst"
 
     manager = HuntManager()
-    hunt_id = manager.get_next_hunt_id(prefix=hunt_prefix)
-
-    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     if non_interactive:
         if not title:
@@ -576,6 +576,11 @@ def new_model_assisted(
         default_sources = ",".join(data_source) if data_source else f"{config.get('siem', 'SIEM')}, {config.get('edr', 'EDR')}"
         ds_input = Prompt.ask("   Data Sources", default=default_sources)
         math_data_sources = [ds.strip() for ds in ds_input.split(",")]
+
+    # Allocated only now, after every prompt: the ID is reserved in the shared
+    # counter, so an abandoned prompt would otherwise spend one.
+    hunt_id = manager.allocate_hunt_id(prefix=hunt_prefix)
+    console.print(f"[bold]Hunt ID:[/bold] {hunt_id}")
 
     math_content = render_math_template(
         hunt_id=hunt_id,

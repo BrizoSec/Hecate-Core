@@ -335,7 +335,7 @@ def _generate_gap_hunts(gaps: list, limit: int) -> None:
             continue
 
         out = result.data
-        hunt_id = manager.get_next_hunt_id()
+        hunt_id = manager.allocate_hunt_id()
 
         hunt_content = render_hunt_template(
             hunt_id=hunt_id,

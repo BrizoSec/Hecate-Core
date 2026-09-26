@@ -141,7 +141,7 @@ def register_hunt_tools(mcp: "FastMCP") -> None:  # type: ignore[name-defined]  
 
         workspace = get_workspace()
         manager = HuntManager(hunts_dir=workspace / "hunts")
-        hunt_id = manager.get_next_hunt_id()
+        hunt_id = manager.allocate_hunt_id()
 
         tactics_list = [tactic] if tactic else None
         platform_list = [platform] if platform else None

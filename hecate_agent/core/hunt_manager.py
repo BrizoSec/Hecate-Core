@@ -309,6 +309,24 @@ class HuntManager:
         next_num = max(numbers) + 1
         return f"{prefix}{next_num:04d}"
 
+    def allocate_hunt_id(self, prefix: str = "H-") -> str:
+        """Allocate the next hunt ID for a file about to be written, and reserve it.
+
+        Unlike :meth:`get_next_hunt_id`, which only reads, this advances the
+        workspace's ``.hunt_id_counter`` under ``.hunt_id.lock`` -- the same
+        protocol the LangGraph orchestrator and Hecate-Runner use -- so no two
+        writers can hand out one ID. Call it immediately before writing the
+        file: the ID is spent even if the write never happens.
+
+        The shared counter numbers ``H-`` IDs only; a workspace configured with
+        another prefix keeps the scan-based ID.
+        """
+        if prefix != "H-":
+            return self.get_next_hunt_id(prefix=prefix)
+        from hecate_agent.core.hunt_ids import allocate_hunt_id
+
+        return allocate_hunt_id(self.hunts_dir)
+
     def search_hunts(self, query: str, directory: Optional[str] = None) -> List[Dict]:
         """Full-text search across all hunt files.
 

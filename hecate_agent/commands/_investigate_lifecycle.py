@@ -189,7 +189,7 @@ def promote(
     hunt_technique, hunt_tactics, hunt_platforms, hunt_status = metadata
 
     hunt_manager = HuntManager()
-    hunt_id = hunt_manager.get_next_hunt_id()
+    hunt_id = hunt_manager.allocate_hunt_id()
 
     console.print(f"\n[bold]Hunt ID:[/bold] {hunt_id}")
 

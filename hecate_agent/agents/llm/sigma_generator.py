@@ -1761,16 +1761,10 @@ Write EXACTLY ONE rule, for this Sigma log source category and no other:
 Fields available in {logsource}: {fields}\nStandard Sigma Modifiers available: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
 
 RULES OF THE TASK:
-1. IRONCLAD DETECTION LOGIC: Never use placeholder paths (like `C:\path\to\`, `malware.exe`, etc.) or exact threat tracking names (like `AvisLoader`) inside registry keys, command lines, or file paths. Malware developers do not name their artifacts after their industry marketing names. Do NOT invent strings.
-2. STRICT LOG SOURCE MAPPING: If `logsource_category` is `file_event`, the rule MUST ONLY search for file artifacts (e.g., `TargetFilename`). Do NOT include process creation arguments (like `CommandLine` flags) in a `file_event` rule. If the category is `process_creation`, only evaluate execution details (`Image`, `CommandLine`).
-3. Return JSON only. Do NOT write YAML - the caller renders it.
-2. Use only field names that exist in {logsource}. A field borrowed from
-   another category matches nothing and fails silently at conversion. Match the
-   value to the field's type: an address field (IpAddress, DestinationIp) takes
-   an IP or CIDR, never a hostname, and a port field takes a number. Never place
-   a file hash (MD5, SHA1, SHA256) into a command-line or filename field; hashes
-   belong ONLY in a `Hashes` field. If your only indicator is a domain and this 
-   log source has no name field for it, write a behavioural rule instead.
+1. Return JSON only. Do NOT write YAML - the caller renders it.
+2. IRONCLAD DETECTION LOGIC: Never use placeholder paths or exact threat tracking names inside registry keys or execution paths. Malware developers do not name their artifacts after their industry marketing names. Do NOT invent strings.
+3. STRICT LOG SOURCE MAPPING: File events are ONLY for disk writes. Do NOT put process arguments in file events. Process creation events are for executions. Do not mix them.
+4. Use only field names that exist in {logsource}. Match the value to the field's type: an address field (IpAddress, DestinationIp) takes an IP or CIDR, never a hostname, and a port field takes a number. Never place a file hash into a command-line or filename field; hashes belong ONLY in a `Hashes` field. If your only indicator is a domain and this log source has no name field for it, write a behavioural rule instead.
 5. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
    For example, a rule that looks for `ParentImage|endswith: \\winword.exe` spawning
    `Image|endswith: \\cmd.exe` is a high-quality, generic behavioral rule that works
