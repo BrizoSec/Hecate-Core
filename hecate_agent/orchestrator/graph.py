@@ -13,6 +13,7 @@ class HuntState(TypedDict):
     # Inputs
     topic: str
     threat_intel: str
+    enrichment_summary: Optional[str]
     workspace_path: Optional[str]
     out_dir: Optional[str]
     hunt_id: Optional[str]
@@ -55,13 +56,25 @@ def research_agent(state: HuntState) -> Dict[str, Any]:
         return {"errors": state.get("errors", []) + [f"Research Error: {e}"]}
 
 
+
+def enrichment_agent(state: HuntState) -> Dict[str, Any]:
+    logger.info("Executing Enrichment Agent (VirusTotal)...")
+    from hecate_agent.orchestrator.enrichment import generate_enrichment_summary
+    
+    try:
+        summary = generate_enrichment_summary(state["threat_intel"])
+        return {"enrichment_summary": summary}
+    except Exception as e:
+        logger.error(f"Enrichment failed: {e}")
+        return {"errors": state.get("errors", []) + [f"Enrichment Error: {e}"]}
+
 def hypothesis_agent(state: HuntState) -> Dict[str, Any]:
     logger.info("Executing Hypothesis Agent...")
     workspace = Path(state["workspace_path"]) if state.get("workspace_path") else None
     
     try:
         output = generate_hypothesis(
-            threat_intel=state["threat_intel"],
+            threat_intel=state["threat_intel"] + (state.get("enrichment_summary") or ""),
             research_id=state.get("research_id"),
             workspace=workspace
         )
@@ -146,6 +159,25 @@ spawned_from: {state.get('research_id', 'None')}
     return {"draft_path": str(out_path)}
 
 
+
+def misp_publisher_agent(state: HuntState) -> Dict[str, Any]:
+    logger.info("Executing MISP Publisher Agent...")
+    from hecate_agent.orchestrator.misp_publisher import publish_hunt_to_misp
+    
+    try:
+        topic = state.get("topic", "Untitled Hunt")
+        hypothesis = state.get("hypothesis", "")
+        observables = state.get("observables", [])
+        
+        result = publish_hunt_to_misp(topic, hypothesis, observables)
+        logger.info(f"MISP Publisher Result: {result}")
+        
+        # We could add the event link to the errors or a new state field, but logging is fine for now
+        return {}
+    except Exception as e:
+        logger.error(f"MISP Publish failed: {e}")
+        return {"errors": state.get("errors", []) + [f"MISP Publish Error: {e}"]}
+
 def route_errors(state: HuntState) -> str:
     if state.get("errors"):
         logger.error(f"Pipeline aborted due to agent errors: {state['errors']}")
@@ -158,18 +190,22 @@ workflow = StateGraph(HuntState)
 
 # Add Agent Nodes
 workflow.add_node("research", research_agent)
+workflow.add_node("enrichment", enrichment_agent)
 workflow.add_node("hypothesis", hypothesis_agent)
 workflow.add_node("sigma_drafter", sigma_drafter_agent)
 workflow.add_node("hunt_writer", hunt_writer_agent)
+workflow.add_node("misp_publisher", misp_publisher_agent)
 
 # Set Entry Point
 workflow.set_entry_point("research")
 
 # Add Conditional Edges
-workflow.add_conditional_edges("research", route_errors, {"next": "hypothesis", END: END})
+workflow.add_conditional_edges("research", route_errors, {"next": "enrichment", END: END})
+workflow.add_conditional_edges("enrichment", route_errors, {"next": "hypothesis", END: END})
 workflow.add_conditional_edges("hypothesis", route_errors, {"next": "sigma_drafter", END: END})
 workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": "hunt_writer", END: END})
-workflow.add_conditional_edges("hunt_writer", route_errors, {"next": END, END: END})
+workflow.add_conditional_edges("hunt_writer", route_errors, {"next": "misp_publisher", END: END})
+workflow.add_conditional_edges("misp_publisher", route_errors, {"next": END, END: END})
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3

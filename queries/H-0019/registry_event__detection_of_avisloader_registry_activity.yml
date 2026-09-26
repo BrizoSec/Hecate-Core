@@ -1,0 +1,22 @@
+title: Detection of AvisLoader Registry Activity
+id: 9dccf2b2-df85-4bc3-9523-4d19402f1ef7
+status: experimental
+description: Detects registry modifications indicative of AvisLoader installation or persistence mechanisms,
+  which are used to maintain command-and-control communications and distribute payloads via the Tox network.
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-26'
+tags:
+- attack.t1547.009
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: \AvisLoader\
+  condition: selection
+falsepositives:
+- Registry modifications by legitimate software that coincidentally uses similar paths or keys
+level: medium
+hunt_id: H-0019

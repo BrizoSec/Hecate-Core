@@ -103,8 +103,7 @@ def inbox() -> None:
         return
         
     pending_count = 0
-    console.print("
-[bold cyan]=== HUMAN-IN-THE-LOOP INBOX ===[/bold cyan]")
+    console.print("\n[bold cyan]=== HUMAN-IN-THE-LOOP INBOX ===[/bold cyan]")
     
     for thread_id in threads:
         config = {"configurable": {"thread_id": thread_id}}
@@ -116,13 +115,9 @@ def inbox() -> None:
             topic = state.values.get("topic", "Unknown Topic")
             console.print(f"📌 [bold yellow]{thread_id}[/bold yellow] - {topic}")
             console.print(f"   Waiting at Node: [magenta]{state.next[0]}[/magenta]")
-            console.print(f"   Command: [dim]hecate-agent orchestrate resume --thread-id '{thread_id}'[/dim]
-")
+            console.print(f"   Command: [dim]hecate-agent orchestrate resume --thread-id '{thread_id}'[/dim]\n")
             
     if pending_count == 0:
-        console.print("[green]Your inbox is empty! All hunts are fully processed.[/green]
-")
+        console.print("[green]Your inbox is empty! All hunts are fully processed.[/green]\n")
     else:
-        console.print(f"[bold]{pending_count} hunt(s) require your approval.[/bold]
-")
-
+        console.print(f"[bold]{pending_count} hunt(s) require your approval.[/bold]\n")

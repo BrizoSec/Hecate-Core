@@ -1,0 +1,24 @@
+title: Detection of Tox-related DNS Requests via Process Creation
+id: fba047a7-9f96-4288-bb72-16f8a98addc1
+status: experimental
+description: Identifies suspicious process creations that may be indicative of AvisLoader leveraging the
+  Tox network for command-and-control communications and payload delivery.
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-26'
+tags:
+- attack.t1027
+- attack.t1036
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    CommandLine|contains: .tox.
+    Image|endswith: .exe
+  condition: selection
+falsepositives:
+- Legitimate use of Tox for communication
+level: medium
+hunt_id: H-0019

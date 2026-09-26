@@ -1283,3 +1283,96 @@ class TestAnchorBareFilenames:
         built, problem = _agent()._build_rule(rule, _input())
         assert problem is None
         assert "Image|endswith: \\nvidia-sysruntime.exe" in built.rule_yaml
+
+
+@pytest.mark.parametrize("value", ["malware", "Payload", "suspicious"])
+def test_a_generic_noun_alone_is_a_placeholder(value):
+    """H-0009: `TargetFilename|contains: malware`."""
+    detection = {"selection": {"TargetFilename|contains": value}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(logsource_category="file_event", detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "placeholder" in reason
+
+
+def test_a_generic_noun_the_intel_supplied_is_kept():
+    detection = {"selection": {"TargetFilename|contains": "payload"}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(
+        _rule(logsource_category="file_event", detection=detection),
+        _input(indicators={"filename": ["payload"]}),
+    )
+    assert rule is not None, reason
+
+
+def test_a_lone_switch_is_too_broad():
+    """H-0010: `CommandLine|contains: -enc` with nothing naming the process."""
+    detection = {"selection": {"CommandLine|contains": "-enc"}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "names no particular" in reason
+
+
+def test_a_switch_with_the_process_it_belongs_to_is_kept():
+    detection = {
+        "selection": {"Image|endswith": "\\powershell.exe", "CommandLine|contains": "-enc"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is not None, reason
+
+
+def test_a_unix_path_in_a_registry_key_is_rejected():
+    """H-0008: a registry_event rule on `TargetObject|endswith: /tmp/.applocktx`."""
+    detection = {"selection": {"TargetObject|endswith": "/tmp/.applocktx"}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(logsource_category="registry_event", detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "Unix file path" in reason
+
+
+def test_a_registry_key_is_kept():
+    detection = {
+        "selection": {"TargetObject|contains": "\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="registry_event", detection=detection), _input())
+    assert rule is not None, reason
+
+
+@pytest.mark.parametrize("value", ["198.51.100.0/24", "203.0.113.7", "192.0.2.0/25", "2001:db8::1"])
+def test_a_documentation_range_is_a_placeholder(value):
+    """H-0016 rerun: `DestinationIp|cidr: 198.51.100.0/24`, the RFC 5737 example range."""
+    field = "DestinationIp|cidr" if "/" in value else "DestinationIp"
+    detection = {"selection": {field: value}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(logsource_category="network_connection", detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "documentation" in reason
+
+
+def test_a_real_cidr_range_is_kept():
+    detection = {
+        "selection": {"Image|endswith": "\\rundll32.exe"},
+        "filter": {"DestinationIp|cidr": "10.0.0.0/8"},
+        "condition": "selection and not filter",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="network_connection", detection=detection), _input())
+    assert rule is not None, reason
+
+
+@pytest.mark.parametrize("value", [".ps1", "\\update.vbs", "/tmp/x.sh"])
+def test_a_script_as_process_image_is_rejected(value):
+    """H-0018 rerun: `Image|endswith: .ps1` under `ParentImage|contains: teams.exe`."""
+    detection = {
+        "selection": {"Image|endswith": value, "ParentImage|endswith": "\\ms-teams.exe"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "script is never a process image" in reason
+
+
+def test_a_script_in_the_command_line_is_kept():
+    detection = {
+        "selection": {"Image|endswith": "\\powershell.exe", "CommandLine|contains": "\\update.ps1"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is not None, reason

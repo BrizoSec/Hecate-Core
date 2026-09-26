@@ -439,7 +439,14 @@ _PLACEHOLDER_FILE_RE = re.compile(
 
 #: Placeholders only when they are the entire value. As substrings these
 #: appear inside legitimate paths and hostnames.
-_PLACEHOLDER_EXACT = frozenset({"value", "string", "name", "n/a", "none", "null", "-", "todo", "tbd"})
+#: The generic nouns are here too: H-0009's file rule matched
+#: ``TargetFilename|contains: malware``, a word no real file path is made of.
+_PLACEHOLDER_EXACT = frozenset(
+    {
+        "value", "string", "name", "n/a", "none", "null", "-", "todo", "tbd",
+        "malware", "payload", "backdoor", "attacker", "suspicious", "exploit", "c2",
+    }
+)  # fmt: skip
 
 
 def _detection_values(detection: Dict[str, Any]) -> List[str]:
@@ -473,6 +480,28 @@ def _impossible_ipv4(value: str) -> bool:
     if len(parts) < 3 or not all(part.isdigit() for part in parts):
         return False
     return any(int(part) > 255 for part in parts)
+
+
+#: Ranges reserved for documentation (RFC 5737, RFC 3849). Nothing routes
+#: them, so a rule matching one matches nothing: H-0016's rerun kept
+#: ``DestinationIp|cidr: 198.51.100.0/24`` because the invented-IP check
+#: exempts CIDR ranges, which are otherwise how behaviour is written.
+_DOCUMENTATION_NETS = ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "2001:db8::/32")
+
+
+def _documentation_address(value: str) -> bool:
+    """True for an address or CIDR range inside a documentation range."""
+    import ipaddress
+
+    text = value.strip().strip("[]")
+    try:
+        network = ipaddress.ip_network(text, strict=False)
+    except ValueError:
+        return False
+    return any(
+        network.version == doc.version and network.subnet_of(doc)  # type: ignore[arg-type]
+        for doc in (ipaddress.ip_network(n) for n in _DOCUMENTATION_NETS)
+    )
 
 
 #: A bare snake_case identifier -- "signed_binary_path", "bad_command" --
@@ -724,6 +753,8 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                         f"{field} holds a network address, but the detection matches "
                         f"on {text!r}; a hostname in an address field never matches"
                     )
+                if base == "targetobject" and "/" in text and "\\" not in text:
+                    return f"{field} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
                     return f"{field} holds a port number, but the detection matches " f"on {text!r}"
                 if base in _FILENAME_FIELDS and _SWITCH_RE.search(text):
@@ -863,9 +894,16 @@ _EXTENSION_ONLY_RE = re.compile(r"^\.?[a-z0-9]{1,5}$")
 
 
 def _nonspecific(value: str) -> bool:
-    """A match value that names no particular thing: a bare extension or wildcard."""
+    """A match value that names no particular thing: a bare extension, wildcard or switch.
+
+    A lone switch is H-0010's ``CommandLine|contains: -enc``, which matches
+    every process on the host that takes an ``-enc*`` argument. Paired with
+    an image (``powershell.exe``) it is a real rule, and passes.
+    """
     stripped = value.strip().strip("*").strip()
     if not stripped or set(stripped) <= set("\\/.:*"):
+        return True
+    if _SWITCH_RE.fullmatch(stripped):
         return True
     return bool(_EXTENSION_ONLY_RE.match(stripped.lower())) and (stripped.startswith(".") or value.strip().startswith("*"))
 
@@ -1067,6 +1105,8 @@ def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str
                 return f"detection matches on {cleaned!r}, which contains the placeholder {fragment!r}"
         if _impossible_ipv4(cleaned):
             return f"detection matches on {cleaned!r}, which is not a valid IPv4 address"
+        if _documentation_address(cleaned):
+            return f"detection matches on {cleaned!r}, a range reserved for documentation examples"
         if _SNAKE_PLACEHOLDER_RE.match(cleaned):
             return f"detection matches on {cleaned!r}, which describes a value rather than being one"
         if _PLACEHOLDER_FILE_RE.search(cleaned):
@@ -1104,10 +1144,14 @@ def _modifier_in_value_problem(detection: Dict[str, Any]) -> Optional[str]:
 #: Fields that name the executable a process was started from.
 _PROCESS_IMAGE_FIELDS = frozenset({"image", "parentimage", "originalfilename"})
 _LIBRARY_SUFFIXES = (".dll", ".sys", ".ocx", ".drv")
+#: A script's process is its interpreter: `powershell.exe` for a .ps1,
+#: `wscript.exe` for a .vbs, `mshta.exe` for a .hta, `/bin/sh` for a .sh.
+#: H-0018's rerun kept ``Image|endswith: .ps1`` under ``ParentImage: teams.exe``.
+_SCRIPT_SUFFIXES = (".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".hta", ".bat", ".cmd", ".sh", ".py")
 
 
 def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Optional[str]:
-    """Reject a process_creation rule whose process image is a library.
+    """Reject a process_creation rule whose process image is a library or script.
 
     Observed on H-0013: ``Image|endswith: mscoree.dll`` for a DLL-hijacking
     hunt. A DLL or driver is never the image of a process, so the rule matched
@@ -1124,10 +1168,16 @@ def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Opt
                 continue
             values = raw_value if isinstance(raw_value, list) else [raw_value]
             for value in values:
-                if str(value).strip().lower().endswith(_LIBRARY_SUFFIXES):
+                lowered = str(value).strip().lower()
+                if lowered.endswith(_LIBRARY_SUFFIXES):
                     return (
                         f"{field} matches {str(value).strip()!r}, but a library or driver is never "
                         "a process image; a load belongs in image_load as ImageLoaded"
+                    )
+                if lowered.endswith(_SCRIPT_SUFFIXES):
+                    return (
+                        f"{field} matches {str(value).strip()!r}, but a script is never a process image; "
+                        "match its interpreter in Image and the script in CommandLine"
                     )
     return None
 
