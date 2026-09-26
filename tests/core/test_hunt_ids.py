@@ -52,3 +52,18 @@ def test_a_corrupt_counter_falls_back_to_the_floors(tmp_path):
     (hunts / ".hunt_id_counter").write_text("not a number")
     (hunts / "2026" / "Q3" / "H-0007.md").write_text("x")
     assert hunt_ids.allocate_hunt_id(hunts) == "H-0008"
+
+
+def test_the_counter_gets_ordinary_file_permissions(tmp_path):
+    hunts = _hunts(tmp_path)
+    hunt_ids.allocate_hunt_id(hunts)
+    plain = hunts / "plain.txt"
+    plain.write_text("x")
+    assert (hunts / ".hunt_id_counter").stat().st_mode & 0o777 == plain.stat().st_mode & 0o777
+
+
+def test_hunts_flat_at_the_workspace_root_are_a_floor(tmp_path):
+    hunts = _hunts(tmp_path)
+    (hunts / ".hunt_id_counter").write_text("2\n")
+    (tmp_path / "H-0009.md").write_text("x")
+    assert hunt_ids.allocate_hunt_id(hunts) == "H-0010"

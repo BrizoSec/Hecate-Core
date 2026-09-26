@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
-from hecate_agent.orchestrator.grounding import (
+from hecate_agent.core.grounding import (
     GroundingReport,
     TechniqueFact,
     audit_draft,

@@ -264,7 +264,7 @@ def grounding_audit_agent(state: HuntState) -> Dict[str, Any]:
     """Audit the draft's techniques, CVEs, entities and rule indicators against the intel and research."""
     logger.info("Executing Grounding Audit Agent...")
     from hecate_agent.orchestrator import quality
-    from hecate_agent.orchestrator.grounding import TechniqueFact
+    from hecate_agent.core.grounding import TechniqueFact
 
     try:
         facts = {

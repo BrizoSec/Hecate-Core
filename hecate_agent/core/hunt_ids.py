@@ -30,6 +30,8 @@ except ImportError:  # pragma: no cover - fcntl is POSIX-only
 #: research ID allocation already is there.
 _fcntl: Optional[Any] = _fcntl_module
 
+from hecate_agent.core.research_manager import _DEFAULT_FILE_MODE
+
 logger = logging.getLogger(__name__)
 
 COUNTER_FILENAME = ".hunt_id_counter"
@@ -54,7 +56,9 @@ def hunt_id_lock(hunts_root: Path) -> Iterator[None]:
 
 
 def _max_on_disk(hunts_root: Path) -> int:
-    ids = [int(m.group(1)) for p in hunts_root.rglob("H-*.md") if (m := _ID_RE.match(p.stem))]
+    """Highest ID under hunts/, or flat at the workspace root where some workspaces keep hunts."""
+    paths = [*hunts_root.rglob("H-*.md"), *hunts_root.parent.glob("H-*.md")]
+    ids = [int(m.group(1)) for p in paths if (m := _ID_RE.match(p.stem))]
     return max(ids, default=0)
 
 
@@ -94,10 +98,17 @@ def _read_counter(path: Path) -> int:
 
 
 def _atomic_write(path: Path, text: str) -> None:
+    """Write via temp file and rename, with the mode a plain write would get.
+
+    mkstemp creates 0o600 and os.replace carries it over, which made the
+    counter owner-only unlike every other workspace file (a regression the
+    Runner's own test caught when this replaced its allocator).
+    """
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
         with os.fdopen(fd, "w") as f:
             f.write(text)
+        os.chmod(tmp, _DEFAULT_FILE_MODE)
         os.replace(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
