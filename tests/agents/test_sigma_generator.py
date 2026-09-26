@@ -304,6 +304,45 @@ def test_requiring_the_unsigned_case_is_accepted():
     assert rule is not None, reason
 
 
+def test_a_template_path_is_a_placeholder():
+    """H-0018: `C:\\path\\to\\malware.ps1`, copied from the draft's observables."""
+    detection = {
+        "selection": {"CommandLine|contains": "-ExecutionPolicy Bypass -File C:\\path\\to\\malware.ps1"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "placeholder" in reason
+
+
+@pytest.mark.parametrize("value", ["\\rat.exe", "/tmp/malware.sh", "payload.bin"])
+def test_a_stand_in_file_name_is_a_placeholder(value):
+    detection = {"selection": {"Image|endswith": value}, "condition": "selection"}
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "stand-in file name" in reason
+
+
+def test_command_line_switches_in_a_file_name_field_are_rejected():
+    """H-0018: `TargetFilename|contains: -ExecutionPolicy Bypass -File`."""
+    detection = {
+        "selection": {"TargetFilename|contains": "-ExecutionPolicy Bypass -File", "Image|endswith": "\\powershell.exe"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="file_event", detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "belong in CommandLine" in reason
+
+
+def test_paths_with_spaces_and_unix_paths_are_not_switches():
+    detection = {
+        "selection": {"Image|endswith": "\\Program Files\\Vendor App\\app.exe", "CommandLine|contains": "-enc"},
+        "condition": "selection",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
+    assert rule is not None, reason
+
+
 # --- execute() -------------------------------------------------------------
 
 

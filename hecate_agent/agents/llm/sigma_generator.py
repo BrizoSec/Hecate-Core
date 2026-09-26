@@ -424,6 +424,17 @@ _PLACEHOLDER_SUBSTRINGS = (
     "foo.bar",
     "<value>",
     "<name>",
+    # Template paths. H-0018's rule matched `C:\path\to\malware.ps1`, which
+    # the hypothesis model had written into the draft's observables.
+    "\\path\\to\\",
+    "/path/to/",
+)
+
+#: A stand-in file name: nothing but a generic word and an extension.
+#: `malware.ps1`, `rat.exe`, `evil.dll` name no file a hunter could find.
+_PLACEHOLDER_FILE_RE = re.compile(
+    r"(?:^|[\\/])(?:malware|malicious|rat|evil|badfile|payload)\.(?:exe|dll|ps1|bin|sh|bat|vbs|js|msi)$",
+    re.IGNORECASE,
 )
 
 #: Placeholders only when they are the entire value. As substrings these
@@ -667,6 +678,15 @@ _IP_FIELDS = frozenset({"ipaddress", "destinationip", "sourceip", "srcip", "dsti
 _PORT_FIELDS = frozenset({"destinationport", "sourceport", "srcport", "dstport"})
 
 
+#: Fields that hold a file path and nothing else.
+_FILENAME_FIELDS = frozenset({"targetfilename", "image", "parentimage", "imageloaded", "originalfilename"})
+
+#: A command-line switch: "-ExecutionPolicy", "--output", or a short "/c"
+#: after whitespace. H-0018's file_event rule matched `TargetFilename|contains:
+#: -ExecutionPolicy Bypass -File`, which no file name ever contains.
+_SWITCH_RE = re.compile(r"(?:^|\s)(?:--?[A-Za-z][\w-]*|/[A-Za-z]{1,3})(?=\s|$)")
+
+
 def _looks_like_address(value: str) -> bool:
     """Whether `value` could be part of an IP address or CIDR range.
 
@@ -706,6 +726,11 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                     )
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
                     return f"{field} holds a port number, but the detection matches " f"on {text!r}"
+                if base in _FILENAME_FIELDS and _SWITCH_RE.search(text):
+                    return (
+                        f"{field} holds a file path, but the detection matches on {text!r}, "
+                        "which carries command-line switches; those belong in CommandLine"
+                    )
                 if base not in ["hashes", "md5", "sha1", "sha256", "imphash"]:
                     cleaned = text.strip().lower()
                     if len(cleaned) in (32, 40, 64) and _HEX_RE.match(cleaned):
@@ -1044,6 +1069,8 @@ def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str
             return f"detection matches on {cleaned!r}, which is not a valid IPv4 address"
         if _SNAKE_PLACEHOLDER_RE.match(cleaned):
             return f"detection matches on {cleaned!r}, which describes a value rather than being one"
+        if _PLACEHOLDER_FILE_RE.search(cleaned):
+            return f"detection matches on {cleaned!r}, a stand-in file name rather than one the intel names"
     return None
 
 

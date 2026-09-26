@@ -34,6 +34,7 @@ _TECHNIQUES: Dict[str, TechniqueInfo] = {
         _t("T1574.001", "DLL", "stealth"),
         _t("T1571", "Non-Standard Port", "command-and-control"),
         _t("T1546.005", "Trap", "persistence"),
+        _t("T1048.003", "Exfiltration Over Unencrypted Non-C2 Protocol", "exfiltration"),
     ]
 }
 
@@ -147,6 +148,12 @@ def test_a_one_word_name_that_is_an_everyday_word_is_not_matched() -> None:
     """H-0018: T1546.005 Trap for a Teams vishing campaign, on "OAuth Traps"."""
     assert "T1546.005" not in _ids("Phishing Kits, Dropbox Account Hacks, OAuth Traps")
     assert "T1036" in _ids("The loader masquerades as a Teams update.")
+
+
+def test_dns_exfiltration_is_proposed() -> None:
+    """H-0017, "Abusing Open Recursive DNS for Exfiltration", got T1027 alone."""
+    assert "T1048.003" in _ids("Malware Sample Abusing Open Recursive DNS for Exfiltration")
+    assert "T1048.003" not in _ids("DNS logs were collected for the exfiltration review.")
 
 
 def test_format_candidates() -> None:

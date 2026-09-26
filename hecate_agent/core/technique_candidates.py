@@ -135,6 +135,19 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
         "sideloaded",
     ),
     "T1036": ("disguised as",),
+    # DNS used to move data out, not as the C2 channel (T1071.004 has the
+    # tunnelling phrases). H-0017, "Abusing Open Recursive DNS for
+    # Exfiltration", was otherwise mapped to T1027 alone.
+    "T1048.003": (
+        "dns exfiltration",
+        "exfiltration over dns",
+        "exfiltration via dns",
+        "dns for exfiltration",
+        "exfiltrate data over dns",
+        "exfiltrate data via dns",
+        "exfiltrates data over dns",
+        "exfiltrates data via dns",
+    ),
 }
 
 
