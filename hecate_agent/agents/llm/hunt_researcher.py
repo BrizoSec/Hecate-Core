@@ -283,6 +283,10 @@ class ResearchOutput:
     web_searches_performed: int = 0
     llm_calls: int = 0
     total_cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    llm_duration_ms: int = 0
+    llm_models: List[str] = field(default_factory=list)
 
 
 class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
@@ -315,8 +319,6 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._search_client: Optional[Any] = None
         self._search_client_failed = False
         self._search_failed = False
-        self._total_cost = 0.0
-        self._llm_calls = 0
         self._web_searches = 0
 
     def _log_llm_metrics(
@@ -329,8 +331,14 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         duration_ms: int,
     ) -> None:
         """Track LLM call metrics for cost reporting."""
-        self._llm_calls += 1
-        self._total_cost += cost_usd
+        super()._log_llm_metrics(
+            agent_name=agent_name,
+            model_id=model_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
+            duration_ms=duration_ms,
+        )
 
     def _get_search_client(self) -> Optional[Any]:
         """Get or create Tavily search client.
@@ -419,8 +427,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             AgentResult with complete research output or error
         """
         start_time = time.time()
-        self._total_cost = 0.0
-        self._llm_calls = 0
+        self._reset_llm_usage()
         self._web_searches = 0
         # Read by every skill's prompt; set once before the skills fan out.
         self._source_context = (input_data.source_context or "").strip()[
@@ -492,6 +499,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
             # Build output
             total_duration_ms = int((time.time() - start_time) * 1000)
+            usage = self._llm_usage_metadata()
 
             output = ResearchOutput(
                 research_id=research_id,
@@ -514,8 +522,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 gaps_identified=self._extract_gaps(skill_5),
                 total_duration_ms=total_duration_ms,
                 web_searches_performed=self._web_searches,
-                llm_calls=self._llm_calls,
-                total_cost_usd=round(self._total_cost, 4),
+                llm_calls=usage["llm_calls"],
+                total_cost_usd=usage["estimated_cost_usd"],
+                input_tokens=usage["input_tokens"],
+                output_tokens=usage["output_tokens"],
+                llm_duration_ms=usage["llm_duration_ms"],
+                llm_models=usage["models"],
             )
 
             return AgentResult(
@@ -527,8 +539,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     "research_id": research_id,
                     "duration_ms": total_duration_ms,
                     "web_searches": self._web_searches,
-                    "llm_calls": self._llm_calls,
-                    "cost_usd": round(self._total_cost, 4),
+                    **usage,
                 },
             )
 
@@ -538,7 +549,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 data=None,
                 error=str(e),
                 warnings=[],
-                metadata={},
+                metadata={
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                    "web_searches": self._web_searches,
+                    **self._llm_usage_metadata(),
+                },
             )
 
     def _skill_1_system_research(

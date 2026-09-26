@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
@@ -91,7 +92,36 @@ class LLMAgent(Agent[InputT, OutputT]):
         """
         self.llm_enabled = llm_enabled
         self._provider = provider
+        self._usage_lock = threading.Lock()
+        self._usage: Dict[str, Any] = {
+            "llm_calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "llm_duration_ms": 0,
+            "estimated_cost_usd": 0.0,
+            "models": set(),
+        }
         super().__init__(config)
+
+    def _reset_llm_usage(self) -> None:
+        """Clear usage totals before an agent execution."""
+        with self._usage_lock:
+            self._usage = {
+                "llm_calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "llm_duration_ms": 0,
+                "estimated_cost_usd": 0.0,
+                "models": set(),
+            }
+
+    def _llm_usage_metadata(self) -> Dict[str, Any]:
+        """Return a thread-safe snapshot of provider usage for this execution."""
+        with self._usage_lock:
+            snapshot = dict(self._usage)
+            snapshot["models"] = sorted(snapshot["models"])
+        snapshot["estimated_cost_usd"] = round(float(snapshot["estimated_cost_usd"]), 6)
+        return snapshot
 
     def _get_provider(self) -> Any:
         """Get or create an LLM provider.
@@ -266,5 +296,13 @@ class LLMAgent(Agent[InputT, OutputT]):
             cost_usd: Estimated cost in USD
             duration_ms: Call duration in milliseconds
         """
-        # No-op by default. Override in plugins for custom metrics tracking.
-        pass
+        # Keep usage on the agent so public APIs can return it with the result.
+        # Research fans out across worker threads, so updates and snapshots are
+        # protected even when several provider responses arrive together.
+        with self._usage_lock:
+            self._usage["llm_calls"] += 1
+            self._usage["input_tokens"] += input_tokens
+            self._usage["output_tokens"] += output_tokens
+            self._usage["llm_duration_ms"] += duration_ms
+            self._usage["estimated_cost_usd"] += cost_usd
+            self._usage["models"].add(model_id)

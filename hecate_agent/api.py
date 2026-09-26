@@ -16,13 +16,13 @@ from hecate_agent.core.attack_matrix import get_technique, get_superseding_techn
 from hecate_agent.core.research_manager import ResearchManager
 from hecate_agent.commands.research import _generate_research_markdown
 
-def generate_hypothesis(
+def _generate_hypothesis(
     threat_intel: str,
     research_id: Optional[str] = None,
     indicators_only: bool = False,
     workspace: Optional[Path] = None,
-) -> HypothesisGenerationOutput:
-    """Generate a hunt hypothesis directly via the Python API."""
+) -> Tuple[HypothesisGenerationOutput, Dict[str, Any]]:
+    """Run hypothesis generation and retain its usage metadata."""
     agent = HypothesisGeneratorAgent(llm_enabled=True)
     
     past_hunts: List[dict] = []
@@ -50,12 +50,45 @@ def generate_hypothesis(
     
     result = agent.execute(input_data)
     if not result.success:
-        raise RuntimeError(f"Hypothesis generation failed: {result.error}")
+        error = RuntimeError(f"Hypothesis generation failed: {result.error}")
+        error.metadata = dict(result.metadata)
+        raise error
         
     if not result.data:
         raise RuntimeError("Hypothesis generation returned no data.")
         
-    return result.data
+    return result.data, dict(result.metadata)
+
+
+def generate_hypothesis(
+    threat_intel: str,
+    research_id: Optional[str] = None,
+    indicators_only: bool = False,
+    workspace: Optional[Path] = None,
+) -> HypothesisGenerationOutput:
+    """Generate a hunt hypothesis directly via the Python API."""
+    output, _ = _generate_hypothesis(
+        threat_intel=threat_intel,
+        research_id=research_id,
+        indicators_only=indicators_only,
+        workspace=workspace,
+    )
+    return output
+
+
+def generate_hypothesis_with_metrics(
+    threat_intel: str,
+    research_id: Optional[str] = None,
+    indicators_only: bool = False,
+    workspace: Optional[Path] = None,
+) -> Tuple[HypothesisGenerationOutput, Dict[str, Any]]:
+    """Generate a hypothesis and return per-call LLM usage metadata."""
+    return _generate_hypothesis(
+        threat_intel=threat_intel,
+        research_id=research_id,
+        indicators_only=indicators_only,
+        workspace=workspace,
+    )
 
 
 def generate_research(
@@ -85,7 +118,9 @@ def generate_research(
     )
     
     if not result.success or not result.data:
-        raise RuntimeError(f"Research failed: {result.error}")
+        error = RuntimeError(f"Research failed: {result.error}")
+        error.metadata = dict(result.metadata)
+        raise error
         
     output = result.data
     markdown_content = _generate_research_markdown(output)
@@ -127,25 +162,43 @@ def generate_sigma(
     hunt_id: Optional[str] = None,
 ) -> Tuple[SigmaGenerationOutput, List[Path]]:
     """Generate Sigma rules and optionally write them to disk."""
+    output, written_paths, metadata = generate_sigma_with_metrics(
+        payload=payload,
+        out_dir=out_dir,
+        hunt_id=hunt_id,
+    )
+    if not metadata.get("success", False):
+        raise RuntimeError(f"Sigma generation failed: {metadata.get('error') or 'unknown error'}")
+    return output, written_paths
+
+
+def generate_sigma_with_metrics(
+    payload: Dict[str, Any],
+    out_dir: Optional[Path] = None,
+    hunt_id: Optional[str] = None,
+) -> Tuple[SigmaGenerationOutput, List[Path], Dict[str, Any]]:
+    """Generate Sigma rules and return usage metadata, including failures."""
     known = set(SigmaGenerationInput.__dataclass_fields__)
     agent_input = SigmaGenerationInput(**{k: v for k, v in payload.items() if k in known})
     if hunt_id and not agent_input.hunt_id:
         agent_input.hunt_id = hunt_id
 
     result = SigmaGeneratorAgent(llm_enabled=True).execute(agent_input)
-    if not result.success or not result.data:
-        raise RuntimeError(f"Sigma generation failed: {result.error}")
+    output = result.data or SigmaGenerationOutput(logsources_considered=[])
 
     written_paths = []
-    if out_dir:
+    if result.success and out_dir:
         target = Path(out_dir)
         target.mkdir(parents=True, exist_ok=True)
-        for rule in result.data.rules:
+        for rule in output.rules:
             path = target / rule.filename
             path.write_text(rule.rule_yaml, encoding="utf-8")
             written_paths.append(path)
-            
-    return result.data, written_paths
+
+    success = result.success and result.data is not None
+    metadata = dict(result.metadata)
+    metadata.update({"success": success, "error": result.error, "warnings": result.warnings})
+    return output, written_paths, metadata
 
 
 def lookup_technique(technique_id: str) -> Dict[str, Any]:

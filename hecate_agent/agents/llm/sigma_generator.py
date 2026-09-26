@@ -1187,6 +1187,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     def execute(self, input_data: SigmaGenerationInput) -> AgentResult[SigmaGenerationOutput]:
         start = time.monotonic()
+        self._reset_llm_usage()
         logsources = input_data.logsources or applicable_logsources(
             input_data.techniques,
             list(input_data.indicators.keys()),
@@ -1199,7 +1200,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 data=SigmaGenerationOutput(logsources_considered=logsources),
                 error="Sigma generation requires an LLM; no provider is configured.",
                 warnings=[],
-                metadata={"duration_ms": int((time.monotonic() - start) * 1000)},
+                metadata={
+                    "duration_ms": int((time.monotonic() - start) * 1000),
+                    **self._llm_usage_metadata(),
+                },
             )
 
         rules: List[SigmaRule] = []
@@ -1242,7 +1246,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 data=SigmaGenerationOutput(logsources_considered=logsources, rejected=rejected),
                 error="no log source produced a valid rule: " + "; ".join(rejected),
                 warnings=warnings,
-                metadata={"duration_ms": int((time.monotonic() - start) * 1000)},
+                metadata={
+                    "duration_ms": int((time.monotonic() - start) * 1000),
+                    **self._llm_usage_metadata(),
+                },
             )
 
         warnings.extend(f"rejected rule: {r}" for r in rejected)
@@ -1255,8 +1262,8 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             metadata={
                 "llm_provider": provider.provider_name,
                 "llm_model": getattr(provider, "model", getattr(provider, "model_id", "unknown")),
-                "llm_calls": len(logsources),
                 "duration_ms": int((time.monotonic() - start) * 1000),
+                **self._llm_usage_metadata(),
             },
         )
 

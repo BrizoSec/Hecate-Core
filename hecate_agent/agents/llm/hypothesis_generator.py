@@ -136,11 +136,13 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             AgentResult with hypothesis output or error
         """
         start = time.monotonic()
+        self._reset_llm_usage()
 
         if not self.llm_enabled:
             result = self._template_generate(input_data)
             elapsed_ms = int((time.monotonic() - start) * 1000)
             result.metadata["duration_ms"] = elapsed_ms
+            result.metadata.update(self._llm_usage_metadata())
             return result
 
         try:
@@ -184,6 +186,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 "llm_provider": provider.provider_name,
                 "llm_model": model_name,
                 "duration_ms": elapsed_ms,
+                **self._llm_usage_metadata(),
             }
 
             return AgentResult(
@@ -198,6 +201,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             result = self._template_generate(input_data, error=str(e))
             elapsed_ms = int((time.monotonic() - start) * 1000)
             result.metadata["duration_ms"] = elapsed_ms
+            result.metadata.update(self._llm_usage_metadata())
             return result
 
     def _technique_grounding(self, techniques: List[str]) -> str:
