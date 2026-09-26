@@ -49,6 +49,7 @@ dependencies = [
     "python-dotenv>=0.19.0",
     "langgraph>=1.2.12",
     "langchain-core>=1.6.5",
+    "langgraph-checkpoint-sqlite>=3.1.1",
 ]
 
 [project.optional-dependencies]

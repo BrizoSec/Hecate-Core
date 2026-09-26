@@ -126,4 +126,17 @@ workflow.add_conditional_edges("hypothesis", route_errors, {"next": "sigma_draft
 workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": END, END: END})
 
 # Compile the Graph
-hecate_graph = workflow.compile()
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
+
+# We wrap this in a helper so you can pass your own DB connection or memory
+def compile_graph(db_path: str = "hecate_checkpoints.sqlite"):
+    """Compile the LangGraph with SQLite checkpointing for state persistence."""
+    # We use check_same_thread=False so it works safely in async/multithreaded envs
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    memory = SqliteSaver(conn)
+    # interrupt_before pauses the graph right before it executes the given node
+    return workflow.compile(checkpointer=memory, interrupt_before=["sigma_drafter"])
+
+# Default global instance for easy importing
+hecate_graph = compile_graph()
