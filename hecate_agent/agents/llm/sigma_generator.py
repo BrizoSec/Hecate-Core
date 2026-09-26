@@ -788,6 +788,51 @@ def _self_defeating_filter_problem(detection: Dict[str, Any], hypothesis: str) -
     return None
 
 
+#: Fields recording whether a binary's signature is trusted, and the values
+#: that mean it is not. Excluding those values keeps only trusted activity.
+_SIGNATURE_FIELDS = frozenset({"signed", "signaturestatus", "signature_status", "signaturevalid"})
+_UNTRUSTED_SIGNATURE_VALUES = frozenset({"false", "0", "unsigned", "invalid", "expired", "revoked", "untrusted"})
+
+
+def _excluded_threat_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Optional[str]:
+    """Reject a rule whose exclusion removes the very thing it hunts.
+
+    Two shapes, both from the 26 Sep reruns and both valid Sigma:
+
+    - An exclusion of the untrusted case. H-0013's rule was ``ImageLoaded|endswith:
+      \\mscoree.dll`` and ``not`` ``Signed: false`` -- so it matched only signed
+      loads of mscoree.dll, the legitimate ones, and never the malicious DLL.
+    - An exclusion of the intel's own indicators. H-0012's filter dropped any
+      event whose ``OriginalFileName`` matched the pulse's two delivery domains.
+    """
+    negated = _negated_blocks(detection, str(detection.get("condition", "")))
+    indicators = [str(v).strip().lower() for values in supplied.values() for v in values]
+    indicators = [i for i in indicators if len(i) >= 6]
+    for key in sorted(negated):
+        block = detection.get(key)
+        if not isinstance(block, dict):
+            continue
+        for field_name, raw_value in block.items():
+            if str(field_name).split("|")[0].strip().lower() not in _SIGNATURE_FIELDS:
+                continue
+            values = raw_value if isinstance(raw_value, list) else [raw_value]
+            for value in values:
+                if str(value).strip().lower() in _UNTRUSTED_SIGNATURE_VALUES:
+                    return (
+                        f"the condition excludes {key!r} ({field_name}: {value}), so the rule "
+                        "matches only trusted binaries and never the untrusted one it hunts"
+                    )
+        for value in _detection_values({key: block}):
+            lowered = value.lower()
+            for indicator in indicators:
+                if indicator in lowered or indicator.replace(".", "\\.") in lowered:
+                    return (
+                        f"the condition excludes {key!r}, which matches the supplied indicator "
+                        f"{indicator!r}; the rule would ignore the intel's own evidence"
+                    )
+    return None
+
+
 #: A match value that is nothing but a file extension, after wildcards.
 _EXTENSION_ONLY_RE = re.compile(r"^\.?[a-z0-9]{1,5}$")
 
@@ -878,7 +923,12 @@ def _registered_name(domain: str) -> str:
 def _invented_hash_problem(detection: dict, supplied: dict) -> str | None:
     """Reject a selection matching a specific file hash no intel supplied."""
     import re
-    known = " ".join(" ".join(map(str, v)).lower() for k, v in supplied.items() if "hash" in k.lower() or k.lower() in ("md5", "sha1", "sha256", "imphash"))
+
+    known = " ".join(
+        " ".join(map(str, v)).lower()
+        for k, v in supplied.items()
+        if "hash" in k.lower() or k.lower() in ("md5", "sha1", "sha256", "imphash")
+    )
     for value in _detection_values(detection):
         cleaned = value.strip().lower()
         if len(cleaned) in (32, 40, 64) and re.match(r"^[0-9a-f]+$", cleaned):
@@ -1258,7 +1308,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 return str(exc)
             if not isinstance(payload.get("rules"), list) or not payload["rules"]:
                 return "response must contain a non-empty 'rules' array"
-                
+
             problems = []
             for raw in payload["rules"]:
                 rule, problem = self._build_rule(raw, input_data)
@@ -1266,7 +1316,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     problems.append(problem)
                 elif rule and rule.logsource_category == logsource:
                     return None  # We successfully built the requested rule!
-                    
+
             if problems:
                 return "Your generated rules failed validation. Fix these errors:\n" + "\n".join(f"- {p}" for p in problems)
             return f"No valid rule was generated for the requested log source category '{logsource}'."
@@ -1345,6 +1395,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             ),
             lambda d: _partial_indicator_problem(d, input_data.indicators, category),
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
+            lambda d: _excluded_threat_problem(d, input_data.indicators),
             _modifier_in_value_problem,
             lambda d: _library_as_process_problem(d, category),
             _field_type_problem,
@@ -1642,8 +1693,8 @@ RULES OF THE TASK:
    belong ONLY in a `Hashes` field. If your only indicator is a domain and this 
    log source has no name field for it, write a behavioural rule instead.
 3. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
-   For example, a rule that looks for `ParentImage|endswith: \winword.exe` spawning
-   `Image|endswith: \cmd.exe` is a high-quality, generic behavioral rule that works
+   For example, a rule that looks for `ParentImage|endswith: \\winword.exe` spawning
+   `Image|endswith: \\cmd.exe` is a high-quality, generic behavioral rule that works
    everywhere. Using no indicator at all is completely fine, and often preferred,
    when the behaviour itself is the better rule.
 4. If you DO use a specific indicator, reproduce it WHOLE in one match value. Never

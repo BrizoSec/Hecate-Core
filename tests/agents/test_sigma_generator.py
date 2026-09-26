@@ -269,6 +269,41 @@ def test_a_library_in_image_load_is_accepted():
     assert rule is not None, reason
 
 
+def test_excluding_the_unsigned_case_is_rejected():
+    """H-0013 rerun: `not filter` with `Signed: false` kept only the signed,
+    legitimate loads of mscoree.dll and never the malicious one."""
+    detection = {
+        "selection": {"ImageLoaded|endswith": "\\mscoree.dll"},
+        "filter": {"Signed": False},
+        "condition": "selection and not filter",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="image_load", detection=detection), _input())
+    assert rule is None
+    assert reason is not None and "only trusted binaries" in reason
+
+
+def test_excluding_the_intels_own_indicator_is_rejected():
+    """H-0012 rerun: the filter dropped events naming the pulse's delivery domain."""
+    detection = {
+        "selection": {"CommandLine|contains": "msiexec.exe /i"},
+        "filter": {"OriginalFileName|re": "^https?://onlineview365\\.com/.*"},
+        "condition": "selection and not filter",
+    }
+    rule, reason = _agent()._build_rule(_rule(detection=detection), _input(indicators={"domain": ["onlineview365.com"]}))
+    assert rule is None
+    assert reason is not None and "onlineview365.com" in reason
+
+
+def test_requiring_the_unsigned_case_is_accepted():
+    detection = {
+        "selection": {"ImageLoaded|endswith": "\\mscoree.dll", "Signed": False},
+        "filter": {"Image|startswith": "C:\\Windows\\Microsoft.NET\\"},
+        "condition": "selection and not filter",
+    }
+    rule, reason = _agent()._build_rule(_rule(logsource_category="image_load", detection=detection), _input())
+    assert rule is not None, reason
+
+
 # --- execute() -------------------------------------------------------------
 
 
