@@ -1,6 +1,7 @@
 import logging
 from typing import TypedDict, Optional, List, Dict, Any
 from pathlib import Path
+from datetime import datetime
 
 from langgraph.graph import StateGraph, END
 from hecate_agent.api import generate_research, generate_hypothesis, generate_sigma
@@ -25,15 +26,18 @@ class HuntState(TypedDict):
     justification: Optional[str]
     observables: List[str]
     
-    # Sigma Output (Agent 3 + Python Auditor)
+    # Sigma Output (Agent 3)
     sigma_yaml_files: List[str]
+    sigma_rules_yaml: List[str] # RAW YAML STRINGS for the markdown file
+    
+    # Final Output
+    draft_path: Optional[str]
     
     # Agentic Error Tracking
     errors: List[str]
 
 
 def research_agent(state: HuntState) -> Dict[str, Any]:
-    """Agent 1: Performs background CTI and system research."""
     logger.info("Executing Research Agent...")
     workspace = Path(state["workspace_path"]) if state.get("workspace_path") else None
     
@@ -52,14 +56,13 @@ def research_agent(state: HuntState) -> Dict[str, Any]:
 
 
 def hypothesis_agent(state: HuntState) -> Dict[str, Any]:
-    """Agent 2: Synthesizes threat intel and research into a hunt hypothesis."""
     logger.info("Executing Hypothesis Agent...")
     workspace = Path(state["workspace_path"]) if state.get("workspace_path") else None
     
     try:
         output = generate_hypothesis(
             threat_intel=state["threat_intel"],
-            research_id=state["research_id"],
+            research_id=state.get("research_id"),
             workspace=workspace
         )
         return {
@@ -74,16 +77,16 @@ def hypothesis_agent(state: HuntState) -> Dict[str, Any]:
 
 
 def sigma_drafter_agent(state: HuntState) -> Dict[str, Any]:
-    """Agent 3: Drafts generic Sigma rules (includes internal Agentic Audit Loop)."""
     logger.info("Executing Sigma Drafter Agent...")
     out_dir = Path(state["out_dir"]) if state.get("out_dir") else None
+    hunt_id = state.get("hunt_id", "H-0000")
     
     payload = {
         "hypothesis": state.get("hypothesis", ""),
         "justification": state.get("justification", ""),
         "techniques": state.get("mitre_techniques", []),
         "observables": state.get("observables", []),
-        "hunt_id": state.get("hunt_id", "H-0000"),
+        "hunt_id": hunt_id,
         "indicators": {}
     }
     
@@ -91,18 +94,59 @@ def sigma_drafter_agent(state: HuntState) -> Dict[str, Any]:
         output, paths = generate_sigma(
             payload=payload,
             out_dir=out_dir,
-            hunt_id=state.get("hunt_id")
+            hunt_id=hunt_id
         )
         return {
-            "sigma_yaml_files": [str(p) for p in paths]
+            "sigma_yaml_files": [str(p) for p in paths],
+            "sigma_rules_yaml": [r.rule_yaml for r in output.rules]
         }
     except Exception as e:
         logger.error(f"Sigma Drafter failed: {e}")
         return {"errors": state.get("errors", []) + [f"Sigma Error: {e}"]}
 
 
+def hunt_writer_agent(state: HuntState) -> Dict[str, Any]:
+    logger.info("Executing Hunt Writer Agent...")
+    # Because we decouple from Hecate-Runner, we do a basic markdown render here.
+    workspace = Path(state["workspace_path"]) if state.get("workspace_path") else Path(".")
+    hunt_id = state.get("hunt_id", "H-0000")
+    
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    content = f"""---
+hunt_id: {hunt_id}
+title: {state.get('topic', 'Untitled Hunt')}
+status: planning
+date: {date_str}
+hunter: hecate langgraph (auto-generated)
+techniques: {state.get('mitre_techniques', [])}
+spawned_from: {state.get('research_id', 'None')}
+---
+# Hunt Hypothesis
+{state.get('hypothesis', 'No hypothesis generated.')}
+
+# Research Justification
+{state.get('justification', 'No justification provided.')}
+
+# Expected Observables
+{chr(10).join(f"- {o}" for o in state.get('observables', []))}
+
+# Sigma Rules
+"""
+    for rule_yaml in state.get("sigma_rules_yaml", []):
+        content += f"\n```yaml\n{rule_yaml}\n```\n"
+        
+    out_dir = workspace / "hunts" / str(datetime.now().year) / f"Q{(datetime.now().month-1)//3+1}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{hunt_id}.md"
+    
+    with open(out_path, "w") as f:
+        f.write(content)
+        
+    logger.info(f"Draft hunt written to {out_path}")
+    return {"draft_path": str(out_path)}
+
+
 def route_errors(state: HuntState) -> str:
-    """Conditional Edge: Routes flow to END if any agent encountered an unrecoverable error."""
     if state.get("errors"):
         logger.error(f"Pipeline aborted due to agent errors: {state['errors']}")
         return END
@@ -116,6 +160,7 @@ workflow = StateGraph(HuntState)
 workflow.add_node("research", research_agent)
 workflow.add_node("hypothesis", hypothesis_agent)
 workflow.add_node("sigma_drafter", sigma_drafter_agent)
+workflow.add_node("hunt_writer", hunt_writer_agent)
 
 # Set Entry Point
 workflow.set_entry_point("research")
@@ -123,20 +168,19 @@ workflow.set_entry_point("research")
 # Add Conditional Edges
 workflow.add_conditional_edges("research", route_errors, {"next": "hypothesis", END: END})
 workflow.add_conditional_edges("hypothesis", route_errors, {"next": "sigma_drafter", END: END})
-workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": END, END: END})
+workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": "hunt_writer", END: END})
+workflow.add_conditional_edges("hunt_writer", route_errors, {"next": END, END: END})
 
-# Compile the Graph
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 
-# We wrap this in a helper so you can pass your own DB connection or memory
-def compile_graph(db_path: str = "hecate_checkpoints.sqlite"):
-    """Compile the LangGraph with SQLite checkpointing for state persistence."""
-    # We use check_same_thread=False so it works safely in async/multithreaded envs
+def compile_graph(db_path: str = "hecate_checkpoints.sqlite", require_approval: bool = True):
     conn = sqlite3.connect(db_path, check_same_thread=False)
     memory = SqliteSaver(conn)
-    # interrupt_before pauses the graph right before it executes the given node
-    return workflow.compile(checkpointer=memory, interrupt_before=["sigma_drafter"])
+    
+    if require_approval:
+        return workflow.compile(checkpointer=memory, interrupt_before=["sigma_drafter"])
+    else:
+        return workflow.compile(checkpointer=memory)
 
-# Default global instance for easy importing
 hecate_graph = compile_graph()

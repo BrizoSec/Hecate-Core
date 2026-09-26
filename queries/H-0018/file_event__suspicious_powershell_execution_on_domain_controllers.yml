@@ -1,0 +1,22 @@
+title: Suspicious PowerShell Execution on Domain Controllers
+id: aad07a0a-3089-4a39-9be0-cbf72df8013f
+status: experimental
+description: Detects the execution of PowerShell scripts with bypass execution policy, which may indicate
+  an attempt to deploy malware via voice phishing in Microsoft Teams.
+references:
+- https://unit42.paloaltonetworks.com/spring-ring-voice-phishing-campaigns/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-26'
+tags:
+- attack.t1566
+logsource:
+  category: file_event
+detection:
+  selection:
+    Image|endswith: powershell.exe
+    TargetFilename|contains: -ExecutionPolicy Bypass -File
+  condition: selection
+falsepositives:
+- Administrative scripting using PowerShell with bypass execution policy
+level: medium
+hunt_id: H-0018

@@ -82,3 +82,47 @@ def resume(thread_id: str) -> None:
             console.print(f"✅ Node [bold cyan]{key}[/bold cyan] completed.")
             
     console.print("[bold green]Pipeline finished successfully![/bold green]")
+
+@orchestrate.command()
+def inbox() -> None:
+    """List all agentic hunts waiting for human approval."""
+    import sqlite3
+    db_path = "hecate_checkpoints.sqlite"
+    if not os.path.exists(db_path):
+        console.print("[yellow]No LangGraph database found. The inbox is empty.[/yellow]")
+        return
+        
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        # Checkpoints table tracks the state of every thread
+        c.execute("SELECT DISTINCT thread_id FROM checkpoints")
+        threads = [row[0] for row in c.fetchall()]
+    except Exception as e:
+        console.print(f"[red]Could not query database: {e}[/red]")
+        return
+        
+    pending_count = 0
+    console.print("
+[bold cyan]=== HUMAN-IN-THE-LOOP INBOX ===[/bold cyan]")
+    
+    for thread_id in threads:
+        config = {"configurable": {"thread_id": thread_id}}
+        state = hecate_graph.get_state(config)
+        
+        # If it has a 'next' step, it is paused!
+        if state.next:
+            pending_count += 1
+            topic = state.values.get("topic", "Unknown Topic")
+            console.print(f"📌 [bold yellow]{thread_id}[/bold yellow] - {topic}")
+            console.print(f"   Waiting at Node: [magenta]{state.next[0]}[/magenta]")
+            console.print(f"   Command: [dim]hecate-agent orchestrate resume --thread-id '{thread_id}'[/dim]
+")
+            
+    if pending_count == 0:
+        console.print("[green]Your inbox is empty! All hunts are fully processed.[/green]
+")
+    else:
+        console.print(f"[bold]{pending_count} hunt(s) require your approval.[/bold]
+")
+
