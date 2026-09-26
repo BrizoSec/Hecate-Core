@@ -58,6 +58,7 @@ def research_agent(state: HuntState) -> Dict[str, Any]:
         output, file_path = generate_research(
             topic=state["topic"],
             workspace=workspace,
+            source_context=state.get("threat_intel")
         )
         return {
             "research_id": output.research_id,

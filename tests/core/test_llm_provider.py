@@ -188,6 +188,30 @@ class TestOllamaProvider:
         assert sent_body["options"]["temperature"] == 0.3
         assert "api/chat" in sent_request.full_url
 
+    def _sent_options(self, provider):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"message": {"content": "ok"}}).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            provider.complete(messages=[{"role": "user", "content": "test"}])
+        return json.loads(mock_urlopen.call_args[0][0].data.decode("utf-8"))["options"]
+
+    def test_ollama_provider_sends_num_ctx_when_set(self):
+        """Ollama's 4096 default silently truncated long research and extraction prompts."""
+        assert self._sent_options(OllamaProvider(model="llama3", num_ctx=16384))["num_ctx"] == 16384
+
+    def test_ollama_provider_omits_num_ctx_when_unset(self):
+        assert "num_ctx" not in self._sent_options(OllamaProvider(model="llama3"))
+
+    def test_ollama_num_ctx_resolution(self, monkeypatch):
+        from hecate_agent.core.llm_provider import _DEFAULT_OLLAMA_NUM_CTX, _ollama_num_ctx
+
+        monkeypatch.delenv("HECATE_OLLAMA_NUM_CTX", raising=False)
+        assert _ollama_num_ctx({}) == _DEFAULT_OLLAMA_NUM_CTX
+        monkeypatch.setenv("HECATE_OLLAMA_NUM_CTX", "32768")
+        assert _ollama_num_ctx({}) == 32768
+        assert _ollama_num_ctx({"num_ctx": 8192}) == 8192
+
     def test_ollama_provider_connection_error(self):
         """ConnectionError is raised when Ollama is unreachable."""
         from urllib.error import URLError

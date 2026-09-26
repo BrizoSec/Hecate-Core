@@ -307,6 +307,12 @@ class OllamaProvider(LLMProvider):
             this defaults higher than a typical API timeout. Override via
             the ``HECATE_OLLAMA_TIMEOUT_SEC`` env var or the ``timeout_sec``
             config key.
+        num_ctx: Context window, in tokens, requested per call. Ollama's own
+            default is 4096, and it silently drops the start of any longer
+            prompt: 36 "truncating input prompt" events in this workspace's
+            Ollama log before this was set, on research and artifact-extraction
+            prompts. Override via ``HECATE_OLLAMA_NUM_CTX`` or the ``num_ctx``
+            config key.
     """
 
     def __init__(
@@ -314,9 +320,11 @@ class OllamaProvider(LLMProvider):
         model: str = "llama3",
         base_url: str = "http://localhost:11434",
         timeout_sec: int = 180,
+        num_ctx: Optional[int] = None,
     ):
         self.model = model
         self.timeout_sec = timeout_sec
+        self.num_ctx = num_ctx
         self.base_url = base_url.rstrip("/")
 
     @property
@@ -354,6 +362,7 @@ class OllamaProvider(LLMProvider):
             "options": {
                 "num_predict": max_tokens,
                 "temperature": temperature,
+                **({"num_ctx": self.num_ctx} if self.num_ctx else {}),
             },
         }
         data = json.dumps(payload).encode("utf-8")
@@ -662,6 +671,7 @@ def _autodetect_provider(model: Optional[str], effective: Dict[str, Any]) -> LLM
             model=detected_model,
             base_url=ollama_url,
             timeout_sec=_ollama_timeout_sec(effective),
+            num_ctx=_ollama_num_ctx(effective),
         )
 
     raise RuntimeError(
@@ -680,6 +690,21 @@ def _ollama_timeout_sec(config: Dict[str, Any]) -> int:
     if env_value:
         return int(env_value)
     return 180
+
+
+#: Room for a long research or extraction prompt plus the 4096-token default
+#: generation budget, where Ollama's 4096 default cut prompts short.
+_DEFAULT_OLLAMA_NUM_CTX = 16384
+
+
+def _ollama_num_ctx(config: Dict[str, Any]) -> int:
+    """Resolve the Ollama context window: config key, then env var, then default."""
+    if "num_ctx" in config:
+        return int(config["num_ctx"])
+    env_value = os.getenv("HECATE_OLLAMA_NUM_CTX")
+    if env_value:
+        return int(env_value)
+    return _DEFAULT_OLLAMA_NUM_CTX
 
 
 def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> LLMProvider:
@@ -716,6 +741,7 @@ def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> 
             model=model or "llama3",
             base_url=base_url,
             timeout_sec=_ollama_timeout_sec(config),
+            num_ctx=_ollama_num_ctx(config),
         )
 
     if name == "openai":
