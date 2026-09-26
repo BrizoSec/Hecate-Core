@@ -1,19 +1,31 @@
 import logging
+import os
 import httpx
 from typing import List, Dict, Any
 
+
+def _setting(name: str, default: str = "") -> str:
+    """Read a credential or endpoint from the environment (loaded from .env by the CLI).
+
+    Never hardcode these: the values below were once committed and pushed.
+    """
+    return os.environ.get(name, default)
+
+
+def _misp_verify_tls() -> bool:
+    """Verify MISP's certificate unless MISP_VERIFY_SSL=false (e.g. a local self-signed instance)."""
+    return _setting("MISP_VERIFY_SSL", "true").lower() != "false"
+
 logger = logging.getLogger(__name__)
 
-MISP_BASE_URL = "https://localhost:8443"
-MISP_API_KEY = "***REMOVED***"
 
 def publish_hunt_to_misp(topic: str, hypothesis: str, observables: List[str]) -> str:
     """
     Creates a new Event in MISP for the completed Hunt and attaches the observables.
     """
-    url = f"{MISP_BASE_URL}/events/add"
+    url = f"{_setting('MISP_BASE_URL', 'https://localhost:8443')}/events/add"
     headers = {
-        "Authorization": MISP_API_KEY,
+        "Authorization": _setting("MISP_API_KEY"),
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
@@ -63,7 +75,7 @@ def publish_hunt_to_misp(topic: str, hypothesis: str, observables: List[str]) ->
     }
     
     try:
-        resp = httpx.post(url, headers=headers, json=payload, verify=False, timeout=10.0)
+        resp = httpx.post(url, headers=headers, json=payload, verify=_misp_verify_tls(), timeout=10.0)
         if resp.status_code == 200:
             event_id = resp.json().get("Event", {}).get("id", "Unknown")
             return f"Successfully created MISP Event #{event_id}"

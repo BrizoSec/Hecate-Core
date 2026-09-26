@@ -1761,7 +1761,9 @@ Write EXACTLY ONE rule, for this Sigma log source category and no other:
 Fields available in {logsource}: {fields}\nStandard Sigma Modifiers available: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
 
 RULES OF THE TASK:
-1. Return JSON only. Do NOT write YAML - the caller renders it.
+1. IRONCLAD DETECTION LOGIC: Never use placeholder paths (like `C:\path\to\`, `malware.exe`, etc.) or exact threat tracking names (like `AvisLoader`) inside registry keys, command lines, or file paths. Malware developers do not name their artifacts after their industry marketing names. Do NOT invent strings.
+2. STRICT LOG SOURCE MAPPING: If `logsource_category` is `file_event`, the rule MUST ONLY search for file artifacts (e.g., `TargetFilename`). Do NOT include process creation arguments (like `CommandLine` flags) in a `file_event` rule. If the category is `process_creation`, only evaluate execution details (`Image`, `CommandLine`).
+3. Return JSON only. Do NOT write YAML - the caller renders it.
 2. Use only field names that exist in {logsource}. A field borrowed from
    another category matches nothing and fails silently at conversion. Match the
    value to the field's type: an address field (IpAddress, DestinationIp) takes
@@ -1769,38 +1771,38 @@ RULES OF THE TASK:
    a file hash (MD5, SHA1, SHA256) into a command-line or filename field; hashes
    belong ONLY in a `Hashes` field. If your only indicator is a domain and this 
    log source has no name field for it, write a behavioural rule instead.
-3. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
+5. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
    For example, a rule that looks for `ParentImage|endswith: \\winword.exe` spawning
    `Image|endswith: \\cmd.exe` is a high-quality, generic behavioral rule that works
    everywhere. Using no indicator at all is completely fine, and often preferred,
    when the behaviour itself is the better rule.
-4. If you DO use a specific indicator, reproduce it WHOLE in one match value. Never
+6. If you DO use a specific indicator, reproduce it WHOLE in one match value. Never
    split one into fragments: "bad.example.net" written as `|endswith: .net` plus
    `|contains: bad` matches every .net domain, loses the evidence, and is rejected.
    A selection that matches only a file extension (`|endswith: .exe`) or a wildcard
    matches every file of that type and is rejected.
-5. Every `detection` MUST contain a `condition` key. It is not optional, and
+7. Every `detection` MUST contain a `condition` key. It is not optional, and
    it may only name selection blocks you defined in the same rule. If you
    define both a selection and a filter, say so explicitly, e.g.
    "selection and not filter".
-6. When the hypothesis is about an unusual *number* of events -- brute force,
+8. When the hypothesis is about an unusual *number* of events -- brute force,
    credential stuffing, password spraying, beaconing, mass enumeration -- put
    the threshold in the condition with an aggregation, or the rule fires on a
    single ordinary event. Sigma writes it as
    "selection | count() > 25" or "selection | count(IpAddress) by TargetUserName > 10".
    Only use one when volume is what makes the behaviour suspicious.
-7. A `filter` must never exclude the attack path the hypothesis describes.
+9. A `filter` must never exclude the attack path the hypothesis describes.
    On a hunt about malware delivered through the browser, excluding the
    browser as the parent process removes the very thing being hunted. An
    empty filter block is rejected: omit it instead.
-8. Give realistic falsepositives. "None" is never a correct answer.
-9. The JSON below shows the *shape* only. Its values are placeholders, not
+10. Give realistic falsepositives. "None" is never a correct answer.
+11. The JSON below shows the *shape* only. Its values are placeholders, not
    examples to copy: "FieldName", "value" and "known-good" must never appear
    in what you return, and a rule matching on them is rejected. Neither may
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
-10. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
+12. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
 Return exactly this JSON shape, with a single entry in "rules":
 {{
   "rules": [

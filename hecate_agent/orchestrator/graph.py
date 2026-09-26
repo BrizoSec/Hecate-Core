@@ -57,6 +57,33 @@ def research_agent(state: HuntState) -> Dict[str, Any]:
 
 
 
+
+def artifact_extractor_agent(state: HuntState) -> Dict[str, Any]:
+    logger.info("Executing Artifact Extractor Agent...")
+    from hecate_agent.orchestrator.artifact_extractor import extract_deep_artifacts
+    
+    try:
+        threat_intel = state.get("threat_intel", "")
+        extracted = extract_deep_artifacts(threat_intel)
+        
+        new_intel = extracted.get("new_intel", "")
+        new_obs = extracted.get("new_observables", [])
+        
+        if new_intel:
+            # Append the deep scraped artifacts to the threat_intel
+            threat_intel += new_intel
+            
+        current_obs = state.get("observables", [])
+        # Append new observables, ensuring no duplicates
+        for obs in new_obs:
+            if obs not in current_obs:
+                current_obs.append(obs)
+                
+        return {"threat_intel": threat_intel, "observables": current_obs}
+    except Exception as e:
+        logger.error(f"Artifact Extractor Agent failed: {e}")
+        return {"errors": state.get("errors", []) + [f"Artifact Extraction Error: {e}"]}
+
 def enrichment_agent(state: HuntState) -> Dict[str, Any]:
     logger.info("Executing Enrichment Agent (VirusTotal)...")
     from hecate_agent.orchestrator.enrichment import generate_enrichment_summary
@@ -190,6 +217,7 @@ workflow = StateGraph(HuntState)
 
 # Add Agent Nodes
 workflow.add_node("research", research_agent)
+workflow.add_node("artifact_extractor", artifact_extractor_agent)
 workflow.add_node("enrichment", enrichment_agent)
 workflow.add_node("hypothesis", hypothesis_agent)
 workflow.add_node("sigma_drafter", sigma_drafter_agent)
@@ -200,7 +228,8 @@ workflow.add_node("misp_publisher", misp_publisher_agent)
 workflow.set_entry_point("research")
 
 # Add Conditional Edges
-workflow.add_conditional_edges("research", route_errors, {"next": "enrichment", END: END})
+workflow.add_conditional_edges("research", route_errors, {"next": "artifact_extractor", END: END})
+workflow.add_conditional_edges("artifact_extractor", route_errors, {"next": "enrichment", END: END})
 workflow.add_conditional_edges("enrichment", route_errors, {"next": "hypothesis", END: END})
 workflow.add_conditional_edges("hypothesis", route_errors, {"next": "sigma_drafter", END: END})
 workflow.add_conditional_edges("sigma_drafter", route_errors, {"next": "hunt_writer", END: END})

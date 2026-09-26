@@ -1,11 +1,24 @@
+import os
 import re
 import httpx
 import logging
 from typing import List, Dict, Any
 
+
+def _setting(name: str, default: str = "") -> str:
+    """Read a credential or endpoint from the environment (loaded from .env by the CLI).
+
+    Never hardcode these: the values below were once committed and pushed.
+    """
+    return os.environ.get(name, default)
+
+
+def _misp_verify_tls() -> bool:
+    """Verify MISP's certificate unless MISP_VERIFY_SSL=false (e.g. a local self-signed instance)."""
+    return _setting("MISP_VERIFY_SSL", "true").lower() != "false"
+
 logger = logging.getLogger(__name__)
 
-VT_API_KEY = "***REMOVED***"
 
 def extract_indicators(text: str) -> Dict[str, List[str]]:
     """Extract IPs, Domains, and Hashes from text using regex."""
@@ -21,7 +34,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
 
 def query_vt_hash(file_hash: str) -> str:
     url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
-    headers = {"x-apikey": VT_API_KEY}
+    headers = {"x-apikey": _setting("VT_API_KEY")}
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 200:
@@ -36,7 +49,7 @@ def query_vt_hash(file_hash: str) -> str:
 
 def query_vt_ip(ip: str) -> str:
     url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
-    headers = {"x-apikey": VT_API_KEY}
+    headers = {"x-apikey": _setting("VT_API_KEY")}
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 200:
@@ -50,10 +63,9 @@ def query_vt_ip(ip: str) -> str:
         return f"Error querying VT: {e}"
 
 
-SHODAN_API_KEY = "***REMOVED***"
 
 def query_shodan_ip(ip: str) -> str:
-    url = f"https://api.shodan.io/shodan/host/{ip}?key={SHODAN_API_KEY}"
+    url = f"https://api.shodan.io/shodan/host/{ip}?key={_setting('SHODAN_API_KEY')}"
     try:
         resp = httpx.get(url, timeout=10.0)
         if resp.status_code == 200:
@@ -75,13 +87,11 @@ def query_shodan_ip(ip: str) -> str:
         return f"Error querying Shodan: {e}"
 
 
-MISP_BASE_URL = "https://localhost:8443"
-MISP_API_KEY = "***REMOVED***"
 
 def query_misp_indicator(indicator: str) -> str:
-    url = f"{MISP_BASE_URL}/attributes/restSearch"
+    url = f"{_setting('MISP_BASE_URL', 'https://localhost:8443')}/attributes/restSearch"
     headers = {
-        "Authorization": MISP_API_KEY,
+        "Authorization": _setting("MISP_API_KEY"),
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
@@ -90,7 +100,7 @@ def query_misp_indicator(indicator: str) -> str:
         "limit": 5
     }
     try:
-        resp = httpx.post(url, headers=headers, json=data, verify=False, timeout=10.0)
+        resp = httpx.post(url, headers=headers, json=data, verify=_misp_verify_tls(), timeout=10.0)
         if resp.status_code == 200:
             events = resp.json().get("response", {}).get("Attribute", [])
             if events:
@@ -151,13 +161,12 @@ def expand_ttps(threat_intel: str) -> str:
         return ""
 
 
-CENSYS_TOKEN = "***REMOVED***"
 
 def query_censys_ip(ip: str) -> str:
     url = f"https://search.censys.io/api/v2/hosts/{ip}"
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {CENSYS_TOKEN}"
+        "Authorization": f"Bearer {_setting('CENSYS_API_TOKEN')}"
     }
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
@@ -189,12 +198,11 @@ def query_censys_ip(ip: str) -> str:
         return f"Error querying Censys: {e}"
 
 
-ABUSECH_API_KEY = "***REMOVED***"
 
 def query_threatfox(indicator: str) -> str:
     url = "https://threatfox-api.abuse.ch/api/v1/"
     headers = {
-        "API-KEY": ABUSECH_API_KEY,
+        "API-KEY": _setting("ABUSECH_API_KEY"),
         "Content-Type": "application/json"
     }
     payload = {
