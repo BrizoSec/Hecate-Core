@@ -15,6 +15,7 @@ from hecate_agent.commands import attack, context, env, hunt, investigate, resea
 from hecate_agent.commands.agent import agent  # noqa: E402
 from hecate_agent.commands.eval import eval_cmd  # noqa: E402
 from hecate_agent.commands.mcp import mcp  # noqa: E402
+from hecate_agent.commands.orchestrate import orchestrate  # noqa: E402
 from hecate_agent.plugin_system import PluginRegistry  # noqa: E402
 
 console = Console()
@@ -90,6 +91,7 @@ cli.add_command(similar)
 
 # Agent commands
 cli.add_command(agent)
+cli.add_command(orchestrate)
 
 # Model-quality eval harness
 cli.add_command(eval_cmd)

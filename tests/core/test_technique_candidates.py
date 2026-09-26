@@ -33,6 +33,7 @@ _TECHNIQUES: Dict[str, TechniqueInfo] = {
         _t("T1190", "Exploit Public-Facing Application", "initial-access"),
         _t("T1574.001", "DLL", "stealth"),
         _t("T1571", "Non-Standard Port", "command-and-control"),
+        _t("T1546.005", "Trap", "persistence"),
     ]
 }
 
@@ -140,6 +141,12 @@ def test_zero_day_alone_does_not_propose_a_public_facing_exploit() -> None:
 def test_dll_hijacking_is_proposed_although_its_attack_name_is_just_dll() -> None:
     assert "T1574.001" in _ids("The ClickFix campaign sideloads a malicious mscoree.dll.")
     assert "T1574.001" in _ids("Detecting DLL hijacking with Elastic Defend")
+
+
+def test_a_one_word_name_that_is_an_everyday_word_is_not_matched() -> None:
+    """H-0018: T1546.005 Trap for a Teams vishing campaign, on "OAuth Traps"."""
+    assert "T1546.005" not in _ids("Phishing Kits, Dropbox Account Hacks, OAuth Traps")
+    assert "T1036" in _ids("The loader masquerades as a Teams update.")
 
 
 def test_format_candidates() -> None:

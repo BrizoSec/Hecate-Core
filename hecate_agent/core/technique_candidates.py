@@ -71,6 +71,13 @@ _GENERIC_NAME_WORDS = frozenset(
     }
 )  # fmt: skip
 
+#: One-word technique names that are also everyday words, so a report using
+#: the word is no evidence for the technique. "Trap" (T1546.005, a Unix shell
+#: builtin) was proposed for a Teams vishing campaign on "OAuth Traps"; "proxy"
+#: is as often the defender's web proxy as the attacker's. Report wording can
+#: still name either deliberately ("socks proxy" for T1090).
+_EVERYDAY_ONE_WORD_NAMES = frozenset({"trap", "proxy"})
+
 #: Tactics describing what happens before the intrusion, on the adversary's
 #: own infrastructure. Their technique names are everyday report nouns
 #: ("Malware", "Server", "Exploits", "Botnet"), so name matching would propose
@@ -146,7 +153,7 @@ def _name_tokens(name: str) -> List[str]:
     tokens = [w for w in _WORD_RE.findall(name.lower()) if w not in _JOINERS]
     if all(t in _GENERIC_NAME_WORDS for t in tokens):
         return []
-    if len(tokens) == 1 and len(tokens[0]) < 4:
+    if len(tokens) == 1 and (len(tokens[0]) < 4 or tokens[0] in _EVERYDAY_ONE_WORD_NAMES):
         return []
     return [_stem(t) for t in tokens]
 
