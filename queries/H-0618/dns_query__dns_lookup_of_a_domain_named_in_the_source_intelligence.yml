@@ -1,0 +1,26 @@
+title: DNS lookup of a domain named in the source intelligence
+id: e9dd07c2-c41c-4d3a-9268-3189d515e5be
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a domain or host the source published, or a subdomain
+  of a published domain.
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-09-27'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - d.d.edsxhbba06.shop
+    - oa.muxmyee520.shop
+    - pan.qlam.cc
+    - v.n.1.xcwanmei09.shop
+    - www.qlam.cc
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hunt_id: H-0618

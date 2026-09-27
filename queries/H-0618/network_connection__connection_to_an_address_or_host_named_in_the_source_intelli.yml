@@ -1,0 +1,29 @@
+title: Connection to an address or host named in the source intelligence
+id: 879cc21a-1cbb-46c5-8da9-60f5ec3d1269
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to an address the source published, or to a host
+  whose name it published.
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-09-27'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_address:
+    DestinationIp:
+    - 38.207.178.192
+  selection_host:
+    DestinationHostname:
+    - d.d.edsxhbba06.shop
+    - oa.muxmyee520.shop
+    - pan.qlam.cc
+    - v.n.1.xcwanmei09.shop
+    - www.qlam.cc
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hunt_id: H-0618
