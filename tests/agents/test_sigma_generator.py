@@ -491,6 +491,9 @@ def test_one_llm_call_is_made_per_log_source():
 
     def fake(prompt, *a, **k):
         calls.append(prompt)
+        # A real call records its usage on the way out; llm_calls counts those
+        # records rather than the log sources asked for, so the stub makes one.
+        agent._log_llm_metrics("sigma-generator", "test-model", 10, 5, 0.0, 1)
         category = next(c for c in sources if f"and no other:\n    {c}" in prompt)
         return json.dumps({"rules": [_rule(logsource_category=category, title=f"{category} rule")]})
 

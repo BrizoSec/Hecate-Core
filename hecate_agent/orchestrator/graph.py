@@ -52,7 +52,8 @@ class HuntState(TypedDict):
 
 def research_agent(state: HuntState) -> Dict[str, Any]:
     logger.info("Executing Research Agent...")
-    workspace = Path(state["workspace_path"]) if state.get("workspace_path") else None
+    workspace_path = state.get("workspace_path")
+    workspace = Path(workspace_path) if workspace_path else None
 
     try:
         output, file_path = generate_research(
@@ -111,7 +112,8 @@ def enrichment_agent(state: HuntState) -> Dict[str, Any]:
 
 def hypothesis_agent(state: HuntState) -> Dict[str, Any]:
     logger.info("Executing Hypothesis Agent...")
-    workspace = Path(state["workspace_path"]) if state.get("workspace_path") else None
+    workspace_path = state.get("workspace_path")
+    workspace = Path(workspace_path) if workspace_path else None
 
     try:
         output = generate_hypothesis(
@@ -212,10 +214,11 @@ def allocate_hunt_id_agent(state: HuntState) -> Dict[str, Any]:
 
 def sigma_drafter_agent(state: HuntState) -> Dict[str, Any]:
     logger.info("Executing Sigma Drafter Agent...")
-    out_dir = Path(state["out_dir"]) if state.get("out_dir") else None
+    out_dir_value = state.get("out_dir")
+    out_dir = Path(out_dir_value) if out_dir_value else None
     hunt_id = state["hunt_id"]
 
-    payload = {
+    payload: Dict[str, Any] = {
         "hypothesis": state.get("hypothesis", ""),
         "justification": state.get("justification", ""),
         "techniques": state.get("mitre_techniques", []),
@@ -327,7 +330,7 @@ def misp_publisher_agent(state: HuntState) -> Dict[str, Any]:
 
     try:
         topic = state.get("topic", "Untitled Hunt")
-        hypothesis = state.get("hypothesis", "")
+        hypothesis = state.get("hypothesis") or ""
         observables = state.get("observables", [])
 
         result = publish_hunt_to_misp(topic, hypothesis, observables)
@@ -395,7 +398,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 
 
-def compile_graph(db_path: str = "hecate_checkpoints.sqlite", require_approval: bool = True):
+def compile_graph(db_path: str = "hecate_checkpoints.sqlite", require_approval: bool = True) -> Any:
     conn = sqlite3.connect(db_path, check_same_thread=False)
     memory = SqliteSaver(conn)
 

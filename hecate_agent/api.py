@@ -16,6 +16,14 @@ from hecate_agent.core.attack_matrix import get_technique, get_superseding_techn
 from hecate_agent.core.research_manager import ResearchManager
 from hecate_agent.commands.research import _generate_research_markdown
 
+
+class GenerationError(RuntimeError):
+    """A generation step failed; ``metadata`` carries its usage and timing for callers that meter it."""
+
+    def __init__(self, message: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.metadata: Dict[str, Any] = metadata or {}
+
 def _generate_hypothesis(
     threat_intel: str,
     research_id: Optional[str] = None,
@@ -50,9 +58,7 @@ def _generate_hypothesis(
     
     result = agent.execute(input_data)
     if not result.success:
-        error = RuntimeError(f"Hypothesis generation failed: {result.error}")
-        error.metadata = dict(result.metadata)
-        raise error
+        raise GenerationError(f"Hypothesis generation failed: {result.error}", metadata=dict(result.metadata))
         
     if not result.data:
         raise RuntimeError("Hypothesis generation returned no data.")
@@ -118,9 +124,7 @@ def generate_research(
     )
     
     if not result.success or not result.data:
-        error = RuntimeError(f"Research failed: {result.error}")
-        error.metadata = dict(result.metadata)
-        raise error
+        raise GenerationError(f"Research failed: {result.error}", metadata=dict(result.metadata))
         
     output = result.data
     markdown_content = _generate_research_markdown(output)

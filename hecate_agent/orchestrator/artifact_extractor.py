@@ -33,7 +33,7 @@ def scrape_url_text(url: str) -> str:
     soup = BeautifulSoup(resp.text, "html.parser")
     for tag in soup(["script", "style", "nav", "footer", "header"]):
         tag.decompose()
-    return soup.get_text(separator="\n", strip=True)[:_MAX_PAGE_CHARS]
+    return str(soup.get_text(separator="\n", strip=True))[:_MAX_PAGE_CHARS]
 
 
 def report_urls(threat_intel: str, limit: int = 2) -> List[str]:
