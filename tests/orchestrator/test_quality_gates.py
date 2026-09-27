@@ -184,7 +184,7 @@ def _run(
 def test_graph_drops_unevidenced_techniques_and_records_them(monkeypatch, tmp_path):
     state, published = _run(monkeypatch, tmp_path, threat_intel=TEAMS, model_techniques=["T1078", "T1566"], rules=[])
     assert state["mitre_techniques"] == ["T1566"]
-    draft = Path(state["draft_path"]).read_text()
+    draft = Path(state["draft_path"]).read_text(encoding="utf-8")
     assert "T1078" in draft and "Dropped before drafting" in draft
     assert "techniques: ['T1566']" in draft
     assert "# Grounding" in draft
@@ -208,7 +208,7 @@ def test_graph_does_not_publish_a_draft_with_unsupported_claims(monkeypatch, tmp
     )
     state, published = _run(monkeypatch, tmp_path, threat_intel=TEAMS, model_techniques=["T1566"], rules=[rule])
     assert state["grounding_unsupported"] >= 1
-    assert "trace to no source" in Path(state["draft_path"]).read_text()
+    assert "trace to no source" in Path(state["draft_path"]).read_text(encoding="utf-8")
     assert published == []
 
 
@@ -245,10 +245,10 @@ def test_each_run_gets_the_next_id_from_the_shared_counter(monkeypatch, tmp_path
 
 def test_the_writer_never_overwrites_an_existing_hunt(monkeypatch, tmp_path):
     first, _ = _run(monkeypatch, tmp_path, threat_intel=TEAMS, model_techniques=["T1566"], rules=[], hunt_id="H-0901")
-    before = Path(first["draft_path"]).read_text()
+    before = Path(first["draft_path"]).read_text(encoding="utf-8")
     second, published = _run(monkeypatch, tmp_path, threat_intel=TEAMS, model_techniques=["T1566"], rules=[], hunt_id="H-0901")
     assert any("already exists" in e for e in second["errors"])
-    assert Path(first["draft_path"]).read_text() == before
+    assert Path(first["draft_path"]).read_text(encoding="utf-8") == before
     assert published == []
 
 

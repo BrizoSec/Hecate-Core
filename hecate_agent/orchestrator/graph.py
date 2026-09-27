@@ -314,7 +314,7 @@ def hunt_writer_agent(state: HuntState) -> Dict[str, Any]:
 
     # "x" refuses to replace an existing draft: every run used to overwrite H-0000.md.
     try:
-        with open(out_path, "x") as f:
+        with open(out_path, "x", encoding="utf-8") as f:
             f.write(content)
     except FileExistsError:
         logger.error(f"Refusing to overwrite existing hunt {out_path}")

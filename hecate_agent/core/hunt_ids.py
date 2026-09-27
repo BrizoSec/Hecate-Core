@@ -47,7 +47,7 @@ def hunt_id_lock(hunts_root: Path) -> Iterator[None]:
     if _fcntl is None:
         yield
         return
-    with open(hunts_root / LOCK_FILENAME, "w") as lock_file:
+    with open(hunts_root / LOCK_FILENAME, "w", encoding="utf-8") as lock_file:
         _fcntl.flock(lock_file, _fcntl.LOCK_EX)
         try:
             yield
@@ -79,6 +79,8 @@ def _max_in_git(hunts_root: Path) -> int:
             cwd=hunts_root.parent,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_GIT_SEED_TIMEOUT_SEC,
             check=False,
         )
@@ -92,7 +94,7 @@ def _max_in_git(hunts_root: Path) -> int:
 
 def _read_counter(path: Path) -> int:
     try:
-        return int(path.read_text().strip())
+        return int(path.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return 0
 
@@ -106,7 +108,7 @@ def _atomic_write(path: Path, text: str) -> None:
     """
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         os.chmod(tmp, _DEFAULT_FILE_MODE)
         os.replace(tmp, path)
