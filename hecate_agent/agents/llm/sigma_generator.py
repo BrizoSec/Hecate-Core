@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import yaml
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
+from hecate_agent.core.sigma_semantics import semantic_problem
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,29 @@ class SigmaGenerationInput:
     observables: List[str] = field(default_factory=list)
     # Explicit override; when empty the log sources are derived.
     logsources: List[str] = field(default_factory=list)
+    # Typed indicators (hecate_agent.core.provenance.IndicatorRecord as dicts):
+    # role, status and ports from the primary source. When present, the
+    # deterministic IOC rules route each indicator by role instead of placing
+    # every hash in a process rule and every host in DNS and network rules.
+    indicator_records: List[Dict[str, Any]] = field(default_factory=list)
+    # The source's own detection guidance (hecate_agent.core.detection_guidance
+    # GuidanceItem dicts). Items routed to Sigma with a template become
+    # deterministic rules citing the guidance; the rest steer the prompt.
+    detection_guidance: List[Dict[str, Any]] = field(default_factory=list)
+    # Verified primary-source artifacts (SourceArtifact dicts). Two-pass
+    # generation: pass one turns them into Sigma-ready literals
+    # (hecate_agent.core.query_literals); pass two, the model, may use only
+    # those in file, process, command-line and registry fields.
+    source_artifacts: List[Dict[str, Any]] = field(default_factory=list)
+    # A2: review each model-drafted rule against the hypothesis and the source
+    # passages, and list behaviours no rule covers. Off unless asked: it costs
+    # one model call per model rule plus one.
+    review_rules: bool = False
+
+    def query_literals(self) -> List[Dict[str, Any]]:
+        from hecate_agent.core.query_literals import literals_from_artifacts
+
+        return [lit.to_dict() for lit in literals_from_artifacts(self.source_artifacts)]
 
 
 @dataclass
@@ -357,6 +381,9 @@ class SigmaRule:
     rule_yaml: str
     techniques: List[str] = field(default_factory=list)
     level: str = "medium"
+    #: "model" for a rule the model drafted, "deterministic" for one built from
+    #: indicators, guidance or verified artifacts. Only model rules are reviewed.
+    origin: str = "model"
 
     @property
     def filename(self) -> str:
@@ -372,6 +399,8 @@ class SigmaGenerationOutput:
     rules: List[SigmaRule] = field(default_factory=list)
     logsources_considered: List[str] = field(default_factory=list)
     rejected: List[str] = field(default_factory=list)
+    #: Behaviours the rule reviewer found no rule for, each with its verified quote.
+    review_gaps: List[Dict[str, str]] = field(default_factory=list)
 
 
 def _select_for_logsource(
@@ -1077,6 +1106,168 @@ def _breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+_FLAT_OR_RE = re.compile(
+    r"^\s*(?:(?:1|any) of (?P<glob>[\w*]+)|(?P<names>\w+(?:\s+or\s+\w+)+))(?:\s+and\s+not\s+(?P<filter>\w+))?\s*$"
+)
+
+
+def _or_branch_breadth_problem(detection: Dict[str, Any]) -> Optional[str]:
+    """Reject a flat OR with one branch that matches almost anything.
+
+    `_breadth_problem` judges all selections together, so ``selection_ioc or
+    selection_any_exe`` passed on the IOC branch while the other matched every
+    ``.exe``. In an OR each branch fires alone, so each must be specific alone.
+    Only flat conditions are parsed ("a or b", "1 of selection*", optionally
+    "and not filter"); anything nested is left to the reviewer.
+    """
+    match = _FLAT_OR_RE.match(str(detection.get("condition", "")))
+    if not match:
+        return None
+    names = [k for k in detection if k != "condition"]
+    if match.group("glob"):
+        pattern = re.compile("^" + re.escape(match.group("glob")).replace("\\*", ".*") + "$")
+        branches = [n for n in names if pattern.match(str(n))]
+    else:
+        wanted = re.split(r"\s+or\s+", match.group("names"))
+        branches = [n for n in names if str(n) in wanted]
+    for name in branches:
+        values = _detection_values({name: detection[name]})
+        if values and all(_nonspecific(v) for v in values):
+            shown = ", ".join(sorted({v.strip() for v in values}))
+            return f"OR-ed selection {name!r} matches only {shown!r} and fires on its own for any such event"
+    return None
+
+
+def _hash_role_problem(detection: Dict[str, Any], records: List[Dict[str, Any]], category: str) -> Optional[str]:
+    """A published hash matched in an event where a file of that role never appears.
+
+    H-0618's image_load rule matched the Go loader's hash; the source types it
+    as an executable, which runs as a process and is never loaded as a module.
+    Same placements as the deterministic IOC rules.
+    """
+    from hecate_agent.core.provenance import HASH_TYPES, IndicatorRecord, placements
+
+    typed = [IndicatorRecord.from_dict(r) for r in records]
+    typed = [r for r in typed if r.type in HASH_TYPES and r.role != "unknown"]
+    if not typed:
+        return None
+    for _, block in _blocks_of(detection):
+        for key, raw in block.items():
+            if str(key).split("|")[0].strip().lower() != "hashes":
+                continue
+            for value in raw if isinstance(raw, list) else [raw]:
+                lowered = str(value).lower()
+                for record in typed:
+                    if record.value.lower() in lowered and f"{category}.Hashes" not in placements(record):
+                        where = ", ".join(placements(record)) or "no event this rule can see"
+                        return (
+                            f"Hashes matches {record.value[:16]}…, which the source identifies as {record.role}; "
+                            f"a {record.role} is never seen in {category}. It belongs in {where}"
+                        )
+    return None
+
+
+def _reversed_guidance_chain_problem(detection: Dict[str, Any], guidance: List[Dict[str, Any]]) -> Optional[str]:
+    """A model rule whose parent/child pair reverses a chain the source's guidance gives.
+
+    The source said resume executable -> cmd.exe -> Word; replay after replay
+    the model wrote Word -> cmd.exe, even with the guidance in its prompt.
+    """
+    parents = [str(v).lower() for b in _blocks_of(detection) for k, raw in b[1].items()
+               if str(k).split("|")[0].lower() == "parentimage" for v in (raw if isinstance(raw, list) else [raw])]  # fmt: skip
+    images = [str(v).lower() for b in _blocks_of(detection) for k, raw in b[1].items()
+              if str(k).split("|")[0].lower() == "image" for v in (raw if isinstance(raw, list) else [raw])]  # fmt: skip
+    if not parents or not images:
+        return None
+    for item in guidance:
+        for candidate in item.get("candidates") or []:
+            selection = (candidate.get("detection") or {}).get("selection") or {}
+            parent, child = selection.get("ParentImage|endswith"), selection.get("Image|endswith")
+            if not parent or not child:
+                continue
+            parent, child = str(parent).lower(), str(child).lower()
+            if any(p.endswith(child) for p in parents) and any(i.endswith(parent) for i in images):
+                return (
+                    f"the rule has {child.lstrip(chr(92))} starting {parent.lstrip(chr(92))}, but the source's guidance "
+                    f'says the reverse: "{item.get("text", "")}"'
+                )
+    return None
+
+
+def _literal_problem(detection: Dict[str, Any], literals: List[Dict[str, Any]]) -> Optional[str]:
+    """Pass two may match only pass one's values in file, process, command-line and registry fields."""
+    from hecate_agent.core.query_literals import ungrounded_value
+
+    value = ungrounded_value(detection, literals)
+    if not value:
+        return None
+    return (
+        f"{value!r} is not a value the source gives; in file, process, command-line and registry fields use only "
+        "the EXACT VALUES FROM THE SOURCE listed (whole, or a part of one) and standard system binaries"
+    )
+
+
+def rule_provenance(detection: Dict[str, Any], input_data: "SigmaGenerationInput") -> List[Dict[str, Any]]:
+    """Where each published indicator a rule matches came from.
+
+    A rule file travels without its hunt: exported to a SIEM, the Go loader's
+    hash in it no longer says it is the loader, from which report, with what
+    confidence. Each indicator a rule matches is listed with its role, status,
+    confidence, source and the verbatim passage that typed it; a feed value
+    the primary source never described is marked as coming from the feed.
+    """
+    from hecate_agent.core.provenance import IndicatorRecord, url_parts
+
+    values = [str(v).lower() for v in _detection_values(detection)]
+    if not values:
+        return []
+
+    def matched(value: str, kind: str) -> bool:
+        needles = [value.lower()]
+        if kind == "url":
+            # By path: the host is the address record's, and matching it would
+            # attach every staging URL to the network rule as well.
+            host, _port, path = url_parts(value)
+            needles = [path.lower()] if path and path != "/" else [host.lower()]
+        return any(n and any(n in v for v in values) for n in needles)
+
+    out: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    for record in (IndicatorRecord.from_dict(r) for r in input_data.indicator_records):
+        if record.value.lower() in seen or not matched(record.value, record.type):
+            continue
+        seen.add(record.value.lower())
+        entry: Dict[str, Any] = {
+            "value": record.value,
+            "type": record.type,
+            "role": record.role,
+            "status": record.status,
+            "confidence": record.confidence,
+            "source": record.source,
+        }
+        if record.evidence:
+            entry["evidence"] = " ".join(record.evidence.split())[:200]
+        out.append(entry)
+    for kind, feed_values in input_data.indicators.items():
+        for value in feed_values:
+            if str(value).lower() in seen or not matched(str(value), kind):
+                continue
+            seen.add(str(value).lower())
+            out.append({"value": str(value), "type": kind, "role": "unknown", "status": "unknown", "source": "cti feed"})
+    return out
+
+
+def _blocks_of(detection: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+    out: List[Tuple[str, Dict[str, Any]]] = []
+    for name, block in detection.items():
+        if name == "condition":
+            continue
+        for item in block if isinstance(block, list) else [block]:
+            if isinstance(item, dict):
+                out.append((str(name), item))
+    return out
+
+
 def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str]]) -> Optional[str]:
     """Reject a rule whose detection matches on scaffolding.
 
@@ -1182,6 +1373,24 @@ def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Opt
     return None
 
 
+def _network_selections(records: List[Any]) -> Dict[str, Any]:
+    """One selection per address or host and port, so each channel stays distinguishable.
+
+    H-0618's host served HTTP staging on 50813 and a raw-TCP channel on 50812;
+    an address with no port the source names gets one port-free selection.
+    """
+    selections: Dict[str, Any] = {}
+    for index, record in enumerate(records, start=1):
+        field_name = "DestinationIp" if record.type in ("ipv4", "ipv6") else "DestinationHostname"
+        ports: List[Optional[int]] = list(record.ports) or [None]
+        for port in ports:
+            block: Dict[str, Any] = {field_name: record.value}
+            if port is not None:
+                block["DestinationPort"] = port
+            selections[f"selection_{index}_{port or 'any'}"] = block
+    return selections
+
+
 class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput]):
     """Drafts Sigma rules covering each log source a hunt applies to."""
 
@@ -1234,11 +1443,21 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # The same now holds for domains and addresses: both DNS rules in the
         # 25 Sep review were rejected (the model matched '.com' and '.xyz'),
         # leaving hunts with supplied C2 domains no DNS coverage at all.
-        for ioc_rule, ioc_problem in self._ioc_rules(input_data):
+        for ioc_rule, ioc_problem in [
+            *self._written_file_rules(input_data),
+            *self._guidance_rules(input_data),
+            *self._ioc_rules(input_data),
+        ]:
             if ioc_rule is not None:
                 rules.append(ioc_rule)
             elif ioc_problem:
                 rejected.append(ioc_problem)
+
+        review_gaps: List[Dict[str, str]] = []
+        if input_data.review_rules and rules:
+            rules, review_rejected, review_gaps, review_warnings = self._review_rules(rules, input_data)
+            rejected.extend(review_rejected)
+            warnings.extend(review_warnings)
 
         if not rules:
             return AgentResult(
@@ -1256,7 +1475,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         provider = self._get_provider()
         return AgentResult(
             success=True,
-            data=SigmaGenerationOutput(rules=rules, logsources_considered=logsources, rejected=rejected),
+            data=SigmaGenerationOutput(
+                rules=rules, logsources_considered=logsources, rejected=rejected, review_gaps=review_gaps
+            ),
             error=None,
             warnings=warnings,
             metadata={
@@ -1267,13 +1488,163 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             },
         )
 
+    @staticmethod
+    def _source_passages(input_data: SigmaGenerationInput) -> List[str]:
+        """The verified source text the reviewer judges against: artifact and indicator evidence, and guidance."""
+        passages: List[str] = []
+        for text in [
+            *(str(a.get("evidence", "")) for a in input_data.source_artifacts),
+            *(str(g.get("text", "")) for g in input_data.detection_guidance),
+            *(str(r.get("evidence", "")) for r in input_data.indicator_records),
+        ]:
+            text = " ".join(text.split())[:300]
+            if len(text) >= 12 and text not in passages:
+                passages.append(text)
+        return passages[:25]
+
+    def _review_rules(
+        self, rules: List[SigmaRule], input_data: SigmaGenerationInput
+    ) -> Tuple[List[SigmaRule], List[str], List[Dict[str, str]], List[str]]:
+        """A2: review model rules; drop one only for a contradiction quoted verbatim from the source."""
+        from hecate_agent.agents.llm.rule_reviewer import RuleReviewer
+
+        reviewer = RuleReviewer(
+            lambda prompt, validate: self._call_llm_with_retry(
+                prompt, validate, max_retries=1, max_tokens=1024, temperature=0.0
+            )
+        )
+        passages = self._source_passages(input_data)
+        kept: List[SigmaRule] = []
+        rejected: List[str] = []
+        warnings: List[str] = []
+        for rule in rules:
+            if rule.origin != "model":
+                kept.append(rule)
+                continue
+            try:
+                review = reviewer.review(rule.rule_yaml, input_data.hypothesis, passages)
+            except Exception as exc:  # noqa: BLE001 - a failed review keeps the rule, unreviewed
+                warnings.append(f"rule review failed for {rule.title!r}: {exc}")
+                kept.append(rule)
+                continue
+            if review.verdict == "reject" and review.verified:
+                rejected.append(
+                    f'{rule.logsource_category}: reviewer: {review.contradiction} (source: "{review.quote[:160]}")'
+                )
+                continue
+            document = yaml.safe_load(rule.rule_yaml)
+            note: Dict[str, Any] = {"verdict": review.verdict}
+            if review.issues:
+                note["issues"] = review.issues
+            if review.contradiction:
+                note["unverified_contradiction"] = review.contradiction
+            document["hecate_review"] = note
+            rule.rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
+            kept.append(rule)
+        gaps: List[Dict[str, str]] = []
+        try:
+            gaps = reviewer.gaps(
+                [
+                    {
+                        "title": r.title,
+                        "description": str(yaml.safe_load(r.rule_yaml).get("description", "")),
+                        "detection": yaml.safe_dump(yaml.safe_load(r.rule_yaml).get("detection") or {}),
+                    }
+                    for r in kept
+                ],
+                input_data.hypothesis,
+                passages,
+            )
+        except Exception as exc:  # noqa: BLE001 - coverage is advice, never fatal
+            warnings.append(f"coverage review failed: {exc}")
+        return kept, rejected, gaps, warnings
+
+    def _written_file_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """Pass two, mechanically: a file the source says the malware writes becomes a file_event rule.
+
+        The A1 replay's model wrote the decoy rule with pass one's wildcard,
+        then dropped its directory and filtered out C:\\Windows\\Temp\\, where the
+        decoy is written. Mapping a written path to TargetFilename needs no judgement.
+        """
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        for literal in input_data.query_literals():
+            if not literal.get("written") or "file_event.TargetFilename" not in (literal.get("fields") or []):
+                continue
+            sigma, how = str(literal["sigma"]), str(literal.get("match", "exact"))
+            key = "TargetFilename|endswith" if how == "endswith" else "TargetFilename"
+            name = sigma.rsplit("\\", 1)[-1]
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="file_event",
+                    label="written file",
+                    title=f"File the source says the malware writes: {name}"[:120],
+                    description=f'The source reports the malware writing this file ({literal.get("role", "")}): '
+                    f'"{literal.get("evidence", "")}".'
+                    + (
+                        ' The report elided part of the name; "*" stands for the missing characters.'
+                        if how == "wildcard"
+                        else ""
+                    ),
+                    detection={"selection": {key: sigma}, "condition": "selection"},
+                    falsepositives="A legitimate file with the same name and location",
+                    preamble="Deterministic rule built from a file path verified in the primary source, "
+                    "with no model involvement. ",
+                    level="high",
+                    author="hecate (auto-generated from verified source artifacts - requires analyst review)",
+                )
+            )
+        return results
+
+    def _guidance_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """Rules the source's detection guidance specifies, built without the model.
+
+        H-0618's source said to hunt for resume-themed executables launching
+        cmd.exe and then Word, and for %TEMP%\\log_de.log. The model, asked for
+        behaviour instead, wrote Word launching cmd.exe. Each rule quotes the
+        guidance it implements, and passes the same semantic gate as any other.
+        """
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        for item in input_data.detection_guidance:
+            if item.get("route") != "sigma":
+                continue
+            quoted = str(item.get("text", ""))
+            for candidate in item.get("candidates") or []:
+                category = str(candidate.get("category", ""))
+                if input_data.platforms and "Windows" not in input_data.platforms and "\\" in str(candidate):
+                    results.append((None, f"{category} (guidance {item.get('id')}): Windows paths on a non-Windows hunt"))
+                    continue
+                results.append(
+                    self._ioc_rule(
+                        input_data,
+                        category=category,
+                        label=f"guidance {item.get('id')}",
+                        title=f"Source guidance {item.get('id')}: {candidate.get('title', '')}"[:120],
+                        description=f'The source advises hunting for: "{quoted}". Scope: {candidate.get("note", "")}.',
+                        detection=dict(candidate.get("detection") or {}),
+                        falsepositives="Legitimate activity that matches the guidance; tune against the environment",
+                        preamble="Deterministic rule built from the detection guidance the source published, "
+                        "with no model involvement. ",
+                        level="medium",
+                        author="hecate (auto-generated from source detection guidance - requires analyst review)",
+                        references=[str(item.get("source", ""))] if item.get("source") else [],
+                    )
+                )
+        return results
+
     def _ioc_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
         """Rules built from the supplied indicators alone, with no model call.
+
+        Typed indicator records, when supplied, decide the placements; see
+        :meth:`_ioc_rules_from_records`. Without them every indicator is
+        placed as before.
 
         One per kind the intel carries: file hashes (process_creation, via
         Sysmon's ``Hashes`` field and SigmaHQ's ``ALGO=value`` convention),
         domains and hosts (dns_query), and addresses (network_connection).
         """
+        if input_data.indicator_records:
+            return self._ioc_rules_from_records(input_data)
         results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
         hashes = hash_selectors(input_data.indicators)
         if hashes:
@@ -1300,10 +1671,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     category="dns_query",
                     label="domain IOC",
                     title="DNS lookup of a domain named in the source intelligence",
-                    description=(
-                        "Matches a DNS query for a domain or host the source published, "
-                        "or a subdomain of a published domain."
-                    ),
+                    # Subdomains only when a suffix selection exists: hostnames stay exact.
+                    description="Matches a DNS query for a domain or host the source published"
+                    + (", or a subdomain of a published domain." if suffixes else "."),
                     detection=detection,
                     falsepositives="Security tooling or analysts resolving the indicators themselves",
                 )
@@ -1333,6 +1703,99 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             )
         return results
 
+    def _ioc_rules_from_records(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """IOC rules from typed records: each indicator only where its role can be observed.
+
+        A hash reaches a process rule only as an executable (or an unreviewed
+        hash), a library only an image-load rule; archives, documents, network
+        content and in-memory payloads get none. Historical indicators get no
+        rule at all. Each address is paired with the ports the source ties to
+        it, one selection per port, so HTTP staging and a raw-TCP channel on
+        the same host stay distinguishable. URL paths go to proxy logs, the
+        only telemetry that records them.
+        """
+        from hecate_agent.core.provenance import IndicatorRecord, hash_label, placements, url_parts
+
+        records = [IndicatorRecord.from_dict(r) for r in input_data.indicator_records]
+        placed = [(r, placements(r)) for r in records]
+
+        def values_for(placement: str) -> List[IndicatorRecord]:
+            return [r for r, where in placed if placement in where]
+
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        for category, label, what in (
+            ("process_creation", "hash IOC", "a process whose image hash is an executable the source published"),
+            ("image_load", "library hash IOC", "a loaded library whose hash the source published"),
+        ):
+            hashes = [f"{hash_label(r.type)}={r.value}" for r in values_for(f"{category}.Hashes")]
+            if hashes:
+                results.append(
+                    self._ioc_rule(
+                        input_data,
+                        category=category,
+                        label=label,
+                        title=f"{'Execution' if category == 'process_creation' else 'Load'} of a file hash named in the source intelligence",
+                        description=f"Matches {what}. Hashes of archives, documents, network content and "
+                        "in-memory payloads are excluded: no process image carries them.",
+                        detection={"selection": {"Hashes|contains": hashes}, "condition": "selection"},
+                        falsepositives="None expected for exact hashes; confirm the sensor records the listed algorithms",
+                    )
+                )
+
+        names = values_for("dns_query.QueryName")
+        if names:
+            detection: Dict[str, Any] = {"selection_exact": {"QueryName": [r.value for r in names]}}
+            domains = ["." + r.value for r in names if r.type == "domain"]
+            if domains:
+                detection["selection_subdomain"] = {"QueryName|endswith": domains}
+            detection["condition"] = "1 of selection_*"
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="dns_query",
+                    label="domain IOC",
+                    title="DNS lookup of a domain named in the source intelligence",
+                    description="Matches a DNS query for a current domain or host the source published"
+                    + (", or a subdomain of a published domain." if domains else ".")
+                    + " Indicators the source marks historical are excluded.",
+                    detection=detection,
+                    falsepositives="Security tooling or analysts resolving the indicators themselves",
+                )
+            )
+
+        network = _network_selections([*values_for("network_connection.DestinationIp"), *names])
+        if network:
+            network["condition"] = "1 of selection_*"
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="network_connection",
+                    label="network IOC",
+                    title="Connection to an address or host named in the source intelligence",
+                    description="Matches an outbound connection to a current address or host the source published, "
+                    "on the ports the source ties to it where it names them. Indicators the source marks "
+                    "historical are excluded.",
+                    detection=network,
+                    falsepositives="Shared hosting or CDN addresses reused by unrelated sites",
+                )
+            )
+
+        paths = sorted({path for r in values_for("proxy.c-uri") for path in [url_parts(r.value)[2]] if path and path != "/"})
+        if paths:
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="proxy",
+                    label="URL IOC",
+                    title="Request for a URL path named in the source intelligence",
+                    description="Matches a proxy or web request for a current URL path the source published. "
+                    "URL paths appear only in proxy and web logs, not in endpoint file or process events.",
+                    detection={"selection": {"c-uri|endswith": paths}, "condition": "selection"},
+                    falsepositives="Other sites serving a file at the same path",
+                )
+            )
+        return results
+
     def _ioc_rule(
         self,
         input_data: SigmaGenerationInput,
@@ -1343,25 +1806,36 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         description: str,
         detection: Dict[str, Any],
         falsepositives: str,
+        preamble: str = (
+            "Deterministic IOC rule built from the indicators the source intelligence published, with no model involvement. "
+        ),
+        level: str = "high",
+        author: str = "hecate (auto-generated from source indicators - requires analyst review)",
+        references: Optional[List[str]] = None,
     ) -> Tuple[Optional[SigmaRule], Optional[str]]:
-        """Render and validate one deterministic IOC rule."""
+        """Render and validate one deterministic rule: IOC sweeps and the source's own detection guidance."""
+        # The same semantic gate as a model rule: a template change that put a
+        # field in the wrong category would otherwise ship on every hunt.
+        problem = semantic_problem(detection, category, description)
+        if problem:
+            return None, f"{category} ({label}): {problem}"
         document: Dict[str, Any] = {
             "title": title,
             "id": str(uuid.uuid4()),
             "status": "experimental",
-            "description": (
-                "Deterministic IOC rule built from the indicators the source intelligence "
-                "published, with no model involvement. " + description
-            ),
-            "references": list(input_data.references),
-            "author": "hecate (auto-generated from source indicators - requires analyst review)",
+            "description": preamble + description,
+            "references": list(dict.fromkeys([*input_data.references, *(references or [])])),
+            "author": author,
             "date": date.today().isoformat(),
             "tags": [],
             "logsource": self._logsource_block(category, input_data.platforms),
             "detection": detection,
             "falsepositives": [falsepositives],
-            "level": "high",
+            "level": level,
         }
+        provenance = rule_provenance(detection, input_data)
+        if provenance:
+            document["hecate_provenance"] = provenance
         if input_data.hunt_id:
             document["hunt_id"] = input_data.hunt_id
         rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
@@ -1369,7 +1843,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         if problem:
             return None, f"{category} ({label}): {problem}"
         return (
-            SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level="high"),
+            SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level=level, origin="deterministic"),
             None,
         )
 
@@ -1462,6 +1936,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"
+        literals = input_data.query_literals()
         # Each check sees a structurally valid rule; the first to object wins.
         checks = (
             lambda d: _placeholder_problem(d, input_data.indicators),
@@ -1484,6 +1959,20 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             lambda d: _library_as_process_problem(d, category),
             _field_type_problem,
             _breadth_problem,
+            _or_branch_breadth_problem,
+            lambda d: _hash_role_problem(d, input_data.indicator_records, category),
+            lambda d: _literal_problem(d, literals),
+            lambda d: _reversed_guidance_chain_problem(d, input_data.detection_guidance),
+            lambda d: semantic_problem(
+                d,
+                category,
+                str(raw.get("description", "")),
+                [
+                    *input_data.observables,
+                    *(v for values in input_data.indicators.values() for v in values),
+                    *(str(r.get("value", "")) for r in input_data.indicator_records),
+                ],
+            ),
         )
         for check in checks:
             problem = check(detection)
@@ -1510,6 +1999,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "falsepositives": self._falsepositives(raw),
             "level": level,
         }
+        provenance = rule_provenance(detection, input_data)
+        if provenance:
+            document["hecate_provenance"] = provenance
         if input_data.hunt_id:
             # Not Sigma's `related:`. That field relates a rule to *other Sigma
             # rules* and its `id` must be a UUID, so putting a hunt id there
@@ -1661,6 +2153,8 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
     @staticmethod
     def _logsource_block(category: str, platforms: List[str]) -> Dict[str, str]:
         block: Dict[str, str] = {"category": category}
+        if category in ("proxy", "webserver"):
+            return block  # network-appliance logs have no endpoint OS
         # Sigma's `product` is an OS, not a vendor. Only set it when the hunt
         # is genuinely single-platform; a multi-platform hunt pinned to one
         # product would silently stop matching the others.
@@ -1741,6 +2235,22 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
         observable_block = "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
+        literals = input_data.query_literals()
+        if literals:
+            from hecate_agent.core.query_literals import render_literals
+
+            # Two-pass generation: the values were extracted and verified first;
+            # the rule only maps them onto fields. Model-written observables
+            # are left out, since they are where invented strings came from.
+            literal_block = (
+                "EXACT VALUES FROM THE SOURCE (verified against the report; the ONLY file, process, command-line "
+                "and registry values you may match, whole or in part, besides standard system binaries such as "
+                "\\cmd.exe):\n" + render_literals(literals) + "\n"
+            )
+        else:
+            literal_block = (
+                "OBSERVABLES THE HUNT DRAFT NAMED (from research; unverified, use where they fit):\n" + observable_block + "\n"
+            )
         techniques = ", ".join(self._relevant_techniques_for_prompt(input_data.techniques, logsource)) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
@@ -1759,9 +2269,8 @@ PLATFORMS: {platforms}
 INDICATORS FROM THE SOURCE INTELLIGENCE:
 {indicator_block}
 
-OBSERVABLES THE HUNT DRAFT NAMED (from research; unverified, use where they fit):
-{observable_block}
-
+{literal_block}
+{self._render_guidance(input_data)}{self._render_telemetry_examples(input_data)}
 Write EXACTLY ONE rule, for this Sigma log source category and no other:
     {logsource}
 
@@ -1822,6 +2331,32 @@ Return exactly this JSON shape, with a single entry in "rules":
     }}
   ]
 }}"""
+
+    @staticmethod
+    def _render_telemetry_examples(input_data: SigmaGenerationInput) -> str:
+        """A3: where the internals this hunt names really appear, on its platforms."""
+        from hecate_agent.core.telemetry_examples import render_examples
+
+        text = "\n".join(
+            [
+                input_data.hypothesis,
+                input_data.justification,
+                *(str(g.get("text", "")) for g in input_data.detection_guidance),
+                *(str(a.get("evidence", "")) for a in input_data.source_artifacts),
+            ]
+        )
+        return render_examples(text, input_data.platforms)
+
+    @staticmethod
+    def _render_guidance(input_data: SigmaGenerationInput) -> str:
+        """The source's detection guidance, so a model rule agrees with it (chain direction above all)."""
+        lines = [f'  - "{str(g.get("text", ""))[:240]}"' for g in input_data.detection_guidance if g.get("route") == "sigma"]
+        if not lines:
+            return ""
+        return (
+            "THE SOURCE'S OWN DETECTION GUIDANCE (rules implementing it are already drafted; write a rule for "
+            "something else, and never contradict it, e.g. by reversing a parent/child chain):\n" + "\n".join(lines) + "\n"
+        )
 
     @staticmethod
     def _render_indicators(indicators: Dict[str, List[str]]) -> str:

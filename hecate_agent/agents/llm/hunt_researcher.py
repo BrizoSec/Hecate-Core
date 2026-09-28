@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
-from hecate_agent.core.ocsf_fields import is_ocsf_field, suggest
+from hecate_agent.core.telemetry_examples import render_examples
+from hecate_agent.core.telemetry_mapping import documented_data_sources, map_findings
 from hecate_agent.core.workspace import knowledge_file
 
 logger = logging.getLogger(__name__)
@@ -37,41 +38,6 @@ _LLM_ERROR_KEY_FINDING = "Error during LLM analysis"
 # environment profile. An empty result is rendered as this visible gap rather
 # than a blank section, so a reviewer sees the absence.
 _NO_TELEMETRY_KEY_FINDING = "No telemetry mapped - the source describes no behavior to detect"
-
-
-#: A telemetry finding looks like "process.cmd_line: what it captures". Only
-#: the part before the colon is a field name.
-_FIELD_IN_FINDING = re.compile(r"^\s*`?([A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z0-9_.]+)`?\s*:")
-
-
-def _flag_invented_fields(key_findings: List[str]) -> List[str]:
-    """Mark telemetry findings whose field name is not a real OCSF path.
-
-    Handing the model the schema reference did not stop it inventing paths --
-    `process.execution.command_line`, `file.file_name`,
-    `network.tcp.connection.remote_address` all appeared with the reference
-    loaded. They are dotted and lowercase and entirely fictional, and a hunt
-    built on them queries nothing.
-
-    Flagged rather than dropped, for the same reason the grounding audit
-    reports a fabricated claim instead of deleting it: the reviewer needs to
-    see that the model invented something, and silently removing every field
-    would leave a telemetry section that looks merely empty.
-    """
-    flagged: List[str] = []
-    for finding in key_findings:
-        match = _FIELD_IN_FINDING.match(finding)
-        if match is None:
-            flagged.append(finding)
-            continue
-        name = match.group(1)
-        if is_ocsf_field(name):
-            flagged.append(finding)
-            continue
-        hint = suggest(name)
-        note = f" [NOT AN OCSF FIELD{'; did you mean ' + hint + '?' if hint else ''}]"
-        flagged.append(finding.replace(name, name + note, 1))
-    return flagged
 
 
 def _llm_call_failed(key_findings: List[str]) -> bool:
@@ -105,7 +71,10 @@ def _no_telemetry_mapped(key_findings: List[str]) -> bool:
 #: How much of the source item reaches each prompt. Enough for a full OTX or
 #: MISP blurb including its key indicators; the local model's context is the
 #: constraint, and the skills already carry schema and search context.
-_SOURCE_CONTEXT_MAX_CHARS = 4000
+# Raised from 4,000 once the workspace model ran with a 16K context: the
+# Runner now sends the feed item plus the primary source's verified artifacts
+# (hecate_agent.core.source_evidence), which a 4,000 cut truncated mid-list.
+_SOURCE_CONTEXT_MAX_CHARS = 12000
 
 _GROUNDING_INSTRUCTION = (
     "Base your summary and findings strictly on the Research Context above. "
@@ -200,25 +169,6 @@ _DATA_SOURCE_KEYWORDS: Dict[str, List[str]] = {
     ],
 }
 
-# Keywords that say the *environment profile* collects a data source. This is
-# the question `data_source_availability` actually names, and it is a property
-# of the estate, not of whatever vocabulary the model happened to use.
-_ENVIRONMENT_DATA_SOURCE_KEYWORDS: Dict[str, List[str]] = {
-    "process_execution": ["process execution", "process creation", "endpoint telemetry", "edr", "sysmon"],
-    "file_operations": ["file event", "file operation", "file integrity", "file monitoring", "file events"],
-    "network_connections": [
-        "network connection",
-        "network flow",
-        "netflow",
-        "firewall log",
-        "proxy log",
-        "dns",
-        "network telemetry",
-        "network logs",
-    ],
-    "registry_events": ["registry modification", "registry event", "registry"],
-}
-
 
 @dataclass
 class ResearchInput:
@@ -255,6 +205,9 @@ class ResearchSkillOutput:
     sources: List[Dict[str, str]]  # {"title": "", "url": "", "snippet": ""}
     confidence: float  # 0-1 confidence in findings
     duration_ms: int = 0
+    #: Telemetry mapping only: fields the model proposed that are not OCSF
+    #: paths even after normalization, listed apart from the mapping.
+    removed_fields: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -275,18 +228,45 @@ class ResearchOutput:
     # Synthesis outputs
     recommended_hypothesis: Optional[str] = None
     data_source_availability: Dict[str, bool] = field(default_factory=dict)
+    #: What availability rests on: "environment" (a telemetry section of
+    #: environment.md documents it) or "mapping" (no profile; the telemetry
+    #: mapping's needs, which say nothing about the estate).
+    data_source_basis: str = ""
     estimated_hunt_complexity: str = "medium"  # low/medium/high
     gaps_identified: List[str] = field(default_factory=list)
 
     # Cost tracking
     total_duration_ms: int = 0
     web_searches_performed: int = 0
+    #: Whether this run asked for web search, and when none succeeded, why:
+    #: disabled for the item, no key, client unavailable, or searches failed.
+    web_search_requested: bool = False
+    web_search_note: str = ""
     llm_calls: int = 0
-    total_cost_usd: float = 0.0
+    #: None when the cost is not known: a local model with no per-token
+    #: price, or a provider that reported no usage. ``cost_basis`` says which.
+    total_cost_usd: Optional[float] = 0.0
+    cost_basis: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
     llm_duration_ms: int = 0
     llm_models: List[str] = field(default_factory=list)
+
+
+def _availability_basis(environment: str) -> str:
+    """Mirrors `_extract_data_sources`: the profile when one loaded, else the mapping."""
+    text = (environment or "").lower()
+    return "environment" if text and "not found" not in text[:60] else "mapping"
+
+
+def research_grounding(web_searches: int) -> str:
+    """``independent`` when at least one web search succeeded, else ``source-only``.
+
+    Source-only research restates the item it was given. It can organise and
+    explain that item, but it cannot corroborate it, and callers must not
+    count it as independent evidence.
+    """
+    return "independent" if web_searches > 0 else "source-only"
 
 
 class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
@@ -319,6 +299,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._search_client: Optional[Any] = None
         self._search_client_failed = False
         self._search_failed = False
+        #: First failure detail, for the research document's grounding note.
+        self._search_failure_detail = ""
         self._web_searches = 0
 
     def _log_llm_metrics(
@@ -364,7 +346,18 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                         exc,
                     )
                     self._search_client_failed = True
+                    self._search_failure_detail = f"search client unavailable: {exc}"
         return self._search_client
+
+    def _web_search_note(self, requested: bool) -> str:
+        """Why this run has no web searches, or "" when it has some."""
+        if self._web_searches > 0:
+            return ""
+        if not requested:
+            return "web search not requested for this item"
+        if not self.tavily_api_key:
+            return "no TAVILY_API_KEY configured"
+        return self._search_failure_detail or "no search returned usable results"
 
     def _note_search_failure(self, exc: BaseException) -> None:
         """Report a failed web search once per agent.
@@ -378,6 +371,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         if self._search_failed:
             return
         self._search_failed = True
+        self._search_failure_detail = f"web search failed: {type(exc).__name__}: {exc}"
         logger.warning(
             "Web search FAILED, research for this run is UNGROUNDED: %s: %s",
             type(exc).__name__,
@@ -430,9 +424,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._reset_llm_usage()
         self._web_searches = 0
         # Read by every skill's prompt; set once before the skills fan out.
-        self._source_context = (input_data.source_context or "").strip()[
-            :_SOURCE_CONTEXT_MAX_CHARS
-        ]
+        self._source_context = (input_data.source_context or "").strip()[:_SOURCE_CONTEXT_MAX_CHARS]
 
         try:
             # Get next research ID
@@ -490,9 +482,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             # is worse than a vague one -- it is specific, checkable, and
             # propagates into the hunt as grounding.
             for skill in (skill_1, skill_2, skill_3, skill_4, skill_5):
-                self._drop_unsupported_cve_findings(
-                    skill, " ".join([input_data.topic, self._source_context])
-                )
+                self._drop_unsupported_cve_findings(skill, " ".join([input_data.topic, self._source_context]))
 
             # Extract synthesis outputs
             mitre_techniques = [input_data.mitre_technique] if input_data.mitre_technique else []
@@ -515,6 +505,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                     skill_3,
                     self._load_environment(),
                 ),
+                data_source_basis=_availability_basis(self._load_environment()),
                 estimated_hunt_complexity=self._estimate_complexity(
                     skill_2,
                     skill_3,
@@ -522,8 +513,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 gaps_identified=self._extract_gaps(skill_5),
                 total_duration_ms=total_duration_ms,
                 web_searches_performed=self._web_searches,
+                web_search_requested=input_data.web_search_enabled,
+                web_search_note=self._web_search_note(input_data.web_search_enabled),
                 llm_calls=usage["llm_calls"],
                 total_cost_usd=usage["estimated_cost_usd"],
+                cost_basis=usage.get("cost_basis", ""),
                 input_tokens=usage["input_tokens"],
                 output_tokens=usage["output_tokens"],
                 llm_duration_ms=usage["llm_duration_ms"],
@@ -748,7 +742,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         if not key_findings:
             key_findings = [_NO_TELEMETRY_KEY_FINDING]
 
-        key_findings = _flag_invented_fields(key_findings)
+        # Normalized (event-class prefixes stripped), validated, and mapped to
+        # the environment profile's own field names; invalid fields are
+        # removed and listed apart, not flagged inline in the mapping.
+        mapped = map_findings(key_findings, environment_data)
+        key_findings, removed_fields = mapped.findings, mapped.removed
 
         # Add schema reference as source
         sources.append(
@@ -782,6 +780,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             sources=sources,
             confidence=confidence,
             duration_ms=duration_ms,
+            removed_fields=removed_fields,
         )
 
     def _skill_4_related_work(
@@ -842,14 +841,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             # opposite things about how novel the topic is, and the model
             # reads this line as evidence.
             logger.warning("Related-hunt similarity unavailable: %s", exc)
-            key_findings.append(
-                "Similarity search unavailable - related-hunt coverage was NOT checked"
-            )
+            key_findings.append("Similarity search unavailable - related-hunt coverage was NOT checked")
         except Exception as exc:
             logger.warning("Related-hunt similarity failed: %s", exc)
-            key_findings.append(
-                "Similarity search failed - related-hunt coverage was NOT checked"
-            )
+            key_findings.append("Similarity search failed - related-hunt coverage was NOT checked")
 
         summary = "Found {} related hunts for {}".format(
             len(sources),
@@ -1081,6 +1076,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 "{source}"
                 "OCSF Schema Reference (partial):\n"
                 "{ocsf_schema}\n\n"
+                "{telemetry_examples}"
                 "Environment:\n{environment_data}\n\n"
                 "FIRST decide: does the topic or source intelligence describe adversary"
                 " behavior -- actions, tooling or technique? A bare list of"
@@ -1111,6 +1107,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 technique_str=technique_str,
                 source=self._source_block(),
                 ocsf_schema=ocsf_schema[:3000],
+                telemetry_examples=render_examples(f"{topic}\n{self._source_block()}"),
                 environment_data=environment_data[:1000],
             )
 
@@ -1341,10 +1338,10 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         # registry telemetry as collected.
         env_text = (environment_data or "").lower()
         if env_text and "not found" not in env_text[:60]:
-            return {
-                category: any(kw in env_text for kw in keywords)
-                for category, keywords in _ENVIRONMENT_DATA_SOURCE_KEYWORDS.items()
-            }
+            # Only what a configured telemetry section documents: the template's
+            # EDR section lists registry modifications under a product that is
+            # still "[To be configured]", which documents nothing.
+            return documented_data_sources(environment_data)
 
         logger.warning(
             "No environment profile available; falling back to what the telemetry "

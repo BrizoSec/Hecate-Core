@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from hecate_agent.agents.llm.hunt_researcher import _flag_invented_fields
 from hecate_agent.core.ocsf_fields import (
     canonical_paths,
     clear_cache,
@@ -22,6 +21,7 @@ from hecate_agent.core.ocsf_fields import (
     is_ocsf_field,
     suggest,
 )
+from hecate_agent.core.telemetry_mapping import map_findings
 
 #: Verbatim from a live research document generated with the reference loaded.
 OBSERVED_INVENTIONS = [
@@ -100,30 +100,31 @@ class TestSuggestions:
         assert suggest("process.name") is None
 
 
-class TestFindingsAreFlagged:
-    def test_an_invented_field_is_marked_in_place(self):
-        out = _flag_invented_fields(["process.execution.command_line: what it captures"])
-        assert "NOT AN OCSF FIELD" in out[0]
-        assert "did you mean process.cmd_line?" in out[0]
-        assert "what it captures" in out[0], "the description must survive"
+class TestInventedFieldsAreRemovedAndListed:
+    """R-0616 printed "[NOT AN OCSF FIELD]" inside the mapping itself. An
+    invented field now leaves the mapping and is listed apart, so the mapping
+    holds only real paths and the reviewer still sees what was invented."""
 
-    def test_a_real_field_is_left_alone(self):
-        assert _flag_invented_fields(["process.cmd_line: fine"]) == ["process.cmd_line: fine"]
+    def test_an_invented_field_is_listed_with_its_closest_real_field(self):
+        mapped = map_findings(["process.execution.command_line: what it captures"])
+        assert mapped.findings == []
+        assert mapped.removed == ["`process.execution.command_line` (closest documented field: `process.cmd_line`)"]
 
-    def test_findings_are_flagged_not_dropped(self):
-        """Silently removing them would leave a section that looks merely
-        empty, hiding that the model invented something."""
-        assert len(_flag_invented_fields(OBSERVED_INVENTIONS_AS_FINDINGS)) == len(
-            OBSERVED_INVENTIONS_AS_FINDINGS
-        )
+    def test_a_real_field_is_kept_with_its_description(self):
+        (finding,) = map_findings(["process.cmd_line: fine"]).findings
+        assert finding.startswith("`process.cmd_line`") and finding.endswith(": fine")
+
+    def test_every_invention_is_reported_none_silently_dropped(self):
+        mapped = map_findings(OBSERVED_INVENTIONS_AS_FINDINGS)
+        assert len(mapped.removed) == len(OBSERVED_INVENTIONS_AS_FINDINGS) and mapped.findings == []
 
     def test_prose_without_a_field_is_untouched(self):
         line = "Telemetry mapping requires an LLM for detailed analysis"
-        assert _flag_invented_fields([line]) == [line]
+        assert map_findings([line]).findings == [line]
 
     def test_a_bare_word_is_not_treated_as_a_field(self):
         line = "Summary: nothing to map here"
-        assert _flag_invented_fields([line]) == [line]
+        assert map_findings([line]).findings == [line]
 
 
 OBSERVED_INVENTIONS_AS_FINDINGS = [f"{n}: description" for n in OBSERVED_INVENTIONS]

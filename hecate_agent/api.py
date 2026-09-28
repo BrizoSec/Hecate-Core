@@ -1,17 +1,22 @@
 """Programmatic API for Hecate operations.
 
-This module exposes Core functionalities as reusable Python functions rather 
-than CLI commands, eliminating subprocess overhead and stdout-parsing 
+This module exposes Core functionalities as reusable Python functions rather
+than CLI commands, eliminating subprocess overhead and stdout-parsing
 brittleness for orchestrators like Hecate-Runner.
 """
+
 import re
 from typing import Optional, Dict, Any, Tuple, List
 from pathlib import Path
 import json
 
-from hecate_agent.agents.llm.hypothesis_generator import HypothesisGeneratorAgent, HypothesisGenerationInput, HypothesisGenerationOutput
+from hecate_agent.agents.llm.hypothesis_generator import (
+    HypothesisGeneratorAgent,
+    HypothesisGenerationInput,
+    HypothesisGenerationOutput,
+)
 from hecate_agent.agents.llm.sigma_generator import SigmaGeneratorAgent, SigmaGenerationInput, SigmaGenerationOutput
-from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput, ResearchOutput
+from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput, ResearchOutput, research_grounding
 from hecate_agent.core.attack_matrix import get_technique, get_superseding_technique_id, is_using_stix
 from hecate_agent.core.research_manager import ResearchManager
 from hecate_agent.commands.research import _generate_research_markdown
@@ -24,6 +29,7 @@ class GenerationError(RuntimeError):
         super().__init__(message)
         self.metadata: Dict[str, Any] = metadata or {}
 
+
 def _generate_hypothesis(
     threat_intel: str,
     research_id: Optional[str] = None,
@@ -32,7 +38,7 @@ def _generate_hypothesis(
 ) -> Tuple[HypothesisGenerationOutput, Dict[str, Any]]:
     """Run hypothesis generation and retain its usage metadata."""
     agent = HypothesisGeneratorAgent(llm_enabled=True)
-    
+
     past_hunts: List[dict] = []
     environment = {}
     research_ctx = None
@@ -43,7 +49,7 @@ def _generate_hypothesis(
             research_doc = research_mgr.get_research(research_id)
             if research_doc:
                 research_ctx = research_mgr.extract_research_context(research_doc)
-                
+
         env_file = workspace / "knowledge" / "environment.md"
         if env_file.exists():
             environment = {"environment_md": env_file.read_text(encoding="utf-8")}
@@ -55,14 +61,14 @@ def _generate_hypothesis(
         research=research_ctx,
         intel_is_indicator_only=indicators_only,
     )
-    
+
     result = agent.execute(input_data)
     if not result.success:
         raise GenerationError(f"Hypothesis generation failed: {result.error}", metadata=dict(result.metadata))
-        
+
     if not result.data:
         raise RuntimeError("Hypothesis generation returned no data.")
-        
+
     return result.data, dict(result.metadata)
 
 
@@ -108,7 +114,7 @@ def generate_research(
     """Execute research and create the research document."""
     manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     research_id = manager.get_next_research_id()
-    
+
     agent = HuntResearcherAgent(llm_enabled=True)
     result = agent.execute(
         ResearchInput(
@@ -122,19 +128,19 @@ def generate_research(
             source_context=source_context,
         )
     )
-    
+
     if not result.success or not result.data:
         raise GenerationError(f"Research failed: {result.error}", metadata=dict(result.metadata))
-        
+
     output = result.data
     markdown_content = _generate_research_markdown(output)
-    
+
     linked_hunts = []
     for source in output.related_work.sources:
         match = re.match(r"hunts/(H-\d+)\.md$", source.get("url", ""))
         if match:
             linked_hunts.append(match.group(1))
-            
+
     frontmatter = {
         "research_id": output.research_id,
         "topic": output.topic,
@@ -144,8 +150,11 @@ def generate_research(
         "duration_minutes": round(output.total_duration_ms / 60000, 1),
         "linked_hunts": linked_hunts,
         "web_searches": output.web_searches_performed,
+        "grounding": research_grounding(output.web_searches_performed),
+        **({"web_search_note": output.web_search_note} if output.web_search_note else {}),
         "llm_calls": output.llm_calls,
         "total_cost_usd": output.total_cost_usd,
+        "cost_basis": output.cost_basis,
         "data_source_availability": output.data_source_availability,
         "estimated_hunt_complexity": output.estimated_hunt_complexity,
     }
@@ -156,7 +165,7 @@ def generate_research(
         content=markdown_content,
         frontmatter=frontmatter,
     )
-    
+
     return output, file_path
 
 
@@ -209,7 +218,7 @@ def lookup_technique(technique_id: str) -> Dict[str, Any]:
     """Look up an ATT&CK technique by ID."""
     if not is_using_stix():
         raise RuntimeError("stix_unavailable")
-        
+
     tech = get_technique(technique_id)
     # Provenance of this call, not a property of the technique. Writing it
     # onto `tech` mutated the STIX provider's memoized index in place, so
@@ -240,18 +249,20 @@ def lookup_technique(technique_id: str) -> Dict[str, Any]:
         "superseded_from": superseded_from,
     }
 
+
 def link_research_to_hunt(
     research_id: str,
     hunt_id: str,
     workspace: Path | None = None,
 ) -> bool:
     """Link a drafted hunt ID back to its originating research document.
-    
+
     Args:
         research_id: The ID of the research document to update.
         hunt_id: The ID of the drafted hunt.
         workspace: Path to Hecate workspace. If None, uses current directory.
     """
     from hecate_agent.core.research_manager import ResearchManager
+
     manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     return manager.link_hunt_to_research(research_id, hunt_id)

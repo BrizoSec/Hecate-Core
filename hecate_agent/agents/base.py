@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
+from hecate_agent.core.cost_tracker import summarize_cost
+
 # Type variables for input/output
 InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")
@@ -120,7 +122,16 @@ class LLMAgent(Agent[InputT, OutputT]):
         with self._usage_lock:
             snapshot = dict(self._usage)
             snapshot["models"] = sorted(snapshot["models"])
-        snapshot["estimated_cost_usd"] = round(float(snapshot["estimated_cost_usd"]), 6)
+        # Zero from a local model or from missing usage is unknown, not free.
+        cost, basis = summarize_cost(
+            snapshot["models"],
+            snapshot["llm_calls"],
+            snapshot["input_tokens"],
+            snapshot["output_tokens"],
+            float(snapshot["estimated_cost_usd"]),
+        )
+        snapshot["estimated_cost_usd"] = cost
+        snapshot["cost_basis"] = basis
         return snapshot
 
     def _get_provider(self) -> Any:

@@ -20,3 +20,4 @@ Files here are GitHub/developer-facing and are not deployed into workspaces:
 - [Configuration Reference](CONFIGURATION.md) — All config keys and environment variables
 - [Using Hecate](USING_HECATE.md) — Adoption guide for teams
 - [Hunt Showcase](SHOWCASE.md) — Example completed hunts
+- [H-0618 Deep Dive](H-0618_DEEP_DIVE.md) — 2026-09-27 review of one generated hunt, its rules and research: accuracy, root causes, ranked enhancements

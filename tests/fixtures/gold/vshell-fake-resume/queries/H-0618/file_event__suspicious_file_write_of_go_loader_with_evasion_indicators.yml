@@ -1,0 +1,28 @@
+title: Suspicious file write of Go loader with evasion indicators
+id: 0f000b08-3d5e-4d91-b7e0-d11608dbc64c
+status: experimental
+description: Detects file writes of a custom Go loader with sandbox evasion techniques (e.g., sleep timer,
+  CPU check logic) and known malicious file hashes, correlated with network indicators. This behavior
+  is indicative of a fileless SNOWLIGHT stager delivery chain targeting defense-tech academics in China,
+  enabling persistent access and RAT deployment via memory-resident execution.
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-09-27'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+detection:
+  selection:
+    Hashes|contains: a7cc7e3cdd2f0f9210044911a483fa5d
+    Image|contains: MySQL_LOG.txt
+    TargetFilename|contains: MySQL_LOG.txt
+  filter:
+    Image|contains: Windows
+  condition: selection and not filter
+falsepositives:
+- Legitimate log file writes during software updates or debugging
+- Administrative scripting with temporary file creation
+level: medium
+hunt_id: H-0618

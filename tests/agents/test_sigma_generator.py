@@ -396,7 +396,7 @@ def test_infers_condition_for_a_single_selection_block():
     """Observed on every rule of a real 14B run: detection is emitted with
     one selection and no condition. With one block the intended condition
     has exactly one possible value."""
-    raw = _rule(detection={"selection": {"QueryName|contains": ["api.wiresguard.com"]}})
+    raw = _rule(logsource_category="dns_query", detection={"selection": {"QueryName|contains": ["api.wiresguard.com"]}})
     # Supplied, as a real run would: an exact domain nothing supplied is now
     # rejected as invented, which is not what this test is about.
     rule, problem = _agent()._build_rule(raw, _input(indicators={"hostname": ["api.wiresguard.com"]}))
@@ -406,7 +406,7 @@ def test_infers_condition_for_a_single_selection_block():
 
 
 def test_infers_condition_using_the_actual_block_name():
-    raw = _rule(detection={"beacon_traffic": {"DestinationHostname": "x"}})
+    raw = _rule(logsource_category="network_connection", detection={"beacon_traffic": {"DestinationHostname": "x"}})
     rule, _ = _agent()._build_rule(raw, _input())
     assert rule is not None
     assert yaml.safe_load(rule.rule_yaml)["detection"]["condition"] == "beacon_traffic"
@@ -422,7 +422,7 @@ def test_refuses_to_invent_an_operator_between_multiple_blocks():
 
 
 def test_moves_a_top_level_condition_into_detection():
-    raw = _rule(detection={"selection": {"a": "b"}, "filter": {"c": "d"}})
+    raw = _rule(detection={"selection": {"CommandLine|contains": "b"}, "filter": {"User": "d"}})
     raw["condition"] = "selection and not filter"
     rule, problem = _agent()._build_rule(raw, _input())
     assert rule is not None

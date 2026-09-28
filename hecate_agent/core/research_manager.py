@@ -952,6 +952,7 @@ class ResearchManager:
                 "total_research": 0,
                 "completed_research": 0,
                 "total_cost_usd": 0.0,
+                "unpriced_research": 0,
                 "total_duration_minutes": 0,
                 "avg_duration_minutes": 0.0,
                 "by_status": {},
@@ -961,7 +962,10 @@ class ResearchManager:
         total_research = len(research_list)
         completed_research = len([r for r in research_list if r.get("status") == "completed"])
 
-        total_cost = sum(r.get("total_cost_usd", 0) or 0 for r in research_list)
+        # A document whose cost is unknown (null) is counted apart, not as $0.
+        priced = [r["total_cost_usd"] for r in research_list if r.get("total_cost_usd") is not None]
+        total_cost = sum(priced)
+        unpriced = total_research - len(priced)
         total_duration = sum(r.get("duration_minutes", 0) or 0 for r in research_list)
         avg_duration = total_duration / total_research if total_research > 0 else 0.0
 
@@ -984,6 +988,7 @@ class ResearchManager:
             "total_research": total_research,
             "completed_research": completed_research,
             "total_cost_usd": round(total_cost, 4),
+            "unpriced_research": unpriced,
             "total_duration_minutes": total_duration,
             "avg_duration_minutes": round(avg_duration, 1),
             "by_status": by_status,

@@ -1,0 +1,275 @@
+# Gold set: VShell delivered through a fake-resume lure.
+#
+# Reviewed answer for scoring any draft the pipeline produces from this CTI,
+# so a pipeline change can be measured instead of judged. Built from the
+# H-0618 deep dive (docs/H-0618_DEEP_DIVE.md), checked against the primary
+# report. Score a draft with:
+#
+#   hecate-agent eval-gold evals/gold/vshell-fake-resume.yaml hunts/2026/Q3/H-0618.md
+#
+# Every positive and every negative item below is one check; the summary
+# score is checks passed over checks run.
+
+schema: hecate-gold/1
+case_id: vshell-fake-resume
+title: VShell delivered through a fake Chinese-language resume
+reviewed: "2026-09-27"
+reviewed_from: docs/H-0618_DEEP_DIVE.md
+
+source:
+  primary: https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+  # The exact CTI the pipeline received (OTX pulse, 2,194 characters), so a
+  # rerun can be fed the same input through the file queue.
+  cti: |
+    OTX Pulse: A fake resume invoked China's defence-tech elite, then installed VShell
+    Adversary/Attribution: Unknown
+    Tags: go loader, fileless execution, vshell, academic lure, china targeting, sandbox evasion, beijing institute of technology, snowlight
+    Description: A Chinese-language executable disguised as a resume claiming to be from a Beijing Institute of Technology graduate student delivers SNOWLIGHT and VShell RAT. The infection chain uses a custom Go loader with sandbox detection, CPU checks, and sleep-timer evasion before downloading a legitimate DOCX decoy. It then executes a 1,454-byte SNOWLIGHT stager that connects to infrastructure, downloads 4.65 MB of data, XOR-decodes it with key 0x99, and launches a fileless VShell RAT. The lure targets mainland Chinese academics in electrical engineering, power systems, or AI research, providing operators with command execution, file access, screen capture, and lateral movement capabilities. The delivery uses panel-generated SNOWLIGHT components now widely available in cracked VShell releases, making actor-level attribution unreliable beyond identifying an unattributed operator using commodity tooling with China-oriented academic targeting.
+    Indicators (16 total): FileHash-MD5 (1), FileHash-SHA256 (7), IPv4 (1), URL (2), hostname (5)
+    Key indicators:
+      FileHash-MD5: a7cc7e3cdd2f0f9210044911a483fa5d
+      FileHash-SHA256: c25d4412f7f93e7de5b2aaf41747175d94cffd983ca20efbd0efcdd718b58c4d, 81c51138d5527ca7dcc258171eb36659c479f66c86a8947b6340d040b3860a30, f6d4da5afc89bf9e536a9002c4d256c696df2389d77279f4c5daf6979557e74e, 0524619d2471d77aba4b7993f5ffbaa4b8be6d2c0d91e63a02943851dc4b6404, ed2eaa6ef3eda95383b6efc35b88acbca742ad7bd118931f74727a3139ff7e97, c666ac4f1a1b8df7ccfe8b19705279acd8b7eb7a4d0b3802bb3465064883ab25, de3f56d0d5b71f2a1a1905f0b01b84fbab237e9d4c5179a05b127d806823f83c
+      IPv4: 38.207.178.192
+      URL: http://38.207.178.192:50813/EasyConnectUpdata_Log.txt, http://38.207.178.192:50813/MySQL_LOG.txt
+      hostname: d.d.edsxhbba06.shop, oa.muxmyee520.shop, pan.qlam.cc, v.n.1.xcwanmei09.shop, www.qlam.cc
+    References: https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+
+platform:
+  expected: [Windows]
+  # The specimen is a Windows x86 chain (cmd.exe, Word, kernel32, activeds.dll,
+  # a w32 architecture tag). ATT&CK's per-technique platform lists are not
+  # evidence for this sample.
+  forbidden: [Linux, macOS, Containers, ESXi, IaaS, Network Devices]
+
+techniques:
+  # Denominator for technique recall: behaviours the primary report shows in
+  # THIS sample, each with the passage that supports it. Capability VShell
+  # offers but the sandbox run did not show is excluded.
+  #
+  # Matching: a draft ID satisfies an expected ID when they are equal or the
+  # draft ID is a sub-technique of it. A parent ID satisfies an expected
+  # sub-technique only when the entry says accept_parent.
+  observed:
+    - id: T1204.002
+      evidence: "Resume executable -> cmd.exe -> Word opening DOCX (the lure is run by the recipient)"
+    - id: T1036
+      evidence: "A Chinese-language executable disguised as a resume"
+    - id: T1059.003
+      evidence: "Process tree: Resume executable -> cmd.exe -> Word opening DOCX"
+    - id: T1497.001
+      accept_parent: true
+      evidence: "Minimum four logical processors ... exits if fewer; exits if the path contains C:\\Users\\Administrator\\Desktop"
+    - id: T1497.003
+      accept_parent: true
+      evidence: "BeepSleep: calls kernel32!Beep for ten seconds and verifies elapsed time"
+    - id: T1105
+      evidence: "downloads 4.65 MB of data; stager fetched from /EasyConnectUpdata_Log.txt"
+    - id: T1140
+      evidence: "XOR-decodes it with key 0x99; configuration Base32hex -> AES-CBC -> NOT -> Base64"
+    - id: T1620
+      evidence: "AllocADsMem, VirtualProtect, RtlMoveMemory, CreateThread: executes the stager in its own memory"
+    - id: T1071.001
+      evidence: "Port 50813: HTTP staging"
+    - id: T1095
+      evidence: "Port 50812: SNOWLIGHT check-in and VShell payload transfer (raw TCP)"
+    - id: T1573
+      evidence: "VShell protocol: nonce + AES-GCM ciphertext + tag"
+  # Correct but not required: no credit, no penalty.
+  acceptable: [T1027, T1480, T1566, T1566.001, T1106, T1055]
+  # Negative cases: must NOT be mapped. Capability is not observed use.
+  forbidden:
+    - id: T1113
+      reason: "Screen capture is a VShell capability; the run showed registration and health traffic only"
+    - id: T1021
+      reason: "Lateral movement not observed"
+    - id: T1041
+      reason: "Exfiltration not observed"
+    - id: T1547
+      reason: "No persistence observed (no registry, scheduled task or service)"
+    - id: T1053
+      reason: "No persistence observed"
+    - id: T1543
+      reason: "No persistence observed"
+    - id: T1078
+      reason: "No valid-account use described"
+
+claims:
+  # Checked against the draft's own prose: YAML rule blocks, the quoted source
+  # CTI and the grounding table are excluded, so the CTI cannot satisfy or
+  # violate a claim on the draft's behalf.
+  required:
+    - id: xor-key
+      pattern: "0x99"
+    - id: stager-named
+      pattern: "SNOWLIGHT"
+    - id: cmd-in-chain
+      pattern: 'cmd\.exe'
+    - id: raw-tcp-port
+      pattern: "50812"
+    - id: kill-switch-marker
+      pattern: 'log_de\.log'
+    - id: decoy-temp-path
+      pattern: '(?i)\\windows\\temp\\'
+  forbidden:
+    - id: fileless-go-loader
+      pattern: '(?i)fileless[^.\n]{0,20}go loader|go loader[^.\n]{0,20}(is|was) fileless'
+      reason: "The Go loader is an on-disk EXE; only the stager and VShell run in memory"
+    - id: decoy-url-as-log
+      pattern: '(?i)log monitoring'
+      reason: "MySQL_LOG.txt is the DOCX decoy download URL, not a log"
+    - id: placeholder-observable
+      pattern: '<[^>\n]*(unknown|placeholder|name)[^>\n]*>'
+      reason: "Placeholder values are not observables"
+    - id: similar-hash-baseline
+      pattern: '(?i)similar sha-?(1|256)|similar (file )?hash'
+      reason: "Hashes match exactly or not at all"
+    - id: internal-logic-in-cmdline
+      pattern: '(?i)command[ _-]?line[^\n]{0,40}(sleep|cpu check)'
+      reason: "The sandbox checks run inside the binary, not on its command line"
+    - id: persistence-as-fact
+      # Hedged wording ("could enable", "potentially achieve") is not asserted as fact.
+      pattern: '(?i)(?<!could )(?<!may )(?<!might )(?<!can )(?<!potentially )(enables?|maintain\w*|establish\w*|achiev\w*)\s+(persistent|persistence)'
+      reason: "The source shows no persistence mechanism"
+    - id: sector-as-fact
+      pattern: "(?i)defen[cs]e[- ]tech sector"
+      reason: "The source assesses an academic recipient as likely; target sector and motive are unconfirmed"
+
+indicators:
+  # Role, status and the rule placements the role allows. `expect` lists
+  # placements a correct hunt should contain; `forbid` lists placements that
+  # misuse the artifact. A placement is <category>.<Field>.
+  - value: 81c51138d5527ca7dcc258171eb36659c479f66c86a8947b6340d040b3860a30
+    type: sha256
+    role: go-loader-executable
+    status: active
+    expect: [process_creation.Hashes]
+  - value: a7cc7e3cdd2f0f9210044911a483fa5d
+    type: md5
+    role: go-loader-executable
+    status: active
+  - value: c25d4412f7f93e7de5b2aaf41747175d94cffd983ca20efbd0efcdd718b58c4d
+    type: sha256
+    role: zip-archive
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: f6d4da5afc89bf9e536a9002c4d256c696df2389d77279f4c5daf6979557e74e
+    type: sha256
+    role: encrypted-http-response
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: 0524619d2471d77aba4b7993f5ffbaa4b8be6d2c0d91e63a02943851dc4b6404
+    type: sha256
+    role: snowlight-shellcode-in-memory
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: ed2eaa6ef3eda95383b6efc35b88acbca742ad7bd118931f74727a3139ff7e97
+    type: sha256
+    role: encoded-vshell-stream
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: c666ac4f1a1b8df7ccfe8b19705279acd8b7eb7a4d0b3802bb3465064883ab25
+    type: sha256
+    role: decoded-vshell-in-memory
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: de3f56d0d5b71f2a1a1905f0b01b84fbab237e9d4c5179a05b127d806823f83c
+    type: sha256
+    role: docx-decoy
+    status: active
+    forbid: [process_creation.Hashes]
+  - value: 38.207.178.192
+    type: ipv4
+    role: c2-staging-and-transfer
+    status: active
+    expect: [network_connection.DestinationIp]
+  - value: EasyConnectUpdata_Log.txt
+    type: url-path
+    role: stager-download-path
+    status: active
+    forbid: [file_event.TargetFilename, process_creation.Image, file_event.Image]
+  - value: MySQL_LOG.txt
+    type: url-path
+    role: decoy-download-path
+    status: active
+    forbid: [file_event.TargetFilename, process_creation.Image, file_event.Image]
+  # The five hostnames are historical passive-DNS tenants of the IP; the
+  # report says none appears in the sample's configuration or PCAP.
+  - value: d.d.edsxhbba06.shop
+    type: hostname
+    role: historical-passive-dns
+    status: historical
+    forbid: [dns_query.QueryName, network_connection.DestinationHostname]
+  - value: oa.muxmyee520.shop
+    type: hostname
+    role: historical-passive-dns
+    status: historical
+    forbid: [dns_query.QueryName, network_connection.DestinationHostname]
+  - value: pan.qlam.cc
+    type: hostname
+    role: historical-passive-dns
+    status: historical
+    forbid: [dns_query.QueryName, network_connection.DestinationHostname]
+  - value: v.n.1.xcwanmei09.shop
+    type: hostname
+    role: historical-passive-dns
+    status: historical
+    forbid: [dns_query.QueryName, network_connection.DestinationHostname]
+  - value: www.qlam.cc
+    type: hostname
+    role: historical-passive-dns
+    status: historical
+    forbid: [dns_query.QueryName, network_connection.DestinationHostname]
+
+detections:
+  # Detections a correct hunt contains. A detection is satisfied when one
+  # rule of the category holds every `require` pair in the same selection
+  # block (Sigma ANDs the fields of one map). `any_of` lists alternatives.
+  # Memory/API-sequence detection needs EDR telemetry beyond Sigma's generic
+  # categories, so it is not required here.
+  - id: c2-http-staging-port
+    description: "Connection to 38.207.178.192 on 50813 (HTTP staging)"
+    any_of:
+      - category: network_connection
+        require:
+          - {field: DestinationIp, value: '^38\.207\.178\.192$'}
+          - {field: DestinationPort, value: '^50813$'}
+  - id: c2-raw-tcp-port
+    description: "Connection to 38.207.178.192 on 50812 (SNOWLIGHT check-in, VShell)"
+    any_of:
+      - category: network_connection
+        require:
+          - {field: DestinationIp, value: '^38\.207\.178\.192$'}
+          - {field: DestinationPort, value: '^50812$'}
+  - id: loader-execution
+    description: "Execution of the Go loader by hash"
+    any_of:
+      - category: process_creation
+        require:
+          - {field: Hashes, value: '(?i)81c51138d5527ca7dcc258171eb36659c479f66c86a8947b6340d040b3860a30|a7cc7e3cdd2f0f9210044911a483fa5d'}
+  - id: decoy-process-chain
+    description: "cmd.exe spawned by the resume-named loader, or Word opening the decoy from C:\\Windows\\Temp\\"
+    any_of:
+      - category: process_creation
+        require:
+          - {field: Image, value: '(?i)cmd\.exe'}
+          # The resume-named loader, not any .exe: \winword.exe must not satisfy it.
+          - {field: ParentImage, value: '(?i)resume|简历'}
+      - category: process_creation
+        require:
+          - {field: Image, value: '(?i)winword\.exe'}
+          - {field: CommandLine, value: '(?i)\\windows\\temp\\.*\.docx'}
+  - id: decoy-docx-written
+    description: "A .docx written under C:\\Windows\\Temp\\"
+    any_of:
+      - category: file_event
+        require:
+          - {field: TargetFilename, value: '(?i)\\windows\\temp\\.*\.docx'}
+  - id: staging-url-paths
+    description: "Proxy/web request for either staging path, where URL paths are logged"
+    any_of:
+      - category: proxy
+        require:
+          - {field: c-uri, value: '(?i)EasyConnectUpdata_Log\.txt|MySQL_LOG\.txt'}
+      - category: webserver
+        require:
+          - {field: cs-uri-stem, value: '(?i)EasyConnectUpdata_Log\.txt|MySQL_LOG\.txt'}

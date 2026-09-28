@@ -11,7 +11,8 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from hecate_agent.agents.llm.hunt_researcher import ResearchOutput
+from hecate_agent.agents.llm.hunt_researcher import ResearchOutput, research_grounding
+from hecate_agent.core.cost_tracker import format_cost
 
 console = Console()
 
@@ -172,8 +173,11 @@ def new(
         "duration_minutes": round(output.total_duration_ms / 60000, 1),
         "linked_hunts": linked_hunts,
         "web_searches": output.web_searches_performed,
+        "grounding": research_grounding(output.web_searches_performed),
+        **({"web_search_note": output.web_search_note} if output.web_search_note else {}),
         "llm_calls": output.llm_calls,
         "total_cost_usd": output.total_cost_usd,
+        "cost_basis": output.cost_basis,
         "data_source_availability": output.data_source_availability,
         "estimated_hunt_complexity": output.estimated_hunt_complexity,
     }
@@ -235,7 +239,9 @@ def list_research(
         # so `.get(..., 0)`'s default never fires -- `or 0` is needed too,
         # same defensive pattern calculate_stats() already uses for the same
         # field.
-        cost = f"${r.get('total_cost_usd', 0) or 0:.3f}"
+        # None (or an older document without the field) is unknown, not free.
+        value = r.get("total_cost_usd")
+        cost = "n/a" if value is None else f"${value:.3f}"
 
         table.add_row(
             r.get("research_id", ""),
@@ -353,7 +359,11 @@ def stats(output_format: str) -> None:
     console.print("\n[bold cyan]Research Program Statistics[/bold cyan]")
     console.print(f"Total Research: {statistics['total_research']}")
     console.print(f"Completed: {statistics['completed_research']}")
-    console.print(f"Total Cost: ${statistics['total_cost_usd']:.4f}")
+    unpriced = statistics.get("unpriced_research", 0)
+    console.print(
+        f"Total Cost: ${statistics['total_cost_usd']:.4f}"
+        + (f" ({unpriced} document(s) not priced, not counted)" if unpriced else "")
+    )
     console.print(f"Total Duration: {statistics['total_duration_minutes']} min")
     console.print(f"Avg Duration: {statistics['avg_duration_minutes']:.1f} min")
     console.print(f"Linked Hunts: {statistics['total_linked_hunts']}")
@@ -376,6 +386,13 @@ def _generate_research_markdown(output: ResearchOutput) -> str:  # noqa: C901
         lines.append(f"**MITRE ATT&CK:** {', '.join(output.mitre_techniques)}")
     lines.append(f"**Duration:** {output.total_duration_ms / 60000:.1f} minutes")
     lines.append("")
+    if research_grounding(output.web_searches_performed) == "source-only":
+        reason = f" ({output.web_search_note})" if output.web_search_note else ""
+        lines.append(
+            f"> **Source-only synthesis{reason}.** No independent web research was performed. "
+            "Every finding below restates the source item; nothing here corroborates it."
+        )
+        lines.append("")
     lines.append("---")
     lines.append("")
 
@@ -425,12 +442,31 @@ def _generate_research_markdown(output: ResearchOutput) -> str:  # noqa: C901
     lines.append(skill.summary)
     lines.append("")
     lines.append("### Key Fields")
+    lines.append("")
+    lines.append("OCSF path → the event field `knowledge/environment.md` documents for it.")
+    lines.append("")
     for finding in skill.key_findings:
         lines.append(f"- {finding}")
+    removed = getattr(skill, "removed_fields", None) or []
+    if removed:
+        lines.append("")
+        lines.append("### Fields Removed (not in the OCSF reference)")
+        lines.append("")
+        for name in removed:
+            lines.append(f"- {name}")
     lines.append("")
     lines.append("### Data Source Availability")
+    lines.append("")
+    documented = getattr(output, "data_source_basis", "") != "mapping"
     for data_source, available in output.data_source_availability.items():
-        status = "Available" if available else "Limited/Unavailable"
+        if documented:
+            status = (
+                "Documented in the environment profile" if available else "Unknown: not documented in the environment profile"
+            )
+        else:
+            status = (
+                "Needed by the mapping (no environment profile)" if available else "Not discussed (no environment profile)"
+            )
         lines.append(f"- {data_source.replace('_', ' ').title()}: {status}")
     lines.append("")
     lines.append("---")
@@ -482,7 +518,8 @@ def _generate_research_markdown(output: ResearchOutput) -> str:  # noqa: C901
     lines.append("")
     lines.append(f"- Web Searches: {output.web_searches_performed}")
     lines.append(f"- LLM Calls: {output.llm_calls}")
-    lines.append(f"- Total Cost: ${output.total_cost_usd:.4f}")
+    lines.append(f"- Tokens: {output.input_tokens:,} input, {output.output_tokens:,} output")
+    lines.append(f"- Total Cost: {format_cost(output.total_cost_usd, output.cost_basis)}")
     lines.append(f"- Duration: {output.total_duration_ms / 1000:.1f} seconds")
     lines.append("")
 
@@ -498,7 +535,7 @@ def _display_research_summary(output: ResearchOutput, file_path: Path) -> None:
             f"[bold green]Research Complete: {output.research_id}[/bold green]\n\n"
             f"[bold]Topic:[/bold] {output.topic}\n"
             f"[bold]Duration:[/bold] {output.total_duration_ms / 1000:.1f} seconds\n"
-            f"[bold]Cost:[/bold] ${output.total_cost_usd:.4f}\n"
+            f"[bold]Cost:[/bold] {format_cost(output.total_cost_usd, output.cost_basis)}\n"
             f"[bold]File:[/bold] {file_path}",
             title="Research Complete",
             border_style="green",
@@ -568,8 +605,11 @@ def _display_json_output(output: ResearchOutput) -> None:
         "metrics": {
             "duration_ms": output.total_duration_ms,
             "web_searches": output.web_searches_performed,
+            "grounding": research_grounding(output.web_searches_performed),
+            **({"web_search_note": output.web_search_note} if output.web_search_note else {}),
             "llm_calls": output.llm_calls,
             "cost_usd": output.total_cost_usd,
+            "cost_basis": output.cost_basis,
         },
     }
     console.print(json.dumps(data, indent=2), soft_wrap=True)

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
 from hecate_agent.core.hunting_knowledge import HYPOTHESIS_SECTIONS, is_enabled, load_sections
+from hecate_agent.core.telemetry_examples import render_examples
 
 logger = logging.getLogger(__name__)
 
@@ -456,6 +457,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "{environment}\n\n"
             "{hunting_knowledge}"
             "{research_section}"
+            "{telemetry_examples}"
             "Generate a hypothesis following this format:\n"
             "{hypothesis_format}"
             "- Justification: Why hunting for this specific behavior matters. Do NOT write generic filler like 'This hypothesis is valuable because'. Tie the specific TTP directly to the threat actor's goals and the organization's risk, citing the intel.\n"
@@ -518,6 +520,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             past_hunts=json.dumps(input_data.past_hunts, indent=2),
             environment=json.dumps(input_data.environment, indent=2),
             research_section=self._build_research_section(input_data.research),
+            # A3: where the internals this intel names really appear in logs, so
+            # observables name an event and field, not a syscall as a file name.
+            telemetry_examples=render_examples(input_data.threat_intel),
             hunting_knowledge=self._build_hunting_knowledge_section(),
         )
 

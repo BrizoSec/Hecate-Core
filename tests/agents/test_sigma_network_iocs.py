@@ -104,6 +104,7 @@ def test_kapibala_addresses_and_host() -> None:
     ]
     assert "product" not in net["logsource"]  # not pinned to Windows on a Linux hunt
     assert "selection_subdomain" not in rules["dns_query"]["detection"]  # hostname: exact only
+    assert "subdomain" not in rules["dns_query"]["description"]  # and the description says so
 
 
 def test_every_rule_is_valid_sigma_and_carries_the_hunt() -> None:

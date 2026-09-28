@@ -129,6 +129,7 @@ class TestEmptyMappingIsRenderedAsAVisibleGap:
 
         output = agent._skill_3_telemetry_mapping("Aeternum blockchain C2", None)
 
-        assert output.key_findings == ["process.name: launches the loader"]
+        (finding,) = output.key_findings  # kept, now with its environment field
+        assert finding.startswith("`process.name`") and finding.endswith(": launches the loader")
         assert not _no_telemetry_mapped(output.key_findings)
         assert output.confidence > 0.2

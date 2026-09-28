@@ -1,0 +1,303 @@
+"""Primary-source evidence and typed indicator provenance (deep-dive items #1 and #2)."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
+import httpx
+import pytest
+import yaml
+
+from hecate_agent.agents.llm.sigma_generator import SigmaGenerationInput, SigmaGeneratorAgent
+from hecate_agent.core import source_evidence as se
+from hecate_agent.core.gold_eval import load_gold, score_draft
+from hecate_agent.core.provenance import (
+    IndicatorRecord,
+    attach_url_ports,
+    merge_records,
+    placements,
+    records_from_cti,
+    routable_indicators,
+    split_host_port,
+    url_parts,
+)
+
+IP = "38.207.178.192"
+LOADER = "81c51138d5527ca7dcc258171eb36659c479f66c86a8947b6340d040b3860a30"
+DECODED = "c666ac4f1a1b8df7ccfe8b19705279acd8b7eb7a4d0b3802bb3465064883ab25"
+GOLD = Path(__file__).resolve().parents[2] / "evals" / "gold" / "vshell-fake-resume.yaml"
+
+PAGE = f"""The resume executable launches cmd.exe, which opens Word on the decoy.
+The decoy is saved to C:\\Windows\\Temp\\resume (2).docx before Word opens it.
+SNOWLIGHT connects to {IP.replace('.', '[.]', 1)}:50812, downloads 4.65 MB, XOR-decodes it with 0x99.
+HIGH confidence 38.207.178[.]192:50813 HTTP staging and DOCX decoy
+Go loader SHA-256 {LOADER}
+Decoded SHA-256: {DECODED}
+AES key and IV: YtWzxwZimsZoeMen
+Classification: pan.qlam[.]cc was a historical tenant of the same IP, not a campaign IOC.
+"""
+
+
+def _reply(*artifacts: Dict[str, Any]) -> str:
+    return "Here you go:\n" + json.dumps({"artifacts": list(artifacts)})
+
+
+# --- Provenance ------------------------------------------------------------------------------
+
+
+def test_url_and_host_port_parsing() -> None:
+    assert split_host_port("38.207.178.192:50813") == ("38.207.178.192", 50813)
+    assert split_host_port("38.207.178.192") == ("38.207.178.192", None)
+    assert url_parts("hxxp://38.207.178[.]192:50813/MySQL_LOG.txt") == ("38.207.178.192", 50813, "/MySQL_LOG.txt")
+
+
+def test_feed_indicators_become_untyped_records() -> None:
+    records = records_from_cti({"FileHash-SHA256": [LOADER.upper()], "IPv4": [IP], "hostname": ["Pan.Qlam.cc."]})
+    assert [(r.type, r.value, r.role, r.status) for r in records] == [
+        ("sha256", LOADER, "unknown", "unknown"),
+        ("ipv4", IP, "unknown", "unknown"),
+        ("hostname", "pan.qlam.cc", "unknown", "unknown"),
+    ]
+
+
+def test_active_evidence_outranks_history_and_old_ports_never_scope_a_rule() -> None:
+    """H-0618's IP was current on 50812/50813 and historical on 40010."""
+    merged = merge_records(
+        records_from_cti({"IPv4": [IP]}),
+        [
+            IndicatorRecord(IP, "ipv4", "historical", "historical", "medium", evidence="old", ports=[40010]),
+            IndicatorRecord(IP, "ipv4", "c2", "active", "high", evidence="now", ports=[50812]),
+            IndicatorRecord(IP, "ipv4", "download", "active", evidence="now", ports=[50813]),
+        ],
+    )
+    assert len(merged) == 1
+    record = merged[0]
+    assert (record.status, record.role, record.ports) == ("active", "c2", [50812, 50813])
+
+
+@pytest.mark.parametrize(
+    ("record", "expected"),
+    [
+        (IndicatorRecord(LOADER, "sha256", "executable"), ["process_creation.Hashes"]),
+        (IndicatorRecord(LOADER, "sha256", "unknown"), ["process_creation.Hashes"]),
+        (IndicatorRecord(LOADER, "sha256", "library"), ["image_load.Hashes"]),
+        (IndicatorRecord(DECODED, "sha256", "memory_only"), []),
+        (IndicatorRecord(DECODED, "sha256", "archive"), []),
+        (IndicatorRecord("pan.qlam.cc", "hostname", "historical", "historical"), []),
+        (IndicatorRecord("pan.qlam.cc", "hostname", "staging", "historical"), []),
+        (
+            IndicatorRecord("evil.example", "domain", "c2", "active"),
+            ["dns_query.QueryName", "network_connection.DestinationHostname"],
+        ),
+        (IndicatorRecord(IP, "ipv4", "c2", "active"), ["network_connection.DestinationIp"]),
+        (IndicatorRecord("http://x.example/a.txt", "url", "download"), ["proxy.c-uri"]),
+    ],
+)
+def test_placements_follow_role_and_status(record: IndicatorRecord, expected: List[str]) -> None:
+    assert placements(record) == expected
+
+
+def test_only_routable_indicators_reach_the_model() -> None:
+    records = [
+        IndicatorRecord(LOADER, "sha256", "executable"),
+        IndicatorRecord(DECODED, "sha256", "memory_only"),
+        IndicatorRecord("pan.qlam.cc", "hostname", "historical", "historical"),
+    ]
+    assert routable_indicators(records) == {"sha256": [LOADER]}
+
+
+def test_url_ports_scope_their_host() -> None:
+    records = [IndicatorRecord(IP, "ipv4"), IndicatorRecord(f"http://{IP}:50813/MySQL_LOG.txt", "url")]
+    attach_url_ports(records)
+    assert records[0].ports == [50813]
+
+
+# --- Verified extraction ---------------------------------------------------------------------
+
+
+def test_chunks_cover_the_whole_page_within_the_size_limit() -> None:
+    page = "\n".join(f"line {i} " + "x" * 90 for i in range(400))
+    chunks = se.chunk_text(page, size=5000, overlap=300)
+    assert len(chunks) > 1 and all(len(c) <= 5000 for c in chunks)
+    assert chunks[0] == page[: len(chunks[0])] and page.endswith(chunks[-1])
+
+
+def _extract(*artifacts: Dict[str, Any]) -> se.SourceEvidence:
+    return se.extract_source_evidence("https://report.example/a", page_text=PAGE, complete=lambda _m: _reply(*artifacts))
+
+
+def test_values_must_appear_verbatim_and_have_the_right_shape() -> None:
+    ev = _extract(
+        {
+            "value": "YtWzxwZimsZoeMen",
+            "kind": "md5",
+            "role": "unknown",
+            "status": "active",
+            "evidence": "AES key and IV: YtWzxwZimsZoeMen",
+        },
+        {"value": "10.9.9.9", "kind": "ipv4", "role": "c2", "status": "active", "evidence": ""},
+        {
+            "value": "cmd.exe",
+            "kind": "process",
+            "role": "spawned shell",
+            "status": "active",
+            "evidence": "The resume executable launches cmd.exe",
+        },
+    )
+    assert [a.value for a in ev.artifacts] == ["cmd.exe"]
+    assert any("not a well-formed md5" in d for d in ev.dropped)
+    assert any("not found verbatim" in d for d in ev.dropped)
+
+
+def test_a_role_without_a_quoted_passage_is_unknown() -> None:
+    ev = _extract(
+        {"value": LOADER, "kind": "sha256", "role": "executable", "status": "active", "evidence": "a loader I think"}
+    )
+    assert (ev.indicators[0].role, ev.indicators[0].status, ev.indicators[0].evidence) == ("unknown", "unknown", "")
+
+
+def test_hash_role_comes_from_the_reports_own_label() -> None:
+    """H-0618's decoded VShell was labelled executable by the model; the report says Decoded."""
+    ev = _extract(
+        {
+            "value": DECODED,
+            "kind": "sha256",
+            "role": "executable",
+            "status": "active",
+            "evidence": f"Decoded SHA-256: {DECODED}",
+        }
+    )
+    assert ev.indicators[0].role == "memory_only"
+    assert placements(ev.indicators[0]) == []
+
+
+def test_confidence_is_the_reports_label_and_ports_are_kept() -> None:
+    ev = _extract(
+        {
+            "value": "38.207.178[.]192:50813",
+            "kind": "ipv4",
+            "role": "staging",
+            "status": "active",
+            "evidence": "HIGH confidence 38.207.178[.]192:50813 HTTP staging and DOCX decoy",
+        }
+    )
+    record = ev.indicators[0]
+    assert (record.value, record.ports, record.confidence, record.source) == (IP, [50813], "high", "https://report.example/a")
+
+
+def test_a_failed_fetch_is_reported_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(url: str, timeout: float = 20.0) -> str:
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr(se, "fetch_page_text", boom)
+    ev = se.extract_source_evidence("https://report.example/a", complete=lambda _m: _reply())
+    assert ev.error.startswith("fetch failed") and not ev.artifacts
+
+
+def test_feed_indicators_missed_by_the_chunk_pass_are_classified_from_their_passages() -> None:
+    ev = _extract()
+    records = records_from_cti({"hostname": ["pan.qlam.cc"], "IPv4": ["203.0.113.50"]})
+    asked: List[str] = []
+
+    def complete(messages: List[Dict[str, str]]) -> str:
+        asked.append(messages[-1]["content"])
+        return _reply(
+            {
+                "value": "pan.qlam.cc",
+                "role": "historical",
+                "status": "historical",
+                "evidence": "pan.qlam[.]cc was a historical tenant of the same IP, not a campaign IOC.",
+            }
+        )
+
+    classified = se.classify_feed_indicators(records, ev, complete)
+    assert [(r.value, r.status) for r in classified] == [("pan.qlam.cc", "historical")]
+    assert "203.0.113.50" not in asked[0]  # the source never mentions it
+
+
+# --- Role-routed IOC rules -------------------------------------------------------------------
+
+
+def _rules(records: List[IndicatorRecord], platforms: List[str] = ["Windows"]) -> Dict[str, Dict[str, Any]]:
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    data = SigmaGenerationInput(
+        hypothesis="x", hunt_id="H-0901", platforms=platforms, indicator_records=[r.to_dict() for r in records]
+    )
+    out = {}
+    for rule, problem in agent._ioc_rules(data):
+        assert problem is None, problem
+        doc = yaml.safe_load(rule.rule_yaml)
+        out[doc["logsource"]["category"]] = doc
+    return out
+
+
+def test_records_route_hashes_hosts_ports_and_paths() -> None:
+    rules = _rules(
+        [
+            IndicatorRecord(LOADER, "sha256", "executable", "active"),
+            IndicatorRecord(DECODED, "sha256", "memory_only", "active"),
+            IndicatorRecord(IP, "ipv4", "c2", "active", ports=[50812, 50813]),
+            IndicatorRecord("pan.qlam.cc", "hostname", "historical", "historical"),
+            IndicatorRecord(f"http://{IP}:50813/MySQL_LOG.txt", "url", "download", "active"),
+        ]
+    )
+    assert set(rules) == {"process_creation", "network_connection", "proxy"}
+    assert rules["process_creation"]["detection"]["selection"]["Hashes|contains"] == [f"SHA256={LOADER}"]
+    network = rules["network_connection"]["detection"]
+    assert {(b["DestinationIp"], b["DestinationPort"]) for k, b in network.items() if k != "condition"} == {
+        (IP, 50812),
+        (IP, 50813),
+    }
+    assert rules["proxy"]["logsource"] == {"category": "proxy"}  # proxy logs have no endpoint OS
+    assert rules["proxy"]["detection"]["selection"]["c-uri|endswith"] == ["/MySQL_LOG.txt"]
+
+
+def test_without_records_the_old_placements_are_unchanged() -> None:
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    data = SigmaGenerationInput(
+        hypothesis="x", platforms=["Windows"], indicators={"sha256": [DECODED], "hostname": ["pan.qlam.cc"]}
+    )
+    categories = {r.logsource_category for r, _ in agent._ioc_rules(data) if r}
+    assert categories == {"process_creation", "dns_query", "network_connection"}
+
+
+_GOLD_ROLE = {
+    "go-loader-executable": ("executable", "active"),
+    "zip-archive": ("archive", "active"),
+    "encrypted-http-response": ("network_content", "active"),
+    "snowlight-shellcode-in-memory": ("memory_only", "active"),
+    "encoded-vshell-stream": ("network_content", "active"),
+    "decoded-vshell-in-memory": ("memory_only", "active"),
+    "docx-decoy": ("document", "active"),
+    "c2-staging-and-transfer": ("c2", "active"),
+    "historical-passive-dns": ("historical", "historical"),
+}
+
+
+def test_role_routed_ioc_rules_pass_every_gold_indicator_placement(tmp_path: Path) -> None:
+    """H-0618 passed 6/24 gold indicator checks; typed records must pass all of them."""
+    gold = load_gold(GOLD)
+    records: List[IndicatorRecord] = []
+    for ind in gold["indicators"]:
+        if ind["type"] == "url-path":
+            records.append(IndicatorRecord(f"http://{IP}:50813/{ind['value']}", "url", "download", "active"))
+            continue
+        role, status = _GOLD_ROLE[ind["role"]]
+        rtype = "hostname" if ind["type"] == "hostname" else ind["type"]
+        records.append(
+            IndicatorRecord(str(ind["value"]), rtype, role, status, ports=[50812, 50813] if rtype == "ipv4" else [])
+        )
+
+    hunt = tmp_path / "hunts" / "2026" / "Q3" / "H-0901.md"
+    hunt.parent.mkdir(parents=True)
+    hunt.write_text("---\nhunt_id: H-0901\nplatform: [Windows]\ntechniques: []\n---\n", encoding="utf-8")
+    qdir = tmp_path / "queries" / "H-0901"
+    qdir.mkdir(parents=True)
+    for category, doc in _rules(records).items():
+        (qdir / f"{category}.yml").write_text(yaml.safe_dump(doc), encoding="utf-8")
+
+    report = score_draft(gold, hunt)
+    assert report.dimensions()["indicators"] == (24, 24)
+    passed = {c.id for c in report.checks if c.dimension == "detections" and c.passed}
+    assert {"c2-http-staging-port", "c2-raw-tcp-port", "loader-execution", "staging-url-paths"} <= passed
+    assert all(c.passed for c in report.checks if c.dimension == "rule semantics")

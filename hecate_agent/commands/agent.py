@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 import click
 from rich.console import Console
 
+from hecate_agent.core.cost_tracker import format_cost
+
 # soft_wrap=True: this file's human-readable agent output (bulleted
 # techniques/observables/false-positives, prose fields) is line-parsed by
 # downstream consumers like hecate-runner's HecateClient. Without it, rich's
@@ -656,7 +658,9 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
 
     if result.metadata:
         if "cost_usd" in result.metadata:
-            console.print(f"[dim]Cost: ${result.metadata['cost_usd']:.4f}[/dim]")
+            console.print(
+                f"[dim]Cost: {format_cost(result.metadata['cost_usd'], result.metadata.get('cost_basis', ''))}[/dim]"
+            )
         if "prompt_tokens" in result.metadata:
             console.print(
                 f"[dim]Tokens: {result.metadata['prompt_tokens']} input + {result.metadata['completion_tokens']} output[/dim]"
@@ -713,7 +717,7 @@ def _display_research_result(result: Any) -> None:
             f"[bold green]Research Complete: {output.research_id}[/bold green]\n\n"
             f"[bold]Topic:[/bold] {output.topic}\n"
             f"[bold]Duration:[/bold] {output.total_duration_ms / 1000:.1f} seconds\n"
-            f"[bold]Cost:[/bold] ${output.total_cost_usd:.4f}\n"
+            f"[bold]Cost:[/bold] {format_cost(output.total_cost_usd, output.cost_basis)}\n"
             f"[bold]Web Searches:[/bold] {output.web_searches_performed}\n"
             f"[bold]LLM Calls:[/bold] {output.llm_calls}",
             title="Research Complete",

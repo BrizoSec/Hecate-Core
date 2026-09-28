@@ -6,10 +6,12 @@ checked for confident hallucination before it goes into production.
 """
 
 import json
+from pathlib import Path
 from typing import Any, Optional
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 console = Console()
@@ -126,3 +128,91 @@ def eval_cmd(provider: Optional[str], model: Optional[str], output_format: str, 
         return
 
     _print_eval_report(report)
+
+
+EVAL_GOLD_EPILOG = """
+\b
+Examples:
+  # Score a draft against a reviewed gold set
+  hecate-agent eval-gold evals/gold/vshell-fake-resume.yaml hunts/2026/Q3/H-0618.md
+
+  # Compare two pipeline versions on the same CTI
+  hecate-agent eval-gold GOLD before/H-0618.md --output json > before.json
+  hecate-agent eval-gold GOLD after/H-0618.md --output json > after.json
+
+  # Gate a script or CI job on a minimum score
+  hecate-agent eval-gold GOLD DRAFT --fail-under 0.6
+
+\b
+What it checks (no model calls, so scores are comparable across runs):
+  techniques      each reviewed observed technique (the recall denominator)
+                  and each technique the source rules out
+  platform        expected platforms present, unsupported ones absent
+  claims          statements the draft's own prose must and must not make
+  indicators      each artifact placed only where its role allows
+  detections      expected detections, same-selection AND semantics
+  rule semantics  fields outside their category, non-executable process
+                  images, descriptions that promise more than the rule does
+"""
+
+
+@click.command(name="eval-gold", epilog=EVAL_GOLD_EPILOG)
+@click.argument("gold_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("draft_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--queries",
+    "queries_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Rule directory to score (default: <workspace>/queries/<hunt_id>, else the rules embedded in the draft)",
+)
+@click.option("--output", "output_format", type=click.Choice(["table", "json"]), default="table")
+@click.option("--fail-under", type=float, default=None, help="Exit 1 when the score (0-1) is below this")
+def eval_gold_cmd(
+    gold_path: Path, draft_path: Path, queries_dir: Optional[Path], output_format: str, fail_under: Optional[float]
+) -> None:
+    """Score a drafted hunt against a reviewed gold set."""
+    from hecate_agent.core.gold_eval import load_gold, score_draft
+
+    try:
+        report = score_draft(load_gold(gold_path), draft_path, queries_dir)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise SystemExit(2)
+
+    if output_format == "json":
+        click.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        _print_gold_report(report)
+
+    if fail_under is not None and report.score < fail_under:
+        raise SystemExit(1)
+
+
+def _print_gold_report(report: Any) -> None:
+    console.print(f"[bold]Gold case:[/bold] {report.case_id}   [bold]Draft:[/bold] {report.draft}")
+    console.print(f"[dim]Rules scored: {report.rules_scored} ({report.rules_source})[/dim]\n")
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Dimension", style="cyan")
+    table.add_column("Passed", justify="right")
+    for dimension, (passed, total) in report.dimensions().items():
+        colour = "green" if passed == total else "yellow" if passed else "red"
+        table.add_row(dimension, f"[{colour}]{passed}/{total}[/{colour}]")
+    console.print(table)
+
+    console.print(
+        f"\n[bold]Score:[/bold] {report.passed}/{report.total} checks ({report.score:.1%})\n"
+        f"[bold]Technique recall:[/bold] {len(report.technique_hits)}/{report.technique_denominator} "
+        f"({report.technique_recall:.1%}), denominator = the gold set's reviewed observed techniques"
+    )
+    if report.acceptable_found:
+        console.print(f"[dim]Acceptable, not required: {', '.join(report.acceptable_found)}[/dim]")
+    if report.unreviewed_techniques:
+        console.print(f"[yellow]Not in the gold set (review them): {', '.join(report.unreviewed_techniques)}[/yellow]")
+
+    failures = [c for c in report.checks if not c.passed]
+    if failures:
+        console.print(f"\n[bold red]Failed checks ({len(failures)}):[/bold red]")
+        for check in failures:
+            detail = f" — {check.detail}" if check.detail else ""
+            console.print(f"  [red]✗[/red] {escape(f'[{check.dimension}] {check.id}{detail}')}")

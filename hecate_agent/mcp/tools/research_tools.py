@@ -80,7 +80,7 @@ def register_research_tools(mcp: "FastMCP") -> None:  # type: ignore[name-define
         technique: Optional[str] = None,
         depth: Optional[str] = "advanced",
     ) -> str:
-        from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput
+        from hecate_agent.agents.llm.hunt_researcher import HuntResearcherAgent, ResearchInput, research_grounding
         from hecate_agent.core.research_manager import ResearchManager
 
         if not topic or not topic.strip():
@@ -125,8 +125,11 @@ def register_research_tools(mcp: "FastMCP") -> None:  # type: ignore[name-define
             "duration_minutes": round(output.total_duration_ms / 60000, 1),
             "linked_hunts": [],
             "web_searches": output.web_searches_performed,
+            "grounding": research_grounding(output.web_searches_performed),
+            **({"web_search_note": output.web_search_note} if output.web_search_note else {}),
             "llm_calls": output.llm_calls,
             "total_cost_usd": output.total_cost_usd,
+            "cost_basis": output.cost_basis,
         }
         file_path = manager.create_research_file(
             research_id=output.research_id,

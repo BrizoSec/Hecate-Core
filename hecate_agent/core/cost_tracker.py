@@ -6,7 +6,7 @@ across Anthropic, OpenAI, Google, and local/free model providers.
 
 import logging
 import re
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -153,3 +153,42 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     output_cost = (output_tokens / 1000.0) * pricing["output"]
 
     return round(input_cost + output_cost, 6)
+
+
+def pricing_basis(model: str) -> str:
+    """``priced`` (a list price), ``local`` (a zero-priced local family) or ``fallback`` (not in the table)."""
+    pricing = _resolve_pricing(model)
+    if pricing is None:
+        return "fallback"
+    if pricing["input"] == 0 and pricing["output"] == 0:
+        return "local"
+    return "priced"
+
+
+def summarize_cost(
+    models: Iterable[str], llm_calls: int, input_tokens: int, output_tokens: int, cost_usd: float
+) -> Tuple[Optional[float], str]:
+    """The cost to report and what it rests on; None when it is not known.
+
+    R-0616 reported "$0.0000" for four calls to a local model. Zero read as
+    "free", but it only meant the model has no per-token price; compute is not
+    metered. A zero from missing token usage is the same kind of unknown.
+    """
+    names = sorted(set(models))
+    if llm_calls == 0:
+        return 0.0, "no model calls"
+    if input_tokens + output_tokens == 0:
+        return None, "unknown: the provider reported no token usage"
+    bases = {pricing_basis(m) for m in names} or {"fallback"}
+    if "local" in bases:
+        what = "local model" if bases == {"local"} else "some calls went to a local model, which"
+        return None, f"not priced: {what} ({', '.join(names)}) has no per-token price; compute is not metered"
+    if "fallback" in bases:
+        return round(cost_usd, 6), f"estimated with fallback pricing: {', '.join(names)} is not in the price table"
+    return round(cost_usd, 6), "estimated from token usage and list prices"
+
+
+def format_cost(cost_usd: Optional[float], basis: str = "") -> str:
+    """ "$0.0123 (basis)", or "unknown (basis)" when the cost is not known."""
+    shown = "unknown" if cost_usd is None else f"${cost_usd:.4f}"
+    return f"{shown} ({basis})" if basis else shown

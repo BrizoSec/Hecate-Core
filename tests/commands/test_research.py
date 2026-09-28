@@ -445,3 +445,24 @@ class TestStatsCommand:
 
         assert "By Status:" in result.output
         assert "completed: 1" in result.output
+
+
+# --- Research grounding: independent versus source-only (deep-dive item #3) -------------------
+
+
+def test_source_only_research_is_marked_in_the_document() -> None:
+    output = _make_output(web_searches_performed=0, web_search_requested=True, web_search_note="no TAVILY_API_KEY configured")
+    md = research_cmd._generate_research_markdown(output)
+    assert "**Source-only synthesis (no TAVILY_API_KEY configured).**" in md
+    assert "nothing here corroborates it" in md
+
+
+def test_independent_research_carries_no_source_only_banner() -> None:
+    assert "Source-only synthesis" not in research_cmd._generate_research_markdown(_make_output(web_searches_performed=3))
+
+
+@pytest.mark.parametrize(("searches", "expected"), [(0, "source-only"), (1, "independent"), (7, "independent")])
+def test_grounding_follows_the_actual_search_count(searches: int, expected: str) -> None:
+    from hecate_agent.agents.llm.hunt_researcher import research_grounding
+
+    assert research_grounding(searches) == expected
