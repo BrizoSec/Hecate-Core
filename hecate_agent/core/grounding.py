@@ -60,6 +60,9 @@ _DOMAIN_RE = re.compile(r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}
 _HASH_RE = re.compile(r"\b[a-f0-9]{32}\b|\b[a-f0-9]{40}\b|\b[a-f0-9]{64}\b", re.IGNORECASE)
 _CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
 _TECHNIQUE_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+#: The draft's "Not mapped, capability only" list (hunt_writer's Technique
+#: Evidence section): techniques named there were dropped, not claimed.
+_CAPABILITY_ONLY_RE = re.compile(r"^Not mapped, capability only[^\n]*\n(?:\s*\n)?(?:- [^\n]*\n?)*", re.M)
 
 #: Hostnames that belong to the scaffolding rather than the intelligence:
 #: the workspace's own MISP, documentation domains, and the RFC 2606 / RFC
@@ -393,7 +396,31 @@ def _detection_section(rule_body: str) -> str:
         if line.strip() and not line[:1].isspace():
             break
         collected.append(line)
-    return "\n".join(collected)
+    return _without_filters("\n".join(collected))
+
+
+def _without_filters(detection_text: str) -> str:
+    """The detection with its negated blocks removed.
+
+    A filter names what the rule excludes (``windowsupdate.com``,
+    ``127.0.0.1``): benign values, not claims about the threat. The end-to-end
+    replay reported both as "indicator in no source" at the top of Grounding.
+    """
+    import yaml
+
+    from hecate_agent.core.sigma_semantics import _negated_names
+
+    try:
+        detection = yaml.safe_load(detection_text)
+    except yaml.YAMLError:
+        return detection_text
+    if not isinstance(detection, dict):
+        return detection_text
+    negated = set(_negated_names(detection))
+    if not negated:
+        return detection_text
+    kept = {k: v for k, v in detection.items() if k not in negated}
+    return yaml.safe_dump(kept, sort_keys=False, allow_unicode=True)
 
 
 @dataclass
@@ -480,7 +507,9 @@ def _named_entities(prose: str) -> list[str]:
         if not _CATEGORY_NOUN_RE.search(sentence):
             continue
         for token in _ALLCAPS_FAMILY_RE.findall(sentence):
-            if token.lower() in _ACRONYM_STOPWORDS:
+            # "T1036" fits the all-caps shape: H-0618's Grounding opened with five
+            # technique IDs reported as "actor/malware name in no source".
+            if token.lower() in _ACRONYM_STOPWORDS or _TECHNIQUE_RE.fullmatch(token) or _CVE_RE.fullmatch(token):
                 continue
             keep(token)
     return found
@@ -710,7 +739,9 @@ def audit_draft(
     # --- ATT&CK techniques ------------------------------------------------
     # A technique the hypothesis reasoned to is legitimate; one the source
     # asserted is stronger. The distinction is what a reviewer needs.
-    for technique in _TECHNIQUE_RE.findall(draft_text):
+    # IDs listed as *not* mapped (capability only) are not claims: H-0618's
+    # Grounding table listed T1113 after the draft had dropped it.
+    for technique in _TECHNIQUE_RE.findall(_CAPABILITY_ONLY_RE.sub(" ", draft_text)):
         upper = technique.upper()
         fact = facts.get(upper)
 

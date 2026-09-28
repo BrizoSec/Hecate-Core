@@ -530,6 +530,35 @@ def filter_cancels_selection(detection: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+#: Fields that say which module an image_load event is about. Every process
+#: loads modules, so a rule constraining none of them matches all of them.
+_LOADED_MODULE_FIELDS = (
+    "imageloaded", "hashes", "signed", "signature", "signaturestatus", "originalfilename", "product", "company",
+    "description",
+)  # fmt: skip
+
+
+def actor_only_selection(detection: Dict[str, Any], category: str) -> Optional[str]:
+    """An image_load rule that says which process, but not which module: every DLL it loads.
+
+    H-0618's end-to-end replay kept one with only ``Image|endswith: \\cmd.exe``.
+    Only image_load: a process that should never connect out, write a file or
+    resolve a name (notepad.exe, eqnedt32.exe) is a sound rule on ``Image``
+    alone in those categories, and SigmaHQ has a dozen of them; every process
+    loads DLLs.
+    """
+    if category != "image_load":
+        return None
+    negated = set(_negated_names(detection))
+    constrained = {base_field(key).lower() for name, block in blocks(detection) if name not in negated for key in block}
+    if constrained and not constrained & set(_LOADED_MODULE_FIELDS):
+        return (
+            f"the rule constrains only {', '.join(sorted(constrained))}, so it matches every module that process loads; "
+            "say which module (ImageLoaded, Hashes or Signed)"
+        )
+    return None
+
+
 def semantic_problem(
     detection: Dict[str, Any], category: str, description: str = "", named: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -548,6 +577,7 @@ def semantic_problem(
         lambda: impossible_conjunction(detection),
         lambda: description_mismatch(detection, description),
         lambda: filter_cancels_selection(detection),
+        lambda: actor_only_selection(detection, category),
         lambda: filter_excludes_named_artifact(detection, named or []),
     )
     for check in checks:

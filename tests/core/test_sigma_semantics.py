@@ -245,3 +245,16 @@ def test_a_filter_that_repeats_the_selection_is_rejected() -> None:
 def test_a_wildcard_inside_a_value_is_wildcard_matching() -> None:
     detection = {"selection": {"TargetFilename": "C:\\Windows\\Temp\\a_*_b.docx"}, "condition": "selection"}
     assert _problem("file_event", detection, "The wildcard stands for the elided part") is None
+
+
+def test_an_image_load_rule_must_say_which_module() -> None:
+    """The end-to-end replay kept Image|endswith: \\cmd.exe alone: every DLL cmd.exe loads."""
+    detection = {
+        "selection": {"Image|endswith": "\\cmd.exe"},
+        "filter": {"Image|endswith": "\\winword.exe"},
+        "condition": "selection and not filter",
+    }
+    assert "every module that process loads" in (_problem("image_load", detection) or "")
+    # A process that should never connect out is a sound rule on Image alone (SigmaHQ has a dozen).
+    detection = {"selection": {"Image|endswith": "\\notepad.exe"}, "condition": "selection"}
+    assert _problem("network_connection", detection) is None

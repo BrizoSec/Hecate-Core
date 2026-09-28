@@ -123,3 +123,80 @@ def test_values_the_pipeline_knows_are_unobservable_are_removed_with_the_reason(
     )
     assert kept == ["cmd.exe"]
     assert [f.reason for f in findings] == ["exists only in memory", "the source does not tie it to this intrusion"]
+
+
+def test_an_adverb_before_the_verb_is_consumed_by_the_softening() -> None:
+    """The end-to-end replay wrote "This behavior directly could enable persistent"."""
+    text, _ = soften_capability_claims("This behavior directly enables persistent access.", "justification", OBSERVED)
+    assert text.startswith("This behavior could enable persistent (capability;")
+
+
+def test_an_api_named_in_a_baseline_entry_is_removed() -> None:
+    kept, findings = audit_observables(
+        ["System processes using Beep API for diagnostic or alerting purposes", "HR staff opening resumes"],
+        "normal baseline",
+    )
+    assert kept == ["HR staff opening resumes"] and "Beep is an API call" in findings[0].reason
+
+
+SOURCE = "The lure is most consistent with a mainland Chinese academic recipient. The exact operator and final motivation remain unconfirmed."
+
+
+def test_a_target_sector_the_source_never_states_is_replaced() -> None:
+    fields = {"hypothesis": "VShell is launched on targeted academic systems in China's defense-tech sector."}
+    out, findings = audit_prose(fields, OBSERVED, False, source_text=SOURCE)
+    assert out["hypothesis"] == "VShell is launched on targeted academic systems (target sector unconfirmed by the source)."
+    assert findings[0].action == "corrected" and findings[0].text == "in China's defense-tech sector"
+
+
+def test_a_sector_the_source_states_is_kept() -> None:
+    fields = {"location": "Hospitals in the healthcare sector"}
+    out, _ = audit_prose(fields, OBSERVED, False, source_text="The actor targets the healthcare sector.")
+    assert out["location"] == "Hospitals in the healthcare sector"
+
+
+def test_an_asserted_motive_the_source_never_states_is_marked() -> None:
+    out, _ = audit_prose({"justification": "The operator acts for espionage."}, OBSERVED, False, source_text=SOURCE)
+    assert out["justification"] == "The operator acts for espionage (motive unconfirmed by the source)."
+
+
+def test_a_value_not_tied_to_the_intrusion_is_marked_in_prose() -> None:
+    fields = {"evidence": "process creation of 'personal_resume.exe' or 'cmd.exe'"}
+    out, findings = audit_prose(
+        fields, OBSERVED, False, unobservable={"personal_resume.exe": "the source does not tie it to this intrusion"}
+    )
+    assert "'personal_resume.exe [the source does not tie it to this intrusion]'" in out["evidence"]
+    assert findings[0].action == "flagged"
+
+
+def test_a_known_value_inside_an_entry_is_removed() -> None:
+    """The end-to-end replay listed "SHA-256: c666..." for the memory-only payload."""
+    memory_only = "c666ac4f1a1b8df7ccfe8b19705279acd8b7eb7a4d0b3802bb3465064883ab25"
+    kept, findings = audit_observables(
+        [f"SHA-256: {memory_only}", "cmd.exe"], "observables", {memory_only: "exists only in memory"}
+    )
+    assert kept == ["cmd.exe"] and findings[0].reason == "exists only in memory"
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [
+        (
+            "a resume lure targeting Chinese defense-tech researchers.",
+            "a resume lure targeting Chinese researchers (target sector unconfirmed by the source).",
+        ),
+        ("attacks against government agencies.", "attacks against agencies (target sector unconfirmed by the source)."),
+    ],
+)
+def test_a_sector_on_a_target_group_the_source_never_states_is_removed(claim: str, expected: str) -> None:
+    """The confirmation replay wrote "targeting Chinese defense-tech researchers"."""
+    out, findings = audit_prose({"hypothesis": claim}, OBSERVED, False, source_text=SOURCE)
+    assert out["hypothesis"] == expected and findings[0].action == "corrected"
+
+
+def test_a_target_group_without_a_sector_or_one_the_source_states_is_kept() -> None:
+    for text, source in (
+        ("a lure targeting academic researchers.", SOURCE),
+        ("a campaign against government agencies.", "The actor targets government agencies in Europe."),
+    ):
+        assert audit_prose({"hypothesis": text}, OBSERVED, False, source_text=source)[0]["hypothesis"] == text

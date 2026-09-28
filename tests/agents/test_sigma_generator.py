@@ -456,7 +456,14 @@ def test_technique_fallback_narrows_to_the_rules_own_logsource():
     event carried -- exfiltration and registry persistence included --
     because every model-proposed tag had been rejected."""
     rule, _ = _agent()._build_rule(
-        _rule(logsource_category="image_load", techniques=["T9999"]),
+        _rule(
+            logsource_category="image_load",
+            techniques=["T9999"],
+            detection={
+                "selection": {"ImageLoaded|endswith": "\\log.dll", "Image|endswith": "\\BluetoothService.exe"},
+                "condition": "selection",
+            },
+        ),
         _input(techniques=CHRYSALIS_TECHNIQUES),
     )
     assert rule is not None

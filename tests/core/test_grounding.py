@@ -799,3 +799,37 @@ def test_container_does_not_match_contains() -> None:
     assert not technique_lacks_evidence(
         "T1610", ("Deploy Container",), "spawned a new containers stack"
     )
+
+
+def test_technique_ids_are_not_reported_as_unknown_malware_names() -> None:
+    """H-0618's Grounding opened with T1036, T1204, T1497, T1105 and T1140 as "actor/malware name in no source"."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = "The malware masquerades as a resume (T1036) and the user runs it (T1204). VShell malware follows."
+    report = audit_draft(draft_text=draft, cti_text="A resume executable installs the VShell malware.")
+    assert not [c for c in report.claims if c.kind == "entity" and c.value.startswith("T1")]
+
+
+def test_a_technique_listed_as_not_mapped_is_not_a_claim() -> None:
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "techniques: [T1036]\n\n"
+        "Not mapped, capability only (the source describes what a tool can do, not what happened):\n\n"
+        '- T1113: "The RAT offers screen capture."\n'
+    )
+    report = audit_draft(draft_text=draft, cti_text="disguised as a resume")
+    assert [c.value for c in report.claims if c.kind == "technique"] == ["T1036"]
+
+
+def test_values_a_rule_filters_out_are_not_indicator_claims() -> None:
+    """A model DNS rule excluded windowsupdate.com and 127.0.0.1; both were reported as indicators in no source."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: x\ndetection:\n  selection:\n    QueryResults: 38.207.178.192\n"
+        "  filter:\n    QueryName|endswith:\n    - windowsupdate.com\n    - 127.0.0.1\n"
+        "  condition: selection and not filter\n```\n"
+    )
+    report = audit_draft(draft_text=draft, cti_text="C2 at 38.207.178.192")
+    assert [c.value for c in report.claims if c.kind == "indicator"] == ["38.207.178.192"]

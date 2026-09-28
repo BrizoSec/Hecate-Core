@@ -345,6 +345,22 @@ since A1. The reviewer itself did not contribute to the score: A2's value is
 the per-rule note and a coverage list that, after filtering, only names gaps a
 Sigma rule could close.
 
+**End-to-end review fixes (2026-09-28).** Reprocessing the example after A3
+scored 70/71 and exposed defects the gold set does not score, now fixed:
+the Grounding section reported technique IDs as unknown malware names, listed
+the dropped T1113 as a claim, and counted values a rule's filter excludes as
+indicators (now 0 unsupported on both passes); an `image_load` rule
+constraining only the loading process (every DLL `cmd.exe` loads) is rejected;
+softening consumes a preceding adverb ("could enable", not "directly could
+enable"); the claim audit removes APIs named anywhere in the suspicious or
+normal lists and known-unobservable values inside an entry ("SHA-256: …"),
+and flags artifacts the source does not tie to the intrusion where the prose
+names them; a target sector the source never states ("in China's
+defense-tech sector", "targeting Chinese defense-tech researchers") is
+replaced with "(target sector unconfirmed by the source)", and an asserted
+motive the source never states is marked. The confirmation replay scored
+71/71 with a clean Grounding section.
+
 ## Independent review and recommendation audit
 
 This review compared the draft and R-0616 with the [primary technical report](https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell/)
