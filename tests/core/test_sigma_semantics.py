@@ -258,3 +258,29 @@ def test_an_image_load_rule_must_say_which_module() -> None:
     # A process that should never connect out is a sound rule on Image alone (SigmaHQ has a dozen).
     detection = {"selection": {"Image|endswith": "\\notepad.exe"}, "condition": "selection"}
     assert _problem("network_connection", detection) is None
+
+
+def test_a_filter_may_not_exclude_a_named_unix_path() -> None:
+    """The ClickFix replay's rule hunted a LaunchAgent plist and filtered out /Library/LaunchAgents/."""
+    named = ["launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist"]
+    detection = {
+        "selection": {"TargetFilename|endswith": "/com.apple.softwareupdated.plist"},
+        "filter": {"TargetFilename|contains": "/Library/LaunchAgents/"},
+        "condition": "selection and not filter",
+    }
+    assert "matches" in (semantic_problem(detection, "file_event", "", named) or "")
+    detection["filter"] = {"TargetFilename|startswith": "/System/Library/"}
+    assert semantic_problem(detection, "file_event", "", named) is None
+
+
+def test_a_wildcard_filter_that_matches_a_named_artifact_is_rejected() -> None:
+    """The ClickFix replay filtered out /Users/*/Library/LaunchAgents/ while hunting the plist inside it."""
+    named = ["launchctl bootstrap gui/501 /Users/<redacted>/Library/LaunchAgents/com.apple.softwareupdated.plist"]
+    detection = {
+        "selection": {"TargetFilename|endswith": "/com.apple.softwareupdated.plist"},
+        "filter": {"TargetFilename|startswith": "/Users/*/Library/LaunchAgents/"},
+        "condition": "selection and not filter",
+    }
+    assert "matches" in (semantic_problem(detection, "file_event", "", named) or "")
+    detection["filter"] = {"TargetFilename|startswith": "/Users/*/Library/Application Support/"}
+    assert semantic_problem(detection, "file_event", "", named) is None

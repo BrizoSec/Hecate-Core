@@ -69,7 +69,10 @@ _EDR_RE = re.compile(
     r"syscalls?|executable memory|thread)\b",
     re.IGNORECASE,
 )
-_PATH_RE = re.compile(r"(?:%\w+%|[A-Za-z]:)?(?:\\[^\\\s:*?\"<>|]+)+\.\w{1,5}\b")
+_PATH_RE = re.compile(
+    r"(?:%\w+%|[A-Za-z]:)?(?:\\[^\\\s:*?\"<>|]+)+\.\w{1,5}\b"
+    r"|(?:\$\{?\w+\}?|~)(?:/[\w.@-]+){2,}|(?:/(?:tmp|var|etc|dev|usr|opt|home|users|library|private)(?:/[\w.@<>-]+)+)"
+)
 _REGISTRY_RE = re.compile(r"\bHK(LM|CU|EY_[A-Z_]+)\\", re.IGNORECASE)
 _CHAIN_RE = re.compile(
     r"^(?P<subject>.+?)\s+(?:launching|spawning|starting|running|executing)\s+(?P<a>[\w.-]+)"
@@ -225,8 +228,8 @@ def sigma_candidates(text: str) -> List[Dict[str, Any]]:
                 }
             )
     for path in _PATH_RE.findall(text):
-        name = path.split("\\")[-1]
-        env = re.match(r"%(\w+)%", path)
+        name = re.split(r"[\\/]", path)[-1]
+        env = re.match(r"%(\w+)%|\$\{?\w+\}?|~", path)
         # An environment variable resolves differently per user and host: match what follows it.
         tail = path[env.end() :] if env else path
         out.append(

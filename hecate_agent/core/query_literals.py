@@ -27,20 +27,36 @@ GROUNDED_FIELDS = frozenset(
 SYSTEM_IMAGES = frozenset(
     {"cmd.exe", "powershell.exe", "pwsh.exe", "winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "explorer.exe",
      "rundll32.exe", "regsvr32.exe", "mshta.exe", "wscript.exe", "cscript.exe", "msiexec.exe", "svchost.exe",
-     "conhost.exe", "schtasks.exe", "wmic.exe", "certutil.exe", "bitsadmin.exe", "kernel32.dll", "ntdll.dll"}
+     "conhost.exe", "schtasks.exe", "wmic.exe", "certutil.exe", "bitsadmin.exe", "kernel32.dll", "ntdll.dll",
+     # Unix and macOS: the Huntress replay rejected a rule for /bin/bash.
+     "bash", "sh", "zsh", "dash", "curl", "wget", "osascript", "launchctl", "xattr", "chmod", "chown", "cp", "mv", "rm",
+     "mkdir", "python", "python3", "perl", "ruby", "systemctl", "crontab", "nohup", "open", "security", "codesign",
+     "spctl", "launchd", "uname", "ioreg", "system_profiler", "whoami", "sudo", "base64", "openssl", "ditto",
+     "hdiutil", "installer", "pkill", "killall", "ps", "tar", "unzip", "nc", "ncat", "socat", "ssh", "scp"}
 )  # fmt: skip
 #: Directory prefixes a rule may scope by on their own ("C:\\Windows\\Temp\\" with ".docx").
 SYSTEM_DIRECTORIES = frozenset(
     {"c:\\windows\\", "c:\\windows\\temp\\", "c:\\windows\\system32\\", "c:\\users\\", "c:\\programdata\\",
-     "\\appdata\\local\\temp\\", "\\appdata\\roaming\\", "\\temp\\", "\\windows\\temp\\"}
+     "\\appdata\\local\\temp\\", "\\appdata\\roaming\\", "\\temp\\", "\\windows\\temp\\",
+     "/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/usr/local/bin/", "/tmp/", "/private/tmp/", "/var/tmp/", "/dev/shm/",
+     "/etc/", "/home/", "/users/", "/library/", "/library/caches/", "/library/launchagents/", "/library/launchdaemons/",
+     "/system/library/", "/applications/", "/etc/cron.d/", "/etc/systemd/system/"}
 )  # fmt: skip
 _APP_ALIASES = {"word": "winword.exe", "excel": "excel.exe", "powerpoint": "powerpnt.exe", "outlook": "outlook.exe"}
 _ELLIPSIS_RE = re.compile(r"\.\.\.|\u2026")
-_ENV_RE = re.compile(r"^%\w+%")
-#: Evidence that the malware creates the file, not merely checks for or reads it.
+#: A leading variable: Windows %TEMP%, or Unix $HOME, ${HOME} and ~.
+_ENV_RE = re.compile(r"^(%\w+%|\$\{?\w+\}?|~)(?=[\\/])")
+#: A report's redaction of part of a path: "/Users/<redacted>/Library/...".
+_REDACTION_RE = re.compile(r"<[^<>/\\]{1,30}>")
+#: Evidence that the malware creates the file, not merely checks for or reads it
+#: ("cp [random filename] $HOME/Library/..." and "deploying a payload ... at /Users/...").
 _WRITTEN_RE = re.compile(
-    r"\b(saves?|saved|writes?|written|wrote|drops?|dropped|creates?|created|downloads? .{0,40} to)\b", re.I
+    r"\b(saves?|saved|writes?|written|wrote|drops?|dropped|creates?|created|copies|copied|cp|moves?|moved|mv|"
+    r"installs?|installed|deploy(s|ed|ing)?|downloads? .{0,40} to)\b",
+    re.I,
 )
+#: Evidence that a file without a Windows extension is a program: macOS and Linux executables have none.
+_PROGRAM_RE = re.compile(r"\b(executable|payload|binary|malware|mach-o|elf|stealer|implant|backdoor)\b", re.I)
 
 
 @dataclass
@@ -66,10 +82,13 @@ class QueryLiteral:
 def _path_literal(value: str) -> Dict[str, str]:
     """``{"sigma", "match"}`` for a file path: elisions become ``*``, a leading variable an ``endswith``."""
     if _ENV_RE.match(value):
-        # %TEMP% resolves per user and host; match what follows it.
-        return {"sigma": _ENV_RE.sub("", value), "match": "endswith"}
-    if _ELLIPSIS_RE.search(value):
-        return {"sigma": _ELLIPSIS_RE.sub("*", value), "match": "wildcard"}
+        # %TEMP% and $HOME resolve per user and host; match what follows them.
+        tail = _ENV_RE.sub("", value)
+        if _ELLIPSIS_RE.search(tail) or _REDACTION_RE.search(tail):
+            return {"sigma": "*" + _REDACTION_RE.sub("*", _ELLIPSIS_RE.sub("*", tail)), "match": "wildcard"}
+        return {"sigma": tail, "match": "endswith"}
+    if _ELLIPSIS_RE.search(value) or _REDACTION_RE.search(value):
+        return {"sigma": _REDACTION_RE.sub("*", _ELLIPSIS_RE.sub("*", value)), "match": "wildcard"}
     return {"sigma": value, "match": "exact"}
 
 
@@ -90,13 +109,16 @@ def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]]) -> List[QueryLi
         role, evidence = str(artifact.get("role", "")), " ".join(str(artifact.get("evidence", "")).split())[:200]
         literal: QueryLiteral
         if kind in ("file_path", "path", "file", "filename", "file_name"):
+            value = _fuller_path(value, " ".join(str(artifact.get("evidence", "")).split()))
             shape = _path_literal(value)
-            image = value.lower().endswith((".exe", ".dll", ".scr", ".com"))
+            image = value.lower().endswith((".exe", ".dll", ".scr", ".com")) or (
+                "/" in value and "." not in value.rsplit("/", 1)[-1][1:] and bool(_PROGRAM_RE.search(evidence))
+            )
             fields = ["file_event.TargetFilename", "process_creation.CommandLine"]
             if image:
                 fields += ["process_creation.Image", "process_creation.ParentImage"]
             literal = QueryLiteral(
-                value, shape["sigma"], kind, fields, role, evidence, shape["match"], bool(_WRITTEN_RE.search(evidence))
+                value, shape["sigma"], kind, fields, role, evidence, shape["match"], _written(value, role, evidence)
             )
         elif kind == "process":
             name = _APP_ALIASES.get(value.lower(), value if "." in value else f"{value}.exe")
@@ -116,6 +138,45 @@ def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]]) -> List[QueryLi
     return out
 
 
+#: The report says the file is only checked for or read, not created (VShell's kill-switch marker).
+_CHECKED_RE = re.compile(r"\b(marker|kill[- ]?switch|checks? (for|whether|if)|exists?|already exists|reads?)\b", re.I)
+#: Places a file is written to persist: its existence there is the installation.
+_PERSISTENCE_DIR_RE = re.compile(
+    r"/library/launch(agents|daemons)/|/etc/systemd/system/|/etc/cron\.|\\start menu\\programs\\startup\\", re.I
+)
+
+
+def _written(value: str, role: str, evidence: str) -> bool:
+    """Whether the malware creates this file: a write verb, a persistence location, or the malware's own file.
+
+    The Huntress replay's IOC table said only "Filesystem path used by this
+    malware" for both stealer paths: the malware's own file on disk is written
+    when it is installed. A file it only checks for is not.
+    """
+    context = f"{role} {evidence}"
+    if _CHECKED_RE.search(context):
+        return False
+    return bool(_WRITTEN_RE.search(evidence) or _PERSISTENCE_DIR_RE.search(value) or _PROGRAM_RE.search(context))
+
+
+#: A user's home directory, generalized so a rule is not tied to one victim account.
+_USER_DIR_RE = re.compile(r"^(/Users/|/home/|[A-Za-z]:\\Users\\)(?!\*|<)[^/\\]+", re.I)
+
+
+def _fuller_path(value: str, evidence: str) -> str:
+    """The full path the evidence gives for a bare file name, with the user directory generalized.
+
+    The Huntress replay extracted "com.apple.softwareupdated.plist" while its
+    evidence read ".../launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist".
+    """
+    if "/" in value or "\\" in value:
+        return value
+    match = re.search(r"(?:[A-Za-z]:\\|/)[^\s'\"`|]*[/\\]" + re.escape(value) + r"\b", evidence)
+    if not match:
+        return value
+    return _USER_DIR_RE.sub(lambda m: m.group(1) + "*", match.group(0))
+
+
 def _pieces(sigma_value: str) -> List[str]:
     """The literal characters of a Sigma value, split at its wildcards."""
     return [p.lower() for p in re.split(r"[*?]", sigma_value) if p]
@@ -133,7 +194,7 @@ def ungrounded_value(detection: Dict[str, Any], literals: List[Dict[str, Any]]) 
             for value in raw if isinstance(raw, list) else [raw]:
                 text = str(value)
                 for piece in _pieces(text):
-                    bare = piece.strip().lstrip("\\")
+                    bare = piece.strip().lstrip("\\").lstrip("/")
                     if not bare or bare in SYSTEM_IMAGES or _is_extension(bare) or piece.strip() in SYSTEM_DIRECTORIES:
                         continue
                     if _system_binary_path(piece.strip()):
@@ -146,9 +207,10 @@ def ungrounded_value(detection: Dict[str, Any], literals: List[Dict[str, Any]]) 
 
 
 def _system_binary_path(piece: str) -> bool:
-    """``C:\\Windows\\System32\\cmd.exe``: a standard binary under a standard directory."""
-    directory, _, name = piece.rpartition("\\")
-    return name in SYSTEM_IMAGES and (directory + "\\") in SYSTEM_DIRECTORIES
+    """``C:\\Windows\\System32\\cmd.exe`` or ``/usr/bin/xattr``: a standard binary under a standard directory."""
+    sep = "/" if "/" in piece and "\\" not in piece else "\\"
+    directory, _, name = piece.rpartition(sep)
+    return name in SYSTEM_IMAGES and (directory + sep) in SYSTEM_DIRECTORIES
 
 
 def _is_extension(piece: str) -> bool:

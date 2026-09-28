@@ -7,7 +7,7 @@ nothing in the scoring calls a model, so two scores are comparable.
 | Case | Gold set | Built from | Baseline |
 |---|---|---|---|
 | VShell via fake-resume lure | `gold/vshell-fake-resume.yaml` | `docs/H-0618_DEEP_DIVE.md` | 23/71 checks (32.4%), technique recall 1/11 |
-| ClickFix macOS stealer (Huntress) | `gold/macos-clickfix-stealer.yaml` | the Huntress report | 39/55 checks (70.9%), technique recall 2/12, on the pipeline as of 2026-09-28 (no pre-change baseline) |
+| ClickFix macOS stealer (Huntress) | `gold/macos-clickfix-stealer.yaml` | the Huntress report | 39/55 checks (70.9%), technique recall 2/12, on the pipeline as of 2026-09-28 before the macOS/Unix fixes (no pre-change baseline); 53/55 after them |
 
 The baseline is the H-0618 draft reviewed in the deep dive, frozen in
 `tests/fixtures/gold/vshell-fake-resume/` and locked by

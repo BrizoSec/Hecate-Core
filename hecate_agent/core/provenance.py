@@ -17,7 +17,9 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 #: What a hash identifies. Only ``executable`` and ``library`` exist as a file a
 #: process runs or loads; the rest cannot match a process-image hash.
-HASH_ROLES = ("executable", "library", "archive", "document", "memory_only", "network_content", "unknown")
+#: ``script``: a shell, PowerShell or other script run by an interpreter, so the
+#: process image is the interpreter and never carries the script's hash.
+HASH_ROLES = ("executable", "library", "script", "archive", "document", "memory_only", "network_content", "unknown")
 #: What a network indicator does in the intrusion.
 NETWORK_ROLES = ("c2", "staging", "download", "historical", "unknown")
 STATUSES = ("active", "historical", "unknown")

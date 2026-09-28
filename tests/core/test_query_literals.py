@@ -134,3 +134,82 @@ def test_a_file_the_source_says_is_written_becomes_a_rule_without_the_model() ->
     }
     # The kill-switch marker is checked for, not written: no rule.
     assert "log_de" not in rule.rule_yaml
+
+
+MAC = [
+    {
+        "value": "/Users/<redacted>/Library/Caches/com.apple.softwareupdate/SoftwareUpdate",
+        "kind": "file_path",
+        "status": "active",
+        "evidence": "persistence via deploying a payload at /Users/<redacted>/Library/Caches/com.apple.softwareupdate/SoftwareUpdate",
+    },
+    {
+        "value": "$HOME/Library/Caches/com.apple.trustd/com.apple.verified",
+        "kind": "file_path",
+        "status": "active",
+        "evidence": "cp [random filename] $HOME/Library/Caches/com.apple.trustd/com.apple.verified",
+    },
+]
+
+
+def test_unix_variables_and_redactions_become_endswith_and_wildcards() -> None:
+    by_value = {lit.value: lit for lit in literals_from_artifacts(MAC)}
+    redacted = by_value[MAC[0]["value"]]
+    assert redacted.sigma == "/Users/*/Library/Caches/com.apple.softwareupdate/SoftwareUpdate" and redacted.written
+    assert "process_creation.Image" in redacted.fields  # a macOS executable has no extension
+    home = by_value[MAC[1]["value"]]
+    assert (home.sigma, home.match, home.written) == ("/Library/Caches/com.apple.trustd/com.apple.verified", "endswith", True)
+
+
+@pytest.mark.parametrize(
+    "selection", [{"Image": "/bin/bash"}, {"Image|endswith": "/usr/bin/xattr"}, {"Image|endswith": "/launchctl"}]
+)
+def test_unix_system_binaries_are_grounded(selection: Dict[str, Any]) -> None:
+    """The ClickFix replay rejected a rule for /bin/bash."""
+    lits = [lit.to_dict() for lit in literals_from_artifacts(MAC)]
+    assert ungrounded_value({"selection": selection, "condition": "selection"}, lits) == ""
+
+
+LAUNCHCTL = (
+    "incorporated into the Background Task Management (BTM) subsystem via "
+    "launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist."
+)
+
+
+def test_a_bare_file_name_takes_its_full_path_from_the_evidence() -> None:
+    """The Huntress replay extracted "com.apple.softwareupdated.plist" with the full path in its evidence."""
+    (lit,) = literals_from_artifacts(
+        [{"value": "com.apple.softwareupdated.plist", "kind": "file_path", "status": "active", "evidence": LAUNCHCTL}]
+    )
+    assert lit.sigma == "/Users/*/Library/LaunchAgents/com.apple.softwareupdated.plist"  # the victim's account generalized
+    assert lit.written  # a LaunchAgent plist is written to persist
+
+
+@pytest.mark.parametrize(
+    ("artifact", "written"),
+    [
+        (
+            {
+                "value": "$HOME/Library/Caches/homeenergyd/com.apple.homeenergyd",
+                "role": "executable",
+                "evidence": "Filesystem path used by this malware",
+            },
+            True,
+        ),
+        (
+            {"value": "%TEMP%\\log_de.log", "role": "kill-switch marker", "evidence": "Kill-switch marker %TEMP%\\log_de.log"},
+            False,
+        ),
+        (
+            {
+                "value": "C:\\Windows\\Temp\\notes.txt",
+                "role": "unknown",
+                "evidence": "The stager exits if the file already exists",
+            },
+            False,
+        ),
+    ],
+)
+def test_the_malwares_own_file_is_written_but_a_file_it_checks_for_is_not(artifact: Dict[str, Any], written: bool) -> None:
+    (lit,) = literals_from_artifacts([{**artifact, "kind": "file_path", "status": "active"}])
+    assert lit.written is written

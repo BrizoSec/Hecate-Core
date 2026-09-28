@@ -175,3 +175,9 @@ def test_a_model_rule_may_not_reverse_the_guidance_chain() -> None:
     raw["description"] = "Detects cmd.exe starting Word"
     rule, problem = agent._build_rule(raw, _input(guidance, ["Windows"]))
     assert problem is None and rule is not None
+
+
+def test_a_unix_path_in_guidance_becomes_a_file_candidate() -> None:
+    (candidate,) = sigma_candidates("~/Library/LaunchAgents/com.example.update.plist")
+    assert candidate["title"] == "File com.example.update.plist written"
+    assert candidate["detection"]["selection"] == {"TargetFilename|endswith": "/Library/LaunchAgents/com.example.update.plist"}

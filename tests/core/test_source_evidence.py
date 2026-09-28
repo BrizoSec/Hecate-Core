@@ -301,3 +301,62 @@ def test_role_routed_ioc_rules_pass_every_gold_indicator_placement(tmp_path: Pat
     passed = {c.id for c in report.checks if c.dimension == "detections" and c.passed}
     assert {"c2-http-staging-port", "c2-raw-tcp-port", "loader-execution", "staging-url-paths"} <= passed
     assert all(c.passed for c in report.checks if c.dimension == "rule semantics")
+
+
+def test_a_pages_related_content_block_is_cut() -> None:
+    """The Huntress page ended with "You Might Also Like" teasers for AMOS and GhostSocks articles."""
+    from hecate_agent.core.source_evidence import strip_page_furniture
+
+    body = "Report body. " * 50
+    page = f"{body}\nYou Might Also Like\nAMOS Stealer Exploits AI Trust\nGhostSocks and information stealers"
+    assert strip_page_furniture(page) == body.rstrip()
+    assert strip_page_furniture("Related posts\n" + body) == "Related posts\n" + body  # navigation at the top stays
+
+
+@pytest.mark.parametrize(
+    ("evidence", "role"),
+    [
+        ("5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52 Profiler/loader Bash script", "script"),
+        (
+            "established persistence via deploying a payload (SHA256: "
+            "b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3) at "
+            "/Users/<redacted>/Library/Caches/com.apple.softwareupdate/SoftwareUpdate",
+            "executable",
+        ),
+        ("f0062f7e SHA256 Stealer executable (ARM64)", "executable"),
+        ("the loader side-loads version.dll, a library it drops", "library"),
+    ],
+)
+def test_hash_roles_from_the_reports_wording(evidence: str, role: str) -> None:
+    from hecate_agent.core.source_evidence import _hash_role_from_evidence
+
+    assert _hash_role_from_evidence(evidence, "unknown") == role
+
+
+def test_a_script_hash_is_placed_in_no_process_rule() -> None:
+    from hecate_agent.core.provenance import IndicatorRecord, placements
+
+    assert placements(IndicatorRecord("a" * 64, "sha256", "script", "active")) == []
+
+
+def test_a_free_text_role_must_use_the_texts_words() -> None:
+    """The Huntress replay labelled osascript "decoy document path", the prompt's old example."""
+    from hecate_agent.core.source_evidence import _role_supported
+
+    assert not _role_supported("decoy document path", "prompting the victim via an osascript dialogue", "osascript")
+    assert _role_supported("kill-switch marker", "Kill-switch marker %TEMP%\\log_de.log", "%TEMP%\\log_de.log")
+    page = "the malware downloads a real word document from a url. it saves it as: c:\\windows\\temp\\a.docx"
+    assert _role_supported(
+        "decoy document path", "It saves it as: C:\\Windows\\Temp\\a.docx", "C:\\Windows\\Temp\\a.docx", page
+    )
+
+
+def test_evidence_that_names_no_role_leaves_the_hash_role_unknown() -> None:
+    """A VShell replay's evidence was only "SHA-256: 0524..."; the model's "executable" stood for shellcode."""
+    from hecate_agent.core.source_evidence import _checked, _words, normalise
+
+    value = "0524619d2471d77aba4b7993f5ffbaa4b8be6d2c0d91e63a02943851dc4b6404"
+    page = f"SNOWLIGHT shellcode SHA-256: {value}"
+    raw = {"value": value, "kind": "sha256", "role": "executable", "status": "active", "evidence": f"SHA-256: {value}"}
+    artifact, _ = _checked(raw, normalise(page), " ".join(_words(page)))
+    assert artifact is not None and artifact.role == "unknown"

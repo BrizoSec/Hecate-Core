@@ -76,8 +76,10 @@ For each artifact return:
 - "value": the exact string. For a network endpoint with a port, use "ip:port" as written.
 - "kind": one of {sorted(INDICATOR_KINDS) + list(BEHAVIOUR_KINDS)}
 - "role": for hashes one of {list(HASH_ROLES)}; for IPs, domains, hostnames and URLs one of
-  {list(NETWORK_ROLES)}; for other kinds a short phrase (e.g. "decoy document path").
-  Hash roles: executable = a program run from disk; library = a DLL loaded from disk;
+  {list(NETWORK_ROLES)}; for other kinds a short phrase using the text's own words for what the
+  artifact is in this intrusion, or "unknown" when the text does not say.
+  Hash roles: executable = a program run from disk; library = a DLL, dylib or shared object loaded
+  from disk; script = a shell, PowerShell or other script run by an interpreter;
   archive = a ZIP/RAR container; document = a decoy or lure document;
   memory_only = shellcode or a payload that only exists in memory;
   network_content = an encrypted or encoded download or stream.
@@ -161,9 +163,27 @@ def fetch_page_text(url: str, timeout: float = 20.0) -> str:
     response = httpx.get(url, timeout=timeout, follow_redirects=True)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
-    for tag in soup(["script", "style", "nav", "footer", "header"]):
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
-    return str(soup.get_text(separator="\n", strip=True))[:MAX_PAGE_CHARS]
+    return strip_page_furniture(str(soup.get_text(separator="\n", strip=True)))[:MAX_PAGE_CHARS]
+
+
+#: Headings that start a page's related-content block. The Huntress report's
+#: page ended with "You Might Also Like" teasers for AMOS, GhostSocks and
+#: NetSupport articles, and technique mapping took T1036 from one of them.
+_FURNITURE_RE = re.compile(
+    r"^(you (might|may) also like|related (posts?|articles?|reading|content|research|stories|blogs?)|recommended "
+    r"(reading|for you|articles?)|more from (the )?\w+|read (next|more)|latest (posts|articles|research)|popular posts)\s*:?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def strip_page_furniture(text: str) -> str:
+    """The page text before its related-content block, when one appears after the article body."""
+    for match in _FURNITURE_RE.finditer(text):
+        if match.start() > len(text) * 0.4:  # a heading near the top is navigation, not the tail
+            return text[: match.start()].rstrip()
+    return text
 
 
 def chunk_text(text: str, size: int = CHUNK_CHARS, overlap: int = CHUNK_OVERLAP) -> List[str]:
@@ -219,8 +239,18 @@ _HASH_ROLE_WORDS = (
     ("network_content", r"\b(encoded|encrypted|http response|stream|download(ed)? blob)\b"),
     ("archive", r"\b(archive|zip|rar|7z)\b"),
     ("document", r"\b(docx?|decoy|document|pdf|lure file)\b"),
-    ("library", r"\b(dll|library)\b"),
-    ("executable", r"\b(loader|executable|dropper|installer|\.exe)\b"),
+    # Before executable: the Huntress report's "Profiler/loader Bash script" is a loader, and a script.
+    (
+        "script",
+        r"\b(bash|shell|sh|zsh|powershell|python|perl|javascript|vbscript|applescript|batch) script\b"
+        r"|\.(sh|ps1|py|js|vbs|bat)\b",
+    ),
+    # "Library" as a path segment ("/Users/x/Library/Caches") is a directory, not a DLL.
+    ("library", r"\b(dll|dylib|shared (library|object))\b|(?<![/\\])\blibrary\b(?![/\\])"),
+    (
+        "executable",
+        r"\b(loader|executable|dropper|installer|mach-o|elf binary|\.exe)\b|\bpayload\b[^.]{0,80}\bat\s+(/|[a-z]:\\)",
+    ),
 )
 
 
@@ -244,11 +274,34 @@ def _valid_value(kind: str, value: str) -> bool:
     return True
 
 
+def _names_a_role(text: str) -> bool:
+    return any(re.search(pattern, text, re.IGNORECASE) for _, pattern in _HASH_ROLE_WORDS)
+
+
 def _hash_role_from_evidence(evidence: str, role: str) -> str:
     for derived, pattern in _HASH_ROLE_WORDS:
         if re.search(pattern, evidence, re.IGNORECASE):
             return derived
     return role
+
+
+_ROLE_STOPWORDS = frozenset({"the", "a", "an", "of", "for", "to", "and", "or", "in", "on", "by", "used", "file", "path"})
+
+
+def _role_supported(role: str, evidence: str, value: str, page: str = "") -> bool:
+    """Whether a free-text role shares a content word with the text around the artifact.
+
+    The evidence sentence, the value, and the page text near where the value
+    appears: VShell's decoy path is described as "a real Word document" in the
+    sentence before "It saves it as: C:\\...docx".
+    """
+    words = {w for w in re.findall(r"[a-z0-9]+", role.lower()) if w not in _ROLE_STOPWORDS and len(w) > 2}
+    near = ""
+    at = page.find(normalise(value)) if page else -1
+    if at >= 0:
+        near = page[max(0, at - 300) : at + len(value) + 300]
+    text = f"{evidence} {value} {near}".lower()
+    return not words or any(re.search(rf"\b{re.escape(w)}", text) for w in words)
 
 
 def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[SourceArtifact], str]:
@@ -276,6 +329,15 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
         status = "unknown"
     if kind in _HASH_LENGTHS and evidence:
         role = _hash_role_from_evidence(evidence, role)
+    if kind in _HASH_LENGTHS and evidence and not _names_a_role(evidence):
+        # Evidence that is only "SHA-256: 0524..." states no role: the model's guess
+        # ("executable" for SNOWLIGHT shellcode on a VShell replay) is not the source's.
+        role = "unknown"
+    if allowed_roles is None and role != "unknown" and not _role_supported(role, evidence, value, page):
+        # A free-text role must use the passage's words: on the Huntress report the
+        # model labelled osascript, a launchctl command and two paths "decoy
+        # document path", the example the prompt used to give.
+        role = "unknown"
     label = _CONFIDENCE_RE.search(evidence)
     confidence = label.group(1).lower() if label else "unknown"
     return SourceArtifact(value=value, kind=kind, role=role, status=status, confidence=confidence, evidence=evidence), ""

@@ -460,7 +460,12 @@ def filter_excludes_named_artifact(detection: Dict[str, Any], named: List[str]) 
     return None
 
 
-_NAMED_PATH_RE = re.compile(r"(?:[A-Za-z]:|%\w+%)?(?:\\[^\\\n'\"`|]+)+\.[a-z0-9]{2,5}\b", re.IGNORECASE)
+_NAMED_PATH_RE = re.compile(
+    r"(?:[A-Za-z]:|%\w+%)?(?:\\[^\\\n'\"`|]+)+\.[a-z0-9]{2,5}\b"
+    # Unix and macOS paths of at least two segments, with an optional $HOME / ~ prefix.
+    r"|(?:\$\{?\w+\}?|~)?(?:/[^/\s'\"`|]+){2,}",
+    re.IGNORECASE,
+)
 
 
 def _named_paths(named: List[str]) -> List[str]:
@@ -473,20 +478,19 @@ def _filter_matches(key: Any, value: str, path: str) -> bool:
     mods = set(_modifiers(key))
     if mods - {"contains", "startswith", "endswith"} or base_field(key).lower() not in _PATH_FILTER_FIELDS:
         return False
-    concrete = _ELLIPSIS_RE.sub("x", path).lower()
+    # An elision or a redaction ("/Users/<redacted>/...") stands for any text.
+    concrete = re.sub(r"<[^<>/\\]{1,30}>", "x", _ELLIPSIS_RE.sub("x", path)).lower()
+    concrete = re.sub(r"^(\$\{?\w+\}?|~)(?=/)", "/users/x", concrete)
     needle = value.strip().lower()
-    if "*" in needle.strip("*") or "?" in needle:
+    if not needle.strip("*?"):
         return False
-    needle = needle.strip("*")
-    if not needle:
-        return False
-    if "contains" in mods or (value.startswith("*") and value.endswith("*")):
-        return needle in concrete
-    if "startswith" in mods or value.endswith("*"):
-        return concrete.startswith(needle)
-    if "endswith" in mods or value.startswith("*"):
-        return concrete.endswith(needle)
-    return concrete == needle
+    # The value as a Sigma pattern: modifiers and leading/trailing * set the anchoring,
+    # and a * inside it ("/Users/*/Library/LaunchAgents/") matches any text.
+    starts = "contains" in mods or "endswith" in mods or needle.startswith("*")
+    ends = "contains" in mods or "startswith" in mods or needle.endswith("*")
+    core = re.escape(needle.strip("*")).replace(r"\*", ".*").replace(r"\?", ".")
+    pattern = ("" if starts else "^") + core + ("" if ends else "$")
+    return re.search(pattern, concrete) is not None
 
 
 _PATH_FILTER_FIELDS = frozenset({"targetfilename", "image", "parentimage", "imageloaded", "commandline", "parentcommandline"})

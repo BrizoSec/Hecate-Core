@@ -112,3 +112,43 @@ def test_the_vshell_cti_maps_only_observed_techniques() -> None:
     assert observed <= expected and not observed & forbidden
     assert {e.technique_id for e in evidence if e.status == "capability"} == {"T1113"}
     assert all(e.passage for e in evidence)
+
+
+# --- macOS and Unix tradecraft (the ClickFix gold case) ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("sentence", "technique"),
+    [
+        ("The target was tricked into pasting a ClickFix command into a Mac Terminal.", "T1204.004"),
+        ("The target had followed a link sent in an email message.", "T1566.002"),
+        ("The file that was downloaded is a Bash script that creates a detailed profile of the system.", "T1059.004"),
+        ("It runs ioreg -c IOPlatformExpertDevice -d 2 and system_profiler SPHardwareDataType.", "T1082"),
+        ('It runs echo "$(whoami)" to identify the logged-in user.', "T1033"),
+        ("It then deleted the command history from the Terminal.", "T1070.003"),
+        ("It retrieves a file, executes it, then deletes the temporarily stored file with rm -f .x.", "T1070.004"),
+        ("xattr -d com.apple.quarantine removes the Gatekeeper bit.", "T1553.001"),
+        ("It creates a directory with a name that mimics the name of the legitimate process in macOS.", "T1036.005"),
+        ("It ran launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist.", "T1543.001"),
+        ("The attackers prompted the victim for their credentials via an osascript dialogue.", "T1056.002"),
+    ],
+)
+def test_unix_and_macos_behaviour_maps_to_its_technique(sentence: str, technique: str) -> None:
+    assert technique in _observed(sentence)
+
+
+def test_a_description_of_a_legitimate_subsystem_is_context() -> None:
+    """BTM "tracks ... launch agents, login items, or cron jobs": no cron job was used."""
+    text = (
+        "BTM is a legitimate Apple subsystem that is used to track anything that installs itself to run "
+        "automatically in the background (like launch agents, login items, or cron jobs)."
+    )
+    assert not _observed(text)
+
+
+def test_the_macos_feed_text_alone_maps_its_behaviour_without_forbidden_techniques() -> None:
+    """The feed never mentions LaunchAgents ("persistence through macOS Background Task Management"); the report does."""
+    gold = yaml.safe_load((GOLD.parent / "macos-clickfix-stealer.yaml").read_text(encoding="utf-8"))
+    observed = {e.technique_id for e in map_behaviours([("cti", gold["source"]["cti"])]) if e.status == "observed"}
+    forbidden = {t["id"] for t in gold["techniques"]["forbidden"]}
+    assert {"T1204.004", "T1553.001", "T1555.001"} <= observed and not observed & forbidden

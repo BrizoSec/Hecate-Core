@@ -46,7 +46,12 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1059.003", "Windows command shell", r"\bcmd\.exe\b|\bcommand prompt\b|\bwindows command shell\b"),
     ("T1059.001", "PowerShell", r"\bpowershell(\.exe)?\b"),
     ("T1059.005", "Visual Basic", r"\bvbscript\b|\b[wc]script\.exe\b|\bvisual basic\b"),
-    ("T1059.004", "Unix shell", r"\b(ba)?sh -c\b|/bin/(ba)?sh\b"),
+    ("T1059.004", "Unix shell",
+     r"\b(ba|z)?sh -c\b|/bin/(ba|z)?sh\b|\b(bash|shell) script\b|\bbash \.?[\w.-]+\b|\bcurl\b[^.]{0,80}\|\s*(ba|z)?sh\b"),
+    ("T1059.002", "AppleScript", r"\bosascript\b|\bapplescript\b"),
+    ("T1204.004", "malicious copy and paste",
+     r"\bclickfix\b|\bfake captcha\b|\bpast(e|es|ed|ing) (a |the |this )?(\w+ ){0,3}(command|script|string)s? into "
+     r"(the |a )?(\w+ )?(terminal|run dialog|powershell|command prompt)\b"),
     ("T1497.001", "sandbox or system checks",
      r"\bsandbox (detection|checks?|evasion)\b|\banti[- ]?(sandbox|vm|analysis)\b"
      r"|\b(cpu|processor|core)s? (count|checks?)\b|\bcpu checks?\b|\blogical processors\b"
@@ -57,6 +62,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1105", "downloads a further stage",
      r"\bdownload(s|ed|ing)? (\d[\d.,]*\s?(kb|mb|gb|bytes)|the (payload|stager|next stage|second stage|decoy)"
      r"|a (payload|stager|second[- ]stage|decoy|real)|additional (payloads?|tools?|modules?))"
+     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b[^.]{0,120}\s-o\s"
      r"|\b(fetch|retriev)(es|ed)? (the|a) (payload|stager|next stage|second[- ]stage)\b"),
     ("T1140", "decodes or decrypts a payload",
      r"\bxor[- ]?(decod\w*|decrypt\w*)\b|\bxor(s|ed)? (it|the|with)\b"
@@ -83,7 +89,8 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1053.005", "scheduled task", r"\bscheduled task\b|\bschtasks(\.exe)?\b"),
     ("T1547.001", "Run key or Startup folder", r"\brun key\b|currentversion\\run\b|\bstartup folder\b"),
     ("T1566.001", "phishing attachment", r"\b(spear)?phishing (email|attachment)s?\b|\bmalicious attachments?\b"),
-    ("T1566.002", "phishing link", r"\bphishing links?\b|\bmalicious links?\b"),
+    ("T1566.002", "phishing link",
+     r"\bphishing links?\b|\bmalicious links?\b|\b(followed|clicked|opened) (a|the) link\b[^.]{0,60}\b(e-?mail|message)"),
     ("T1218.011", "rundll32", r"\brundll32(\.exe)?\b"),
     ("T1218.007", "msiexec", r"\bmsiexec(\.exe)?\b"),
     ("T1218.005", "mshta", r"\bmshta(\.exe)?\b"),
@@ -91,7 +98,31 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1055.012", "process hollowing", r"\bprocess hollowing\b|\bhollow(s|ed|ing) (out )?(a |the )?\w*\s?process\b"),
     ("T1574.001", "DLL side-loading or hijacking", r"\bdll (side[- ]?load\w*|hijack\w*|search order)\b|\bside[- ]?load\w*\b"),
     ("T1113", "screen capture", r"\bscreen ?(capture|shot)s?\b"),
-    ("T1070.004", "self-deletion", r"\bdelet(es|ed|ing) (itself|the (loader|dropper|file|binary))\b|\bself[- ]delet\w+\b"),
+    ("T1070.004", "self-deletion or file cleanup",
+     r"\bdelet(es|ed|ing) (itself|the (loader|dropper|file|binary))\b|\bself[- ]delet\w+\b|\brm -f\b"
+     r"|\bthen delet(e|es|ed) the (temporar\w+ )?(stored )?(file|script|payload)\b"),
+    ("T1070.003", "shell history cleared",
+     r"\bhistory -[dc]\b|\bfc -p\b|\.(bash|zsh)_history\b|\b(delet|clear|wip)(es|ed|ing)? (the )?(\w+ )?command history\b"),
+    ("T1082", "system information discovery",
+     r"\bioreg\b|\bsystem_profiler\b|\buname -[amr]\b|\bsysteminfo(\.exe)?\b|\bhostnamectl\b"
+     r"|\b(profile|profil\w+|collects?|gather\w*) [^.]{0,40}\b(system|hardware) (info\w*|details|profile)\b"),
+    ("T1033", "user discovery", r"\bwhoami\b|\bcurrently logged[- ]in user\b|\bquser\b"),
+    ("T1553.001", "Gatekeeper bypass",
+     r"\bcom\.apple\.quarantine\b|\bxattr -[dc]\b|\bgatekeeper (bypass|bit|prompt)\b|\bremoves? the (gatekeeper|quarantine)\b"),
+    ("T1036.005", "legitimate name or location",
+     r"\bmimics? the name\b|\bmimic\w* (a |the )?legitimate\b|\bnamed (after|like) (a |the )?legitimate\b"
+     r"|\bimpersonat\w+ (a |the )?(legitimate |system )?(process|service|binary|file|path|directory)\b"),
+    ("T1543.001", "Launch Agent", r"\blaunch ?agents?\b|/library/launchagents/|\blaunchctl (bootstrap|load)\b"),
+    ("T1543.004", "Launch Daemon", r"\blaunch ?daemons?\b|/library/launchdaemons/"),
+    ("T1543.002", "systemd service", r"/etc/systemd/system/[\w.@-]+\.service\b|\bsystemctl (enable|start)\b"),
+    ("T1053.003", "cron job", r"\bcrontab\b|/etc/cron\.|/var/spool/cron\b"),
+    ("T1056.002", "fake credential prompt",
+     r"\bosascript\b[^.]{0,80}\b(password|credentials?)\b|\b(password|credentials?)\b[^.]{0,80}\bosascript\b"
+     r"|\b(fake|spoofed|bogus) (password|login|system|authentication) (prompt|dialog|window)\b"
+     r"|\bprompt(s|ed|ing)? (the )?(victim|user|target) (for|to enter) (their |a )?(password|credentials)\b"),
+    ("T1555.001", "Keychain credentials", r"\bkeychain\b"),
+    ("T1555.003", "browser credential stores",
+     r"\bbrowser (password|credential)s?( stores?| databases?)?\b|\bsaved (browser )?passwords\b|\blogin data\b"),
     ("T1112", "registry modification", r"\bmodif(y|ies|ied) (the )?registry\b"),
     ("T1543.003", "Windows service created", r"\b(creates?|install\w*) (a )?(new )?(windows )?service\b|\bsc(\.exe)? create\b"),
     ("T1003.001", "LSASS access", r"\blsass\b"),
@@ -120,6 +151,12 @@ _OBSERVED_RE = re.compile(
 _CONTEXT_RE = re.compile(
     r"\b(unc|uat|apt|ta|fin|dev)-?\d{2,5}\b|\bearth [a-z]+\b|\bno (ioc|lure|infrastructure|windows)\b[^.]{0,30}\bmatch\b"
     r"|\bdifferent malware\b|\bpublished (chains|access|reporting)\b"
+    # A description of what a legitimate subsystem does, not of this intrusion:
+    # "BTM ... is used to track anything that installs itself to run
+    # automatically (like launch agents, login items, or cron jobs)".
+    r"|\bis a legitimate (apple|macos|windows|microsoft|linux|system) \w+\b|\ba legitimate (apple|macos|windows|microsoft|linux) "
+    r"(subsystem|process|service|tool|utility|binary)\b|\b(is|are) (typically |commonly )?used (by macos|by windows|by the "
+    r"(os|operating system)|for automatic)\b"
 )
 
 #: Label and metadata lines in a CTI item: a title or a tag list names a topic

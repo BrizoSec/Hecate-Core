@@ -361,6 +361,22 @@ replaced with "(target sector unconfirmed by the source)", and an asserted
 motive the source never states is marked. The confirmation replay scored
 71/71 with a clean Grounding section.
 
+**Second gold case (2026-09-28).** `evals/gold/macos-clickfix-stealer.yaml`
+(Huntress, ClickFix fake CAPTCHA delivering a Go macOS stealer) was written
+from the report before any run, to test generalization. The pipeline first
+scored 39/55: platform, claims and rule semantics held, and the C2 and hosting
+IPs that appear only in the report reached the rules, but technique recall was
+2/12 and four of six detections were missing. The causes were Windows- and
+VShell-specific tuning: a behaviour catalog without macOS or Unix tradecraft,
+source extraction primed to label artifacts "decoy document path" with no
+`script` hash role and "Library" in a path read as a DLL, the page's
+"You Might Also Like" teasers read as report text, and path handling that
+knew only `%TEMP%`, backslashes and Windows binaries. After the fixes the
+case scores 53/55 (recall 12/12) and VShell 71/71. The two remaining macOS
+misses (`xattr` quarantine removal, shell-history wiping) need rules built from
+the command lines in observed-behaviour passages, which the pipeline does not
+yet do; they appear only when extraction happens to capture those commands.
+
 ## Independent review and recommendation audit
 
 This review compared the draft and R-0616 with the [primary technical report](https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell/)
