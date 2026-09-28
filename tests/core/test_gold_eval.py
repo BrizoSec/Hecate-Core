@@ -260,3 +260,14 @@ def test_cli_json_and_fail_under() -> None:
 
     assert CliRunner().invoke(eval_gold_cmd, [str(GOLD), draft, "--fail-under", "0.6"]).exit_code == 1
     assert CliRunner().invoke(eval_gold_cmd, [str(GOLD), draft, "--fail-under", "0.3"]).exit_code == 0
+
+
+def test_the_macos_gold_set_is_well_formed() -> None:
+    """The second case: written from the Huntress report before any pipeline run on it."""
+    gold = load_gold(REPO / "evals" / "gold" / "macos-clickfix-stealer.yaml")
+    assert gold["platform"]["expected"] == ["macOS"]
+    assert len(gold["techniques"]["observed"]) == 12
+    assert gold["source"]["cti"].startswith("OTX Pulse: Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam")
+    observed = {t["id"] for t in gold["techniques"]["observed"]}
+    forbidden = {t["id"] for t in gold["techniques"]["forbidden"]}
+    assert not observed & forbidden and not observed & set(gold["techniques"]["acceptable"])
