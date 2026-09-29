@@ -376,6 +376,14 @@ case scores 53/55 (recall 12/12) and VShell 71/71. The two remaining macOS
 misses (`xattr` quarantine removal, shell-history wiping) need rules built from
 the command lines in observed-behaviour passages, which the pipeline does not
 yet do; they appear only when extraction happens to capture those commands.
+`core/command_rules.py` now builds those rules: each command of a known
+external program quoted in an observed sentence becomes a deterministic
+`process_creation` rule (the program's image and its first distinctive
+argument), nine on the Huntress report and none on VShell. The case scores
+54/55. The one remaining check, `history-wiped`, expects `history -d` in a
+process command line; `history` and `fc` are shell builtins that start no
+process, so no process event can record them and the gold detection needs
+revising.
 
 ## Independent review and recommendation audit
 

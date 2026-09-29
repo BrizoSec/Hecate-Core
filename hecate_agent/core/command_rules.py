@@ -1,0 +1,170 @@
+"""Process rules from the command lines a report shows being run.
+
+Reports often quote the exact commands an intrusion ran. The Huntress ClickFix
+report lists the loader's sequence: ``ioreg -c IOPlatformExpertDevice -d 2``,
+``system_profiler SPHardwareDataType``, ``xattr -d com.apple.quarantine ...``,
+``launchctl bootstrap gui/501 ...``. Left to the model, those became at most
+one generic rule; a command quoted in the report is the most specific thing a
+process rule can match, and needs no judgement.
+
+Each command of a known external program, found in a sentence that reports
+what happened (the status test from :mod:`technique_evidence`), becomes one
+``process_creation`` candidate: the program's image and the command's first
+distinctive argument. Shell builtins (``history``, ``fc``, ``export``, ``cd``)
+are left out: they run inside the user's shell, start no process, and no
+process event can see them.
+"""
+
+import re
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from hecate_agent.core.provenance import refang
+from hecate_agent.core.technique_evidence import sentence_status
+
+#: program -> (platform, rule level). Discovery tools run constantly on healthy
+#: hosts, so a match on them alone is a low-level lead.
+_UNIX: Dict[str, str] = {
+    "xattr": "medium", "launchctl": "medium", "osascript": "medium", "curl": "medium", "wget": "medium",
+    "chmod": "low", "chown": "low", "cp": "low", "mv": "low", "rm": "low", "mkdir": "low", "security": "medium",
+    "codesign": "low", "spctl": "medium", "systemctl": "medium", "crontab": "medium", "dscl": "medium",
+    "defaults": "low", "base64": "low", "openssl": "low", "nohup": "low", "ioreg": "low", "system_profiler": "low",
+    "sudo": "low", "pkill": "low", "killall": "low", "ditto": "low", "hdiutil": "low", "bash": "medium",
+    "sh": "medium", "zsh": "medium", "python3": "low", "perl": "low", "nc": "medium", "socat": "medium",
+}  # fmt: skip
+_WINDOWS: Dict[str, str] = {
+    "powershell": "medium", "pwsh": "medium", "cmd": "low", "rundll32": "medium", "regsvr32": "medium",
+    "mshta": "medium", "wmic": "medium", "certutil": "medium", "bitsadmin": "medium", "vssadmin": "high",
+    "bcdedit": "high", "wevtutil": "medium", "schtasks": "medium", "reg": "medium", "sc": "medium", "msiexec": "medium",
+    "wscript": "medium", "cscript": "medium", "net": "low", "nltest": "medium", "curl.exe": "medium",
+}  # fmt: skip
+#: Tokens that end a command in running text: a shell separator, or a colon
+#: introducing the report's explanation of it.
+_STOP_RE = re.compile(r"^(;|&&?|\|\|?|>|>>|2>|:|\)|->|—)$|^:")
+_PLACEHOLDER_RE = re.compile(r"^\[.*\]$|^<.*>$|^\$\(|^\$\{?\w+\}?$|^\.\.\.$|^\[|\]$")
+_VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
+#: Programs whose first argument is a plain-word subcommand ("launchctl bootstrap").
+_SUBCOMMANDS = frozenset(
+    {"launchctl", "systemctl", "defaults", "dscl", "net", "sc", "reg", "schtasks", "wmic", "bcdedit", "vssadmin",
+     "wevtutil", "crontab", "spctl", "codesign", "hdiutil", "openssl"}
+)  # fmt: skip
+#: Words that follow a program name in prose ("cmd.exe and then Word", "Bash script that").
+_PROSE_WORDS = frozenset(
+    {"and", "then", "the", "to", "a", "an", "that", "which", "is", "was", "from", "with", "for", "or", "in", "on", "as",
+     "are", "itself", "script", "scripts", "command", "commands", "process", "window", "binary", "shell", "loader",
+     "profiler", "tool", "tools", "awareness", "team", "teams", "operations", "center", "centre", "training"}
+)  # fmt: skip
+#: A token shaped like a command-line argument.
+_ARGUMENT_SHAPE_RE = re.compile(r"^[-+/.~$\"'%\\]|[./:=\\]|[a-z][A-Z]|\d")
+_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+
+@dataclass
+class ObservedCommand:
+    program: str
+    platform: str
+    argument: str
+    command: str
+    passage: str
+    level: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+def _program_re(programs: Sequence[str]) -> re.Pattern:
+    names = "|".join(sorted((re.escape(p) for p in programs), key=len, reverse=True))
+    return re.compile(rf"(?:(?<=\s)|^|(?<=[(`'\"]))(?:[\w./\\-]*[/\\])?(?P<prog>{names})(?:\.exe)?(?=\s)", re.IGNORECASE)
+
+
+def _distinctive(tokens: List[str]) -> Optional[str]:
+    """The first argument that says what the command does: not a flag, placeholder or bare number."""
+    flag = ""
+    for token in tokens:
+        token = token.strip("\"'`,").rstrip(";)")
+        if not token or _PLACEHOLDER_RE.search(token):
+            flag = ""
+            continue
+        if token.startswith(("-", "+")) or (token.startswith("/") and len(token) <= 3):
+            flag = token
+            continue
+        token = _VARIABLE_PREFIX_RE.sub("", token)
+        if len(token) < 4 or token.isdigit():
+            flag = ""
+            continue
+        # Keep the flag in front of the argument when it is a short option ("-d com.apple.quarantine").
+        return f"{flag} {token}" if flag and len(flag) <= 3 else token
+    return None
+
+
+def _command_sentences(text: str) -> List[str]:
+    """Sentences with the text's own spacing: page extraction breaks lines inside commands, and
+    the technique joiner's punctuation tidy-up turns "bash .UlaccK" into "bash.UlaccK"."""
+    joined = re.sub(r"\s+", " ", " ".join(refang(text or "").splitlines()))
+    return [s.strip() for s in _SENTENCE_RE.split(joined) if s.strip()]
+
+
+def _command_shaped(program: str, written: str, tokens: List[str]) -> bool:
+    """Whether a program name starts a command rather than a sentence about the program."""
+    if written != written.lower() or not tokens:
+        return False  # commands are quoted as typed; "Bash script" is prose
+    first = tokens[0].strip("\"'`,").rstrip(".;:!?)")
+    if first.lower() in _PROSE_WORDS:
+        return False
+    return bool(_ARGUMENT_SHAPE_RE.search(first)) or (program in _SUBCOMMANDS and first.isalpha() and first.islower())
+
+
+def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10) -> List[ObservedCommand]:
+    """Commands of known programs in the observed sentences of ``text``, one per program and argument."""
+    wanted = {p.lower() for p in platforms}
+    catalogs: List[Tuple[str, Dict[str, str]]] = []
+    if not wanted or wanted & {"macos", "linux"}:
+        catalogs.append(("unix", _UNIX))
+    if not wanted or "windows" in wanted:
+        catalogs.append(("windows", _WINDOWS))
+    found: List[ObservedCommand] = []
+    seen: set = set()
+    for sentence in _command_sentences(text):
+        if sentence_status(sentence) != "observed":
+            continue
+        for platform, catalog in catalogs:
+            for match in _program_re(list(catalog)).finditer(sentence):
+                program = match.group("prog").lower()
+                rest = sentence[match.end() :].split()
+                tokens: List[str] = []
+                for token in rest[:12]:
+                    if _STOP_RE.search(token):
+                        break
+                    tokens.append(token)
+                if not _command_shaped(program, match.group("prog"), tokens):
+                    continue
+                argument = _distinctive(tokens)
+                if not argument or (program, argument.lower()) in seen:
+                    continue
+                seen.add((program, argument.lower()))
+                command = " ".join([match.group("prog"), *tokens])[:200]
+                found.append(ObservedCommand(program, platform, argument, command, sentence[:300], catalog[program]))
+    # Specific commands first; discovery and file utilities fill what room is left.
+    rank = {"high": 0, "medium": 1, "low": 2}
+    return sorted(found, key=lambda c: rank.get(c.level, 3))[:limit]
+
+
+def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[str, Any]]:
+    """Sigma candidates (category, title, detection, level, command, passage) for the observed commands."""
+    out: List[Dict[str, Any]] = []
+    for cmd in observed_commands(text, platforms):
+        image = f"/{cmd.program}" if cmd.platform == "unix" else f"\\{cmd.program.removesuffix('.exe')}.exe"
+        out.append(
+            {
+                "category": "process_creation",
+                "title": f"{cmd.program} {cmd.argument}"[:100],
+                "detection": {
+                    "selection": {"Image|endswith": image, "CommandLine|contains": cmd.argument},
+                    "condition": "selection",
+                },
+                "level": cmd.level,
+                "command": cmd.command,
+                "passage": cmd.passage,
+            }
+        )
+    return out

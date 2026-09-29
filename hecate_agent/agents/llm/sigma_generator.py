@@ -361,6 +361,9 @@ class SigmaGenerationInput:
     # (hecate_agent.core.query_literals); pass two, the model, may use only
     # those in file, process, command-line and registry fields.
     source_artifacts: List[Dict[str, Any]] = field(default_factory=list)
+    # Commands the source shows being run (hecate_agent.core.command_rules
+    # candidates): each becomes a deterministic process_creation rule.
+    observed_commands: List[Dict[str, Any]] = field(default_factory=list)
     # A2: review each model-drafted rule against the hypothesis and the source
     # passages, and list behaviours no rule covers. Off unless asked: it costs
     # one model call per model rule plus one.
@@ -1445,6 +1448,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # leaving hunts with supplied C2 domains no DNS coverage at all.
         for ioc_rule, ioc_problem in [
             *self._written_file_rules(input_data),
+            *self._command_rules(input_data),
             *self._guidance_rules(input_data),
             *self._ioc_rules(input_data),
         ]:
@@ -1558,6 +1562,31 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         except Exception as exc:  # noqa: BLE001 - coverage is advice, never fatal
             warnings.append(f"coverage review failed: {exc}")
         return kept, rejected, gaps, warnings
+
+    def _command_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """A command the source quotes being run becomes a process rule: the program and its distinctive argument.
+
+        The ClickFix report quoted ``xattr -d com.apple.quarantine`` and
+        ``launchctl bootstrap ...``; the model turned them into at most one generic rule.
+        """
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        for candidate in input_data.observed_commands:
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="process_creation",
+                    label="observed command",
+                    title=f"Command the source shows being run: {candidate.get('title', '')}"[:120],
+                    description=f'The source shows this command being run: "{candidate.get("command", "")}".',
+                    detection=dict(candidate.get("detection") or {}),
+                    falsepositives="Administrators or software running the same command for legitimate reasons",
+                    preamble="Deterministic rule built from a command quoted in the primary source, "
+                    "with no model involvement. ",
+                    level=str(candidate.get("level", "medium")),
+                    author="hecate (auto-generated from commands quoted in the source - requires analyst review)",
+                )
+            )
+        return results
 
     def _written_file_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
         """Pass two, mechanically: a file the source says the malware writes becomes a file_event rule.
