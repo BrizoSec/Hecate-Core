@@ -199,9 +199,14 @@ detections:
         require:
           - {field: Image, value: '(?i)xattr'}
           - {field: CommandLine, value: '(?i)com\.apple\.quarantine'}
-  - id: history-wiped
-    description: "The ClickFix command deleting its own shell history"
+  # Replaced 2026-09-29: this detection was "history-wiped" (history -d / fc -p in a
+  # process CommandLine). Both are shell builtins that run inside the user's Terminal
+  # shell and start no process, so no process event records them and no correct rule
+  # could satisfy it. The loader fetch is the same pasted command's observable step.
+  - id: loader-fetched
+    description: "curl fetching the profiler/loader from 193.29.224.151 (the pasted ClickFix command)"
     any_of:
       - category: process_creation
         require:
-          - {field: CommandLine, value: '(?i)history -d|fc -p'}
+          - {field: Image, value: '(?i)curl'}
+          - {field: CommandLine, value: '(?i)193\.29\.224\.151|92392991a0cca55'}

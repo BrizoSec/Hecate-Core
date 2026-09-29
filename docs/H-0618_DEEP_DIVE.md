@@ -382,8 +382,8 @@ external program quoted in an observed sentence becomes a deterministic
 argument), nine on the Huntress report and none on VShell. The case scores
 54/55. The one remaining check, `history-wiped`, expects `history -d` in a
 process command line; `history` and `fc` are shell builtins that start no
-process, so no process event can record them and the gold detection needs
-revising.
+process, so no process event can record them. That detection was replaced by
+`loader-fetched`, the `curl` fetch of the loader in the same pasted command.
 
 ## Independent review and recommendation audit
 
