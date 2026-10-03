@@ -28,8 +28,26 @@ both.
 
 ## Scoring a pipeline change
 
-Feed the gold set's exact CTI through one cycle in a scratch workspace, then
-score the draft it produces. Run it once before the change and once after.
+Replay the gold set's exact CTI through one real cycle in a scratch workspace,
+then score the draft it produces. Run it once before the change and once after.
+
+`replay.py` does both. Run it with the Runner's interpreter:
+
+```bash
+cd ../Hecate-Runner
+.venv/bin/python ../Hecate-Core/evals/replay.py redis-cryptomining-botnet
+.venv/bin/python ../Hecate-Core/evals/replay.py vshell-fake-resume --workspace /tmp/gold-vshell --json score.json
+```
+
+It builds a blank scratch workspace, runs one cycle on the case, prints the
+score with every failed check, and keeps the workspace so the draft, the rules
+and `logs/orchestrator.log` can be read. The item comes from the case's saved
+OTX pulse in `pulses/`, so it carries the feed's indicator list as a live
+cycle would; its text is the gold set's `source.cti`. A cycle fetches the
+report and calls the workspace's model: 10 to 20 minutes on the local one.
+
+The same by hand, through the file queue. This passes the text only, without
+the feed's indicator list, so its scores are not comparable with `replay.py`'s:
 
 ```bash
 # 1. A scratch copy of the workspace, reset to a blank state

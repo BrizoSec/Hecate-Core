@@ -1,0 +1,231 @@
+{
+ "id": "6a91a5a487efed140546d754",
+ "name": "A fake resume invoked China's defence-tech elite, then installed VShell",
+ "description": "A Chinese-language executable disguised as a resume claiming to be from a Beijing Institute of Technology graduate student delivers SNOWLIGHT and VShell RAT. The infection chain uses a custom Go loader with sandbox detection, CPU checks, and sleep-timer evasion before downloading a legitimate DOCX decoy. It then executes a 1,454-byte SNOWLIGHT stager that connects to infrastructure, downloads 4.65 MB of data, XOR-decodes it with key 0x99, and launches a fileless VShell RAT. The lure targets mainland Chinese academics in electrical engineering, power systems, or AI research, providing operators with command execution, file access, screen capture, and lateral movement capabilities. The delivery uses panel-generated SNOWLIGHT components now widely available in cracked VShell releases, making actor-level attribution unreliable beyond identifying an unattributed operator using commodity tooling with China-oriented academic targeting.",
+ "author_name": "AlienVault",
+ "modified": "2026-09-27T16:10:42.399000",
+ "created": "2026-08-28T15:13:40.552000",
+ "tags": [
+  "go loader",
+  "fileless execution",
+  "vshell",
+  "academic lure",
+  "china targeting",
+  "sandbox evasion",
+  "beijing institute of technology",
+  "snowlight"
+ ],
+ "references": [
+  "https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell"
+ ],
+ "public": 1,
+ "adversary": "",
+ "targeted_countries": [],
+ "malware_families": [
+  "SNOWLIGHT",
+  "VShell"
+ ],
+ "attack_ids": [
+  "T1113",
+  "T1132.001",
+  "T1204.002",
+  "T1573.001",
+  "T1497.001",
+  "T1566.001",
+  "T1082",
+  "T1140",
+  "T1055",
+  "T1497.003",
+  "T1090",
+  "T1083",
+  "T1057",
+  "T1571",
+  "T1027",
+  "T1518.001",
+  "T1059.003",
+  "T1071.001",
+  "T1105"
+ ],
+ "industries": [
+  "Education"
+ ],
+ "TLP": "white",
+ "indicators": [
+  {
+   "id": 4487152821,
+   "indicator": "a7cc7e3cdd2f0f9210044911a483fa5d",
+   "type": "FileHash-MD5",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152823,
+   "indicator": "0524619d2471d77aba4b7993f5ffbaa4b8be6d2c0d91e63a02943851dc4b6404",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152820,
+   "indicator": "81c51138d5527ca7dcc258171eb36659c479f66c86a8947b6340d040b3860a30",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152819,
+   "indicator": "c25d4412f7f93e7de5b2aaf41747175d94cffd983ca20efbd0efcdd718b58c4d",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152825,
+   "indicator": "c666ac4f1a1b8df7ccfe8b19705279acd8b7eb7a4d0b3802bb3465064883ab25",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152826,
+   "indicator": "de3f56d0d5b71f2a1a1905f0b01b84fbab237e9d4c5179a05b127d806823f83c",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152824,
+   "indicator": "ed2eaa6ef3eda95383b6efc35b88acbca742ad7bd118931f74727a3139ff7e97",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152822,
+   "indicator": "f6d4da5afc89bf9e536a9002c4d256c696df2389d77279f4c5daf6979557e74e",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152827,
+   "indicator": "http://38.207.178.192:50813/EasyConnectUpdata_Log.txt",
+   "type": "URL",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487152828,
+   "indicator": "http://38.207.178.192:50813/MySQL_LOG.txt",
+   "type": "URL",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487162523,
+   "indicator": "d.d.edsxhbba06.shop",
+   "type": "hostname",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487162524,
+   "indicator": "oa.muxmyee520.shop",
+   "type": "hostname",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487162525,
+   "indicator": "pan.qlam.cc",
+   "type": "hostname",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487162526,
+   "indicator": "v.n.1.xcwanmei09.shop",
+   "type": "hostname",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4487162527,
+   "indicator": "www.qlam.cc",
+   "type": "hostname",
+   "created": "2026-08-28T15:13:41",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  }
+ ],
+ "revision": 2,
+ "groups": [],
+ "in_group": false,
+ "author": {
+  "username": "AlienVault",
+  "id": "2",
+  "avatar_url": "/otxapi/users/avatar_image/media/avatars/user_2/resized/80/avatar_dacfad0ca8.png",
+  "is_subscribed": true,
+  "is_following": false
+ },
+ "is_subscribing": null
+}

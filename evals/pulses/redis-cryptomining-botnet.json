@@ -1,0 +1,124 @@
+{
+ "id": "6aa03edde73b7cd2b94b199e",
+ "name": "Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's Own Files",
+ "description": "An exposed directory at 188.245.99.156 revealed a comprehensive cryptomining toolkit containing 147 files including Python exploit source code, campaign logs, and Windows registry hives. Analysis confirms 3,562 Redis servers were compromised across two campaign runs targeting 12,966 hosts. The operation exploited unauthenticated Redis instances using rogue replication techniques to inject cron jobs that deployed XMRig miners. Victims spanned Redis versions 2.8.17 through 7.2.0 across outdated and current Linux distributions, indicating misconfiguration rather than version-specific vulnerabilities. The toolkit also targeted WordPress, MongoDB, and SSH but achieved zero confirmed compromises through those vectors. A separate February 2026 open directory linked by wallet reuse revealed Meterpreter deployment capabilities, extending the operator's known activity timeline by five months. The operation mined Monero through pool.moneroocean.stream with the same wallet used on the operator's own Windows-based work...",
+ "author_name": "AlienVault",
+ "modified": "2026-09-09T09:19:40.775000",
+ "created": "2026-09-08T16:59:09.894000",
+ "tags": [
+  "cron-injection",
+  "misconfiguration",
+  "redis",
+  "botnet",
+  "cryptomining",
+  "monero",
+  "meterpreter",
+  "rogue-replication",
+  "xmrig"
+ ],
+ "references": [
+  "https://hunt.io/blog/redis-cryptomining-botnet-3562-servers"
+ ],
+ "public": 1,
+ "adversary": "",
+ "targeted_countries": [],
+ "malware_families": [
+  "XMRig",
+  "Meterpreter"
+ ],
+ "attack_ids": [
+  "T1568.002",
+  "T1036.005",
+  "T1053.003",
+  "T1082",
+  "T1140",
+  "T1190",
+  "T1595.002",
+  "T1574.006",
+  "T1098.004",
+  "T1016",
+  "T1041",
+  "T1071.002",
+  "T1210",
+  "T1136.003",
+  "T1059.004",
+  "T1571",
+  "T1027",
+  "T1573.002",
+  "T1518.001",
+  "T1496",
+  "T1037.004",
+  "T1071.001",
+  "T1018"
+ ],
+ "industries": [],
+ "TLP": "white",
+ "indicators": [
+  {
+   "id": 4492650775,
+   "indicator": "f90c8b1dcd374d4f552744ee1765583d",
+   "type": "FileHash-MD5",
+   "created": "2026-09-08T16:59:10",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4492650776,
+   "indicator": "420c7850e09b7c2b9e39e2a93e204e3c56bcf08a685ff1daa986e3c348da5d2a",
+   "type": "FileHash-SHA256",
+   "created": "2026-09-08T16:59:10",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4492650777,
+   "indicator": "213.6.207.123",
+   "type": "IPv4",
+   "created": "2026-09-08T16:59:10",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": "2026-10-08T16:00:00",
+   "is_active": 1
+  },
+  {
+   "id": 4492650778,
+   "indicator": "ayakliborsa.net",
+   "type": "domain",
+   "created": "2026-09-08T16:59:10",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4492650781,
+   "indicator": "socket.ayakliborsa.net",
+   "type": "hostname",
+   "created": "2026-09-08T16:59:10",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  }
+ ],
+ "revision": 2,
+ "groups": [],
+ "in_group": false,
+ "author": {
+  "username": "AlienVault",
+  "id": "2",
+  "avatar_url": "/otxapi/users/avatar_image/media/avatars/user_2/resized/80/avatar_dacfad0ca8.png",
+  "is_subscribed": true,
+  "is_following": false
+ },
+ "is_subscribing": null
+}

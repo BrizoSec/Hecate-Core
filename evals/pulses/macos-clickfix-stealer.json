@@ -1,0 +1,132 @@
+{
+ "id": "6a74c5ff523b6fcb70f5711d",
+ "name": "Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam",
+ "description": "A sophisticated macOS malware campaign leverages ClickFix social engineering to infect victims. The attack begins with a fake CAPTCHA prompt delivered via email links, tricking users into executing malicious commands in Terminal. This downloads a profiling script that collects system information and deploys architecture-specific Go-based Mach-O payloads. The stealer targets browser passwords, Apple Keychain credentials, and cryptocurrency wallets. Its most notable feature is a DRAIN function that gradually siphons cryptocurrency from victims' wallets by redirecting portions to attacker-controlled accounts. The malware supports Bitcoin, Litecoin, Dogecoin, Monero, Ethereum, and XRP. Infrastructure analysis reveals hosting through Aeza Group, a sanctioned Russian bulletproof hosting provider. The malware achieves persistence through macOS Background Task Management and uses various evasion techniques including Gatekeeper bypass and credential harvesting via fake system prompts.",
+ "author_name": "AlienVault",
+ "modified": "2026-09-05T17:20:12.495000",
+ "created": "2026-08-06T17:35:59.938000",
+ "tags": [
+  "macos",
+  "stealer",
+  "cryptocurrency theft",
+  "macsync",
+  "social engineering",
+  "credential harvesting",
+  "aeza group",
+  "clickfix",
+  "mach-o"
+ ],
+ "references": [
+  "https://www.huntress.com/blog/mac-crypto-draining-malware"
+ ],
+ "public": 1,
+ "adversary": "",
+ "targeted_countries": [],
+ "malware_families": [
+  "MacSync"
+ ],
+ "attack_ids": [],
+ "industries": [],
+ "TLP": "white",
+ "indicators": [
+  {
+   "id": 4474098772,
+   "indicator": "39854a5f9c557b8e639bdb40f1866f4b",
+   "type": "FileHash-MD5",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098773,
+   "indicator": "504eea132c86ad37297dea78aa0e1143414d6300",
+   "type": "FileHash-SHA1",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098774,
+   "indicator": "5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098775,
+   "indicator": "619a99ba4ee9d7f33db8045c7e03c4265424977993fe8a53b0f45157c5abd3e5",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098776,
+   "indicator": "b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098777,
+   "indicator": "f0062f7e70e61493684a2f60748a475168e155bc2502163c844c42e87692abd0",
+   "type": "FileHash-SHA256",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098781,
+   "indicator": "http://193.29.224.151/92392991a0cca55?force=1",
+   "type": "URL",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  },
+  {
+   "id": 4474098783,
+   "indicator": "profitnow.io",
+   "type": "domain",
+   "created": "2026-08-06T17:36:00",
+   "content": "",
+   "title": "",
+   "description": "",
+   "expiration": null,
+   "is_active": 1
+  }
+ ],
+ "revision": 2,
+ "groups": [],
+ "in_group": false,
+ "author": {
+  "username": "AlienVault",
+  "id": "2",
+  "avatar_url": "/otxapi/users/avatar_image/media/avatars/user_2/resized/80/avatar_dacfad0ca8.png",
+  "is_subscribed": true,
+  "is_following": false
+ },
+ "is_subscribing": null
+}
