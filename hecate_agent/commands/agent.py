@@ -233,8 +233,10 @@ def _run_sigma_generator(
     if result.data and out_dir:
         target = Path(out_dir)
         target.mkdir(parents=True, exist_ok=True)
-        for rule in result.data.rules:
-            path = target / rule.filename
+        from hecate_agent.agents.llm.sigma_generator import rule_filenames
+
+        for rule, filename in zip(result.data.rules, rule_filenames(result.data.rules)):
+            path = target / filename
             path.write_text(rule.rule_yaml)
             written.append(str(path))
 

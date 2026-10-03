@@ -82,7 +82,9 @@ For each artifact return:
   from disk; script = a shell, PowerShell or other script run by an interpreter;
   archive = a ZIP/RAR container; document = a decoy or lure document;
   memory_only = shellcode or a payload that only exists in memory;
-  network_content = an encrypted or encoded download or stream.
+  network_content = an encrypted or encoded download or stream;
+  non_file = a token, key or certificate fingerprint that only looks like a hash.
+  Network roles: target = an address the actor attacked, scanned or tested against (a victim).
   Use "historical" when the text says an indicator is old, unrelated, or not a campaign IOC.
 - "status": one of {list(STATUSES)} ("historical" when the text says so, else "active" if the
   text ties it to this campaign, else "unknown")
@@ -165,15 +167,56 @@ def fetch_page_text(url: str, timeout: float = 20.0) -> str:
     soup = BeautifulSoup(response.text, "html.parser")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
-    return strip_page_furniture(str(soup.get_text(separator="\n", strip=True)))[:MAX_PAGE_CHARS]
+    return strip_page_furniture(strip_repeated_body(str(soup.get_text(separator="\n", strip=True))))[:MAX_PAGE_CHARS]
+
+
+#: A repeated run of lines this long is a second copy of the article, not a repeated phrase.
+_REPEAT_MIN_CHARS = 2000
+#: Lines shorter than this recur legitimately (headings, table cells), so they cannot start a match.
+_REPEAT_ANCHOR_CHARS = 80
+
+
+def strip_repeated_body(text: str) -> str:
+    """The page text with a second copy of the article body removed.
+
+    hunt.io's Redis botnet page rendered the whole article twice (60,000
+    characters each), so extraction read every chunk twice: 20 of that run's
+    30 minutes. A run of identical lines totalling ``_REPEAT_MIN_CHARS`` that
+    starts at a long line already seen is a copy; it is cut, together with
+    the identical short lines (headings, a table of contents) just before it.
+    """
+    lines = text.split("\n")
+    first_at: Dict[str, int] = {}
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        j = first_at.setdefault(line, i) if len(line) >= _REPEAT_ANCHOR_CHARS else i
+        if j == i:
+            i += 1
+            continue
+        start, n = i, 0
+        while start + n < len(lines) and j + n < start and lines[j + n] == lines[start + n]:
+            n += 1
+        while j > 0 and start - 1 >= j + n and lines[j - 1] == lines[start - 1]:
+            j, start, n = j - 1, start - 1, n + 1
+        if sum(len(x) for x in lines[start : start + n]) >= _REPEAT_MIN_CHARS:
+            del lines[start : start + n]
+            i = start
+        else:
+            i += 1
+    return "\n".join(lines)
 
 
 #: Headings that start a page's related-content block. The Huntress report's
 #: page ended with "You Might Also Like" teasers for AMOS, GhostSocks and
 #: NetSupport articles, and technique mapping took T1036 from one of them.
+#: Words may sit on separate lines: hunt.io renders its heading as "Related" / "Posts".
 _FURNITURE_RE = re.compile(
-    r"^(you (might|may) also like|related (posts?|articles?|reading|content|research|stories|blogs?)|recommended "
-    r"(reading|for you|articles?)|more from (the )?\w+|read (next|more)|latest (posts|articles|research)|popular posts)\s*:?$",
+    (
+        r"^(you (might|may) also like|related (posts?|articles?|reading|content|research|stories|blogs?)|recommended "
+        r"(reading|for you|articles?)|more from (the )?\w+|read (next|more)|latest (posts|articles|research)|popular posts)"
+    ).replace(" ", r"\s+")
+    + r"\s*:?$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -230,6 +273,8 @@ def evidence_found(evidence: str, page_words: str) -> bool:
 _HEX = re.compile(r"^[0-9a-f]+$")
 _HASH_LENGTHS = {"md5": 32, "sha1": 40, "sha256": 64}
 _DOMAIN = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+#: A placeholder where a URL's host belongs: "<c2-host>", "{host}", "$C2", "[server]".
+_TEMPLATE_HOST = re.compile(r"^(?:[a-z][a-z0-9+.-]*://)?[^/]*(<[^>]*>|\{[^}]*\}|\$\w+|\[[a-z][^\]]*\])")
 
 #: Report wording that fixes what a hash is, checked in this order: a payload
 #: that only ever ran in memory must not be mistaken for a file on disk
@@ -270,8 +315,16 @@ def _valid_value(kind: str, value: str) -> bool:
     if kind in ("domain", "hostname"):
         return bool(_DOMAIN.match(text.rstrip(".")))
     if kind == "url":
-        return "/" in text and ("." in text or ":" in text)
+        # "http://<c2-host>:10000/ping?h=<hostname>" is the report's template, not a URL.
+        return "/" in text and ("." in text or ":" in text) and not _TEMPLATE_HOST.search(text)
     return True
+
+
+def _routable(value: str) -> bool:
+    """Whether an IPv4 value is an address another host could be seen connecting to."""
+    import ipaddress
+
+    return ipaddress.ip_address(split_host_port(value.strip())[0]).is_global
 
 
 def _names_a_role(text: str) -> bool:
@@ -311,8 +364,20 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
         return None, f"{value or '(empty)'}: unknown kind {kind!r}"
     if not _valid_value(kind, value):
         return None, f"{value}: not a well-formed {kind}"
-    if normalise(value) not in page:
+    if kind == "ipv4" and normalise(value) not in page:
+        # "188.245.99.156" / ":10000" on separate lines of a table is still that endpoint;
+        # an address the page has with some other port, or none, keeps only the address.
+        host, port = split_host_port(value)
+        if port is not None and re.search(re.escape(host) + r"\s*:\s*" + str(port) + r"(?!\d)", page):
+            pass
+        elif port is not None and host in page:
+            value = host
+    if normalise(value) not in page and not (kind == "ipv4" and split_host_port(value)[0] in page):
         return None, f"{value}: not found verbatim in the source"
+    if kind == "ipv4" and not _routable(value):
+        # A bind address or a private one is no indicator: the Redis botnet's C2
+        # launch line ("c2_persist.py 10000 0.0.0.0") became a C2 at 0.0.0.0:10000.
+        return None, f"{value}: not a routable address"
     evidence = str(raw.get("evidence", "")).strip()
     if evidence and not evidence_found(evidence, page_words):
         evidence = ""
@@ -341,6 +406,204 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
     label = _CONFIDENCE_RE.search(evidence)
     confidence = label.group(1).lower() if label else "unknown"
     return SourceArtifact(value=value, kind=kind, role=role, status=status, confidence=confidence, evidence=evidence), ""
+
+
+# --- What the text itself says a value is -----------------------------------------------------
+
+_NON_FILE_NAME = (
+    r"(token|secret|passw(or)?d|passphrase|key|fingerprint|thumbprint|nonce|salt|ja3s?|jarm|serial|session|cookie|uuid|guid)"
+)
+#: The text right before a hash-shaped value assigns it to such a name: "C2_TOKEN=", "--tls-fingerprint=", "AES key: ".
+_NON_FILE_ASSIGNED = re.compile(rf"[\w-]*{_NON_FILE_NAME}[\w-]*\s*[=:]\s*[\"']?$", re.IGNORECASE)
+#: The table cell after it says so: "TLS fingerprint", "Bearer token".
+_NON_FILE_LABEL = re.compile(
+    rf"^\W*((tls|ssl|ssh|x\.?509|certificate|cert|public|private|bearer|auth\w*|api|access|c2|session)\s+){{0,3}}"
+    rf"{_NON_FILE_NAME}\b",
+    re.IGNORECASE,
+)
+
+
+def non_file_passage(text: str, value: str) -> str:
+    """The passage showing a hash-shaped value is a token, key or fingerprint, or "" when nothing says so."""
+    lines = refang(text or "").split("\n")
+    needle = value.lower()
+    for index, line in enumerate(lines):
+        at = line.lower().find(needle)
+        if at < 0:
+            continue
+        assigned = _NON_FILE_ASSIGNED.search(line[:at])
+        if assigned:
+            return line[assigned.start() : at + len(value)].strip()
+        following = next((x.strip() for x in lines[index + 1 : index + 3] if x.strip()), "")
+        if line.strip().lower() == needle and _NON_FILE_LABEL.search(following):
+            return f"{line.strip()} {following}"[:300]
+    return ""
+
+
+_IPV4_LINE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+#: The source calls the address something the actor aimed at, not something it runs.
+_TARGET_WORDING = re.compile(
+    r"\b(qa|test|probe|exploitation|scan|scanning|attack|spray|dev/qa|dev/test|reset-utility|brute[- ]force)[ /-](test )?targets?\b"
+    r"|\btargets? (list|pool|host|ip|address)(es|s)?\b|\bvictim (ip|host|address)(es|s)?\b|\b(dev|qa)/(test|qa) pool\b",
+    re.IGNORECASE,
+)
+#: The source gives the address a job victims would see it doing.
+_INFRASTRUCTURE_WORDING = re.compile(
+    r"\b(c2|c&c|command[- ]and[- ]control|callback|check[- ]?in|staging|rogue|payload|exfiltrat\w+|mining pool|download(s|ed)? from)\b",
+    re.IGNORECASE,
+)
+#: The source ties the address to a different operation.
+_OTHER_OPERATION_WORDING = re.compile(
+    r"\b(separate|earlier|unrelated|prior|previous|different)\b[^.\n]{0,40}\b(open directory|campaign|toolkit|operation|intrusion)\b",
+    re.IGNORECASE,
+)
+
+
+#: A line that stops mid-phrase: it ends in punctuation that opens something, or in a joining word.
+_RUNS_ON = re.compile(r"([(\[,:]|\b(at|to|on|from|and|or|of|for|with|the|is|as|by|via|in|against))\s*$", re.IGNORECASE)
+
+
+def _local_contexts(text: str, value: str) -> List[str]:
+    """The words beside each mention of ``value``: the line before, its own line, and the description after.
+
+    Page extraction puts each inline element and table cell on its own line,
+    so a table row reads value, type, role on consecutive lines, and several
+    addresses can share one role cell. Separator lines and other addresses are
+    skipped; the next three lines of words are the description.
+    """
+    lines = [line.strip() for line in refang(text or "").split("\n")]
+    needle = value.lower()
+    contexts: List[str] = []
+    for index, line in enumerate(lines):
+        if needle not in line.lower():
+            continue
+        # The line before belongs to this mention only when it runs on into it
+        # ("... open directory at" / "194.48.248.105"); a finished table cell is the row above.
+        parts = [lines[index - 1]] if index and _RUNS_ON.search(lines[index - 1]) else []
+        parts.append(line)
+        described = 0
+        for later in lines[index + 1 : index + 12]:
+            if _IPV4_LINE.search(later) and len(later.split()) <= 2:
+                if described:
+                    break
+                continue
+            if len(re.findall(r"[A-Za-z]{2,}", later)) >= 2:
+                parts.append(later)
+                described += 1
+                if described == 3:
+                    break
+        # Prose lines are long: keep what is near the value, not the paragraph's other subjects.
+        joined = " ".join(parts)
+        at = joined.lower().find(needle)
+        contexts.append(joined[max(0, at - 200) : at + len(value) + 200])
+    return contexts
+
+
+def network_role_from_context(text: str, value: str) -> Tuple[str, str, str]:
+    """(role, status, passage) the text fixes for an address or host, or ("", "", "").
+
+    The Redis botnet report listed eight addresses: one C2, one pool, and six
+    the operator tested or attacked ("Observed QA/test target", "Recurring
+    WordPress exploitation target"). Typed by the model, three of the six came
+    out as C2. An address tied to a different operation ("Earlier, separate
+    open directory linked by wallet reuse") is historical for this one.
+    Wording that gives it a role victims would see always wins.
+    """
+    contexts = _local_contexts(text, value)
+    if any(_INFRASTRUCTURE_WORDING.search(c) and not _OTHER_OPERATION_WORDING.search(c) for c in contexts):
+        return "", "", ""
+    for wording, role, status in ((_OTHER_OPERATION_WORDING, "historical", "historical"), (_TARGET_WORDING, "target", "")):
+        for context in contexts:
+            if wording.search(context):
+                return role, status, context[:300]
+    return "", "", ""
+
+
+def _apply_text_roles(items: List[Any], text: str, kind_of: Callable[[Any], str]) -> None:
+    """Set the roles the text itself fixes, over whatever the model chose."""
+    for item in items:
+        kind = kind_of(item)
+        if kind in _HASH_LENGTHS:
+            passage = non_file_passage(text, item.value)
+            if passage:
+                item.role, item.evidence = "non_file", passage
+        elif kind in ("ipv4", "domain", "hostname"):
+            role, status, passage = network_role_from_context(text, item.value)
+            if role:
+                item.role, item.status, item.evidence = role, status or item.status, passage
+
+
+#: A file whose existence under one of these directories is the persistence. Linux, system-wide.
+_PERSISTENCE_FILE_RE = re.compile(
+    r"(?<![\w.$~/-])(/etc/cron\.(?:d|hourly|daily|weekly|monthly)/\.?\w[\w.@-]*|/var/spool/cron/(?:crontabs/)?\w[\w.-]*"
+    r"|/etc/systemd/system/[\w.@-]+\.(?:service|timer)|/etc/profile\.d/\w[\w.-]*|/etc/apt/apt\.conf\.d/\w[\w.-]*"
+    r"|/etc/init\.d/\w[\w.-]*)"
+)
+
+
+#: Characters either side of a path that count as its table row.
+_ROW_WINDOW = 100
+
+
+def persistence_file_artifacts(text: str) -> List[SourceArtifact]:
+    """Files under persistence directories that the text reports, found without the model.
+
+    The Redis botnet report says the victim "writes it verbatim to
+    /etc/cron.d/.redis-miner" and lists the fallback paths in its IOC table;
+    the extraction model returned none of them, so no rule looked for the one
+    file every victim has. A file there is written by whoever installs it, so
+    the path needs no judgement, only a sentence that reports it as observed.
+    """
+    from hecate_agent.core.technique_evidence import passage_status, sentence_status, sentences
+
+    found: Dict[str, SourceArtifact] = {}
+    for sentence in sentences(text):
+        for match in _PERSISTENCE_FILE_RE.finditer(sentence):
+            value = match.group(1).rstrip(".")
+            if value.rsplit("/", 1)[-1] == "crontabs" or value.lower() in found:
+                continue
+            status, passage = passage_status(sentence, match.start(), match.end())
+            if passage is not sentence:
+                # A run-on segment is usually a flattened table: judge and quote the row, in
+                # whole words, not the rows around it.
+                passage = sentence[max(0, match.start() - _ROW_WINDOW) : match.end() + _ROW_WINDOW]
+                passage = passage[passage.find(" ") + 1 : passage.rfind(" ")]
+                status = sentence_status(passage)
+            if status == "observed":
+                found[value.lower()] = SourceArtifact(value, "file_path", "persistence file", "active", "unknown", passage)
+    return list(found.values())
+
+
+#: The role given to an artifact the text places on the actor's own side.
+ATTACKER_SIDE_ROLE = "attacker-side"
+
+
+def _mark_attacker_side(artifacts: List[SourceArtifact], text: str) -> None:
+    """Untie from the intrusion each behaviour artifact the text places on the actor's own machine.
+
+    The Redis botnet replay wrote "file written by the malware" rules for
+    redis_fleet.txt, c2_persist.db and xmrig.exe: the operator's target list,
+    C2 database and own miner. An artifact is the actor's when a sentence
+    naming it is about the actor's side. It keeps its place in the evidence table, with the
+    passage, but its status is no longer ``active``, so no rule is built on it.
+    """
+    from hecate_agent.core.technique_evidence import attacker_side, passage_status, sentences
+
+    lowered = [(sentence, sentence.lower()) for sentence in sentences(text)]
+    for artifact in artifacts:
+        if artifact.kind in INDICATOR_KINDS:
+            continue
+        needle = refang(artifact.value).lower()
+        mentions: List[Tuple[str, str]] = []
+        for sentence, lower in lowered:
+            at = lower.find(needle)
+            if at >= 0:
+                mentions.append(passage_status(sentence, at, at + len(needle)))
+        # Only wording about the actor's side counts. "No sentence reports it as observed" was
+        # tried and untied the Huntress stealer's own path, named in a sentence that read as capability.
+        own = next((p for status, p in mentions if status == "context" and attacker_side(p.lower())), "")
+        if own:
+            artifact.role, artifact.status, artifact.evidence = ATTACKER_SIDE_ROLE, "unknown", " ".join(own.split())[:300]
 
 
 def _merge(existing: SourceArtifact, new: SourceArtifact) -> SourceArtifact:
@@ -499,7 +762,12 @@ def extract_source_evidence(
                 continue
             key = (artifact.kind, normalise(artifact.value))
             merged[key] = _merge(merged[key], artifact) if key in merged else artifact
+    for artifact in persistence_file_artifacts(text):
+        key = (artifact.kind, normalise(artifact.value))
+        merged[key] = _merge(merged[key], artifact) if key in merged else artifact
     evidence.artifacts = list(merged.values())
+    _apply_text_roles(evidence.artifacts, text, lambda a: str(a.kind))
+    _mark_attacker_side(evidence.artifacts, text)
     evidence.indicators = [_to_record(a, url) for a in evidence.artifacts if a.kind in INDICATOR_KINDS]
     if evidence.artifacts:
         evidence.error = ""  # a partial failure still produced verified evidence
@@ -514,12 +782,19 @@ def build_indicator_records(
     Without usable source evidence the feed indicators come back with unknown
     roles, which route exactly as untyped indicators always have.
     """
-    from hecate_agent.core.provenance import attach_url_ports, merge_records, records_from_cti
+    from hecate_agent.core.provenance import attach_text_ports, attach_url_ports, merge_records, records_from_cti
 
     cti = records_from_cti(cti_indicators)
     if evidence is None or not evidence.text:
         return cti
     extra = classify_feed_indicators(cti, evidence, complete)
     records = merge_records(cti, [*evidence.indicators, *extra])
+    _apply_text_roles(records, evidence.text, lambda r: str(r.type))
+    for record in records:
+        if record.role in ("non_file", "target", "historical") and record.evidence and record.source == "cti":
+            record.source = evidence.url
+        if record.role in ("target", "historical"):
+            record.ports = []
     attach_url_ports(records)
+    attach_text_ports(records, evidence.text)
     return records

@@ -1,0 +1,42 @@
+title: Suspicious JavaScript Execution via Google Sheets and Tampermonkey
+id: 77884cee-e9ff-4dde-8ba2-b76e34c84757
+status: experimental
+description: Detects execution of obfuscated JavaScript from Google Sheets via the 'javascript:' protocol,
+  potentially indicating cryptocurrency data exfiltration through Tampermonkey browser extension. This
+  behavior aligns with adversary tactics to hijack trusted trading platforms like SimpleSwap.io using
+  Google-hosted C2 and browser extensions to evade detection.
+references:
+- https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1059.001
+- attack.t1059.007
+- attack.t1140
+- attack.t1204.002
+- attack.t1204.004
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|startswith: 'javascript:'
+    ParentImage|endswith: \Tampermonkey.exe
+  condition: selection
+falsepositives:
+- Legitimate browser automation scripts using Tampermonkey
+- Security researchers testing JavaScript injection in controlled environments
+level: medium
+hunt_id: H-0622
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule requires ParentImage|endswith: \Tampermonkey.exe, but the source passages do not mention
+    Tampermonkey.exe as a process. Instead, they describe the use of the Tampermonkey browser extension,
+    which is a browser add-on, not a standalone executable process. This misrepresents the execution context.'
+  - The rule assumes the 'javascript:' protocol is executed via a parent process named Tampermonkey.exe,
+    but the passages indicate that the script is executed directly in the browser's navigation bar (via
+    'javascript:' prefix) and later activated by the Tampermonkey extension when visiting a specific site.
+    The rule does not capture the actual execution flow described.
+  - The rule does not account for the fact that the malicious script is retrieved from Google Sheets via
+    the Google Visualization API, which is not directly detectable in the process creation log with the
+    current conditions.

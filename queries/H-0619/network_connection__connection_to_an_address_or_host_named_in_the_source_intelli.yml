@@ -1,0 +1,94 @@
+title: Connection to an address or host named in the source intelligence
+id: 780fdf6f-2149-4853-92cb-d292b2a1f646
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 62.171.185.97
+  selection_2_any:
+    DestinationIp: 178.128.87.160
+  selection_3_8888:
+    DestinationIp: 167.148.195.53
+    DestinationPort: 8888
+  selection_4_any:
+    DestinationHostname: m-doxa-apodo.duckdns.org
+  selection_5_any:
+    DestinationHostname: m-doxa-geo.duckdns.org
+  selection_6_any:
+    DestinationHostname: m-doxa-intel.duckdns.org
+  selection_7_any:
+    DestinationHostname: m-doxa-vacunas.duckdns.org
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 62.171.185.97
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: Pivoting on 62.171.185[.]97, the IP address used in CL-CRI-1131 activity for data exfiltration,
+    we discovered an active Let's Encrypt TLS certificate using the domain m-doxa-apodo.duckdns[.]org
+    and fo
+- value: m-doxa-apodo.duckdns.org
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: Pivoting on 62.171.185[.]97, the IP address used in CL-CRI-1131 activity for data exfiltration,
+    we discovered an active Let's Encrypt TLS certificate using the domain m-doxa-apodo.duckdns[.]org
+    and fo
+- value: m-doxa-geo.duckdns.org
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: These subdomain names indicate their operational functions and intended Mexican federal government
+    targets, as Table 1 shows.
+- value: m-doxa-intel.duckdns.org
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: These subdomain names indicate their operational functions and intended Mexican federal government
+    targets, as Table 1 shows.
+- value: m-doxa-vacunas.duckdns.org
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: These subdomain names indicate their operational functions and intended Mexican federal government
+    targets, as Table 1 shows.
+- value: 178.128.87.160
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: The IP address 178.128.87[.]160 was used in CL-CRI-1131 activity during the associated April
+    and June 2026 compromises.
+- value: 167.148.195.53
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: Researchers previously identified this SockTz proxy tool and 167.148.195[.]53 tied to persistent
+    targeting of vulnerable JBoss servers.
+hunt_id: H-0619

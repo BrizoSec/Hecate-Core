@@ -1,0 +1,62 @@
+title: Connection to an address or host named in the source intelligence
+id: a634b037-471a-49fe-a3ae-23af14739591
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: docs.google.com
+  selection_2_any:
+    DestinationHostname: paste.sh
+  selection_3_any:
+    DestinationHostname: swapzone.io
+  selection_4_any:
+    DestinationHostname: simpleswap.io
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: docs.google.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+  evidence: The actors behind this campaign used the Google Visualization API to retrieve malicious scripts
+    stored in a Google Sheets document.
+- value: paste.sh
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+  evidence: 'All the reader had to do to leverage this mythical old API, according to the lure document,
+    was copy the script shared through a “paste.sh” link into the navigation bar of the Chrome browser
+    preceded '
+- value: swapzone.io
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+  evidence: The initial version of the script depended on direct user execution of the script within Chrome.
+    Targets were instructed by the lure to copy the script from the “paste.sh” URL and paste it directly
+    in
+- value: simpleswap.io
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+  evidence: The new lure used the same “docs.google.com” URL as the previous lure but was rewritten to
+    target a different trading site — “SimpleSwap[.]io”, another cryptocurrency trading aggregator.
+hunt_id: H-0622

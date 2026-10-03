@@ -1,0 +1,57 @@
+title: Suspicious PowerShell Script and Proxy Payload DNS Queries
+id: 6d9d0dfc-d49c-417a-80e9-36ba504a3149
+status: experimental
+description: Detects DNS queries for known malicious domains and paths associated with staged execution
+  of PowerShell scripts and proxy-related binaries, indicative of adversary infrastructure abuse for proxy
+  node deployment. This behavior aligns with T1059.001 (PowerShell), T1012 (Exploitation for Privilege
+  Escalation), T1684 (Data Encrypted for Impact), T1027.015 (Remote Access Tools), and T1036 (Masquerading),
+  observed in campaigns targeting Korean users.
+references:
+- https://asec.ahnlab.com/en/95230/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1012
+- attack.t1027.015
+- attack.t1036
+- attack.t1059.001
+- attack.t1684
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: 103.86.86.244
+  filter:
+    QueryName|contains: cloudflare.com
+  condition: selection and not filter
+falsepositives:
+- Legitimate administrative tools using similar domains for internal testing
+- Users accessing public services hosted on shared infrastructure with overlapping IPs
+level: medium
+hecate_provenance:
+- value: 103.86.86.244
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: The compressed file contains a batch script, a REG file, and the Radmin remote control tool.
+hunt_id: H-0620
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses only on DNS queries for the IP 103.86.86.244, but the hypothesis and source passages
+    describe staged execution via PowerShell and batch scripts, including specific file paths and execution
+    of scripts like 'repair.Ps1'. The rule does not capture the execution of PowerShell scripts or the
+    use of specific file paths (e.g., /gateway/ag.exe, /c/config.example.json) that are central to the
+    behavior.
+  - The rule does not include any detection of PowerShell script execution (e.g., 'repair.Ps1') or batch
+    script execution, which are key components of the staged execution described in the hypothesis and
+    passages [10].
+  - The rule misses the use of HTTP infrastructure for downloading proxy binaries (e.g., conima.exe, ddengine64.dll)
+    and configuration files, which are explicitly mentioned in passages [3]–[7] and [9].
+  - The rule does not account for the C2 server (tt.Yeyoujs.Com:8443) mentioned in passage [11], which
+    is part of the infrastructure used for command and control, and could be relevant for detection.
+  - The rule is overly narrow, focusing only on DNS queries for a single IP, while the actual behavior
+    involves multiple file downloads, script execution, and configuration file usage across multiple paths.

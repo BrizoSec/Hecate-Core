@@ -47,7 +47,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1059.001", "PowerShell", r"\bpowershell(\.exe)?\b"),
     ("T1059.005", "Visual Basic", r"\bvbscript\b|\b[wc]script\.exe\b|\bvisual basic\b"),
     ("T1059.004", "Unix shell",
-     r"\b(ba|z)?sh -c\b|/bin/(ba|z)?sh\b|\b(bash|shell) script\b|\bbash \.?[\w.-]+\b|\bcurl\b[^.]{0,80}\|\s*(ba|z)?sh\b"),
+     r"\b(ba|z)?sh -c\b|/bin/(ba|z)?sh\b|\b(bash|shell) script\b|\bbash \.?[\w.-]+\b|\b(curl|wget)\b.{0,200}?\|\s*(ba|z)?sh\b"),
     ("T1059.002", "AppleScript", r"\bosascript\b|\bapplescript\b"),
     ("T1204.004", "malicious copy and paste",
      r"\bclickfix\b|\bfake captcha\b|\bpast(e|es|ed|ing) (a |the |this )?(\w+ ){0,3}(command|script|string)s? into "
@@ -62,7 +62,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1105", "downloads a further stage",
      r"\bdownload(s|ed|ing)? (\d[\d.,]*\s?(kb|mb|gb|bytes)|the (payload|stager|next stage|second stage|decoy)"
      r"|a (payload|stager|second[- ]stage|decoy|real)|additional (payloads?|tools?|modules?))"
-     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b[^.]{0,120}\s-o\s"
+     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b.{0,300}?\s-o\s"
      r"|\b(fetch|retriev)(es|ed)? (the|a) (payload|stager|next stage|second[- ]stage)\b"),
     ("T1140", "decodes or decrypts a payload",
      r"\bxor[- ]?(decod\w*|decrypt\w*)\b|\bxor(s|ed)? (it|the|with)\b"
@@ -76,7 +76,17 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
      r"|\bexecut\w+ (it |the (payload|shellcode|stager) )?(directly )?(in|from) memory\b"
      r"|\bin[- ]memory (execution|loader|loading)\b|\bshellcode (loader|execution|runner)\b"),
     ("T1071.001", "HTTP for staging or C2",
-     r"\bhttps? (staging|c2|c&c|beacon\w*|requests?|communications?|traffic)\b|\bover https?\b"),
+     r"\bhttps? (staging|c2|c&c|beacon\w*|requests?|communications?|traffic)\b|\bover https?\b"
+     # The Redis botnet's heartbeat: "pings c2_persist.py (...:10000) with a plain HTTP GET".
+     r"|\b(check(s|ed|ing)?[- ]in|call(s|ed|ing)? back|beacon\w*|heartbeat|pings?)\b.{0,120}?\bhttps? (get|post)s?\b"
+     r"|\bhttps? (get|post)s?\b.{0,120}?\b(c2|c&c|check[- ]?in|callback|heartbeat|beacon\w*)\b"),
+    ("T1571", "C2 on a non-standard port",
+     r"\bnon[- ]standard (tcp |udp )?ports?\b|\b(unusual|uncommon) (tcp |udp )?ports?\b"
+     r"|\b(c2|c&c|command[- ]and[- ]control|callback|check[- ]?in|beacon\w*|heartbeat)\b.{0,80}?\bport (?!(80|443|53|22|25)\b)\d{2,5}\b"
+     r"|\bport (?!(80|443|53|22|25)\b)\d{2,5}\b.{0,80}?\b(c2|c&c|command[- ]and[- ]control|callback|check[- ]?in|beacon\w*)\b"
+     # An endpoint written "address:port" beside its role: "188.245.99.156:10000 ... C2 callback endpoint".
+     r"|\b\d{1,3}(\.\d{1,3}){3}\s?:\s?(?!(80|443|53|22|25)\b)\d{2,5}\b.{0,60}?\b(c2|c&c|callback|check[- ]?in)\b"
+     r"|\b(c2|c&c|callback|check[- ]?in)\b.{0,60}?\b\d{1,3}(\.\d{1,3}){3}\s?:\s?(?!(80|443|53|22|25)\b)\d{2,5}\b"),
     ("T1095", "non-application-layer C2",
      r"\braw tcp\b|\bcustom (binary|tcp|udp) protocol\b|\bnon-application[- ]layer\b"
      r"|\btcp (socket|stream|connection)s? (to|for|with) (the )?(c2|server|operator)\b"),
@@ -99,7 +109,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1574.001", "DLL side-loading or hijacking", r"\bdll (side[- ]?load\w*|hijack\w*|search order)\b|\bside[- ]?load\w*\b"),
     ("T1113", "screen capture", r"\bscreen ?(capture|shot)s?\b"),
     ("T1070.004", "self-deletion or file cleanup",
-     r"\bdelet(es|ed|ing) (itself|the (loader|dropper|file|binary))\b|\bself[- ]delet\w+\b|\brm -f\b"
+     r"\bdelet(es|ed|ing) (itself|the (loader|dropper|file|binary))\b|\bself[- ]delet\w+\b|\brm -(f|rf|fr)\b"
      r"|\bthen delet(e|es|ed) the (temporar\w+ )?(stored )?(file|script|payload)\b"),
     ("T1070.003", "shell history cleared",
      r"\bhistory -[dc]\b|\bfc -p\b|\.(bash|zsh)_history\b|\b(delet|clear|wip)(es|ed|ing)? (the )?(\w+ )?command history\b"),
@@ -116,6 +126,21 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1543.004", "Launch Daemon", r"\blaunch ?daemons?\b|/library/launchdaemons/"),
     ("T1543.002", "systemd service", r"/etc/systemd/system/[\w.@-]+\.service\b|\bsystemctl (enable|start)\b"),
     ("T1053.003", "cron job", r"\bcrontab\b|/etc/cron\.|/var/spool/cron\b"),
+    # Server-side tradecraft: no user runs anything. The Redis botnet report
+    # (hunt.io) showed all of these and the catalog, built from two
+    # user-execution cases, had none.
+    ("T1190", "exposed service exploited",
+     r"\bexploit\w* (\w+ ){0,3}(unauthenticated|exposed|internet[- ]facing|public[- ]facing|publicly accessible|misconfigured)"
+     r" (\w+ ){0,3}(instances?|servers?|services?|hosts?|appliances?|devices?|endpoints?|databases?|apis?)\b"
+     r"|\b(unauthenticated|exposed|internet[- ]facing) (\w+ ){0,2}(instances?|servers?|services?|hosts?|databases?) "
+     r"(were|was|got|are|is) (compromised|exploited|hijacked|abused)\b"
+     r"|\b(slaveof|replicaof)\b.{0,160}?\b(rogue|attacker|crafted)\b|\brogue (redis )?(replication|master|server)\b"),
+    ("T1496", "cryptomining on the victim",
+     r"\bxmrig\b|\bcrypto(currency )?[- ]?min(er|ers|ing)\b|\bcoin[- ]?miners?\b|\b(monero|xmr) (miner|mining)\b"
+     r"|\bmin(es|ed|ing) (monero|xmr|cryptocurrency)\b|\bstratum\+(tcp|ssl)\b"),
+    ("T1564.001", "hidden file or directory",
+     r"\bhidden (file|director(y|ies)|binary|folder)s?\b|\bdot[- ]?prefixed\b|\bdotfiles?\b"
+     r"|(?<![\w.])/(tmp|var/tmp|dev/shm)/\.[a-z][\w.-]*"),
     ("T1056.002", "fake credential prompt",
      r"\bosascript\b[^.]{0,80}\b(password|credentials?)\b|\b(password|credentials?)\b[^.]{0,80}\bosascript\b"
      r"|\b(fake|spoofed|bogus) (password|login|system|authentication) (prompt|dialog|window)\b"
@@ -150,7 +175,7 @@ _OBSERVED_RE = re.compile(
 #: someone else's tradecraft, so it neither supports nor rules out a mapping.
 _CONTEXT_RE = re.compile(
     r"\b(unc|uat|apt|ta|fin|dev)-?\d{2,5}\b|\bearth [a-z]+\b|\bno (ioc|lure|infrastructure|windows)\b[^.]{0,30}\bmatch\b"
-    r"|\bdifferent malware\b|\bpublished (chains|access|reporting)\b"
+    r"|\bdifferent malware\b|\bpublished (chains|access|reporting)\b|\b(an|the) unrelated\b"
     # A description of what a legitimate subsystem does, not of this intrusion:
     # "BTM ... is used to track anything that installs itself to run
     # automatically (like launch agents, login items, or cron jobs)".
@@ -158,6 +183,28 @@ _CONTEXT_RE = re.compile(
     r"(subsystem|process|service|tool|utility|binary)\b|\b(is|are) (typically |commonly )?used (by macos|by windows|by the "
     r"(os|operating system)|for automatic)\b"
 )
+
+#: A sentence about the actor's own side of the operation: their machine, their
+#: toolkit, the directory it was recovered from, the hosts they tested on. The
+#: Redis botnet report (hunt.io) was written from an exposed directory on the
+#: operator's Windows server, so most of it described that server: registry
+#: hive exports, xmrig.exe, a fileless Python loader. Read as victim evidence
+#: it scoped the hunt to Windows and mapped T1620 from the operator's loader.
+_ATTACKER_SIDE_RE = re.compile(
+    r"\b(operator|attacker|actor|adversary)(['\u2019]s)? own\b"
+    r"|\b(operator|attacker|actor|adversary)['\u2019]s (host|machine|workstation|box|server|system|toolkit|tooling|files"
+    r"|scripts|infrastructure|working (directory|environment)|campaign (logs?|telemetry|results?)|c2 server|windows\w*)\b"
+    r"|\bon (their|its) own (host|machine|workstation|box|server|infrastructure)\b"
+    r"|\b(open|exposed) director(y|ies)\b|\bin the (same |exposed |open )?directory\b"
+    r"|\bthe (toolkit|directory) (also )?(holds?|held|ships|carries|contains?|includes?|is)\b"
+    r"|\b(in|throughout|across) the toolkit\b|\bexploit (source|scripts?)\b|\bcampaign([- ]results?)? logs?\b"
+    r"|\brecovered (files?|scripts?|evidence|toolkit)\b|\b(qa|test|dev/test|dev/qa) (hosts?|targets?|box(es)?|pool)\b"
+)
+#: What happens on the victim's side, which keeps a sentence evidence even when it also mentions the actor's.
+_VICTIM_SIDE_RE = re.compile(r"\bvictims?\b|\bcompromised (hosts?|servers?|machines?|systems?)\b")
+#: How far back a quoted block's introduction is looked for, and how much of it is read.
+_LEAD_IN = 500
+_LEAD_IN_CLAUSE = 250
 
 #: Label and metadata lines in a CTI item: a title or a tag list names a topic
 #: without describing what happened, so it is not evidence.
@@ -198,7 +245,7 @@ _WINDOW = 200
 def sentence_status(sentence: str) -> str:
     """Whether a passage reports observed use, a tool capability, a negation, or another actor's tradecraft."""
     lowered = sentence.lower()
-    if _CONTEXT_RE.search(lowered):
+    if _CONTEXT_RE.search(lowered) or attacker_side(lowered):
         return "context"
     if _NEGATED_RE.search(lowered):
         return "negated"
@@ -207,18 +254,33 @@ def sentence_status(sentence: str) -> str:
     return "observed"
 
 
+def attacker_side(lowered: str) -> bool:
+    """Whether a lowercased passage describes the actor's own machine or toolkit and nothing on a victim."""
+    return bool(_ATTACKER_SIDE_RE.search(lowered)) and not _VICTIM_SIDE_RE.search(lowered)
+
+
+def passage_status(sentence: str, start: int, end: int) -> Tuple[str, str]:
+    """(status, passage) for a match at ``start``..``end`` of ``sentence``: the sentence, or a window of a run-on one.
+
+    A quoted block has no sentence of its own, so in a run-on segment it takes
+    the side of the clause that introduces it: "... right on the operator's
+    own host: cd /d C:\\Users\\Public\\xmrig ..." is the operator's command line.
+    """
+    if len(sentence) <= _WINDOW_OVER:
+        return sentence_status(sentence), sentence
+    passage = sentence[max(0, start - _WINDOW) : min(len(sentence), end + _WINDOW)]
+    status = sentence_status(passage)
+    if status == "observed":
+        lead = sentence[max(0, start - _LEAD_IN) : start].lower()
+        colon = lead.rfind(": ")
+        if colon >= 0 and attacker_side(lead[max(0, colon - _LEAD_IN_CLAUSE) : colon]):
+            status = "context"
+    return status, passage
+
+
 def _clip(text: str, limit: int = 300) -> str:
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
-
-
-def _passage(sentence: str, match: "re.Match[str]") -> str:
-    """The sentence, or for a run-on segment the window around the match."""
-    if len(sentence) <= _WINDOW_OVER:
-        return sentence
-    start = max(0, match.start() - _WINDOW)
-    end = min(len(sentence), match.end() + _WINDOW)
-    return sentence[start:end]
 
 
 def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
@@ -236,8 +298,7 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
                 match = pattern.search(lowered)
                 if not match:
                     continue
-                passage = _passage(sentence, match)
-                status = sentence_status(passage)
+                status, passage = passage_status(sentence, match.start(), match.end())
                 if status in ("context", "negated"):
                     continue
                 current = found.get(tid)
@@ -274,8 +335,7 @@ def technique_support(technique_id: str, names: Iterable[str], text: str) -> Opt
             label = "technique name" if match else None
         if match is None or label is None:
             continue
-        passage = _passage(sentence, match)
-        status = sentence_status(passage)
+        status, passage = passage_status(sentence, match.start(), match.end())
         if status == "context":
             continue
         if status == "negated":

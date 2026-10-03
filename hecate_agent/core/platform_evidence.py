@@ -17,7 +17,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Tuple
 
-from hecate_agent.core.technique_evidence import sentence_status, sentences
+from hecate_agent.core.technique_evidence import passage_status, sentences
 
 #: Markers unique to one platform. Ambiguous ones stay out: bash, cron, /tmp/
 #: and Python run on Linux and macOS alike, and architecture tags such as
@@ -42,8 +42,6 @@ _MARKERS: Dict[str, Tuple[str, ...]] = {
 _NAMES: Dict[str, str] = {"windows": "Windows", "linux": "Linux", "macos": "macOS", "mac os": "macOS"}
 #: Distinct markers a platform needs before its evidence outranks the hypothesis.
 MIN_MARKERS = 2
-_WINDOW_OVER = 450
-_WINDOW = 200
 
 
 @dataclass
@@ -66,13 +64,6 @@ class PlatformEvidence:
         return {**asdict(self), "supported": self.supported}
 
 
-def _judged(sentence: str, start: int, end: int) -> str:
-    """The status of the passage around a match: the sentence, or a window of a run-on segment."""
-    if len(sentence) <= _WINDOW_OVER:
-        return sentence_status(sentence)
-    return sentence_status(sentence[max(0, start - _WINDOW) : end + _WINDOW])
-
-
 def platform_evidence(texts: List[str]) -> PlatformEvidence:
     """Platform markers in the sentences of ``texts`` that report observed activity."""
     found: Dict[str, Dict[str, str]] = {}
@@ -81,7 +72,7 @@ def platform_evidence(texts: List[str]) -> PlatformEvidence:
     for sentence in (s for text in texts for s in sentences(text)):
         for platform, pattern in patterns:
             for match in re.finditer(pattern, sentence, re.IGNORECASE):
-                if _judged(sentence, match.start(), match.end()) != "observed":
+                if passage_status(sentence, match.start(), match.end())[0] != "observed":
                     continue
                 marker = key = match.group(0).lower()
                 slot = found.setdefault(platform, {})

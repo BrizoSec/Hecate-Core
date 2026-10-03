@@ -1,0 +1,30 @@
+title: Request for a URL path named in the source intelligence
+id: 8890f0b9-167d-466a-90c4-4ffc64ea2a8e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|endswith:
+    - /socktz_v9.exe
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://167.148.195.53:8888/socktz_v9.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/ai-tool-use-targeting-latam-orgs/
+  evidence: 'URL: hxxp[:]//167.148.195[.]53:8888/socktz_v9.exe'
+hunt_id: H-0619

@@ -127,6 +127,17 @@ def test_claims_ignore_the_quoted_cti_rule_yaml_and_grounding(tmp_path: Path) ->
     assert _check(report, "avoids persistence").passed is True
 
 
+def test_claims_ignore_passages_quoted_in_the_evidence_table(tmp_path: Path) -> None:
+    """A verbatim source passage in the evidence table is the report's wording, not the draft's."""
+    body = (
+        "### Primary Source Evidence\n\n| `kit.sh` | file_path | unknown | historical | "
+        '"XOR key 0x99; it enables persistence" |\n\n### Justification\n\nPlain prose.\n'
+    )
+    report = score_draft(GOLD_MIN, _draft(tmp_path, techniques=[], platform=["Windows"], body=body))
+    assert _check(report, "states xor").passed is False
+    assert _check(report, "avoids persistence").passed is True
+
+
 def test_claims_in_the_drafts_own_prose_count(tmp_path: Path) -> None:
     body = "The payload is XOR-decoded with 0x99, which enables persistence."
     report = score_draft(GOLD_MIN, _draft(tmp_path, techniques=[], platform=["Windows"], body=body))

@@ -16,7 +16,7 @@ characters the report did not give".
 
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Sequence
 
 #: Fields where a rule names a file, process, command or key: the ones a literal must ground.
 GROUNDED_FIELDS = frozenset(
@@ -92,19 +92,40 @@ def _path_literal(value: str) -> Dict[str, str]:
     return {"sigma": value, "match": "exact"}
 
 
-def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]]) -> List[QueryLiteral]:
+#: A value only Windows can show: a drive letter, a %VARIABLE%, a UNC or registry-style path, an .exe or .dll.
+_WINDOWS_VALUE_RE = re.compile(r"^[A-Za-z]:[\\/]|^%\w+%|^\\\\|^HK(LM|CU|EY_)|\.(exe|dll|bat|ps1|lnk|msi)$", re.I)
+#: A value only a Unix-like system can show: an absolute path, or one under $HOME or ~.
+_UNIX_VALUE_RE = re.compile(r"^(/|~/|\$\{?HOME\}?/)")
+
+
+def _off_platform(value: str, platforms: Sequence[str]) -> bool:
+    """Whether no platform the hunt covers can show ``value``; never when the platforms are unknown."""
+    known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
+    if not known:
+        return False
+    if _WINDOWS_VALUE_RE.search(value):
+        return "windows" not in known
+    if _UNIX_VALUE_RE.search(value):
+        return known == {"windows"}
+    return False
+
+
+def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]], platforms: Sequence[str] = ()) -> List[QueryLiteral]:
     """Sigma-ready literals from verified source artifacts that describe this intrusion.
 
     Artifacts the source does not tie to the intrusion (status other than
     ``active``) are left out: H-0618's list held ``personal_resume.exe`` from
     the author's closing joke. API names are EDR telemetry, not Sigma fields.
+    So are values none of the hunt's ``platforms`` can show: a Linux hunt on
+    the Redis botnet was offered ``C:\\host_public\\python311\\c2_persist.py``
+    from the operator's Windows server.
     """
     out: List[QueryLiteral] = []
     seen: set = set()
     for artifact in artifacts:
         value = str(artifact.get("value", "")).strip()
         kind = str(artifact.get("kind", "")).lower()
-        if not value or str(artifact.get("status", "")).lower() != "active":
+        if not value or str(artifact.get("status", "")).lower() != "active" or _off_platform(value, platforms):
             continue
         role, evidence = str(artifact.get("role", "")), " ".join(str(artifact.get("evidence", "")).split())[:200]
         literal: QueryLiteral
@@ -121,10 +142,12 @@ def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]]) -> List[QueryLi
                 value, shape["sigma"], kind, fields, role, evidence, shape["match"], _written(value, role, evidence)
             )
         elif kind == "process":
-            name = _APP_ALIASES.get(value.lower(), value if "." in value else f"{value}.exe")
+            windows = not platforms or any(str(p).lower() == "windows" for p in platforms)
+            name = _APP_ALIASES.get(value.lower(), value if "." in value or not windows else f"{value}.exe")
+            # An image path ends "\\name.exe" on Windows and "/name" everywhere else.
+            sigma = "\\" + name.split("\\")[-1] if windows else "/" + name.split("/")[-1]
             literal = QueryLiteral(
-                value, "\\" + name.split("\\")[-1], kind, ["process_creation.Image", "process_creation.ParentImage"],
-                role, evidence, "endswith",
+                value, sigma, kind, ["process_creation.Image", "process_creation.ParentImage"], role, evidence, "endswith",
             )  # fmt: skip
         elif kind in ("command_line", "command", "cmdline"):
             literal = QueryLiteral(value, value, kind, ["process_creation.CommandLine"], role, evidence)
@@ -142,7 +165,9 @@ def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]]) -> List[QueryLi
 _CHECKED_RE = re.compile(r"\b(marker|kill[- ]?switch|checks? (for|whether|if)|exists?|already exists|reads?)\b", re.I)
 #: Places a file is written to persist: its existence there is the installation.
 _PERSISTENCE_DIR_RE = re.compile(
-    r"/library/launch(agents|daemons)/|/etc/systemd/system/|/etc/cron\.|\\start menu\\programs\\startup\\", re.I
+    r"/library/launch(agents|daemons)/|/etc/systemd/system/|/etc/cron\.|/var/spool/cron/|/etc/profile\.d/"
+    r"|/etc/apt/apt\.conf\.d/|/etc/init\.d/|\\start menu\\programs\\startup\\",
+    re.I,
 )
 
 
@@ -153,6 +178,8 @@ def _written(value: str, role: str, evidence: str) -> bool:
     malware" for both stealer paths: the malware's own file on disk is written
     when it is installed. A file it only checks for is not.
     """
+    # The name itself is no verb: "SAM.save" read as "save" made a registry hive export a written file.
+    evidence = evidence.replace(value, " ")
     context = f"{role} {evidence}"
     if _CHECKED_RE.search(context):
         return False

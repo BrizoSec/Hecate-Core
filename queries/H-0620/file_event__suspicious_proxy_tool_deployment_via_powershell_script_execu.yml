@@ -1,0 +1,43 @@
+title: Suspicious Proxy Tool Deployment via PowerShell Script Execution
+id: 79748bd3-8e06-4881-b56b-448df51a27f4
+status: experimental
+description: Detects the creation of known proxy-related binaries and configuration files following the
+  execution of malicious PowerShell scripts from a known malicious IP and domain, indicating potential
+  compromise and repurposing as a proxy node. This behavioral pattern aligns with T1027.015 (Obfuscated
+  Files or Information) and T1036 (Masquerading), specifically targeting the staging and deployment of
+  Radmin, UltraVNC, Netch-gateway, and CCProxy utilities.
+references:
+- https://asec.ahnlab.com/en/95230/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1027.015
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \r.Zip
+  filter:
+    TargetFilename|contains: \AppData\Local\Temp\
+  condition: selection and not filter
+falsepositives:
+- Administrative scripting with legitimate tools
+- User-initiated software installation with temporary files in non-standard paths
+level: medium
+hunt_id: H-0620
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses on .Zip files, but the source passages describe execution of PowerShell scripts and
+    deployment of binaries via HTTP, not ZIP files.
+  - The rule mentions 'known malicious IP and domain' but does not reference the specific IPs or domains
+    in the source passages (e.g., 103.86.86.244, tt.Yeyoujs.Com).
+  - The rule references 'CCProxy' in the description, but the source passages do not mention CCProxy—only
+    Radmin, UltraVNC, Netch-gateway, and SoftEther VPN.
+  - The rule detects file events related to .Zip files, but the source passages describe execution of
+    PowerShell scripts (e.g., repair.Ps1) and HTTP-based downloads of binaries and config files, not ZIP-based
+    delivery.
+  - 'The rule does not account for the specific behavior described in passage [10]: creation of a scheduled
+    task to download and execute repair.Ps1, which is central to the hypothesis.'

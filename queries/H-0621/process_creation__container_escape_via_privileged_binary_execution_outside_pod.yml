@@ -1,0 +1,37 @@
+title: Container Escape via Privileged Binary Execution Outside Pod Context
+id: d4b7163d-ae69-4e98-8c35-0812a69143fd
+status: experimental
+description: Detects container escape attempts where privileged binaries like /bin/sh or /usr/bin/docker
+  are executed outside the expected pod container context, indicating a potential bypass of process-level
+  visibility in Kubernetes environments. This behavior aligns with T1068 (Exploitation for Privilege Escalation)
+  and T1059.004 (Command and Scripting Interpreter), and is indicative of evasion and persistence mechanisms
+  that evade traditional process monitoring by appearing in runtime telemetry without corresponding pod-level
+  context.
+references:
+- https://www.elastic.co/security-labs/threat-command/kubernetes-audit-logs-container-escape
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1059.004
+- attack.t1068
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /usr/bin/docker
+  condition: selection
+falsepositives:
+- Administrative scripting using /bin/sh or /usr/bin/docker in privileged pods
+- Cluster operator debugging with shell access in shared environments
+level: high
+hunt_id: H-0621
+hecate_review:
+  verdict: reject
+  issues:
+  - The rule lacks any indication of the container escape behavior described in the hypothesis, as it
+    only detects execution of privileged binaries like /usr/bin/docker without context about escaping
+    pod boundaries or manifesting outside expected runtime scope.
+  unverified_contradiction: The rule does not detect the behavior described in the hypothesis, which involves
+    malicious binaries executing within a pod context but manifesting outside the expected runtime scope
+    to evade detection. The rule only checks for binary execution without any correlation to pod context
+    or escape indicators.

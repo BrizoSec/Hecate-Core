@@ -115,9 +115,15 @@ def _split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
 
 
 def _prose(body: str) -> str:
-    """The draft's own writing: without rule YAML, the quoted source CTI, or the grounding table."""
+    """The draft's own writing: without rule YAML, the quoted source CTI, or the grounding and evidence tables.
+
+    The Primary Source Evidence table quotes the report verbatim. On the Redis
+    botnet case its row for a file from a separate, historical directory
+    ("deploy_meterpreter.sh Downloads and installs meterpreter.elf") was read
+    as the draft claiming Meterpreter was installed.
+    """
     body = _FENCE_RE.sub("", body)
-    body = re.sub(r"(?ms)^### Grounding\b.*?(?=^### |^## |\Z)", "", body)
+    body = re.sub(r"(?ms)^### (Grounding|Primary Source Evidence)\b.*?(?=^### |^## |\Z)", "", body)
     return "\n".join(line for line in body.splitlines() if not line.lstrip().startswith(">"))
 
 

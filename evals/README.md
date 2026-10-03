@@ -8,6 +8,7 @@ nothing in the scoring calls a model, so two scores are comparable.
 |---|---|---|---|
 | VShell via fake-resume lure | `gold/vshell-fake-resume.yaml` | `docs/H-0618_DEEP_DIVE.md` | 23/71 checks (32.4%), technique recall 1/11 |
 | ClickFix macOS stealer (Huntress) | `gold/macos-clickfix-stealer.yaml` | the Huntress report | 39/55 checks (70.9%), technique recall 2/12, on the pipeline as of 2026-09-28 before the macOS/Unix fixes (no pre-change baseline); 53/55 after them; 54/55 with rules from quoted commands. The `history-wiped` detection expected a shell builtin in a process command line, which no process event records; it was replaced on 2026-09-29 by `loader-fetched` (the `curl` fetch of the loader) |
+| Redis cryptomining botnet (hunt.io) | `gold/redis-cryptomining-botnet.yaml` | the hunt.io report, written before any run | 40/53 checks (75.5%), technique recall 2/9, on the pipeline as of 2026-09-29; 53/53 on 2026-10-03, after server-side tradecraft joined the technique catalog, ports and cron paths were read from the report's tables, token and fingerprint "hashes" were typed as non-files, the page's second copy of the article was dropped, and sentences about the operator's own machine stopped counting as victim evidence. One of those 53 comes from a scorer change made the same day: see "What is scored" |
 
 The baseline is the H-0618 draft reviewed in the deep dive, frozen in
 `tests/fixtures/gold/vshell-fake-resume/` and locked by
@@ -64,8 +65,13 @@ over checks run.
 | rule semantics | — | no field outside its log source category, no non-executable process image, no description promising matching the selection lacks |
 
 Claims are checked against the draft's own writing only: rule YAML, the quoted
-source CTI and the grounding table are excluded, so the CTI can neither satisfy
-nor violate a claim on the draft's behalf.
+source CTI, the grounding table and the Primary Source Evidence table are
+excluded, so the source can neither satisfy nor violate a claim on the draft's
+behalf. The evidence table was excluded on 2026-10-03: it quotes the report
+verbatim, and on the Redis case its row for a file from a separate, historical
+directory ("deploy_meterpreter.sh Downloads and installs meterpreter.elf") was
+scored as the draft claiming Meterpreter was installed. The Technique Evidence
+table, which can quote the research document, is still scored.
 
 ## Technique recall and its denominator
 

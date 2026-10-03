@@ -19,9 +19,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 #: process runs or loads; the rest cannot match a process-image hash.
 #: ``script``: a shell, PowerShell or other script run by an interpreter, so the
 #: process image is the interpreter and never carries the script's hash.
-HASH_ROLES = ("executable", "library", "script", "archive", "document", "memory_only", "network_content", "unknown")
-#: What a network indicator does in the intrusion.
-NETWORK_ROLES = ("c2", "staging", "download", "historical", "unknown")
+#: ``non_file``: a value that is only hash-shaped. The Redis botnet feed listed
+#: the C2's bearer token (``C2_TOKEN=f90c...``) as an MD5 and a pinned TLS
+#: certificate fingerprint as a SHA-256; no file has either hash.
+HASH_ROLES = (
+    "executable", "library", "script", "archive", "document", "memory_only", "network_content", "non_file", "unknown",
+)  # fmt: skip
+#: What a network indicator does in the intrusion. ``target``: an address the
+#: actor attacked, scanned or tested against. It is a victim, not
+#: infrastructure, so a connection to it says nothing about the host making it.
+NETWORK_ROLES = ("c2", "staging", "download", "target", "historical", "unknown")
 STATUSES = ("active", "historical", "unknown")
 CONFIDENCES = ("high", "medium", "low", "unknown")
 
@@ -156,6 +163,11 @@ def merge_records(cti: List[IndicatorRecord], extracted: List[IndicatorRecord]) 
     by_key: Dict[Tuple[str, str], IndicatorRecord] = {}
     for record in [*cti, *extracted]:
         key = (record.type, record.value)
+        if record.type in ("domain", "hostname") and key not in by_key:
+            # One name, one record: the feed's "hostname" and the report's "domain"
+            # for socket.ayakliborsa.net each got a selection in the same rules.
+            other = ("hostname" if record.type == "domain" else "domain", record.value)
+            key = other if other in by_key else key
         if key not in by_key:
             fresh = IndicatorRecord(**asdict(record))
             if fresh.status == "historical":
@@ -177,15 +189,58 @@ def attach_url_ports(records: List[IndicatorRecord]) -> None:
                 record.ports = sorted(record.ports + [port])
 
 
+_PORT = r"(\d{2,5})(?!\d)"
+_PORT_RANGE = _PORT + r"(?:\s*(?:-{1,2}|\u2013|\u2014|through|to)\s*" + _PORT + r")?"
+#: A range wider than this is a scan, not a set of service ports worth one selection each.
+_MAX_RANGE = 32
+
+
+def _ports_in_text(value: str, text: str) -> List[int]:
+    """Ports the text writes beside an address or host: "host:port", "host on port N", "port(s) N at host"."""
+    host = r"(?<![\w.-])" + re.escape(value)
+    found: List[int] = []
+    for pattern in (
+        host + r"\s*:" + _PORT_RANGE,
+        host + r"\s+on\s+(?:tcp\s+|udp\s+)?port\s+" + _PORT_RANGE,
+        r"\bports?\s+" + _PORT_RANGE + r"\s+(?:at|on)\s+" + host + r"(?![\w-]|\.\w)",
+    ):
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            low = int(match.group(1))
+            high = int(match.group(2)) if match.group(2) else low
+            if not (0 < low <= high < 65536 and high - low < _MAX_RANGE):
+                continue
+            found += [p for p in range(low, high + 1) if p not in found]
+    return found
+
+
+def attach_text_ports(records: List[IndicatorRecord], text: str) -> None:
+    """Give each current address and host the ports the source writes beside it.
+
+    The Redis botnet report listed its C2 as "188.245.99.156" / ":10000" /
+    "IP:port" on separate lines of a table, and the rogue replication ports as
+    ":16379--16385". Neither reached the network rule, which then matched
+    the address on any port. Historical and target addresses get no ports:
+    they get no rule.
+    """
+    text = refang(text or "")
+    if not text:
+        return
+    for record in records:
+        if record.type not in ("ipv4", "hostname", "domain") or not placements(record):
+            continue
+        record.ports = sorted(set(record.ports) | set(_ports_in_text(record.value, text)))
+
+
 def placements(record: IndicatorRecord) -> List[str]:
     """``<category>.<Field>`` placements a record may appear in, from its role and status.
 
     Historical indicators are never placed: they describe what the
-    infrastructure hosted before, not this intrusion. A hash is placed only
-    where a file with that hash can be observed. Unknown roles keep the old
+    infrastructure hosted before, not this intrusion. Nor are addresses the
+    actor targeted: those are victims. A hash is placed only where a file with
+    that hash can be observed. Unknown roles keep the old
     placements, since an unreviewed indicator is still worth sweeping for.
     """
-    if record.status == "historical" or record.role == "historical":
+    if record.status == "historical" or record.role in ("historical", "target"):
         return []
     if record.type in HASH_TYPES:
         if record.role in ("executable", "unknown"):

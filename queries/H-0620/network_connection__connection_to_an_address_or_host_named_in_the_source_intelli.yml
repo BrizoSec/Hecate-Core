@@ -1,0 +1,72 @@
+title: Connection to an address or host named in the source intelligence
+id: 7cb36b55-fd3d-40df-9d9b-b4fa63b83edd
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://asec.ahnlab.com/en/95230/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_800:
+    DestinationIp: 103.86.86.244
+    DestinationPort: 800
+  selection_2_any:
+    DestinationHostname: koreakr.top
+  selection_3_any:
+    DestinationHostname: tt.yeyoujs.com
+  selection_4_any:
+    DestinationHostname: tvip.yeyoujs.com
+  selection_5_any:
+    DestinationHostname: www.sheng886.top
+  selection_6_any:
+    DestinationHostname: www.sheng886.top
+  selection_7_any:
+    DestinationHostname: tvip.yeyoujs.com
+  selection_8_any:
+    DestinationHostname: tt.yeyoujs.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: koreakr.top
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: unknown
+- value: tt.yeyoujs.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: 'C&C server: hxxp://tt.Yeyoujs[.]Com:8443'
+- value: tvip.yeyoujs.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: www.sheng886.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: FQDN
+- value: 103.86.86.244
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: The compressed file contains a batch script, a REG file, and the Radmin remote control tool.
+hunt_id: H-0620

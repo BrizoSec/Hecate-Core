@@ -1,0 +1,63 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 8dd9e4c2-601a-442c-9df0-85e87799e16d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://asec.ahnlab.com/en/95230/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - koreakr.top
+    - tt.yeyoujs.com
+    - tvip.yeyoujs.com
+    - www.sheng886.top
+    - www.sheng886.top
+    - tvip.yeyoujs.com
+    - tt.yeyoujs.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .koreakr.top
+    - .www.sheng886.top
+    - .tvip.yeyoujs.com
+    - .tt.yeyoujs.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: koreakr.top
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: unknown
+- value: tt.yeyoujs.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: 'C&C server: hxxp://tt.Yeyoujs[.]Com:8443'
+- value: tvip.yeyoujs.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: www.sheng886.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: FQDN
+hunt_id: H-0620

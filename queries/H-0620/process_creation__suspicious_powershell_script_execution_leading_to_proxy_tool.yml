@@ -1,0 +1,116 @@
+title: Suspicious PowerShell Script Execution Leading to Proxy Tool Deployment
+id: 40f76c84-2451-4b56-a0f5-c52a0518ac45
+status: experimental
+description: Detects staged execution of PowerShell scripts from known malicious infrastructure that download
+  and execute proxy-related binaries (e.g., Netch-gateway, CCProxy, SoftEther VPN), indicative of compromised
+  systems being repurposed as proxy nodes. This behavior aligns with observed campaigns targeting Korean
+  users and supports early detection of post-compromise infrastructure abuse.
+references:
+- https://asec.ahnlab.com/en/95230/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1027.015
+- attack.t1036
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    ParentImage|endswith: \powershell.exe
+    CommandLine|contains:
+    - http://103.86.86.244:800/Gateway/r.Zip
+    - http://103.86.86.244:800/V/deploy.Ps1
+    - http://103.86.86.244:800/Gateway/deploy_silent1.Ps1
+    - http://103.86.86.244/gateway/ag.exe
+    - http://103.86.86.244/gateway/conima.exe
+    - http://103.86.86.244:800/c/
+    - http://103.86.86.244:800/c/config.example.json
+    - http://103.86.86.244:800/c/ddengine64.dll
+  filter:
+    CommandLine|contains: ' -NoProfile -ExecutionPolicy Bypass'
+  condition: selection and not filter
+falsepositives:
+- Automated deployment scripts using PowerShell with similar URLs in test environments
+- Administrative scripting with legitimate PowerShell downloads from internal sources
+level: medium
+hecate_provenance:
+- value: http://103.86.86.244:800/Gateway/r.Zip
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: 'Malware distribution address: hxxp://103.86.86[.]244:800/C/'
+- value: http://103.86.86.244:800/V/deploy.Ps1
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: register a task named “WpnUserHost_MutualWatchdog” to download and execute the “repair.Ps1”
+    file
+- value: http://103.86.86.244:800/Gateway/deploy_silent1.Ps1
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: register a task named “WpnUserHost_MutualWatchdog” to download and execute the “repair.Ps1”
+    file
+- value: 103.86.86.244
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: The compressed file contains a batch script, a REG file, and the Radmin remote control tool.
+- value: http://103.86.86.244/gateway/ag.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: http[:]//103[.]86[.]86[.]244/gateway/ag[.]exe
+- value: http://103.86.86.244/gateway/conima.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: http[:]//103[.]86[.]86[.]244/gateway/conima[.]exe
+- value: http://103.86.86.244:800/c/
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: 'Malware distribution address: hxxp://103.86.86[.]244:800/C/'
+- value: http://103.86.86.244:800/c/config.example.json
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: http[:]//103[.]86[.]86[.]244[:]800/c/config[.]example[.]json
+- value: http://103.86.86.244:800/c/ddengine64.dll
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://asec.ahnlab.com/en/95230/
+  evidence: http[:]//103[.]86[.]86[.]244[:]800/c/ddengine64[.]dll
+hunt_id: H-0620
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule includes URLs like 'http://103.86.86.244:800/Gateway/r.Zip' and 'http://103.86.86.244:800/V/deploy.Ps1'
+    that are not mentioned in any source passage. These URLs are fabricated and not supported by the report.
+  - The rule references 'deploy_silent1.Ps1' and 'r.Zip', which are not present in the source passages.
+    The only PowerShell script mentioned is 'repair.Ps1', not 'deploy_silent1.Ps1' or 'r.Zip'.
+  - The rule assumes that PowerShell scripts are executed directly from the URLs listed, but the report
+    only states that a task is registered to download and execute 'repair.Ps1', not that the script is
+    executed from the URL itself.
+  - The rule does not account for the staged execution via task registration, which is a key part of the
+    behavior described in passage [10].

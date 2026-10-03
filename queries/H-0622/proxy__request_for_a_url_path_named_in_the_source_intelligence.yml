@@ -1,0 +1,31 @@
+title: Request for a URL path named in the source intelligence
+id: a838404c-6e78-4ee1-9798-665736bec5dc
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|endswith:
+    - /dQfdExjo
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://paste.sh/dQfdExjo#AqjB4BBt]lwLt2NKrlC0x8J9O
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clickfix-moves-into-the-browser/
+  evidence: The instructions then directed the targets to a link to a new source script on “paste.sh”
+    to be added to the plugin (“https[:]//paste[.]sh/dQfdExjo#AqjB4BBt]lwLt2NKrlC0x8J9O”).
+hunt_id: H-0622

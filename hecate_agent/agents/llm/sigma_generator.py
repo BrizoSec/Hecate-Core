@@ -372,7 +372,7 @@ class SigmaGenerationInput:
     def query_literals(self) -> List[Dict[str, Any]]:
         from hecate_agent.core.query_literals import literals_from_artifacts
 
-        return [lit.to_dict() for lit in literals_from_artifacts(self.source_artifacts)]
+        return [lit.to_dict() for lit in literals_from_artifacts(self.source_artifacts, self.platforms)]
 
 
 @dataclass
@@ -393,6 +393,23 @@ class SigmaRule:
         slug = "".join(c if c.isalnum() else "_" for c in self.title.lower())
         slug = "_".join(part for part in slug.split("_") if part)[:60]
         return f"{self.logsource_category}__{slug or 'rule'}.yml"
+
+
+def rule_filenames(rules: List[SigmaRule]) -> List[str]:
+    """A distinct file name for each rule, in order: a repeat gets a numbered suffix.
+
+    Titles are cut to 60 characters and stripped of punctuation, so different
+    rules can share a name. The Redis botnet replay built rules for
+    /etc/cron.d/.redis-miner, /etc/cron.d/redis-miner and
+    /etc/cron.hourly/redis-miner; each overwrote the last and one reached disk.
+    """
+    seen: Dict[str, int] = {}
+    names: List[str] = []
+    for rule in rules:
+        name = rule.filename
+        seen[name] = seen.get(name, 0) + 1
+        names.append(name if seen[name] == 1 else f"{name[:-4]}_{seen[name]}.yml")
+    return names
 
 
 @dataclass
@@ -1600,8 +1617,13 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             if not literal.get("written") or "file_event.TargetFilename" not in (literal.get("fields") or []):
                 continue
             sigma, how = str(literal["sigma"]), str(literal.get("match", "exact"))
+            if "/" not in sigma and "\\" not in sigma:
+                # A file event records a full path, and a bare name says nothing of where: the
+                # Redis botnet replay built rules for SAM.save and fleet.b64, files in the
+                # operator's own directory. The name stays a literal the model may use.
+                continue
             key = "TargetFilename|endswith" if how == "endswith" else "TargetFilename"
-            name = sigma.rsplit("\\", 1)[-1]
+            name = sigma.replace("/", "\\").rsplit("\\", 1)[-1]
             results.append(
                 self._ioc_rule(
                     input_data,
