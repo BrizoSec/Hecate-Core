@@ -325,7 +325,7 @@ Use these commands when they fit the task and are available:
 | Step | Command | When | Purpose |
 |------|---------|------|---------|
 | 1 | `hecate-agent similar "keywords"` | BEFORE hypothesis | Check for duplicate hunts |
-| 2 | `hecate-agent research new --topic "..."` | Optional, before hypothesis when useful | Research grounded in available sources and configuration |
+| 2 | `hecate-agent research new --topic "..."` | REQUIRED before an AI-generated hypothesis; optional when a human writes it | Research grounded in available sources and configuration |
 | 3 | `hecate-agent agent run hypothesis-generator --threat-intel "..."` | AFTER research | Generate structured hypothesis |
 | 4 | `hecate-agent hunt new --technique T1XXX --title "..." --non-interactive` | WHEN creating hunt | Auto-generate hunt file (⚠️ NEVER use Write tool) |
 | 5 | `hecate-agent context --hunt H-XXXX --format json` | BEFORE executing queries | Load all context efficiently |
@@ -335,7 +335,7 @@ Use these commands when they fit the task and are available:
 ### Hunt Execution Steps
 
 1. **Check duplicates:** `hecate-agent similar "hypothesis keywords"`
-2. **Deep research (optional):** `hecate-agent research new --topic "..."` (creates R-XXXX.md with 5-skill methodology)
+2. **Deep research (required before step 3):** `hecate-agent research new --topic "..."` (creates R-XXXX.md with 5-skill methodology). Optional only when a human writes the hypothesis and step 3 is skipped
 3. **Generate hypothesis:** `hecate-agent agent run hypothesis-generator --threat-intel "..."`
 4. **Create hunt file:** `hecate-agent hunt new --research R-XXXX --non-interactive ...` (link to research)
 5. **Load context:** `hecate-agent context --hunt H-XXXX --format json`
@@ -379,7 +379,7 @@ hecate-agent similar --hunt H-0001            # Find hunts similar to H-0001
 
 ---
 
-### Research Commands (Optional)
+### Research Commands
 
 ```bash
 # Deep research before hunting (15-20 min, uses web search + LLM) - DEFAULT
@@ -400,11 +400,11 @@ hecate-agent research search "kerberos"
 # Statistics
 hecate-agent research stats
 
-# Link research to hunt during creation (optional)
+# Link research to hunt during creation (do this whenever research was run)
 hecate-agent hunt new --research R-0001 --non-interactive
 ```
 
-**Research can improve hunts when the topic or available context warrants it. The research command and its web-search/LLM dependencies are optional:**
+**Research is required before an AI assistant generates a hypothesis, and optional when a human writes one.** Ungrounded generation measured about 30% accuracy on known-answer ATT&CK fixtures (`hecate-agent eval`), which is why the automated pipeline refuses to draft without research. If research cannot run (no LLM or no web search configured), say so and let the human decide; do not silently generate an ungrounded hypothesis. What research provides:
 
 - Deep understanding of system internals before hunting (Skill 1: System Research)
 - Adversary tradecraft is mapped to available telemetry (Skill 2: Adversary Tradecraft via web search)
@@ -483,7 +483,7 @@ hecate-agent hunt new \
 |---------|-----------|
 | Write tool → hunt file | `hecate-agent hunt new --non-interactive` |
 | Skip duplicate check | `hecate-agent similar "keywords"` first |
-| Skip research | `hecate-agent research new --topic "..."` (optional) |
+| Skip research before an AI-generated hypothesis | `hecate-agent research new --topic "..."` first |
 | Manual hypothesis | `hecate-agent agent run hypothesis-generator --threat-intel "..."` |
 | Multiple Read operations | `hecate-agent context --hunt H-XXXX` |
 

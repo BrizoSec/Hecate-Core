@@ -6,7 +6,7 @@ nothing in the scoring calls a model, so two scores are comparable.
 
 | Case | Gold set | Built from | Baseline |
 |---|---|---|---|
-| VShell via fake-resume lure | `gold/vshell-fake-resume.yaml` | `docs/H-0618_DEEP_DIVE.md` | 23/71 checks (32.4%), technique recall 1/11 |
+| VShell via fake-resume lure | `gold/vshell-fake-resume.yaml` | the H-0618 deep-dive review (`docs/H-0618_DEEP_DIVE.md`, removed once its recommendations were implemented; in git history) | 23/71 checks (32.4%), technique recall 1/11 |
 | ClickFix macOS stealer (Huntress) | `gold/macos-clickfix-stealer.yaml` | the Huntress report | 39/55 checks (70.9%), technique recall 2/12, on the pipeline as of 2026-09-28 before the macOS/Unix fixes (no pre-change baseline); 53/55 after them; 54/55 with rules from quoted commands. The `history-wiped` detection expected a shell builtin in a process command line, which no process event records; it was replaced on 2026-09-29 by `loader-fetched` (the `curl` fetch of the loader) |
 | Redis cryptomining botnet (hunt.io) | `gold/redis-cryptomining-botnet.yaml` | the hunt.io report, written before any run | 40/53 checks (75.5%), technique recall 2/9, on the pipeline as of 2026-09-29; 53/53 on 2026-10-03, after server-side tradecraft joined the technique catalog, ports and cron paths were read from the report's tables, token and fingerprint "hashes" were typed as non-files, the page's second copy of the article was dropped, and sentences about the operator's own machine stopped counting as victim evidence. One of those 53 comes from a scorer change made the same day: see "What is scored" |
 

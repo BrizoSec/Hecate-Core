@@ -277,5 +277,5 @@ Every cycle ends with an outcome. The common ones:
 | Configure models, keys and the workspace | [CONFIGURATION.md](CONFIGURATION.md) |
 | Hunt manually with the CLI | [getting-started.md](getting-started.md), [CLI_REFERENCE.md](CLI_REFERENCE.md) |
 | Understand the hunt format | [lock-pattern.md](lock-pattern.md) |
-| See why a pipeline change was made | [H-0618_DEEP_DIVE.md](H-0618_DEEP_DIVE.md) |
+| See why a pipeline change was made | The commit history, and the test for it: many test modules name the review item they came from |
 | Score drafts against reviewed answers | [evals/README.md](../evals/README.md) |
