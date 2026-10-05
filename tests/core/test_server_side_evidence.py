@@ -534,6 +534,35 @@ def test_prose_values_from_the_actors_side_or_another_platform_are_reported() ->
     assert "python.exe" not in prose_value_reasons(prose, "", ["Windows"])
 
 
+OBSERVED_PATHS = (
+    "The cron entry pulls the release and points the resulting hidden /tmp/.cache-worker binary at the pool.\n"
+    "The implant can also write /var/lib/extra.bin when the operator asks for it.\n"
+    "On the detection side, audit /etc/crontab for entries referencing curl.\n"
+    "And maybe do not let notes.exe join the lab.\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("value", "status"),
+    [
+        ("/tmp/.cache-worker", "active"),  # the report shows it in observed activity
+        ("/var/lib/extra.bin", "unknown"),  # only something the implant can do
+        ("/etc/crontab", "unknown"),  # advice to the reader, not an observation
+        ("notes.exe", "unknown"),  # no location: could be anywhere
+    ],
+)
+def test_a_located_path_the_model_left_unverified_takes_its_status_from_the_report(value: str, status: str) -> None:
+    """One replay returned /tmp/.xmrig with no passage, so the hidden miner had no rule."""
+    evidence = se.extract_source_evidence(
+        URL,
+        page_text=OBSERVED_PATHS,
+        complete=lambda _: json.dumps({"artifacts": [_artifact(value, "file_path", status="unknown")]}),
+    )
+    (artifact,) = evidence.artifacts
+    assert artifact.status == status
+    assert ("hidden /tmp/.cache-worker binary" in artifact.evidence) is (status == "active")
+
+
 # --- Literals a hunt's platforms can show -----------------------------------------------------
 
 

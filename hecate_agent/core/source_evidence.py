@@ -636,6 +636,57 @@ def attacker_side_passage(text: str, value: str) -> str:
     return " ".join(own.split())[:300]
 
 
+#: A path that says where on a host the file is: absolute, or under a home or environment variable.
+#: A top-level directory alone ("/tmp") is not a file's location.
+_LOCATED_PATH_RE = re.compile(r"^(/[^/]+/|~/|\$\{?\w+\}?/|%\w+%\\|[A-Za-z]:[\\/]).*[^/\\]$")
+#: A passage that does not report the path being used: advice to the reader, a path the
+#: malware only checks for, or one an attempt was aimed at ("SSH key-injection targets").
+_NOT_OBSERVATION_RE = re.compile(
+    r"\b(audit|monitor|watch for|hunt for|look for|search for|alert on|block|treat any|disable|enforce|restrict"
+    r"|checks? (whether|for|if)|looks? for|targets?|candidates?|probe[sd]?|attempt\w*)\b",
+    re.I,
+)
+
+
+def _tie_observed_paths(artifacts: List[SourceArtifact], text: str) -> None:
+    """Tie a located file path to the intrusion when the report itself shows it in observed activity.
+
+    Whether a path got a rule depended on the model quoting a sentence for it.
+    One Redis replay returned ``/tmp/.xmrig`` with no passage, so its status
+    stayed unknown and the hidden miner had no rule; the run before had it.
+    The report says where the miner goes ("points the resulting hidden
+    /tmp/.xmrig binary at ..."), and that sentence needs no model to find.
+    Only a path with a location qualifies: a bare name could be anywhere.
+    Advice ("audit /etc/crontab for ..."), a path the malware only checks for
+    and one an attempt was aimed at are not observations of it in use.
+    """
+    from hecate_agent.core.technique_evidence import actor_material_report, passage_status, sentences
+
+    pending = [
+        a
+        for a in artifacts
+        if a.kind in ("file_path", "path", "file", "filename", "file_name")
+        and a.status == "unknown"
+        and a.role != ATTACKER_SIDE_ROLE
+        and _LOCATED_PATH_RE.match(a.value)
+    ]
+    if not pending:
+        return
+    actor_material = actor_material_report(text)
+    all_sentences = sentences(text)
+    for artifact in pending:
+        needle = refang(artifact.value).lower()
+        for sentence in all_sentences:
+            at = sentence.lower().find(needle)
+            if at < 0:
+                continue
+            status, passage = passage_status(sentence, at, at + len(needle), actor_material)
+            if status == "observed" and not _NOT_OBSERVATION_RE.search(passage):
+                artifact.status = "active"
+                artifact.evidence = artifact.evidence or " ".join(passage.split())[:300]
+                break
+
+
 def _tie_fuller_paths(artifacts: List[SourceArtifact]) -> None:
     """A path whose file the source ties to the intrusion is tied to it too.
 
@@ -649,7 +700,9 @@ def _tie_fuller_paths(artifacts: List[SourceArtifact]) -> None:
     paths = ("file_path", "path", "file", "filename", "file_name")
     active = [a for a in artifacts if a.kind in paths and a.status == "active" and len(a.value) >= 4]
     for artifact in artifacts:
-        if artifact.kind not in paths or artifact.status != "unknown" or artifact.role == ATTACKER_SIDE_ROLE:
+        if artifact.kind not in paths or artifact.role == ATTACKER_SIDE_ROLE:
+            continue
+        if artifact.status != "unknown" and not (artifact.status == "active" and artifact.role == "unknown"):
             continue
         name = re.split(r"[/\\]", artifact.value)[-1]
         tied = next((a for a in active if a is not artifact and a.value in (name, artifact.value)), None)
@@ -823,6 +876,7 @@ def extract_source_evidence(
     evidence.artifacts = list(merged.values())
     _apply_text_roles(evidence.artifacts, text, lambda a: str(a.kind))
     _mark_attacker_side(evidence.artifacts, text)
+    _tie_observed_paths(evidence.artifacts, text)
     _tie_fuller_paths(evidence.artifacts)
     evidence.indicators = [_to_record(a, url) for a in evidence.artifacts if a.kind in INDICATOR_KINDS]
     if evidence.artifacts:
