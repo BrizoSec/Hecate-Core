@@ -7,8 +7,20 @@ console = Console()
 
 @click.group()
 def orchestrate() -> None:
-    """LangGraph Agentic Orchestrator commands (Human-in-the-Loop)."""
+    """EXPERIMENTAL: a LangGraph drafting graph with a human approval step.
+
+    This is not the pipeline the scheduled Runner uses and it is not scored
+    against the gold cases: it has no source evidence, claim audit, platform
+    scoping or rule review. To draft a hunt from intelligence you supply
+    through the evaluated pipeline, use `hecate-runner draft`.
+    """
     pass
+
+
+_EXPERIMENTAL_NOTE = (
+    "[yellow]Experimental:[/yellow] this graph is not the evaluated pipeline. "
+    "Use [bold]hecate-runner draft[/bold] for a hunt drafted the way scheduled ones are."
+)
 
 @orchestrate.command()
 @click.option('--topic', required=True, help="Hunt topic (e.g., 'PowerShell Downloads')")
@@ -29,6 +41,7 @@ def start(topic: str, threat_intel: str, thread_id: str, workspace: str) -> None
         "workspace_path": workspace,
     }
     
+    console.print(_EXPERIMENTAL_NOTE)
     console.print(f"[bold green]Starting Agentic Pipeline for Thread:[/bold green] {thread_id}")
     for event in hecate_graph.stream(initial_state, config=config):
         for key in event.keys():

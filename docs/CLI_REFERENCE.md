@@ -1,7 +1,9 @@
 # Hecate CLI Reference
 
 Reference for the main `hecate-agent` commands. The CLI also includes
-`eval-gold`, `orchestrate`, and optional `splunk` commands; use
+`eval-gold`, optional `splunk` commands, and the experimental `orchestrate`
+graph, which is not the pipeline the Runner uses (to draft a hunt from
+intelligence you supply through that pipeline, use `hecate-runner draft`); use
 `hecate-agent --help` and `hecate-agent COMMAND --help` for the installed
 version's complete, authoritative command and option list.
 

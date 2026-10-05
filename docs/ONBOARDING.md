@@ -148,20 +148,25 @@ Neither suite needs a network, a model, or the other repository's services.
 
 ### 5. Draft your first hunt
 
-Give the Runner one piece of intelligence by hand and run a single cycle:
+Hand the Runner one piece of intelligence and it runs a single cycle on it:
 
 ```bash
 cd ../Hecate-Runner
-mkdir -p ../Hecate-Core/cti_queue
-cat > ../Hecate-Core/cti_queue/next.txt <<'EOF'
+cat > /tmp/intel.txt <<'EOF'
 Attackers were observed creating scheduled tasks (T1053.005) that launch
 encoded PowerShell from a user-writable directory to regain access after
 reboot, then beaconing over HTTPS to newly registered domains.
 EOF
 
-uv run hecate-runner run --dry-run           # shows what it would do
-uv run hecate-runner run                     # does it
+uv run hecate-runner draft --file /tmp/intel.txt --dry-run   # shows what it would do
+uv run hecate-runner draft --file /tmp/intel.txt             # does it
 ```
+
+`draft` skips the feeds and triage, since you chose the item, and then runs
+exactly the cycle a scheduled feed item gets. Add `--url` when the text
+summarises a report, so the report itself is read for evidence.
+`hecate-runner run` is the scheduled form: it takes the next item from the
+configured feeds instead.
 
 A real cycle takes anywhere from two minutes on a hosted model to twenty on a
 local one. Watch it from a second terminal:

@@ -65,22 +65,10 @@ def run_cycle(case: str, workspace: Path, runner: Path) -> Any:
     os.chdir(runner)  # the Runner reads its settings from the .env beside it
 
     from hecate_runner.config import Settings
-    from hecate_runner.cti.base import CTIItem, CTIProvider
     from hecate_runner.cti.otx import _pulse_to_cti_item
+    from hecate_runner.cti.single import SingleItemProvider
     from hecate_runner.hecate_client import HecateClient
     from hecate_runner.orchestrator import Orchestrator
-
-    class One(CTIProvider):
-        name = "gold"
-
-        def __init__(self, item: CTIItem) -> None:
-            self.items = [item]
-
-        def next_item(self) -> Any:
-            return self.items[0] if self.items else None
-
-        def acknowledge(self, item: CTIItem) -> None:
-            self.items.remove(item)
 
     item = _pulse_to_cti_item(json.loads((PULSE_DIR / f"{case}.json").read_text()))
     item.content = yaml.safe_load((GOLD_DIR / f"{case}.yaml").read_text())["source"]["cti"].strip()
@@ -98,7 +86,7 @@ def run_cycle(case: str, workspace: Path, runner: Path) -> Any:
         env_overrides=settings.env_for_hecate(),
         default_timeout_sec=settings.llm_timeout_sec,
     )
-    return Orchestrator(settings=settings, hecate=hecate, cti_provider=One(item)).run_once()
+    return Orchestrator(settings=settings, hecate=hecate, cti_provider=SingleItemProvider(item)).run_once()
 
 
 def score(case: str, draft: Path, queries: Path) -> Dict[str, Any]:
