@@ -115,6 +115,14 @@ directory ("deploy_meterpreter.sh Downloads and installs meterpreter.elf") was
 scored as the draft claiming Meterpreter was installed. The Technique Evidence
 table, which can quote the research document, is still scored.
 
+An indicator that is a host name or an address is placed in a rule only where
+it stands by itself, since 2026-10-05: a rule on `c2.example.net` does not
+match `example.net`, so it does not place it, while a suffix selector
+(`.example.net`) does. Before that the scorer looked for the value anywhere
+in the rule's value, and on the Redis case a rule for the live hostname was
+scored as carrying its forbidden parent domain. Other artifacts (paths, file
+names, hashes) are still matched anywhere in the value.
+
 ## Technique recall and its denominator
 
 Technique recall is reported separately, always as hits over a stated

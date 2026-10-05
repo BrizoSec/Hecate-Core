@@ -176,15 +176,33 @@ def _block_matches(block: Dict[str, Any], requirements: List[Dict[str, str]]) ->
     return True
 
 
+#: A host name or an address: a value another, longer name can contain.
+_NAME_SHAPED = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$", re.IGNORECASE)
+
+
+def _holds(rule_value: str, value: str) -> bool:
+    """Whether a rule's value carries the artifact.
+
+    A host name or address must stand by itself: a rule on a hostname does
+    not match its parent domain, so a rule for the live "c2.example.net" did
+    not place the forbidden "example.net". A suffix selector (".example.net")
+    does. Anything else is carried when it appears anywhere in the value.
+    """
+    if _NAME_SHAPED.match(value):
+        from hecate_agent.core.source_evidence import _own_mention
+
+        return bool(_own_mention(value).search(rule_value.lower()))
+    return value.lower() in rule_value.lower()
+
+
 def _placed(rules: List[Dict[str, Any]], placement: str, value: str) -> bool:
     category, _, fld = placement.partition(".")
-    needle = value.lower()
     for rule in rules:
         if _category(rule) != category.lower():
             continue
         for block in _blocks(rule):
             for key, raw in block.items():
-                if _base(key).lower() == fld.lower() and any(needle in v.lower() for v in _values(raw)):
+                if _base(key).lower() == fld.lower() and any(_holds(v, value) for v in _values(raw)):
                     return True
     return False
 

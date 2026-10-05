@@ -160,6 +160,23 @@ def test_indicators_are_placed_only_where_their_role_allows(tmp_path: Path) -> N
     assert _check(report, "historical not in dns_query.QueryName").passed is False
 
 
+@pytest.mark.parametrize(
+    ("selection", "placed"),
+    [
+        ("QueryName: old.example.net", True),
+        ("QueryName: c2.old.example.net", False),  # a rule on a host under it does not match the name itself
+        ("QueryName|endswith: .old.example.net", True),  # a suffix selector does
+        ("QueryName|contains: old.example.net", True),
+        ("QueryName: old.example.net.cn", False),
+    ],
+)
+def test_a_forbidden_name_is_placed_only_by_a_rule_that_would_match_it(tmp_path: Path, selection: str, placed: bool) -> None:
+    """The Redis case forbids a parent domain; a rule for the live hostname under it was scored as placing it."""
+    dns = _rule("dns_query", f"  selection:\n    {selection}\n  condition: selection")
+    report = score_draft(GOLD_MIN, _draft(tmp_path, techniques=[], platform=["Windows"], rules=[dns]))
+    assert _check(report, "historical not in dns_query.QueryName").passed is not placed
+
+
 # --- Detections: same selection block is an AND ----------------------------------------------
 
 
