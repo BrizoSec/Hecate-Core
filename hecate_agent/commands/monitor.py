@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import textwrap
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -589,16 +590,15 @@ def _recent_events(events: List[TrailEvent], rows: int, width: int) -> List[Tupl
     So the events are chosen to fit, newest first, and long messages are cut.
     """
     width = max(20, width)
-    limit = _LINES_PER_EVENT * width - 12  # room for wrapping at word boundaries
     chosen: List[Tuple[TrailEvent, str]] = []
     used = 0
     for event in reversed(events):
-        message = event.message if len(event.message) <= limit else event.message[: limit - 1] + "…"
-        lines = 1 if len(message) <= width else _LINES_PER_EVENT
-        if chosen and used + lines > rows:
+        # Wrapped here, not by the table: its own wrapping can take a third line.
+        lines = textwrap.wrap(event.message, width=width, max_lines=_LINES_PER_EVENT, placeholder="…") or [""]
+        if chosen and used + len(lines) > rows:
             break
-        chosen.append((event, message))
-        used += lines
+        chosen.append((event, "\n".join(lines)))
+        used += len(lines)
     return chosen[::-1]
 
 
@@ -606,7 +606,7 @@ def _activity_table(events: List[TrailEvent], rows: int = 8, width: int = 100) -
     table = Table(box=None, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
     table.add_column("TIME", width=10, style="dim")
     table.add_column("STAGE", width=10)
-    table.add_column("ACTIVITY", ratio=1, overflow="ellipsis")
+    table.add_column("ACTIVITY", ratio=1, overflow="ellipsis", no_wrap=True)
     for event, message in _recent_events(events, rows, width):
         color = _get_stage_color(event.stage)
         table.add_row(event.timestamp[-8:], f"[{color}]{event.stage[:10]}[/]", message)
@@ -633,12 +633,24 @@ def _calculate_llm_metrics(llm_stages: List[Dict[str, Any]]) -> Tuple[int, int, 
 def _build_summary_table(
     compact: bool, calls: int, input_tokens: int, output_tokens: int, cost_text: str,
     search_count: str, models: List[str], workspace: Optional[Path],
-    usage_note: str, has_stages: bool, stage_line: str = ""
+    usage_note: str, has_stages: bool, stage_line: str = "", narrow: bool = False
 ) -> Table:
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
-    if compact:
+    if narrow:
+        _narrow_usage_rows(
+            table,
+            f"{calls} calls" if has_stages else "no usage recorded",
+            f"{input_tokens:,} in / {output_tokens:,} out" if has_stages else "—",
+            cost_text,
+            ", ".join(models) or "not reported",
+            search_count,
+            stage_line,
+            usage_note,
+            workspace,
+        )
+    elif compact:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
         table.add_row("LLM", llm_summary)
         table.add_row("Cost", cost_text)
@@ -657,6 +669,27 @@ def _build_summary_table(
     return table
 
 
+def _narrow_usage_rows(
+    table: Table, llm: str, tokens: str, cost: str, model: str, searches: str, by_stage: str, status: str,
+    workspace: Optional[Path],
+) -> None:
+    """The usage rows for a column a third of the screen wide: one fact a row."""
+    table.add_row("LLM", llm)
+    table.add_row("Tokens", tokens)
+    table.add_row("Cost", cost)
+    table.add_row("Model", model)
+    table.add_row("Tavily", f"{searches} searches" if searches.isdigit() else f"searches {searches}")
+    first, _, second = by_stage.partition("\n")
+    table.add_row("By stage", first)
+    table.add_row("", second)
+    table.add_row("Status", status)
+    table.add_row("Keys", _credential_summary(workspace))
+
+
+#: Rows of the usage panel in a side column, with its border.
+_NARROW_USAGE_PANEL_HEIGHT = 11
+
+
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, status: str) -> None:
     """The full layout's four usage rows: the panel is this tall and no taller."""
     table.add_row("LLM", llm)
@@ -669,15 +702,22 @@ def _usage_rows(table: Table, llm: str, model: str, by_stage: str, status: str) 
 _USAGE_PANEL_HEIGHT = 6
 
 
-def _stage_line(llm_stages: List[Dict[str, Any]]) -> str:
-    """Each stage's calls and tokens on one line; the cycle total is the LLM row."""
-    parts = [
-        f"{str(stage.get('stage', 'unknown')).removesuffix('_generation').removesuffix('_evidence')} "
-        f"{stage.get('llm_calls') or 0} ({int(stage.get('input_tokens') or 0):,}/{int(stage.get('output_tokens') or 0):,})"
-        for stage in llm_stages
-        if stage.get("stage") != "cycle"
-    ]
-    return " · ".join(parts) + "  (calls, tokens in/out)" if parts else "none recorded"
+def _stage_line(llm_stages: List[Dict[str, Any]], tokens: bool = True) -> str:
+    """Each stage's calls, and its tokens where there is room, on one line; the cycle total is the LLM row."""
+    parts = []
+    for stage in llm_stages:
+        if stage.get("stage") == "cycle":
+            continue
+        part = f"{str(stage.get('stage', 'unknown')).removesuffix('_generation').removesuffix('_evidence')} {stage.get('llm_calls') or 0}"
+        if tokens:
+            part += f" ({int(stage.get('input_tokens') or 0):,}/{int(stage.get('output_tokens') or 0):,})"
+        parts.append(part)
+    if not parts:
+        return "none recorded"
+    if tokens:
+        return " · ".join(parts) + "  (calls, tokens in/out)"
+    half = (len(parts) + 1) // 2  # two rows in a narrow column
+    return " · ".join(parts[:half]) + "\n" + (" · ".join(parts[half:]) + " calls").strip()
 
 
 def _usage_panel(
@@ -689,10 +729,11 @@ def _usage_panel(
     workspace: Optional[Path] = None,
     live: Optional[Dict[str, Any]] = None,
     now: Optional[datetime] = None,
+    narrow: bool = False,
 ) -> Panel:
     if active and current and live:
         # The running cycle's own calls, not the totals of the last one to finish.
-        return _live_usage_panel(live, current, events, compact, workspace, now or datetime.now())
+        return _live_usage_panel(live, current, events, compact, workspace, now or datetime.now(), narrow)
     
     stages = metrics.get("stages") or []
     llm_stages = [stage for stage in stages if isinstance(stage, dict) and stage.get("llm_calls") is not None]
@@ -708,7 +749,7 @@ def _usage_panel(
 
     table = _build_summary_table(
         compact, calls, input_tokens, output_tokens, cost_text,
-        search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages)
+        search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages, tokens=not narrow), narrow
     )
     return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
@@ -737,12 +778,13 @@ def _live_usage_panel(
     compact: bool,
     workspace: Optional[Path],
     now: datetime,
+    narrow: bool = False,
 ) -> Panel:
     calls, in_flight, failed = live["llm_calls"], live["in_flight"], live["failed"]
     call_text = f"{calls} done"
     if in_flight:
         waited = _duration(max(0.0, now.timestamp() - live["last_start"]))
-        call_text += f" · {in_flight} in flight (latest sent {waited} ago)"
+        call_text += f" · {in_flight} in flight ({waited})" if narrow else f" · {in_flight} in flight (latest sent {waited} ago)"
     if failed:
         call_text += f" · {failed} failed"
     cost, basis = summarize_cost(live["models"], calls, live["input_tokens"], live["output_tokens"], live["cost_usd"])
@@ -760,7 +802,19 @@ def _live_usage_panel(
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
-    if compact:
+    if narrow:
+        _narrow_usage_rows(
+            table,
+            call_text,
+            f"{live['input_tokens']:,} in / {live['output_tokens']:,} out",
+            cost_text,
+            models,
+            search_count,
+            "written when the cycle ends",
+            usage_note,
+            workspace,
+        )
+    elif compact:
         table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
         table.add_row("Cost", cost_text)
         table.add_row("Tavily", f"{search_count} searches")
@@ -1092,26 +1146,44 @@ def _render_dashboard(
         return layout
 
     resources_height = 6 if len(host.disks) <= 1 else 5 + len(host.disks) + 3
-    middle_height = console.size.height - 4 - resources_height - _USAGE_PANEL_HEIGHT - 3
-    layout.split_column(
-        Layout(header_panel, name="header", size=4),
-        Layout(name="resources", size=resources_height),
-        Layout(name="middle", ratio=2),
-        Layout(_usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed), name="usage", size=_USAGE_PANEL_HEIGHT),
-        Layout(
-            Panel(
-                Text(
-                    f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
-                    f"{workspace / 'logs' / 'orchestrator.log'}",
-                    style="dim",
-                ),
-                border_style="bright_magenta",
-                box=box.SIMPLE,
+    stages_height = len(_STAGES) + 3
+    service_height = 8 if runner.installed else 0
+    footer = Layout(
+        Panel(
+            Text(
+                f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
+                f"{workspace / 'logs' / 'orchestrator.log'}",
+                style="dim",
             ),
-            name="footer",
-            size=3,
+            border_style="bright_magenta",
+            box=box.SIMPLE,
         ),
+        name="footer",
+        size=3,
     )
+    body_height = console.size.height - 4 - resources_height - 3
+    # A full-width usage panel is mostly empty to the right of its values, and
+    # every row it takes is one the stream loses. With room for all three
+    # panels in the left-hand column, the stream runs the full height instead.
+    usage_on_left = body_height >= stages_height + service_height + _NARROW_USAGE_PANEL_HEIGHT
+    usage_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
+    if usage_on_left:
+        middle_height = body_height
+        layout.split_column(
+            Layout(header_panel, name="header", size=4),
+            Layout(name="resources", size=resources_height),
+            Layout(name="middle", ratio=2),
+            footer,
+        )
+    else:
+        middle_height = body_height - _USAGE_PANEL_HEIGHT
+        layout.split_column(
+            Layout(header_panel, name="header", size=4),
+            Layout(name="resources", size=resources_height),
+            Layout(name="middle", ratio=2),
+            Layout(usage_panel, name="usage", size=_USAGE_PANEL_HEIGHT),
+            footer,
+        )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
             Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
@@ -1174,8 +1246,6 @@ def _render_dashboard(
     # The stage list is short and its column was half empty, so the service
     # panel sits under it when there is room and the stream gets the whole
     # right-hand column.
-    stages_height = len(_STAGES) + 3
-    service_height = 8
     service_on_left = runner.installed and middle_height >= stages_height + service_height
     stream_height = middle_height if service_on_left or not runner.installed else middle_height - service_height
     if recent_error and stale:
@@ -1189,15 +1259,19 @@ def _render_dashboard(
             box=box.ROUNDED,
         )
 
+    left = [Layout(stages_panel, ratio=1)]
     if service_on_left:
-        layout["stages"].split_column(Layout(stages_panel, ratio=1), Layout(_runner_panel(runner, events), size=service_height))
-        layout["operations"].update(main_panel)
+        left.append(Layout(_runner_panel(runner, events), size=service_height))
+    if usage_on_left:
+        left.append(Layout(usage_panel, size=_NARROW_USAGE_PANEL_HEIGHT))
+    if len(left) > 1:
+        layout["stages"].split_column(*left)
     else:
         layout["stages"].update(stages_panel)
-        if runner.installed:
-            layout["operations"].split_column(Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height))
-        else:
-            layout["operations"].update(main_panel)
+    if runner.installed and not service_on_left:
+        layout["operations"].split_column(Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height))
+    else:
+        layout["operations"].update(main_panel)
     return layout
 
 
