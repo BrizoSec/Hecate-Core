@@ -577,14 +577,39 @@ _STAGE_COLORS = {
 def _get_stage_color(stage: str) -> str:
     return _STAGE_COLORS.get(stage.lower(), "white")
 
-def _activity_table(events: List[TrailEvent]) -> Table:
+#: An event's message may wrap onto this many lines before it is cut.
+_LINES_PER_EVENT = 2
+
+
+def _recent_events(events: List[TrailEvent], rows: int, width: int) -> List[Tuple[TrailEvent, str]]:
+    """The newest events that fit in ``rows`` lines of ``width`` characters, oldest first.
+
+    A panel clips what overflows it from the bottom, which is where the newest
+    lines are: eight long events in a short panel hid the cycle's "done" line.
+    So the events are chosen to fit, newest first, and long messages are cut.
+    """
+    width = max(20, width)
+    limit = _LINES_PER_EVENT * width - 12  # room for wrapping at word boundaries
+    chosen: List[Tuple[TrailEvent, str]] = []
+    used = 0
+    for event in reversed(events):
+        message = event.message if len(event.message) <= limit else event.message[: limit - 1] + "…"
+        lines = 1 if len(message) <= width else _LINES_PER_EVENT
+        if chosen and used + lines > rows:
+            break
+        chosen.append((event, message))
+        used += lines
+    return chosen[::-1]
+
+
+def _activity_table(events: List[TrailEvent], rows: int = 8, width: int = 100) -> Table:
     table = Table(box=None, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
     table.add_column("TIME", width=10, style="dim")
     table.add_column("STAGE", width=10)
     table.add_column("ACTIVITY", ratio=1, overflow="ellipsis")
-    for event in events[-8:]:
+    for event, message in _recent_events(events, rows, width):
         color = _get_stage_color(event.stage)
-        table.add_row(event.timestamp[-8:], f"[{color}]{event.stage[:10]}[/]", event.message)
+        table.add_row(event.timestamp[-8:], f"[{color}]{event.stage[:10]}[/]", message)
     if not events:
         table.add_row("--:--:--", "[dim white]idle[/]", "Waiting for Runner events in logs/orchestrator.log")
     return table
@@ -608,11 +633,11 @@ def _calculate_llm_metrics(llm_stages: List[Dict[str, Any]]) -> Tuple[int, int, 
 def _build_summary_table(
     compact: bool, calls: int, input_tokens: int, output_tokens: int, cost_text: str,
     search_count: str, models: List[str], workspace: Optional[Path],
-    usage_note: str, has_stages: bool
+    usage_note: str, has_stages: bool, stage_line: str = ""
 ) -> Table:
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=17)
-    table.add_column("value", style="bright_white")
+    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
+    table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if compact:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
         table.add_row("LLM", llm_summary)
@@ -621,29 +646,38 @@ def _build_summary_table(
         table.add_row("Model", ", ".join(models) or "not reported")
         table.add_row("Keys", _credential_summary(workspace))
     else:
-        table.add_row("LLM calls", str(calls) if has_stages else "n/a")
-        table.add_row("Input tokens", f"{input_tokens:,}" if has_stages else "n/a")
-        table.add_row("Output tokens", f"{output_tokens:,}" if has_stages else "n/a")
-        table.add_row("Cost", cost_text)
-        table.add_row("Tavily searches", search_count)
-        table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Credentials", _credential_summary(workspace))
-        table.add_row("Usage note", usage_note)
+        llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no usage recorded"
+        _usage_rows(
+            table,
+            f"{llm_summary} · cost {cost_text}",
+            f"{', '.join(models) or 'not reported'} · Tavily searches: {search_count}",
+            stage_line,
+            f"{usage_note} · {_credential_summary(workspace)}",
+        )
     return table
 
 
-def _build_stage_table(llm_stages: List[Dict[str, Any]]) -> Table:
-    stage_table = Table(box=None, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
-    stage_table.add_column("STAGE", style="bright_magenta")
-    stage_table.add_column("CALLS", justify="right")
-    stage_table.add_column("TOKENS IN / OUT", justify="right")
-    for stage in llm_stages:
-        stage_table.add_row(
-            str(stage.get("stage", "unknown")),
-            str(stage.get("llm_calls") or 0),
-            f"{int(stage.get('input_tokens') or 0):,} / {int(stage.get('output_tokens') or 0):,}",
-        )
-    return stage_table
+def _usage_rows(table: Table, llm: str, model: str, by_stage: str, status: str) -> None:
+    """The full layout's four usage rows: the panel is this tall and no taller."""
+    table.add_row("LLM", llm)
+    table.add_row("Model", model)
+    table.add_row("By stage", by_stage)
+    table.add_row("Status", status)
+
+
+#: Rows of the usage panel in the full layout, with its border.
+_USAGE_PANEL_HEIGHT = 6
+
+
+def _stage_line(llm_stages: List[Dict[str, Any]]) -> str:
+    """Each stage's calls and tokens on one line; the cycle total is the LLM row."""
+    parts = [
+        f"{str(stage.get('stage', 'unknown')).removesuffix('_generation').removesuffix('_evidence')} "
+        f"{stage.get('llm_calls') or 0} ({int(stage.get('input_tokens') or 0):,}/{int(stage.get('output_tokens') or 0):,})"
+        for stage in llm_stages
+        if stage.get("stage") != "cycle"
+    ]
+    return " · ".join(parts) + "  (calls, tokens in/out)" if parts else "none recorded"
 
 
 def _usage_panel(
@@ -674,18 +708,9 @@ def _usage_panel(
 
     table = _build_summary_table(
         compact, calls, input_tokens, output_tokens, cost_text,
-        search_count, models, workspace, usage_note, bool(llm_stages)
+        search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages)
     )
-    
-    content: Any = table
-    if not compact and llm_stages:
-        stage_table = _build_stage_table(llm_stages)
-        content = Table.grid(expand=True, padding=(0, 1))
-        content.add_column(ratio=1)
-        content.add_column(ratio=1)
-        content.add_row(table, stage_table)
-        
-    return Panel(content, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+    return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> str:
@@ -733,8 +758,8 @@ def _live_usage_panel(
     usage_note = f"Live · cycle {current.cycle_id} so far · {last}"
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=17)
-    table.add_column("value", style="bright_white")
+    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
+    table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if compact:
         table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
         table.add_row("Cost", cost_text)
@@ -742,14 +767,13 @@ def _live_usage_panel(
         table.add_row("Model", models)
         table.add_row("Keys", _credential_summary(workspace))
     else:
-        table.add_row("LLM calls", call_text)
-        table.add_row("Input tokens", f"{live['input_tokens']:,}")
-        table.add_row("Output tokens", f"{live['output_tokens']:,}")
-        table.add_row("Cost", cost_text)
-        table.add_row("Tavily searches", search_count)
-        table.add_row("Model", models)
-        table.add_row("Credentials", _credential_summary(workspace))
-        table.add_row("Usage note", usage_note)
+        _usage_rows(
+            table,
+            f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out · cost {cost_text}",
+            f"{models} · Tavily searches: {search_count}",
+            "written when the cycle ends",
+            f"{usage_note} · {_credential_summary(workspace)}",
+        )
     return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
@@ -1067,11 +1091,13 @@ def _render_dashboard(
         )
         return layout
 
+    resources_height = 6 if len(host.disks) <= 1 else 5 + len(host.disks) + 3
+    middle_height = console.size.height - 4 - resources_height - _USAGE_PANEL_HEIGHT - 3
     layout.split_column(
         Layout(header_panel, name="header", size=4),
-        Layout(name="resources", size=6 if len(host.disks) <= 1 else 5 + len(host.disks) + 3),
+        Layout(name="resources", size=resources_height),
         Layout(name="middle", ratio=2),
-        Layout(_usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed), name="usage", size=11),
+        Layout(_usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed), name="usage", size=_USAGE_PANEL_HEIGHT),
         Layout(
             Panel(
                 Text(
@@ -1138,31 +1164,40 @@ def _render_dashboard(
                 ratio=1,
             ),
         )
-    layout["middle"].split_row(
-        Layout(
-            Panel(
-                _stage_table(latest, active, stale, in_progress),
-                title="[bold bright_cyan]PIPELINE SEQUENCE[/]",
-                border_style="bright_magenta",
-                box=box.ROUNDED,
-            ),
-            name="stages",
-            ratio=1,
-        ),
-        Layout(name="operations", ratio=2),
+    stages_panel = Panel(
+        _stage_table(latest, active, stale, in_progress),
+        title="[bold bright_cyan]PIPELINE SEQUENCE[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
     )
+    layout["middle"].split_row(Layout(name="stages", ratio=1), Layout(name="operations", ratio=2))
+    # The stage list is short and its column was half empty, so the service
+    # panel sits under it when there is room and the stream gets the whole
+    # right-hand column.
+    stages_height = len(_STAGES) + 3
+    service_height = 8
+    service_on_left = runner.installed and middle_height >= stages_height + service_height
+    stream_height = middle_height if service_on_left or not runner.installed else middle_height - service_height
     if recent_error and stale:
         main_panel = Panel(Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.ROUNDED)
     else:
-        main_panel = Panel(_activity_table(events), title="[bold bright_cyan]ACTION STREAM[/]", border_style="bright_magenta", box=box.ROUNDED)
-        
-    if runner.installed:
-        layout["operations"].split_column(
-            Layout(main_panel, ratio=2),
-            Layout(_runner_panel(runner, events), size=8),
+        main_panel = Panel(
+            # Inside the panel: two border lines and the table's header; two fixed columns and the padding.
+            _activity_table(events, rows=max(1, stream_height - 3), width=console.size.width * 2 // 3 - 30),
+            title="[bold bright_cyan]ACTION STREAM[/]",
+            border_style="bright_magenta",
+            box=box.ROUNDED,
         )
-    else:
+
+    if service_on_left:
+        layout["stages"].split_column(Layout(stages_panel, ratio=1), Layout(_runner_panel(runner, events), size=service_height))
         layout["operations"].update(main_panel)
+    else:
+        layout["stages"].update(stages_panel)
+        if runner.installed:
+            layout["operations"].split_column(Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height))
+        else:
+            layout["operations"].update(main_panel)
     return layout
 
 

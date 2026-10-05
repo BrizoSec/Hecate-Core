@@ -181,3 +181,55 @@ def test_a_finished_cycle_shows_its_recorded_totals_not_the_call_log() -> None:
     m.console.print(m._usage_panel(metrics, events[-1], False, events, live=live))
     text = m.console.export_text()
     assert "Last cycle 54ac42 · draft_created" in text and "5,000" in text
+
+
+# --- The action stream -------------------------------------------------------------------------
+
+
+def _long_cycle() -> List[m.TrailEvent]:
+    """A finished cycle whose rule lines are long enough to wrap, as real rejections are."""
+    steps = [f"sigma: rejected rule {n}: " + "the source gives no such value " * 8 for n in range(12)]
+    return _events("route: narrative", *steps, "sigma: done in 395s: 3 rule(s) kept", "done: draft_created -> H-0001 in 844s")
+
+
+@pytest.mark.parametrize("height", [44, 60])
+def test_the_newest_line_is_always_in_the_action_stream(height: int) -> None:
+    """Long lines used to push the cycle's last lines out of the bottom of the panel."""
+    runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
+    text = _render(_long_cycle(), runner, height=height)
+    assert "draft_created -> H-0001 in 844s" in text.split("ACTION STREAM", 1)[1]
+    assert "HECATE RUNNER SERVICE" in text
+
+
+def test_a_tall_screen_gives_the_stream_the_whole_right_column() -> None:
+    runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
+    tall, short = _render(_long_cycle(), runner, height=60), _render(_long_cycle(), runner, height=44)
+    assert tall.count("rejected rule") > short.count("rejected rule")
+    # On a tall screen the service panel moves under the stage list, left of the stream.
+    service_line = next(line for line in tall.splitlines() if "HECATE RUNNER SERVICE" in line)
+    assert service_line.index("HECATE RUNNER SERVICE") < 140 // 3
+
+
+def test_events_are_chosen_to_fit_the_rows_they_are_given() -> None:
+    events = _long_cycle()
+    chosen = m._recent_events(events, rows=6, width=60)
+    assert chosen[-1][0] is events[-1]
+    assert sum(1 if len(message) <= 60 else m._LINES_PER_EVENT for _, message in chosen) <= 6
+    assert all(len(message) <= m._LINES_PER_EVENT * 60 for _, message in chosen)
+
+
+def test_the_usage_panel_is_four_rows_whatever_it_shows() -> None:
+    """It sits under the stream, and every row it takes is one the stream loses."""
+    stages = [
+        {"stage": name, "llm_calls": 4, "input_tokens": 13469, "output_tokens": 2749, "models": ["local/a-long-model-name"]}
+        for name in ("source_evidence", "research", "hypothesis_generation", "sigma_generation")
+    ]
+    metrics = {"cycle_id": "54ac42", "outcome": "draft_created", "stages": [*stages, {"stage": "cycle", "llm_calls": None}]}
+    events = _events("route: narrative", "done: draft_created")
+    for width in (100, 170):
+        m.console = Console(width=width, record=True, force_terminal=False)
+        m.console.print(m._usage_panel(metrics, events[-1], False, events))
+        lines = m.console.export_text().splitlines()
+        assert len(lines) == m._USAGE_PANEL_HEIGHT
+        assert "16 calls" in lines[1] and "Last cycle 54ac42" in lines[4]
+        assert "source 4 (13,469/2,749)" in lines[3] and "cycle" not in lines[3]
