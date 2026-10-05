@@ -150,6 +150,13 @@ def test_a_one_word_name_that_is_an_everyday_word_is_not_matched() -> None:
     assert "T1036" in _ids("The loader masquerades as a Teams update.")
 
 
+def test_a_name_that_is_a_thing_not_a_behaviour_is_not_matched() -> None:
+    """T1213.006 Databases was proposed for a Redis cryptomining botnet: Redis is a database."""
+    assert "T1213.006" not in _ids("The operator logs C2 pings to a local SQLite database on exposed Redis database servers.")
+    assert "T1213.001" not in _ids("Attackers exploited a Confluence vulnerability for initial access.")
+    assert "T1036" in _ids("The loader masquerades as a database backup tool.")
+
+
 def test_dns_exfiltration_is_proposed() -> None:
     """H-0017, "Abusing Open Recursive DNS for Exfiltration", got T1027 alone."""
     assert "T1048.003" in _ids("Malware Sample Abusing Open Recursive DNS for Exfiltration")

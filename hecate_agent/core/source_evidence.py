@@ -482,6 +482,25 @@ _OTHER_OPERATION_WORDING = re.compile(
 )
 
 
+#: The source gives only the name's registry history: who registered it, where its nameservers pointed.
+_REGISTRY_WORDING = re.compile(
+    r"\b(registration|registrar|whois|nameserver|name[- ]server|dns[- ]hosting) (history|record|churn)s?\b"
+    r"|\bre-?regist(ered|ration)\b|\bpreviously[- ]expired\b|\bprior (registrant|owner)s?\b"
+    r"|\bnameserver providers?\b",
+    re.IGNORECASE,
+)
+
+
+def _own_mention(value: str) -> "re.Pattern[str]":
+    """Matches ``value`` where it stands by itself, not as the tail or head of a longer name.
+
+    A search for "example.net" also finds "c2.example.net", so a parent
+    domain was read by everything the report says about its subdomains, and
+    "1.2.3.4" by "11.2.3.4". A wildcard ("*.example.net") is the name itself.
+    """
+    return re.compile(rf"(?<![\w-])(?<![\w-]\.){re.escape(value.lower())}(?![\w-])(?!\.[\w-])")
+
+
 #: A line that stops mid-phrase: it ends in punctuation that opens something, or in a joining word.
 _RUNS_ON = re.compile(r"([(\[,:]|\b(at|to|on|from|and|or|of|for|with|the|is|as|by|via|in|against))\s*$", re.IGNORECASE)
 
@@ -496,9 +515,10 @@ def _local_contexts(text: str, value: str) -> List[str]:
     """
     lines = [line.strip() for line in refang(text or "").split("\n")]
     needle = value.lower()
+    mention = _own_mention(value)
     contexts: List[str] = []
     for index, line in enumerate(lines):
-        if needle not in line.lower():
+        if not mention.search(line.lower()):
             continue
         # The line before belongs to this mention only when it runs on into it
         # ("... open directory at" / "194.48.248.105"); a finished table cell is the row above.
@@ -517,7 +537,8 @@ def _local_contexts(text: str, value: str) -> List[str]:
                     break
         # Prose lines are long: keep what is near the value, not the paragraph's other subjects.
         joined = " ".join(parts)
-        at = joined.lower().find(needle)
+        found = mention.search(joined.lower())
+        at = found.start() if found else joined.lower().find(needle)
         contexts.append(joined[max(0, at - 200) : at + len(value) + 200])
     return contexts
 
@@ -531,6 +552,12 @@ def network_role_from_context(text: str, value: str) -> Tuple[str, str, str]:
     out as C2. An address tied to a different operation ("Earlier, separate
     open directory linked by wallet reuse") is historical for this one.
     Wording that gives it a role victims would see always wins.
+
+    A name the source mentions only for its registry history (who registered
+    it, where its nameservers pointed) is a record about the name, not a
+    sighting of it in the campaign: the feed listed a parent domain beside its
+    live hostname, the report gave the parent's nameserver history and nothing
+    else, and it got high-severity DNS and connection rules.
     """
     contexts = _local_contexts(text, value)
     if any(_INFRASTRUCTURE_WORDING.search(c) and not _OTHER_OPERATION_WORDING.search(c) for c in contexts):
@@ -539,6 +566,8 @@ def network_role_from_context(text: str, value: str) -> Tuple[str, str, str]:
         for context in contexts:
             if wording.search(context):
                 return role, status, context[:300]
+    if contexts and all(_REGISTRY_WORDING.search(c) for c in contexts):
+        return "historical", "historical", contexts[0][:300]
     return "", "", ""
 
 
@@ -793,7 +822,9 @@ def _contexts(text: str, value: str, limit: int = 2) -> List[str]:
     """Passages around the first occurrences of ``value`` (defanged or not) in ``text``."""
     target = normalise(value)
     found: List[str] = []
-    for match in re.finditer(re.escape(value).replace(r"\.", r"(?:\.|\[\.\]|\(\.\))"), text, re.IGNORECASE):
+    # Its own mentions, as in ``_own_mention``: not as part of a longer name.
+    pattern = r"(?<![\w-])(?<![\w-]\.)(?<![\w-]\[\.\])" + re.escape(value).replace(r"\.", r"(?:\.|\[\.\]|\(\.\))")
+    for match in re.finditer(pattern + r"(?![\w-])(?!(?:\.|\[\.\])[\w-])", text, re.IGNORECASE):
         start, end = max(0, match.start() - CONTEXT_CHARS), match.end() + CONTEXT_CHARS
         found.append(text[start:end])
         if len(found) == limit:

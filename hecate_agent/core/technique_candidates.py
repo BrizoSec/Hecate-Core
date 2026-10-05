@@ -76,7 +76,19 @@ _GENERIC_NAME_WORDS = frozenset(
 #: builtin) was proposed for a Teams vishing campaign on "OAuth Traps"; "proxy"
 #: is as often the defender's web proxy as the attacker's. Report wording can
 #: still name either deliberately ("socks proxy" for T1090).
-_EVERYDAY_ONE_WORD_NAMES = frozenset({"trap", "proxy"})
+#:
+#: The rest name a thing, not a behaviour: the sub-techniques of T1213 (Data
+#: from Information Repositories) are called after the repository, so
+#: "Databases" was proposed for every report on a database server and
+#: "Confluence" would be for one about exploiting it. A screensaver is a
+#: screensaver far more often than it is T1546.002.
+_EVERYDAY_ONE_WORD_NAMES = frozenset({"trap", "proxy", "databases", "confluence", "sharepoint", "screensaver"})
+
+
+def name_is_everyday_word(name: str) -> bool:
+    """Whether a technique's name is one everyday word, so a text using the word does not name the technique."""
+    tokens = [w for w in _WORD_RE.findall(name.lower()) if w not in _JOINERS]
+    return len(tokens) == 1 and tokens[0] in _EVERYDAY_ONE_WORD_NAMES
 
 #: Tactics describing what happens before the intrusion, on the adversary's
 #: own infrastructure. Their technique names are everyday report nouns

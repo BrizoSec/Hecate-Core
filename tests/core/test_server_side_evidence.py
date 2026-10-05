@@ -237,6 +237,81 @@ def test_target_and_other_operation_addresses_get_no_rule_whatever_the_model_sai
     assert placements(records[C2]) == ["network_connection.DestinationIp"] and 10000 in records[C2].ports
 
 
+# --- A name beside a longer name that contains it ---------------------------------------------
+
+REGISTRY_PAGE = """Correction:
+socket.ayakliborsa[.]net
+is live operator infrastructure, not a stale pivot. Its A record pointed at
+188.245[.]99.156
+continuously through the day of this pass, and the C2 callback endpoint sits on that address.
+The domain's registration history adds one more wrinkle:
+ayakliborsa.net
+passed through at least four different nameserver providers before landing on its current
+host around its October 2024 re-registration, which is ordinary churn for a previously-expired domain.
+Figure 23. Nameserver history for the
+ayakliborsa.net
+apex domain.
+Indicators of Compromise
+socket.ayakliborsa[.]net
+Domain
+Live operator-controlled hostname
+11.188.245.99
+Address
+Unrelated address that merely contains part of another
+"""
+
+
+def test_a_parent_domain_is_read_by_its_own_mentions_not_its_subdomains() -> None:
+    """A search for the parent also found every line about the live hostname under it."""
+    own = se._local_contexts(REGISTRY_PAGE, "ayakliborsa.net")
+    assert len(own) == 2 and all("registration history" in c or "Nameserver history" in c for c in own)
+    assert len(se._local_contexts(REGISTRY_PAGE, "socket.ayakliborsa.net")) == 2
+    assert len(se._contexts(REGISTRY_PAGE, "ayakliborsa.net", limit=9)) == 2
+    assert len(se._contexts(REGISTRY_PAGE, "socket.ayakliborsa.net", limit=9)) == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "value", "found"),
+    [
+        ("resolves c2.example.net today", "example.net", False),
+        ("the certificate covers *.example.net only", "example.net", True),
+        ("fetched http://example.net/a.sh, then", "example.net", True),
+        ("example.net.cn is someone else's", "example.net", False),
+        ("seen at 11.2.3.4 once", "1.2.3.4", False),
+        ("seen at 1.2.3.4:8080 once", "1.2.3.4", True),
+        ("ended the sentence with example.net.", "example.net", True),
+    ],
+)
+def test_a_value_is_matched_where_it_stands_by_itself(text: str, value: str, found: bool) -> None:
+    assert bool(se._local_contexts(text, value)) is found
+
+
+def test_a_name_given_only_its_registry_history_gets_no_rule() -> None:
+    """The feed listed the parent beside its live hostname; the report gave the parent's nameserver history alone."""
+    assert se.network_role_from_context(REGISTRY_PAGE, "ayakliborsa.net")[:2] == ("historical", "historical")
+    assert se.network_role_from_context(REGISTRY_PAGE, "socket.ayakliborsa.net")[0] == ""
+    evidence = se.extract_source_evidence("https://report.example/redis", page_text=REGISTRY_PAGE, complete=_no_reply)
+    feed = {"domain": ["ayakliborsa.net"], "hostname": ["socket.ayakliborsa.net"]}
+    records = {r.value: r for r in se.build_indicator_records(feed, evidence, _no_reply)}
+    assert records["ayakliborsa.net"].role == "historical" and not placements(records["ayakliborsa.net"])
+    assert "registration history" in records["ayakliborsa.net"].evidence
+    assert placements(records["socket.ayakliborsa.net"])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The C2 domain evil-updates.net was registered two days before the campaign.",
+        "evil-updates.net was registered on 2026-05-01 and resolves to the staging server.",
+        "evil-updates.net was registered on 2026-05-01 through a privacy-redacted registrar.",
+        "Its nameserver history is unremarkable, but evil-updates.net served the payload throughout.",
+    ],
+)
+def test_a_registration_date_beside_a_name_in_use_changes_nothing(text: str) -> None:
+    """Reports give a live domain's registration date all the time; only a name with nothing but history is a record."""
+    assert se.network_role_from_context(text, "evil-updates.net") == ("", "", "")
+
+
 # --- Persistence files ------------------------------------------------------------------------
 
 

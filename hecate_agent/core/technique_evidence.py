@@ -338,7 +338,11 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
 
 
 def _name_pattern(names: Iterable[str]) -> Optional["re.Pattern[str]"]:
-    phrases = [re.escape(n.lower()) for n in names if n and len(n) >= 4]
+    from hecate_agent.core.technique_candidates import name_is_everyday_word
+
+    # "Databases" is T1213.006's whole name; a report on a database server says
+    # the word in every paragraph without describing data being taken from one.
+    phrases = [re.escape(n.lower()) for n in names if n and len(n) >= 4 and not name_is_everyday_word(n)]
     return re.compile(r"\b(" + "|".join(phrases) + r")\b") if phrases else None
 
 

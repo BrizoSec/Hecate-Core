@@ -94,6 +94,13 @@ def test_an_observed_passage_outranks_a_capability_one() -> None:
     assert evidence[0].passage.startswith("In this intrusion")
 
 
+def test_an_everyday_word_is_not_support_for_the_technique_it_names() -> None:
+    """A model chose T1213.006 Databases for a Redis botnet and the word "database" kept it."""
+    text = "The attackers compromised exposed Redis database servers and wrote a cron job to each."
+    assert technique_support("T1213.006", ["Databases"], text) is None
+    assert technique_support("T1056.001", ["Keylogging"], "The implant performed keylogging on each host.") is not None
+
+
 def test_technique_support_by_name_reports_capability_only_mentions() -> None:
     text = "The tool offers credential dumping and keylogging to its operators."
     support = technique_support("T1056.001", ["Keylogging"], text)
