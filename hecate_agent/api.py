@@ -267,3 +267,13 @@ def link_research_to_hunt(
 
     manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     return manager.link_hunt_to_research(research_id, hunt_id)
+
+def generate_enrichment_summary(threat_intel: str) -> str:
+    """Enrich indicators found in threat intelligence using external OSINT sources.
+    
+    Extracts hashes and IPs from the threat_intel text, concurrently queries
+    configured OSINT platforms (VirusTotal, Shodan, ThreatFox, MISP, etc.),
+    and returns a formatted markdown summary of the findings.
+    """
+    from hecate_agent.orchestrator.enrichment import generate_enrichment_summary as _enrich
+    return _enrich(threat_intel)

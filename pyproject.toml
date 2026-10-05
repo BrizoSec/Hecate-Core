@@ -48,9 +48,7 @@ dependencies = [
     "rich>=10.0.0",
     "jinja2>=3.0.0",
     "python-dotenv>=0.19.0",
-    "langgraph>=1.2.12",
     "langchain-core>=1.6.5",
-    "langgraph-checkpoint-sqlite>=3.1.1",
     # The orchestrator's artifact extractor fetches report pages. httpx also
     # arrived transitively via mcp, but only in [dev]/[all]; bs4 not at all,
     # so CI's `.[dev]` install failed to import it and pytest aborted.
