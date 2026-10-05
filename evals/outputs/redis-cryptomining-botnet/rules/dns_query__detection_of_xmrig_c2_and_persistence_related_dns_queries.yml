@@ -1,0 +1,58 @@
+title: Detection of XMRig C2 and Persistence-Related DNS Queries
+id: 931d974b-7aeb-4960-aaaf-0bd617d68f9d
+status: experimental
+description: This rule detects DNS queries to known malicious domains associated with XMRig cryptominer
+  deployment and persistence mechanisms, specifically targeting domains used for C2 communication and
+  artifact retrieval. The behavior aligns with the T1071.001 technique, where adversaries leverage misconfigured
+  Redis to inject malicious payloads via cron persistence. Queries to domains like ayakliborsa.net and
+  pool.moneroocean.stream, combined with known malicious file patterns in the attack chain, indicate active
+  exploitation and persistence setup.
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith: socket.ayakliborsa.net
+  condition: selection
+falsepositives:
+- Legitimate use of third-party services or monitoring tools that resolve to these domains
+- Administrative scripting or automated updates that resolve to external domains
+level: medium
+hecate_provenance:
+- value: ayakliborsa.net
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: socket.ayakliborsa[.]net is live operator infrastructure, not a stale pivot
+- value: socket.ayakliborsa.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: A follow-up pass against DNS and certificate history flips our earlier read on this hostname.
+    Hunt.io's DNS history has its A record pointed at 188.245[.]99.156 continuously from 2026-01-12 through
+    20
+hunt_id: H-0618
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses on DNS queries to 'ayakliborsa.net' and 'pool.moneroocean.stream', but the source
+    passages indicate that the XMRig binary is pulled from GitHub (github.com/xmrig/xmrig), not from the
+    C2 domain. The rule does not detect the actual payload retrieval mechanism described in passage [3]
+    and [12].
+  - The rule does not detect the persistence mechanism via Redis replication and writing to /etc/cron.d/.redis-miner,
+    which is central to the hypothesis and described in passages [4] and [1].
+  - The rule misses the key behavior of the rogue Redis replication (PSYNC, +FULLRESYNC, RDB blob injection)
+    that is explicitly detailed in passage [4], which is the core of the persistence and initial infection
+    vector.
+  - The rule is overly narrow, focusing only on DNS queries to two domains, while the actual attack chain
+    involves multiple stages (Redis replication, cron persistence, XMRig download from GitHub, C2 beaconing)
+    that are not fully covered.

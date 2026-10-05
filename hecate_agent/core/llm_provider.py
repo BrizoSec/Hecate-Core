@@ -313,6 +313,13 @@ class OllamaProvider(LLMProvider):
             Ollama log before this was set, on research and artifact-extraction
             prompts. Override via ``HECATE_OLLAMA_NUM_CTX`` or the ``num_ctx``
             config key.
+        think: Whether a reasoning model thinks before it answers. ``None``
+            leaves the model's own default and sends nothing, which is what a
+            model without the feature needs: Ollama rejects the option for one.
+            Newer models think by default (``qwen3.6``, ``gemma4``) and spend
+            the generation budget on it: a 400-token extraction call returned
+            400 tokens of reasoning and an empty answer. Set
+            ``HECATE_OLLAMA_THINK=false`` or the ``think`` config key.
     """
 
     def __init__(
@@ -321,10 +328,12 @@ class OllamaProvider(LLMProvider):
         base_url: str = "http://localhost:11434",
         timeout_sec: int = 180,
         num_ctx: Optional[int] = None,
+        think: Optional[bool] = None,
     ):
         self.model = model
         self.timeout_sec = timeout_sec
         self.num_ctx = num_ctx
+        self.think = think
         self.base_url = base_url.rstrip("/")
 
     @property
@@ -364,6 +373,7 @@ class OllamaProvider(LLMProvider):
                 "temperature": temperature,
                 **({"num_ctx": self.num_ctx} if self.num_ctx else {}),
             },
+            **({"think": self.think} if self.think is not None else {}),
         }
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
@@ -672,6 +682,7 @@ def _autodetect_provider(model: Optional[str], effective: Dict[str, Any]) -> LLM
             base_url=ollama_url,
             timeout_sec=_ollama_timeout_sec(effective),
             num_ctx=_ollama_num_ctx(effective),
+            think=_ollama_think(effective),
         )
 
     raise RuntimeError(
@@ -680,6 +691,14 @@ def _autodetect_provider(model: Optional[str], effective: Dict[str, Any]) -> LLM
         "AWS_PROFILE/AWS_ACCESS_KEY_ID, or start a local Ollama instance. "
         "Alternatively, add an 'llm' section to .hecateconfig.yaml."
     )
+
+
+def _ollama_think(config: Dict[str, Any]) -> Optional[bool]:
+    """Resolve whether an Ollama reasoning model thinks: config key, then env var, else the model's default."""
+    value = config.get("think", os.getenv("HECATE_OLLAMA_THINK"))
+    if value is None or str(value).strip() == "":
+        return None
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 def _ollama_timeout_sec(config: Dict[str, Any]) -> int:
@@ -742,6 +761,7 @@ def _build_provider(name: str, model: Optional[str], config: Dict[str, Any]) -> 
             base_url=base_url,
             timeout_sec=_ollama_timeout_sec(config),
             num_ctx=_ollama_num_ctx(config),
+            think=_ollama_think(config),
         )
 
     if name == "openai":

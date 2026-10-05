@@ -1,0 +1,67 @@
+title: Suspicious Process Creation from Compromised YouTube Channel Distribution
+id: 66d233a6-22aa-4775-8261-938f3187f27d
+status: experimental
+description: Detects execution of known malicious loaders (resightloader.exe) and associated components
+  from suspicious domains linked to a credential theft and crypto-mining campaign. The behavior aligns
+  with social engineering via compromised YouTube channels delivering multi-stage infostealers with sandbox
+  evasion and blockchain-based C2, targeting high-value user credentials and financial assets.
+references:
+- https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-04'
+tags:
+- attack.t1027
+- attack.t1204.002
+- attack.t1620
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: resightloader.exe
+    ParentImage|contains: chrome.exe
+    CommandLine|contains:
+    - elitecheatsx.live
+    - resight-cheats.net
+  filter:
+    Image|contains: Windows\System32\
+  condition: selection and not filter
+falsepositives:
+- Legitimate software updates using similar naming patterns
+- User-initiated downloads from compromised sites with valid-looking domains
+level: high
+hecate_provenance:
+- value: resight-cheats.net
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: In the campaigns we observed, this took the form of YouTube account takeovers. Existing channels
+    with established subscriber bases were hijacked and used to post short (1–2 minute) AI-generated videos
+- value: elitecheatsx.live
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: In the campaigns we observed, this took the form of YouTube account takeovers. Existing channels
+    with established subscriber bases were hijacked and used to post short (1–2 minute) AI-generated videos
+hunt_id: H-0624
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses only on resightloader.exe execution via chrome.exe and specific domains (elitecheatsx.live,
+    resight-cheats.net), but the source passages indicate that the malicious domains are primarily C2
+    servers (e.g., monitor5.roast-core85.click, config.hubdisplay.lol) and not download sources. The rule
+    incorrectly assumes these domains are download sources when they are C2 endpoints.
+  - The rule does not account for the blockchain-based dead drops (e.g., polygon.iwmukj.xyz:443) mentioned
+    in the hypothesis and passages, which are critical to the campaign's C2 infrastructure.
+  - The rule omits detection of other malicious components listed in the source passages (e.g., SoftManager72fb40.exe,
+    WinUpdate60e3a3.exe, ProManagerServicedc894.exe, LockAppHost14a02b.exe), which are part of the multi-stage
+    infostealer and are explicitly named in the report.
+  - The rule relies on a specific domain (resight-cheats.net) that is not mentioned in the source passages
+    as a download source; the only domains referenced are C2 servers and the compromised YouTube campaign
+    delivery mechanism via AI-generated videos.
+  - The rule does not reflect the social engineering via compromised YouTube channels as described in
+    passage [1], instead focusing on a specific domain that is not supported by the source.

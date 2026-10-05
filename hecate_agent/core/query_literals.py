@@ -15,7 +15,7 @@ characters the report did not give".
 """
 
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List, Sequence
 
 #: Fields where a rule names a file, process, command or key: the ones a literal must ground.
@@ -98,7 +98,7 @@ _WINDOWS_VALUE_RE = re.compile(r"^[A-Za-z]:[\\/]|^%\w+%|^\\\\|^HK(LM|CU|EY_)|\.(
 _UNIX_VALUE_RE = re.compile(r"^(/|~/|\$\{?HOME\}?/)")
 
 
-def _off_platform(value: str, platforms: Sequence[str]) -> bool:
+def off_platform(value: str, platforms: Sequence[str]) -> bool:
     """Whether no platform the hunt covers can show ``value``; never when the platforms are unknown."""
     known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
     if not known:
@@ -125,7 +125,7 @@ def literals_from_artifacts(artifacts: Iterable[Dict[str, Any]], platforms: Sequ
     for artifact in artifacts:
         value = str(artifact.get("value", "")).strip()
         kind = str(artifact.get("kind", "")).lower()
-        if not value or str(artifact.get("status", "")).lower() != "active" or _off_platform(value, platforms):
+        if not value or str(artifact.get("status", "")).lower() != "active" or off_platform(value, platforms):
             continue
         role, evidence = str(artifact.get("role", "")), " ".join(str(artifact.get("evidence", "")).split())[:200]
         literal: QueryLiteral

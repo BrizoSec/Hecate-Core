@@ -14,6 +14,7 @@ from hecate_agent.__version__ import __version__  # noqa: E402
 from hecate_agent.commands import attack, context, env, hunt, investigate, research, similar, splunk  # noqa: E402
 from hecate_agent.commands.agent import agent  # noqa: E402
 from hecate_agent.commands.eval import eval_cmd, eval_gold_cmd  # noqa: E402
+from hecate_agent.commands.monitor import monitor  # noqa: E402
 from hecate_agent.commands.mcp import mcp  # noqa: E402
 from hecate_agent.commands.orchestrate import orchestrate  # noqa: E402
 from hecate_agent.plugin_system import PluginRegistry  # noqa: E402
@@ -96,6 +97,7 @@ cli.add_command(orchestrate)
 # Model-quality eval harness
 cli.add_command(eval_cmd)
 cli.add_command(eval_gold_cmd)
+cli.add_command(monitor)
 
 # MCP server command
 cli.add_command(mcp)

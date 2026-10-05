@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: mv /tmp/xmrig-*/xmrig'
+id: b1a5e223-7574-4362-a20d-3d30a0d113f8
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "mv /tmp/xmrig-*/xmrig /tmp/.xmrig chmod +x /tmp/.xmrig rm
+  -rf /tmp/x.tgz /tmp/xmrig-* /tmp/.xmrig --no-color --donate-level=1".'
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /mv
+    CommandLine|contains: /tmp/xmrig-*/xmrig
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0618

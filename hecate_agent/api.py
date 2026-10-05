@@ -8,7 +8,6 @@ brittleness for orchestrators like Hecate-Runner.
 import re
 from typing import Optional, Dict, Any, Tuple, List
 from pathlib import Path
-import json
 
 from hecate_agent.agents.llm.hypothesis_generator import (
     HypothesisGeneratorAgent,

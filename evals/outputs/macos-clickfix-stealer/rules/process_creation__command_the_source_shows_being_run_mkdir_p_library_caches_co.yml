@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: mkdir -p /Library/Caches/com.apple.trustd'
+id: 98312da3-9881-47cc-b4d1-ff5139bb247e
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "mkdir -p "$HOME/Library/Caches/com.apple.trustd"".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /mkdir
+    CommandLine|contains: -p /Library/Caches/com.apple.trustd
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0001

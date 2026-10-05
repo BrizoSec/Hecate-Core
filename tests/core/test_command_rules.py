@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import pytest
 
 from hecate_agent.agents.llm.sigma_generator import SigmaGenerationInput, SigmaGeneratorAgent
-from hecate_agent.core.command_rules import command_candidates
+from hecate_agent.core.command_rules import command_candidates, observed_commands
 
 #: The Huntress ClickFix report's commands, as page extraction returns them.
 HUNTRESS = """
@@ -92,3 +92,10 @@ def test_discovery_commands_are_low_level_leads(program: str) -> None:
         if c["title"].startswith(program)
     )
     assert candidate["level"] == "low"
+
+
+def test_a_flag_is_not_joined_to_a_path_whose_variable_was_stripped() -> None:
+    """mkdir -p "$HOME/Library/x" runs as "-p /Users/me/Library/x": "-p /Library/x" never occurs."""
+    text = 'The loader then ran mkdir -p "$HOME/Library/Caches/com.apple.trustd" on the Mac.'
+    (command,) = observed_commands(text, ["macOS"])
+    assert command.argument == "/Library/Caches/com.apple.trustd"

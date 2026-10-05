@@ -1,0 +1,102 @@
+title: Connection to an address or host named in the source intelligence
+id: 58e841b5-1147-4a83-9b88-8054f17dcad7
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_80:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 80
+  selection_1_8081:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 8081
+  selection_1_10000:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 10000
+  selection_1_16379:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16379
+  selection_1_16380:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16380
+  selection_1_16381:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16381
+  selection_1_16382:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16382
+  selection_1_16383:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16383
+  selection_1_16384:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16384
+  selection_1_16385:
+    DestinationIp: 188.245.99.156
+    DestinationPort: 16385
+  selection_2_10128:
+    DestinationIp: 45.155.102.89
+    DestinationPort: 10128
+  selection_3_any:
+    DestinationHostname: ayakliborsa.net
+  selection_4_any:
+    DestinationHostname: socket.ayakliborsa.net
+  selection_5_443:
+    DestinationHostname: pool.moneroocean.stream
+    DestinationPort: 443
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: ayakliborsa.net
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: socket.ayakliborsa[.]net is live operator infrastructure, not a stale pivot
+- value: socket.ayakliborsa.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: A follow-up pass against DNS and certificate history flips our earlier read on this hostname.
+    Hunt.io's DNS history has its A record pointed at 188.245[.]99.156 continuously from 2026-01-12 through
+    20
+- value: 188.245.99.156
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: A rogue Redis server on ports 16379 through 16385 at 188.245.99.156 delivers the initial RDB
+    blob into a victim's cron.d entry.
+- value: 45.155.102.89
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: The pool endpoint here, 45.155.102.89:10128, never appears in any remote deployment script
+    (those all point at pool.moneroocean.stream:443), so it's very likely a private mining proxy rather
+    than a pu
+- value: pool.moneroocean.stream
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: The mining pool is independently confirmed by an unrelated campaign. pool.moneroocean[.]stream
+    (registered 2017-08-11 via Porkbun) carries two IOC Hunter sightings from 24 July 2026, both from
+    reporti
+hunt_id: H-0618

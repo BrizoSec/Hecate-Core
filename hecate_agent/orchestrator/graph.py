@@ -394,8 +394,8 @@ workflow.add_conditional_edges("grounding_audit", route_errors, {"next": "hunt_w
 workflow.add_conditional_edges("hunt_writer", route_publish, {"next": "misp_publisher", END: END})
 workflow.add_conditional_edges("misp_publisher", route_errors, {"next": END, END: END})
 
-from langgraph.checkpoint.sqlite import SqliteSaver
-import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: E402
+import sqlite3  # noqa: E402
 
 
 def compile_graph(db_path: str = "hecate_checkpoints.sqlite", require_approval: bool = True) -> Any:

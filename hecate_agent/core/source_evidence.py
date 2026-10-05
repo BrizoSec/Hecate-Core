@@ -554,21 +554,22 @@ def persistence_file_artifacts(text: str) -> List[SourceArtifact]:
     file every victim has. A file there is written by whoever installs it, so
     the path needs no judgement, only a sentence that reports it as observed.
     """
-    from hecate_agent.core.technique_evidence import passage_status, sentence_status, sentences
+    from hecate_agent.core.technique_evidence import actor_material_report, passage_status, sentence_status, sentences
 
     found: Dict[str, SourceArtifact] = {}
+    actor_material = actor_material_report(text)
     for sentence in sentences(text):
         for match in _PERSISTENCE_FILE_RE.finditer(sentence):
             value = match.group(1).rstrip(".")
             if value.rsplit("/", 1)[-1] == "crontabs" or value.lower() in found:
                 continue
-            status, passage = passage_status(sentence, match.start(), match.end())
+            status, passage = passage_status(sentence, match.start(), match.end(), actor_material)
             if passage is not sentence:
                 # A run-on segment is usually a flattened table: judge and quote the row, in
                 # whole words, not the rows around it.
                 passage = sentence[max(0, match.start() - _ROW_WINDOW) : match.end() + _ROW_WINDOW]
                 passage = passage[passage.find(" ") + 1 : passage.rfind(" ")]
-                status = sentence_status(passage)
+                status = sentence_status(passage, actor_material)
             if status == "observed":
                 found[value.lower()] = SourceArtifact(value, "file_path", "persistence file", "active", "unknown", passage)
     return list(found.values())
@@ -587,23 +588,77 @@ def _mark_attacker_side(artifacts: List[SourceArtifact], text: str) -> None:
     naming it is about the actor's side. It keeps its place in the evidence table, with the
     passage, but its status is no longer ``active``, so no rule is built on it.
     """
-    from hecate_agent.core.technique_evidence import attacker_side, passage_status, sentences
-
-    lowered = [(sentence, sentence.lower()) for sentence in sentences(text)]
     for artifact in artifacts:
         if artifact.kind in INDICATOR_KINDS:
             continue
-        needle = refang(artifact.value).lower()
-        mentions: List[Tuple[str, str]] = []
-        for sentence, lower in lowered:
-            at = lower.find(needle)
-            if at >= 0:
-                mentions.append(passage_status(sentence, at, at + len(needle)))
-        # Only wording about the actor's side counts. "No sentence reports it as observed" was
-        # tried and untied the Huntress stealer's own path, named in a sentence that read as capability.
-        own = next((p for status, p in mentions if status == "context" and attacker_side(p.lower())), "")
-        if own:
-            artifact.role, artifact.status, artifact.evidence = ATTACKER_SIDE_ROLE, "unknown", " ".join(own.split())[:300]
+        passage = attacker_side_passage(text, artifact.value)
+        if passage:
+            artifact.role, artifact.status, artifact.evidence = ATTACKER_SIDE_ROLE, "unknown", passage
+
+
+#: Extensions that make a dotted name a file, not a domain ("github.com") or a version ("6.22.2").
+FILE_EXTENSIONS = (
+    "py|sh|ps1|bat|cmd|exe|dll|sys|php|pl|rb|js|vbs|hta|jar|json|txt|log|db|sqlite|b64|bin|elf|so|dylib|plist|save|bak"
+    "|zip|rar|7z|tgz|gz|tar|iso|html|docx?|xlsx?|pdf|lnk|msi|ya?ml|conf|cfg|ini|service|timer|dat|tmp|key|pem"
+)
+#: A file name with no directory: nothing says where on a host it would be.
+_BARE_FILE_RE = re.compile(rf"^[\w.-]+\.({FILE_EXTENSIONS})$")
+_VICTIM_WORDING_RE = re.compile(r"\bvictims?\b|\bcompromised (hosts?|servers?|machines?|systems?)\b")
+
+
+def attacker_side_passage(text: str, value: str) -> str:
+    """The passage that places ``value`` on the actor's own side, or "" when the text does not.
+
+    Usable for any value, not only extracted artifacts: the drafting model
+    names files in its prose that extraction never returned.
+    """
+    from hecate_agent.core.technique_evidence import actor_material_report, attacker_side, passage_status, sentences
+
+    needle = refang(value).lower().strip()
+    if len(needle) < 4:
+        return ""
+    actor_material = actor_material_report(text)
+    mentions: List[Tuple[str, str]] = []
+    for sentence in sentences(text):
+        at = sentence.lower().find(needle)
+        if at >= 0:
+            mentions.append(passage_status(sentence, at, at + len(needle), actor_material))
+    # Only wording about the actor's side counts. "No sentence reports it as observed" was tried
+    # and untied the Huntress stealer's own path, named in a sentence that read as capability.
+    own = next((p for status, p in mentions if status == "context" and attacker_side(p.lower(), actor_material)), "")
+    if not own and actor_material and _BARE_FILE_RE.match(needle):
+        # A report written from the actor's own files names those files without a location.
+        # One named by itself, never beside anything on a victim, is theirs: the Redis
+        # report's SAM.save was a registry hive exported on the operator's host.
+        alone = [p for _, p in mentions if re.search(r"(?<![\w/\\.-])" + re.escape(needle), p.lower())]
+        if alone and not any(_VICTIM_WORDING_RE.search(p.lower()) for _, p in mentions):
+            own = alone[0]
+    return " ".join(own.split())[:300]
+
+
+def _tie_fuller_paths(artifacts: List[SourceArtifact]) -> None:
+    """A path whose file the source ties to the intrusion is tied to it too.
+
+    Reports name a file in the narrative and give its full path in an IOC
+    table: Huntress wrote "under the name com.apple.verified" and listed
+    "$HOME/Library/Caches/com.apple.trustd/com.apple.verified ... Filesystem
+    path used by this malware". The name came out active and the path
+    unknown, so the stealer's own path got no rule and the draft's claim audit
+    struck it as "the source does not tie it to this intrusion".
+    """
+    paths = ("file_path", "path", "file", "filename", "file_name")
+    active = [a for a in artifacts if a.kind in paths and a.status == "active" and len(a.value) >= 4]
+    for artifact in artifacts:
+        if artifact.kind not in paths or artifact.status != "unknown" or artifact.role == ATTACKER_SIDE_ROLE:
+            continue
+        name = re.split(r"[/\\]", artifact.value)[-1]
+        tied = next((a for a in active if a is not artifact and a.value in (name, artifact.value)), None)
+        if tied is None:
+            continue
+        artifact.status = "active"
+        artifact.evidence = artifact.evidence or tied.evidence
+        if artifact.role == "unknown":
+            artifact.role = tied.role
 
 
 def _merge(existing: SourceArtifact, new: SourceArtifact) -> SourceArtifact:
@@ -768,6 +823,7 @@ def extract_source_evidence(
     evidence.artifacts = list(merged.values())
     _apply_text_roles(evidence.artifacts, text, lambda a: str(a.kind))
     _mark_attacker_side(evidence.artifacts, text)
+    _tie_fuller_paths(evidence.artifacts)
     evidence.indicators = [_to_record(a, url) for a in evidence.artifacts if a.kind in INDICATOR_KINDS]
     if evidence.artifacts:
         evidence.error = ""  # a partial failure still produced verified evidence

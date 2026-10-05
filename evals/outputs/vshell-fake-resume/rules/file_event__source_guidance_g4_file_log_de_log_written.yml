@@ -1,0 +1,22 @@
+title: 'Source guidance G4: File log_de.log written'
+id: 0468adcb-2c5c-4166-8039-fc5dd82191b7
+status: experimental
+description: 'Deterministic rule built from the detection guidance the source published, with no model
+  involvement. The source advises hunting for: "%TEMP%\log_de.log". Scope: file_event records creation;
+  a file the malware only checks for or reads needs EDR file-access telemetry.'
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source detection guidance - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \log_de.log
+  condition: selection
+falsepositives:
+- Legitimate activity that matches the guidance; tune against the environment
+level: medium
+hunt_id: H-0618

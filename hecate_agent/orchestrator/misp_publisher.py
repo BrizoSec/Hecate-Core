@@ -1,7 +1,7 @@
 import logging
 import os
 import httpx
-from typing import List, Dict, Any
+from typing import List
 
 
 def _setting(name: str, default: str = "") -> str:
@@ -39,9 +39,12 @@ def publish_hunt_to_misp(topic: str, hypothesis: str, observables: List[str]) ->
         
         # Simple heuristics for MISP types
         if len(obs) in (32, 40, 64) and all(c in "0123456789abcdefABCDEF" for c in obs):
-            if len(obs) == 32: attr_type = "md5"
-            elif len(obs) == 40: attr_type = "sha1"
-            elif len(obs) == 64: attr_type = "sha256"
+            if len(obs) == 32:
+                attr_type = "md5"
+            elif len(obs) == 40:
+                attr_type = "sha1"
+            elif len(obs) == 64:
+                attr_type = "sha256"
         elif obs.count(".") == 3 and all(p.isdigit() for p in obs.split(".")):
             attr_type = "ip-dst"
         elif obs.startswith("http"):

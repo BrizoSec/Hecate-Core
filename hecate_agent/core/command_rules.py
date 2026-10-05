@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from hecate_agent.core.provenance import refang
-from hecate_agent.core.technique_evidence import sentence_status
+from hecate_agent.core.technique_evidence import actor_material_report, sentence_status
 
 #: program -> (platform, rule level). Discovery tools run constantly on healthy
 #: hosts, so a match on them alone is a low-level lead.
@@ -88,12 +88,14 @@ def _distinctive(tokens: List[str]) -> Optional[str]:
         if token.startswith(("-", "+")) or (token.startswith("/") and len(token) <= 3):
             flag = token
             continue
-        token = _VARIABLE_PREFIX_RE.sub("", token)
-        if len(token) < 4 or token.isdigit():
+        stripped = _VARIABLE_PREFIX_RE.sub("", token)
+        if len(stripped) < 4 or stripped.isdigit():
             flag = ""
             continue
-        # Keep the flag in front of the argument when it is a short option ("-d com.apple.quarantine").
-        return f"{flag} {token}" if flag and len(flag) <= 3 else token
+        # Keep the flag in front of the argument when it is a short option ("-d com.apple.quarantine"),
+        # but not across a stripped variable: "mkdir -p $HOME/Library/x" runs as "-p /Users/me/Library/x",
+        # so "-p /Library/x" never occurs.
+        return f"{flag} {stripped}" if flag and len(flag) <= 3 and stripped == token else stripped
     return None
 
 
@@ -124,8 +126,9 @@ def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10)
         catalogs.append(("windows", _WINDOWS))
     found: List[ObservedCommand] = []
     seen: set = set()
+    actor_material = actor_material_report(text)
     for sentence in _command_sentences(text):
-        if sentence_status(sentence) != "observed":
+        if sentence_status(sentence, actor_material) != "observed":
             continue
         for platform, catalog in catalogs:
             for match in _program_re(list(catalog)).finditer(sentence):
@@ -149,6 +152,25 @@ def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10)
     return sorted(found, key=lambda c: rank.get(c.level, 3))[:limit]
 
 
+#: A download tool's output option and its value: the part of the command that says it saves what it fetches.
+_OUTPUT_OPTION_RE = re.compile(r"\s-[oO]\s*\S+")
+
+
+def _own_text(cmd: ObservedCommand) -> str:
+    """The words that are this command's alone, for judging what behaviour it shows.
+
+    ``command`` runs on into whatever followed it in a quoted block ("chmod +x
+    /tmp/.xmrig rm -rf /tmp/x.tgz ..."), so the program and the argument the
+    rule matches are the safe reading. A download keeps its output option:
+    "curl <url> -o <file>" is a transfer, "curl <url>" alone need not be.
+    """
+    if cmd.program in ("curl", "wget", "curl.exe"):
+        output = _OUTPUT_OPTION_RE.search(cmd.command)
+        if output:
+            return cmd.command[: output.end()]
+    return f"{cmd.program} {cmd.argument}"
+
+
 def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[str, Any]]:
     """Sigma candidates (category, title, detection, level, command, passage) for the observed commands."""
     out: List[Dict[str, Any]] = []
@@ -164,6 +186,7 @@ def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[st
                 },
                 "level": cmd.level,
                 "command": cmd.command,
+                "behaviour": _own_text(cmd),
                 "passage": cmd.passage,
             }
         )

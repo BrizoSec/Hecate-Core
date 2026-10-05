@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: chmod +x com.apple.verified'
+id: 89de8d0b-bf35-4f8a-b3d8-8c6a943c7339
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "chmod +x com.apple.verified".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /chmod
+    CommandLine|contains: +x com.apple.verified
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0001

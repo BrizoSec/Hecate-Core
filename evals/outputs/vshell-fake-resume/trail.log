@@ -1,0 +1,33 @@
+[a42a08 +   0.0s] start      cycle a42a08; drafts today 0/5, research runs today 0/5
+[a42a08 +   0.0s] intake     otx: "A fake resume invoked China's defence-tech elite, then installed VShell" (2194 chars; indicators: FileHash-MD5 1, FileHash-SHA256 7, URL 2, hostname 5; CTI techniques: none)
+[a42a08 +   0.0s] triage     pass (no commentary category or title shape)
+[a42a08 +   0.0s] quota      draft slot 1/5 reserved
+[a42a08 +   0.0s] route      narrative -> research with web search -> hypothesis
+[a42a08 + 216.4s] source     https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell (32920 chars, 4 chunk(s)) in 216s: 20 artifact(s) verified, 3 dropped; 16/16 indicator(s) typed; historical: d.d.edsxhbba06.shop, oa.muxmyee520.shop, pan.qlam.cc, v.n.1.xcwanmei09.shop, www.qlam.cc
+[a42a08 + 216.4s] guidance   11 item(s) from the source: 4 edr, 2 indicator, 3 network-content, 2 sigma; 3 Sigma candidate(s)
+[a42a08 + 216.4s] research   starting: topic "A fake resume invoked China's defence-tech elite, then installed VShell"; web search on; source text 6068 chars
+[a42a08 + 386.8s] research   R-0616 done in 170s; grounding: independent research, 2 web search(es); describes adversary behavior: yes; related hunts: none
+[a42a08 + 386.8s] hypothesis asking the model (grounded by R-0616)
+[a42a08 + 471.1s] hypothesis done in 84s: "Adversaries use a multi-stage, fileless execution chain with sandbox evasion and CPU-based detection bypasses to deliver a VShell RAT via a…"
+[a42a08 + 471.2s] techniques matched in the intel's wording: T1036 Masquerading, T1113 Screen Capture
+[a42a08 + 471.2s] techniques described behaviour observed: T1204.002, T1036, T1497.001, T1497.003, T1105, T1140, T1059.003, T1027, T1620, T1480, T1573, T1095, T1071.001, T1571; capability only: T1113
+[a42a08 + 471.2s] techniques model chose T1036, T1113; CTI asserted none -> merged T1036, T1113, T1204.002, T1497.001, T1497.003, T1105, T1140, T1059.003, T1027, T1620, T1480, T1573, T1095, T1071.001, T1571
+[a42a08 + 471.2s] techniques dropped as capability only, not observed use: T1113
+[a42a08 + 471.3s] scope      the specimen's evidence shows Windows: Windows (cmd.exe, c:\windows, c:\users, activeds.dll, kernel32.dll, %temp%)
+[a42a08 + 471.3s] scope      techniques run on Containers, ESXi, Linux, macOS, Windows, Network Devices; hypothesis names Windows
+[a42a08 + 471.3s] scope      narrowed to what the hypothesis names: Windows
+[a42a08 + 471.3s] scope      platforms Windows; tactics stealth, execution, discovery, command-and-control; data sources process_execution, file_operations, network_connections
+[a42a08 + 471.3s] claims     audit: 1 corrected, 4 flagged, 7 removed, 1 softened
+[a42a08 + 471.3s] grounding  H-0618: 3 asserted by CTI, 0 research-only, 14 inferred, 0 UNSUPPORTED
+[a42a08 + 471.3s] write      H-0618 written to /tmp/claude-1000/-home-chemch-betas/b11ca954-7e55-4f2b-bd3c-62454d69db20/scratchpad/ws_vshell/hunts/2026/Q4/H-0618.md
+[a42a08 + 471.3s] sigma      pass 1: 3 exact value(s) from the source rules may match: C:\Windows\Temp\Beijing Institute of Technology_*_personal resume (2).docx, \vshell.exe, \log_de.log
+[a42a08 + 471.3s] sigma      drafting rules from techniques T1036, T1204.002, T1497.001, T1497.003, T1105, T1140, T1059.003, T1027, T1620, T1480, T1573, T1095, T1071.001, T1571, indicator types md5, sha256, url, ipv4, platforms Windows
+[a42a08 + 792.6s] sigma      rejected file_event: filter 'filter' excludes '\\Windows\\Temp\\', which matches 'C:\\Windows\\Temp\\Beijing Institute of Technology_..._personal resume (2).docx', an a…
+[a42a08 + 792.6s] sigma      rejected image_load: 'Windows\\System32\\' is not a value the source gives; in file, process, command-line and registry fields use only the EXACT VALUES FROM THE SOURCE…
+[a42a08 + 792.6s] sigma      rejected process_creation: the rule has winword.exe starting cmd.exe, but the source's guidance says the reverse: "Resume-themed executables launching cmd.exe and then …
+[a42a08 + 792.6s] sigma      rejected dns_query: reviewer: The rule assumes DNS resolution is involved, but the source passages describe direct TCP communication with the IP address without any ind…
+[a42a08 + 792.6s] sigma      done in 321s: 8 rule(s) kept (file_event, network_connection, process_creation, proxy), 4 rejected
+[a42a08 + 792.6s] provenance 6 indicator(s) across 8 rule(s), each traced to its source
+[a42a08 + 792.6s] review     1 model rule(s) reviewed (Suspicious C2 Beaconing to Known Malicious IP on Non-Standard Ports: revise); 1 uncovered behaviour(s): Use of a kill switch mechanism based on file existence
+[a42a08 + 792.7s] grounding  H-0618: 6 asserted by CTI, 0 research-only, 14 inferred, 0 UNSUPPORTED
+[a42a08 + 792.7s] done       draft_created -> H-0618 in 793s

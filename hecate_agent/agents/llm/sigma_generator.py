@@ -395,6 +395,33 @@ class SigmaRule:
         return f"{self.logsource_category}__{slug or 'rule'}.yml"
 
 
+#: Files the operating system and its administrators also write. An actor's change to one is
+#: real, but the path alone cannot tell it from routine use: every deterministic file rule was
+#: "high", including one for root's crontab, which fires on any edit of it.
+_SHARED_SYSTEM_FILE_RE = re.compile(
+    r"(?i)(^|/)(var/spool/cron/(crontabs/)?[\w.-]+|etc/(crontab|rc\.local|passwd|shadow|sudoers|hosts|profile|environment"
+    r"|ld\.so\.preload)|\.ssh/authorized_keys|\.(bashrc|zshrc|bash_profile|zprofile|profile))$"
+)
+
+
+def _behaviour_techniques(behaviour: str, hunt_techniques: List[str]) -> List[str]:
+    """The hunt's techniques that the rule's own command, path or guidance text shows.
+
+    Deterministic rules shipped untagged. A tag is given only when the
+    behaviour catalog matches the text the rule was built from and the hunt
+    already maps that technique, so a tag never adds a mapping: ``xattr -d
+    com.apple.quarantine`` is T1553.001, a file under ``/etc/cron.d`` T1053.003.
+    Indicator sweeps stay untagged: matching an address is not a technique.
+    """
+    if not behaviour.strip():
+        return []
+    from hecate_agent.core.technique_evidence import map_behaviours
+
+    supplied = {t.upper() for t in hunt_techniques}
+    found = {e.technique_id.upper() for e in map_behaviours([("rule", behaviour)]) if e.status == "observed"}
+    return sorted(found & supplied)
+
+
 def rule_filenames(rules: List[SigmaRule]) -> List[str]:
     """A distinct file name for each rule, in order: a repeat gets a numbered suffix.
 
@@ -792,8 +819,8 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
     for block_name, block in detection.items():
         if block_name == "condition" or not isinstance(block, dict):
             continue
-        for field, raw_value in block.items():
-            base = str(field).split("|")[0].strip().lower()
+        for field_name, raw_value in block.items():
+            base = str(field_name).split("|")[0].strip().lower()
             values = raw_value if isinstance(raw_value, list) else [raw_value]
             for value in values:
                 text = str(value)
@@ -1341,7 +1368,7 @@ def _modifier_in_value_problem(detection: Dict[str, Any]) -> Optional[str]:
     for block_name, block in detection.items():
         if block_name == "condition" or not isinstance(block, dict):
             continue
-        for field, raw_value in block.items():
+        for field_name, raw_value in block.items():
             values = raw_value if isinstance(raw_value, list) else [raw_value]
             for value in values:
                 if isinstance(value, str) and _MODIFIER_IN_VALUE_RE.match(value):
@@ -1374,8 +1401,8 @@ def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Opt
     for block_name, block in detection.items():
         if block_name == "condition" or not isinstance(block, dict):
             continue
-        for field, raw_value in block.items():
-            if str(field).split("|")[0].strip().lower() not in _PROCESS_IMAGE_FIELDS:
+        for field_name, raw_value in block.items():
+            if str(field_name).split("|")[0].strip().lower() not in _PROCESS_IMAGE_FIELDS:
                 continue
             values = raw_value if isinstance(raw_value, list) else [raw_value]
             for value in values:
@@ -1601,6 +1628,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     "with no model involvement. ",
                     level=str(candidate.get("level", "medium")),
                     author="hecate (auto-generated from commands quoted in the source - requires analyst review)",
+                    behaviour=str(candidate.get("behaviour") or candidate.get("title", "")),
                 )
             )
         return results
@@ -1624,6 +1652,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 continue
             key = "TargetFilename|endswith" if how == "endswith" else "TargetFilename"
             name = sigma.replace("/", "\\").rsplit("\\", 1)[-1]
+            shared = bool(_SHARED_SYSTEM_FILE_RE.search(sigma))
             results.append(
                 self._ioc_rule(
                     input_data,
@@ -1636,13 +1665,24 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                         ' The report elided part of the name; "*" stands for the missing characters.'
                         if how == "wildcard"
                         else ""
+                    )
+                    + (
+                        " The operating system and its administrators write this file too, so a match is a lead"
+                        " to review, not a detection on its own."
+                        if shared
+                        else ""
                     ),
                     detection={"selection": {key: sigma}, "condition": "selection"},
-                    falsepositives="A legitimate file with the same name and location",
+                    falsepositives=(
+                        "Routine administration: this is a standard system file that legitimate changes also write"
+                        if shared
+                        else "A legitimate file with the same name and location"
+                    ),
                     preamble="Deterministic rule built from a file path verified in the primary source, "
                     "with no model involvement. ",
-                    level="high",
+                    level="low" if shared else "high",
                     author="hecate (auto-generated from verified source artifacts - requires analyst review)",
+                    behaviour=sigma,
                 )
             )
         return results
@@ -1677,6 +1717,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                         preamble="Deterministic rule built from the detection guidance the source published, "
                         "with no model involvement. ",
                         level="medium",
+                        behaviour=quoted,
                         author="hecate (auto-generated from source detection guidance - requires analyst review)",
                         references=[str(item.get("source", ""))] if item.get("source") else [],
                     )
@@ -1841,7 +1882,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     title="Request for a URL path named in the source intelligence",
                     description="Matches a proxy or web request for a current URL path the source published. "
                     "URL paths appear only in proxy and web logs, not in endpoint file or process events.",
-                    detection={"selection": {"c-uri|endswith": paths}, "condition": "selection"},
+                    detection={"selection": {"c-uri|contains": paths}, "condition": "selection"},
                     falsepositives="Other sites serving a file at the same path",
                 )
             )
@@ -1863,6 +1904,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         level: str = "high",
         author: str = "hecate (auto-generated from source indicators - requires analyst review)",
         references: Optional[List[str]] = None,
+        behaviour: str = "",
     ) -> Tuple[Optional[SigmaRule], Optional[str]]:
         """Render and validate one deterministic rule: IOC sweeps and the source's own detection guidance."""
         # The same semantic gate as a model rule: a template change that put a
@@ -1870,6 +1912,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         problem = semantic_problem(detection, category, description)
         if problem:
             return None, f"{category} ({label}): {problem}"
+        techniques = _behaviour_techniques(behaviour, input_data.techniques)
         document: Dict[str, Any] = {
             "title": title,
             "id": str(uuid.uuid4()),
@@ -1878,7 +1921,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "references": list(dict.fromkeys([*input_data.references, *(references or [])])),
             "author": author,
             "date": date.today().isoformat(),
-            "tags": [],
+            "tags": [f"attack.{t.lower()}" for t in techniques],
             "logsource": self._logsource_block(category, input_data.platforms),
             "detection": detection,
             "falsepositives": [falsepositives],
@@ -1894,7 +1937,14 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         if problem:
             return None, f"{category} ({label}): {problem}"
         return (
-            SigmaRule(logsource_category=category, title=title, rule_yaml=rule_yaml, level=level, origin="deterministic"),
+            SigmaRule(
+                logsource_category=category,
+                title=title,
+                rule_yaml=rule_yaml,
+                level=level,
+                techniques=techniques,
+                origin="deterministic",
+            ),
             None,
         )
 

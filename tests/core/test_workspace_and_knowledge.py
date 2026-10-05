@@ -6,7 +6,6 @@ but it made correctness depend on every caller doing the same, and any caller
 that did not got a silent "not found" rather than an error.
 """
 
-import os
 
 import pytest
 

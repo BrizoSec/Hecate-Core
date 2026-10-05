@@ -1,0 +1,47 @@
+title: Suspicious file creation from compromised YouTube delivery chain
+id: 90027638-04fb-4aa4-b09d-b1b089c7905b
+status: experimental
+description: Detects creation of known malicious executables associated with a multi-stage infostealer
+  campaign leveraging compromised YouTube channels. The behavior involves writing files with names indicative
+  of social engineering payloads (e.g., 'resightloader.exe') and known malicious binaries, often following
+  a pattern of obfuscated or randomized names. This rule focuses on file write events matching known indicators
+  from the campaign, prioritizing behavioral patterns over static matches to reduce false positives.
+references:
+- https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-04'
+tags:
+- attack.t1027
+- attack.t1566.002
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: SoftManager72fb40.exe
+  filter:
+    TargetFilename|contains: AppData\Local\Temp\
+  condition: selection and not filter
+falsepositives:
+- Legitimate software installers using similar naming patterns
+- Automated testing scripts generating temporary executables
+level: medium
+hunt_id: H-0624
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule only detects one specific file (SoftManager72fb40.exe), which is a modular component, but
+    the hypothesis emphasizes detection of the initial loader (resightloader.exe) and the broader campaign
+    behavior including C2 communication and social engineering delivery via YouTube. Focusing solely on
+    a single secondary payload reduces effectiveness.
+  - 'The rule uses a static file name match (endswith: SoftManager72fb40.exe) without incorporating the
+    SHA-256 hash from the report (e.g., 14b2ac356ed75d10ef40bbaaa48e7dd9fff7de9719c2a43ad123fe843dd4e4e2),
+    which is a more reliable indicator for the loader and other components.'
+  - The rule does not account for the social engineering delivery chain described in the hypothesis and
+    passage [1], which involves compromised YouTube channels and AI-generated videos—this context is missing
+    from the detection logic.
+  - The rule lacks detection of the initial loader (resightloader.exe) and other key components like WinUpdate60e3a3.exe
+    or ProManagerServicedc894.exe, which are explicitly mentioned in the source passages.
+  - The rule does not incorporate any C2 domains or network indicators (e.g., metric.gardenpark[.]click,
+    polygon.iwmukj[.]xyz) that are part of the campaign and could help correlate file creation with malicious
+    activity.

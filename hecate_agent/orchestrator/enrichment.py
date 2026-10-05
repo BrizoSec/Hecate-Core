@@ -2,7 +2,7 @@ import os
 import re
 import httpx
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict
 
 
 def _setting(name: str, default: str = "") -> str:

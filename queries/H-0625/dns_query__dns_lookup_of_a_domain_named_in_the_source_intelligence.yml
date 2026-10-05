@@ -1,0 +1,394 @@
+title: DNS lookup of a domain named in the source intelligence
+id: af67cc11-4aca-455d-9465-b63dfb756dc3
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-04'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - ts.remdos.com
+    - tx.newredir.com
+    - to.ghredir.com
+    - tx.platdir.com
+    - ww0.us
+    - q82.net
+    - pre.im
+    - us6.my
+    - link72.com
+    - us00.net
+    - fm.ci
+    - url90.com
+    - 4jio.com
+    - flosyr.com
+    - stats.us3.org
+    - insurance.ug
+    - github.io
+    - pages.dev
+    - ustechnio.com
+    - tax.dll.lat
+    - u320.my
+    - reficon.pro
+    - pltechoo.pro
+    - cp1.hostmaza.co.in
+    - wapp.live
+    - sk.wc.ci
+    - wc.ci
+    - garage2global.org
+    - hostmaza.co.in
+    - aol.cx
+    - iconnectpc.com
+    - cus.cam
+    - dll.lat
+    - us99.org
+    - us3.org
+    - sasta.holiday
+    - garage2global.com
+    - ustechnio100.com
+    - google.com
+    - bing.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .ts.remdos.com
+    - .tx.newredir.com
+    - .to.ghredir.com
+    - .tx.platdir.com
+    - .ww0.us
+    - .q82.net
+    - .pre.im
+    - .us6.my
+    - .link72.com
+    - .us00.net
+    - .fm.ci
+    - .url90.com
+    - .4jio.com
+    - .flosyr.com
+    - .stats.us3.org
+    - .insurance.ug
+    - .github.io
+    - .pages.dev
+    - .ustechnio.com
+    - .tax.dll.lat
+    - .u320.my
+    - .reficon.pro
+    - .pltechoo.pro
+    - .wapp.live
+    - .sk.wc.ci
+    - .wc.ci
+    - .garage2global.org
+    - .aol.cx
+    - .iconnectpc.com
+    - .cus.cam
+    - .dll.lat
+    - .us99.org
+    - .us3.org
+    - .sasta.holiday
+    - .garage2global.com
+    - .ustechnio100.com
+    - .google.com
+    - .bing.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: ts.remdos.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of observed redirector domains: ts.remdos[.]com'
+- value: tx.newredir.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: to.ghredir.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: tx.platdir.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ww0.us
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: q82.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pre.im
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: us6.my
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: link72.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: us00.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fm.ci
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: url90.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 4jio.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: flosyr.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: stats.us3.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: The BengalSEO TDS integrates a Matomo analytics instance hosted at stats.us3[.]org to track
+    and fingerprint visitors, monitor campaign performance, and help filter unwanted visitors.
+- value: insurance.ug
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Notably, our team observed the same Matomo instance used for analytics on legitimate websites
+    run as part of BengalSEO business entities such as insurance.ug, which redirects to WeConnect Associates
+    a
+- value: github.io
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: lure pages on hosting platforms such as github.io and pages.dev instead typically use analytics
+    services such as Google Tag Manager.
+- value: pages.dev
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: lure pages on hosting platforms such as github.io and pages.dev instead typically use analytics
+    services such as Google Tag Manager.
+- value: ustechnio.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of domains used for payload delivery landing pages:'
+- value: tax.dll.lat
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of domains used for payload delivery landing pages:'
+- value: u320.my
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of domains used for payload delivery landing pages:'
+- value: reficon.pro
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of domains used for payload delivery landing pages:'
+- value: pltechoo.pro
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Examples of domains used for payload delivery landing pages:'
+- value: cp1.hostmaza.co.in
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Hostmaza leases infrastructure from UK Dedicated Servers and utilizes specific name servers,
+    such as cp1.hostmaza.co.in
+- value: wapp.live
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: The domain wapp.live shifted to a hostmaza.co.in name server on August 12th 2025, before the
+    bulk subdomain certificate registrations, indicating BengalSEO gained control of the DNS for this
+    domain at
+- value: sk.wc.ci
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: A contact card for the BengalSEO alias Salman Khan can be seen hosted at sk.wc.ci
+- value: wc.ci
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: wc.ci is another domain registered by BengalSEO and links to both WeConnect and Garage2Global
+    by name and hosted content
+- value: garage2global.org
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: 'Garage2Global advertises web development services and likely uses their workforce to develop
+    malicious lure pages used in BengalSEO campaigns alongside legitimate web development projects, as
+    seen on '
+- value: hostmaza.co.in
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: The domain wapp.live shifted to a hostmaza.co.in name server on August 12th 2025, before the
+    bulk subdomain certificate registrations, indicating BengalSEO gained control of the DNS for this
+    domain at
+- value: aol.cx
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: This method was also observed with the domains aol.cx and iconnectpc.com, revealing 80 and
+    43 unique BengalSEO domains respectively.
+- value: iconnectpc.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: This method was also observed with the domains aol.cx and iconnectpc.com, revealing 80 and
+    43 unique BengalSEO domains respectively.
+- value: cus.cam
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Domains serving as MayaBot C2 servers, such as cus.cam, dll.lat, and us99.org, were registered
+    during this timeframe, along with the Matomo tracking domain us3.org in early 2024.
+- value: dll.lat
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Domains serving as MayaBot C2 servers, such as cus.cam, dll.lat, and us99.org, were registered
+    during this timeframe, along with the Matomo tracking domain us3.org in early 2024.
+- value: us99.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Domains serving as MayaBot C2 servers, such as cus.cam, dll.lat, and us99.org, were registered
+    during this timeframe, along with the Matomo tracking domain us3.org in early 2024.
+- value: us3.org
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Domains serving as MayaBot C2 servers, such as cus.cam, dll.lat, and us99.org, were registered
+    during this timeframe, along with the Matomo tracking domain us3.org in early 2024.
+- value: sasta.holiday
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: This timeframe also includes several BengalSEO business domains, such as sasta.holiday, wc.ci,
+    and garage2global.com.
+- value: garage2global.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: This timeframe also includes several BengalSEO business domains, such as sasta.holiday, wc.ci,
+    and garage2global.com.
+- value: ustechnio100.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: In Q1 2026, MayaBot SEO campaigns featured sequential ustechnio.com domains, ranging from
+    ustechnio.com through ustechnio100.com.
+- value: google.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: The script attempts to fetch an HTML payload disguised as a standard stylesheet bootstrap-table.min.css.
+    This payload serves as an invisible link farm, injecting hundreds of keyword-stuffed tags and l
+- value: bing.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/08/24/bengalseo-part-1-anatomy-of-the-operation/
+  evidence: Many lure pages use HTML meta tags for keyword stuffing to manipulate search rankings and
+    for site verification to gain access to Google Search Console and Bing Webmaster Tools.
+hunt_id: H-0625

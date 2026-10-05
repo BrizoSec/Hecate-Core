@@ -290,12 +290,29 @@ def _score_indicators(report: GoldReport, gold: Dict[str, Any], rules: List[Dict
 def _score_detections(report: GoldReport, gold: Dict[str, Any], rules: List[Dict[str, Any]]) -> None:
     """Each expected detection, with same-selection-block AND semantics."""
     for det in gold.get("detections") or []:
-        ok = any(
+        if "require_primary" in det:
+            ok = any(
+                _category(rule) == det["require_primary"]["category"].lower()
+                and any(_block_matches(b, det["require_primary"]["require"]) for b in _blocks(rule))
+                for rule in rules
+            )
+        else:
+            ok = any(
+                _category(rule) == alt["category"].lower() and any(_block_matches(b, alt["require"]) for b in _blocks(rule))
+                for alt in det.get("any_of") or []
+                for rule in rules
+            )
+        report.checks.append(Check("detections", det["id"], ok, "" if ok else det.get("description", "")))
+
+    for det in gold.get("forbidden_detections") or []:
+        found = any(
             _category(rule) == alt["category"].lower() and any(_block_matches(b, alt["require"]) for b in _blocks(rule))
             for alt in det.get("any_of") or []
             for rule in rules
         )
-        report.checks.append(Check("detections", det["id"], ok, "" if ok else det.get("description", "")))
+        report.checks.append(
+            Check("detections", f"forbidden {det['id']}", not found, "matched forbidden detection" if found else "")
+        )
 
 
 def score_draft(gold: Dict[str, Any], draft_path: Path, queries_dir: Optional[Path] = None) -> GoldReport:

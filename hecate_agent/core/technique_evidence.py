@@ -62,7 +62,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1105", "downloads a further stage",
      r"\bdownload(s|ed|ing)? (\d[\d.,]*\s?(kb|mb|gb|bytes)|the (payload|stager|next stage|second stage|decoy)"
      r"|a (payload|stager|second[- ]stage|decoy|real)|additional (payloads?|tools?|modules?))"
-     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b.{0,300}?\s-o\s"
+     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b.{0,300}?\s-o\s?\S"
      r"|\b(fetch|retriev)(es|ed)? (the|a) (payload|stager|next stage|second[- ]stage)\b"),
     ("T1140", "decodes or decrypts a payload",
      r"\bxor[- ]?(decod\w*|decrypt\w*)\b|\bxor(s|ed)? (it|the|with)\b"
@@ -200,6 +200,11 @@ _ATTACKER_SIDE_RE = re.compile(
     r"|\b(in|throughout|across) the toolkit\b|\bexploit (source|scripts?)\b|\bcampaign([- ]results?)? logs?\b"
     r"|\brecovered (files?|scripts?|evidence|toolkit)\b|\b(qa|test|dev/test|dev/qa) (hosts?|targets?|box(es)?|pool)\b"
 )
+#: A tool or data file named on its own, not as part of a path: "rogue.py", "wp_scan_results.json".
+_TOOL_FILE_RE = re.compile(r"(?<![\w/\\.-])[\w-]+\.(py|sh|ps1|bat|php|pl|rb|b64|json|txt|log|db)\b")
+#: How much of a report's opening is read to learn what it was written from.
+_FRAME_CHARS = 6000
+
 #: What happens on the victim's side, which keeps a sentence evidence even when it also mentions the actor's.
 _VICTIM_SIDE_RE = re.compile(r"\bvictims?\b|\bcompromised (hosts?|servers?|machines?|systems?)\b")
 #: How far back a quoted block's introduction is looked for, and how much of it is read.
@@ -242,10 +247,13 @@ _WINDOW_OVER = 450
 _WINDOW = 200
 
 
-def sentence_status(sentence: str) -> str:
-    """Whether a passage reports observed use, a tool capability, a negation, or another actor's tradecraft."""
+def sentence_status(sentence: str, actor_material: bool = False) -> str:
+    """Whether a passage reports observed use, a tool capability, a negation, or another actor's tradecraft.
+
+    ``actor_material``: the report was written from the actor's own files (:func:`actor_material_report`).
+    """
     lowered = sentence.lower()
-    if _CONTEXT_RE.search(lowered) or attacker_side(lowered):
+    if _CONTEXT_RE.search(lowered) or attacker_side(lowered, actor_material):
         return "context"
     if _NEGATED_RE.search(lowered):
         return "negated"
@@ -254,12 +262,32 @@ def sentence_status(sentence: str) -> str:
     return "observed"
 
 
-def attacker_side(lowered: str) -> bool:
-    """Whether a lowercased passage describes the actor's own machine or toolkit and nothing on a victim."""
-    return bool(_ATTACKER_SIDE_RE.search(lowered)) and not _VICTIM_SIDE_RE.search(lowered)
+def actor_material_report(text: str) -> bool:
+    """Whether a report says, at its opening, that it was written from the actor's own material.
+
+    An exposed directory, a leaked toolkit or a seized server yields a report
+    whose files are the actor's: hunt.io's Redis botnet report opens with "This
+    one held the operator's entire working toolkit" and "all trace back to the
+    operator's own files". Two different such statements are needed, so one
+    passing mention of an open directory does not reframe an ordinary report.
+    """
+    opening = refang(text or "")[:_FRAME_CHARS].lower()
+    return len({m.group(0) for m in _ATTACKER_SIDE_RE.finditer(opening)}) >= 2
 
 
-def passage_status(sentence: str, start: int, end: int) -> Tuple[str, str]:
+def attacker_side(lowered: str, actor_material: bool = False) -> bool:
+    """Whether a lowercased passage describes the actor's own machine or toolkit and nothing on a victim.
+
+    In a report written from the actor's own material, a passage that names a
+    tool or data file by itself is about that tool: "wp_spray.py sprays
+    credentials across the fleet" describes a script on the operator's host.
+    """
+    if _VICTIM_SIDE_RE.search(lowered):
+        return False
+    return bool(_ATTACKER_SIDE_RE.search(lowered)) or (actor_material and bool(_TOOL_FILE_RE.search(lowered)))
+
+
+def passage_status(sentence: str, start: int, end: int, actor_material: bool = False) -> Tuple[str, str]:
     """(status, passage) for a match at ``start``..``end`` of ``sentence``: the sentence, or a window of a run-on one.
 
     A quoted block has no sentence of its own, so in a run-on segment it takes
@@ -267,13 +295,13 @@ def passage_status(sentence: str, start: int, end: int) -> Tuple[str, str]:
     own host: cd /d C:\\Users\\Public\\xmrig ..." is the operator's command line.
     """
     if len(sentence) <= _WINDOW_OVER:
-        return sentence_status(sentence), sentence
+        return sentence_status(sentence, actor_material), sentence
     passage = sentence[max(0, start - _WINDOW) : min(len(sentence), end + _WINDOW)]
-    status = sentence_status(passage)
+    status = sentence_status(passage, actor_material)
     if status == "observed":
         lead = sentence[max(0, start - _LEAD_IN) : start].lower()
         colon = lead.rfind(": ")
-        if colon >= 0 and attacker_side(lead[max(0, colon - _LEAD_IN_CLAUSE) : colon]):
+        if colon >= 0 and attacker_side(lead[max(0, colon - _LEAD_IN_CLAUSE) : colon], actor_material):
             status = "context"
     return status, passage
 
@@ -291,6 +319,8 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
     status the first source wins.
     """
     found: Dict[str, TechniqueEvidence] = {}
+    texts = list(texts)
+    actor_material = any(actor_material_report(text) for _, text in texts)
     for source, text in texts:
         for sentence in sentences(text):
             lowered = sentence.lower()
@@ -298,7 +328,7 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
                 match = pattern.search(lowered)
                 if not match:
                     continue
-                status, passage = passage_status(sentence, match.start(), match.end())
+                status, passage = passage_status(sentence, match.start(), match.end(), actor_material)
                 if status in ("context", "negated"):
                     continue
                 current = found.get(tid)
@@ -322,6 +352,7 @@ def technique_support(technique_id: str, names: Iterable[str], text: str) -> Opt
     catalog = [(label, pattern) for tid, label, pattern in _COMPILED if tid == technique_id]
     by_name = _name_pattern(names)
     best: Optional[TechniqueEvidence] = None
+    actor_material = actor_material_report(text)
     for sentence in sentences(text):
         lowered = sentence.lower()
         match, label = None, None
@@ -335,7 +366,7 @@ def technique_support(technique_id: str, names: Iterable[str], text: str) -> Opt
             label = "technique name" if match else None
         if match is None or label is None:
             continue
-        status, passage = passage_status(sentence, match.start(), match.end())
+        status, passage = passage_status(sentence, match.start(), match.end(), actor_material)
         if status == "context":
             continue
         if status == "negated":

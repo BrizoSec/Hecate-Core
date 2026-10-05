@@ -68,6 +68,23 @@ hecate-agent eval-gold evals/gold/vshell-fake-resume.yaml /tmp/gold-ws/hunts/*/*
 A single run carries model variance: repeat step 3 a few times before reading
 a small difference as a real change.
 
+## Saved outputs
+
+`outputs/<case>/` holds one replay's output per case, for review without
+running the pipeline: `draft.md` (the drafted hunt), `rules/` (its Sigma
+rules), `research.md`, `trail.log` (what each pipeline step decided),
+`score.json` (the `eval-gold` report) and `source.txt` (the primary report's
+text as the pipeline fetched it). They are from 2026-10-03, on the code
+committed as Hecate-Core `907b30c` and Hecate-Runner `3c3fad2`, and each
+scores full marks. The Redis and VShell runs predate one fix in that commit:
+rules whose titles shortened to the same file name overwrote each other, so
+the Redis `rules/` lacks the rules for `/etc/cron.d/.redis-miner`,
+`/etc/cron.d/redis-miner` and `/var/spool/cron/root`. To rescore one:
+
+```bash
+hecate-agent eval-gold evals/gold/<case>.yaml evals/outputs/<case>/draft.md --queries evals/outputs/<case>/rules
+```
+
 ## What is scored
 
 Every positive and every negative item is one check; the score is checks passed

@@ -563,6 +563,54 @@ def actor_only_selection(detection: Dict[str, Any], category: str) -> Optional[s
     return None
 
 
+def literal_wildcard(detection: Dict[str, Any]) -> Optional[str]:
+    """A literal * in a command line or target filename where bash/cmd expands it.
+
+    The OS expands * before logging process creation, so the logged command line
+    has the actual paths, not the literal *.
+    """
+    for name, block in detection.items():
+        if not isinstance(block, dict) or name.lower() in ("condition", "timeframe"):
+            continue
+        for key, raw in block.items():
+            field = base_field(key).lower()
+            if field in ("commandline", "targetfilename", "image"):
+                for v in _values(raw):
+                    if "contains" in _modifiers(key):
+                        if "*" in v:
+                            return f"{name} expects a literal '*' in {field}, but shells expand wildcards before execution"
+    return None
+
+
+def hallucinated_filter(detection: Dict[str, Any], named: List[str]) -> Optional[str]:
+    """A negated filter that arbitrarily excludes a specific image not in the intelligence."""
+    from hecate_agent.core.query_literals import SYSTEM_IMAGES
+
+    named_lower = {n.lower() for n in named}
+    for name in _negated_names(detection):
+        block = detection.get(name)
+        if not isinstance(block, dict):
+            continue
+        for key, raw in block.items():
+            field = base_field(key).lower()
+            if field in ("image", "parentimage", "originalfilename"):
+                for v in _values(raw):
+                    val_lower = v.lower()
+                    if val_lower.startswith("\\\\"):
+                        val_lower = val_lower[2:]
+                    elif val_lower.startswith("\\"):
+                        val_lower = val_lower[1:]
+
+                    found = False
+                    for sys_img in SYSTEM_IMAGES:
+                        if sys_img in val_lower or val_lower in sys_img:
+                            found = True
+                            break
+                    if found and not any(n in val_lower for n in named_lower):
+                        return f"{name} excludes {v} but the source intelligence does not authorize this filter"
+    return None
+
+
 def semantic_problem(
     detection: Dict[str, Any], category: str, description: str = "", named: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -574,6 +622,7 @@ def semantic_problem(
     checks = (
         lambda: field_outside_category(detection, category),
         lambda: non_executable_image(detection),
+        lambda: literal_wildcard(detection),
         lambda: api_in_command_line(detection),
         lambda: url_path_confusion(detection),
         lambda: elided_value(detection),
@@ -583,6 +632,7 @@ def semantic_problem(
         lambda: filter_cancels_selection(detection),
         lambda: actor_only_selection(detection, category),
         lambda: filter_excludes_named_artifact(detection, named or []),
+        lambda: hallucinated_filter(detection, named or []),
     )
     for check in checks:
         problem = check()

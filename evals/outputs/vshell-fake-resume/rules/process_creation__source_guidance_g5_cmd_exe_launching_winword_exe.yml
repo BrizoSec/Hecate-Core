@@ -1,0 +1,23 @@
+title: 'Source guidance G5: cmd.exe launching winword.exe'
+id: bc7812c3-6d31-402c-83ee-8e01f234abc1
+status: experimental
+description: 'Deterministic rule built from the detection guidance the source published, with no model
+  involvement. The source advises hunting for: "Resume-themed executables launching cmd.exe and then Word".
+  Scope: the next event of the chain; joining the two events needs backend correlation.'
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source detection guidance - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    ParentImage|endswith: \cmd.exe
+    Image|endswith: \winword.exe
+  condition: selection
+falsepositives:
+- Legitimate activity that matches the guidance; tune against the environment
+level: medium
+hunt_id: H-0618

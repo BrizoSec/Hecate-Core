@@ -16,7 +16,7 @@ observed technique behind it is softened to "could ...", in place, and recorded.
 
 import re
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from hecate_agent.core.sigma_semantics import API_NAMES
 
@@ -307,6 +307,40 @@ def mark_unobservable_values(text: str, field: str, unobservable: Dict[str, str]
             text = pattern.sub(lambda m: f"{m.group(0)} [{reason}]", text, count=1)
             findings.append(ClaimFinding(field, value, "flagged", reason))
     return text, findings
+
+
+# --- Values the prose names that are not on a victim this hunt covers --------------------------
+
+#: A file named by itself in prose, and a Windows path or variable.
+_PROSE_FILE = r"(?<![\w./\\-])[\w-][\w.-]*\.(?:{exts})\b"
+_PROSE_WINDOWS_RE = re.compile(r"\b[A-Za-z]:\\[^\s,;'\")\]]+|%\w+%(?:\\[^\s,;'\")\]]+)?")
+
+
+def prose_value_reasons(texts: Iterable[str], source_text: str, platforms: Sequence[str]) -> Dict[str, str]:
+    """Why a file or path the drafting model named is not something this hunt can observe, per value.
+
+    The model names things extraction never returned, so the artifact table
+    cannot vouch for them. The Redis botnet draft, a Linux hunt, listed
+    ``python.exe`` as suspicious and gave "execution of Python scripts
+    (c2_persist.py, ...)" as evidence: the operator's interpreter and the C2
+    server itself. A value is reported when none of the hunt's platforms can
+    show it, or when the source places it on the actor's own side.
+    """
+    from hecate_agent.core.query_literals import off_platform
+    from hecate_agent.core.source_evidence import FILE_EXTENSIONS, attacker_side_passage
+
+    files = re.compile(_PROSE_FILE.format(exts=FILE_EXTENSIONS), re.IGNORECASE)
+    covered = ", ".join(platforms)
+    reasons: Dict[str, str] = {}
+    for text in texts:
+        for value in [*files.findall(text or ""), *_PROSE_WINDOWS_RE.findall(text or "")]:
+            if value in reasons:
+                continue
+            if off_platform(value, platforms):
+                reasons[value] = f"is a Windows artifact; this hunt covers {covered}"
+            elif source_text and attacker_side_passage(source_text, value):
+                reasons[value] = "the source places it on the actor's own side, not on a victim"
+    return reasons
 
 
 def render_findings(findings: List[ClaimFinding], limit: Optional[int] = None) -> str:

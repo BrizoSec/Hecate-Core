@@ -243,6 +243,9 @@ appendix. Update this table as work lands; measure each change with
 | After #1–#11 + A1 (2026-09-28) | 70/71 (98.6%) | 18/18 | 7/7 | 12/13 | 24/24 | 6/6 | 3/3 | 11/11 |
 | After #1–#11 + A1, A2 (2026-09-28) | 71/71 (100%) | 18/18 | 7/7 | 13/13 | 24/24 | 6/6 | 3/3 | 11/11 |
 | After #1–#11 + A1–A3 (2026-09-28) | 71/71 (100%) | 18/18 | 7/7 | 13/13 | 24/24 | 6/6 | 3/3 | 11/11 |
+| vshell-fake-resume (2026-10-03 saved output, 1 run) | 71/71 (100%) | 18/18 | 7/7 | 13/13 | 24/24 | 6/6 | 3/3 | 11/11 |
+| macos-clickfix-stealer (2026-10-03 saved output, 1 run) | 55/55 (100%) | 20/20 | 7/7 | 12/12 | 7/7 | 6/6 | 3/3 | 12/12 |
+| redis-cryptomining-botnet (2026-10-03 saved output, 1 run) | 53/53 (100%) | 19/19 | 7/7 | 11/11 | 7/7 | 6/6 | 3/3 | 9/9 |
 
 After #1 and #2 the remaining failures were technique mapping (#4: 10 observed
 techniques missing, T1113 still mapped from wording) and two behavioural
@@ -359,7 +362,9 @@ names them; a target sector the source never states ("in China's
 defense-tech sector", "targeting Chinese defense-tech researchers") is
 replaced with "(target sector unconfirmed by the source)", and an asserted
 motive the source never states is marked. The confirmation replay scored
-71/71 with a clean Grounding section.
+71/71 with a clean Grounding section. (Corrected 2026-10-03: not fully clean.
+The saved VShell output still lists `DOCX` as an "actor/malware name" entity,
+the defect the Grounding audit section above first recorded.)
 
 **Second gold case (2026-09-28).** `evals/gold/macos-clickfix-stealer.yaml`
 (Huntress, ClickFix fake CAPTCHA delivering a Go macOS stealer) was written
@@ -384,6 +389,147 @@ argument), nine on the Huntress report and none on VShell. The case scores
 process command line; `history` and `fc` are shell builtins that start no
 process, so no process event can record them. That detection was replaced by
 `loader-fetched`, the `curl` fetch of the loader in the same pasted command.
+
+**Third gold case (2026-10-03).** `evals/gold/redis-cryptomining-botnet.yaml`
+(hunt.io, a Redis rogue-replication cryptomining botnet) was written from the
+report before any run, to differ from both earlier cases: Linux servers, an
+exposed service with no user involved, and a report written from the
+operator's own exposed directory, so most of its text describes the attacker's
+Windows machine and toolkit. The pipeline first scored 40/53 (technique recall
+2/9, detections 3/6). The causes: no server-side tradecraft in the behaviour
+catalog (T1190, T1496, T1564.001, T1571, an HTTP heartbeat, `rm -rf`); a
+`curl ... -o` pattern that stopped at the first dot of a URL; the feed's "MD5"
+and "SHA-256" being the C2's bearer token (`C2_TOKEN=...`) and a pinned TLS
+fingerprint, both routed to a process-hash rule; ports written beside the C2
+in a table (`:10000`, `:16379--16385`) never reaching the network rule; no
+rule for `/etc/cron.d/.redis-miner`; and the page carrying the article twice,
+which doubled extraction time. After the fixes the case scores 53/53 (recall
+9/9) in 18 minutes instead of 30, macOS 55/55 and VShell 71/71. Sentences
+about the actor's own host, toolkit or exposed directory now count as context,
+which keeps Windows out of the platform evidence; addresses the report calls
+targets get no network rule; a bare file name gets no written-file rule. One
+of the 53 comes from a scorer change made the same day: the Primary Source
+Evidence table is excluded from claim checks, because its verbatim row for a
+historical file ("deploy_meterpreter.sh Downloads and installs
+meterpreter.elf") was scored as the draft claiming Meterpreter was installed.
+
+**Output review of the three cases (2026-10-03).** One saved run per case,
+dated 2026-10-03 (`evals/outputs/<case>/`), was read against its source and
+gold set without running the pipeline. Scores below are transcribed from the
+saved `score.json` files; they are single-run results, not repeatability
+estimates:
+
+| Case | Checks | Techniques | Platform | Claims | Indicators | Detections | Rule semantics | Recall | Output judgement |
+|---|---|---|---|---|---|---|---|---|---|
+| VShell | 71/71 | 18/18 | 7/7 | 13/13 | 24/24 | 6/6 | 3/3 | 11/11 | Useful source coverage; file/process detections are suspect and C2 includes a stale port. |
+| macOS ClickFix | 55/55 | 20/20 | 7/7 | 12/12 | 7/7 | 6/6 | 3/3 | 12/12 | Strong quoted-command rules; main payload path lacks a file rule and one `mkdir` rule is unlikely to match. |
+| Redis botnet | 53/53 | 19/19 | 7/7 | 11/11 | 7/7 | 6/6 | 3/3 | 9/9 | Useful starting point, but attacker-side artifacts, suspect infrastructure and core behavior gaps require review. |
+
+Full marks overstate all three: every defect below passed the scorer. The
+full review, with quoted passages and file locations, is
+`evals/reviews/eval_gpt-6_20261003T201814Z.md`.
+
+- **A stale port scopes the VShell C2 rule (regression, unscored).** The
+  network rule has a selection for `38.207.178.192` on 40010, the report's
+  "MEDIUM confidence ... ThreatFox-derived VShell sighting, 2026-04-15", which
+  it calls "not a campaign bridge". Item #2 kept that port out; the port
+  extraction added on 2026-10-03 attaches every `address:port` the page
+  writes, whatever the sentence says. The same code put ports 80 and 8081 on
+  the Redis C2, which are the open directory and a certificate port, not
+  victim traffic.
+- **The operator's side still reads as the victim's in Redis prose
+  (unscored).** ABLE Evidence names "execution of Python scripts
+  (c2_persist.py, ...)", the C2 server itself; the suspicious list has
+  `python.exe` on a Linux hunt; Location says "exposed Redis instances (ports
+  16379–16385)", which are the rogue master's ports, where victims expose
+  6379. Fifteen operator files stay `active` in the evidence table because
+  their sentences never say "operator".
+- **`ayakliborsa.net` is typed C2 with high-severity DNS rules (unscored).**
+  The report says the hostname "never appears inside the operator's own
+  recovered files"; nothing shows a victim resolving it, and the apex domain
+  has no stated role. The network rule also matches the attacker IP on ports
+  80 and 8081 (the exposed directory and certificate port), and includes
+  `45.155.102.89:10128`, described as a local mining proxy used by the
+  operator. The gold set does not check address/port pairs or actor-side
+  connections.
+- **The draft says its main artifact is not part of the intrusion
+  (unscored).** The claim audit removed the macOS stealer path
+  (`$HOME/Library/Caches/com.apple.trustd/com.apple.verified`) and the VShell
+  decoy path as "the source does not tie it to this intrusion (unknown)": any
+  artifact whose extracted status is not `active` is treated as untied. The
+  macOS path has no file rule; the VShell path has a high-severity rule the
+  draft's own audit contradicts.
+- **Rules that cannot or probably cannot match (unscored).** macOS `mkdir`
+  rule: `CommandLine|contains: '-p /Library/Caches/com.apple.trustd'`, where a
+  real command line has `/Users/<name>` between. VShell decoy and `resume`
+  rules use the report's English rendering of names it says it translated;
+  the original is likely Chinese (suspected, not settled by the saved text).
+- **Missing Redis detections (unscored).** No process rule for the miner
+  running from `/tmp/.xmrig`, no proxy rule for `/ping?h=`, and the one
+  behavioural attempt (`redis-server` as the process) rejected as "not a value
+  the source gives". The report's "Detection and Mitigation Recommendations"
+  section was not recognised as detection guidance.
+- **Techniques on weak evidence (unscored).** Redis T1027, T1140 and
+  T1059.006 rest on the operator's own tooling, and T1213.006 on the word
+  "databases" with no passage; T1059.004 cites an early test payload rather
+  than the production cron payload. macOS T1571, T1555.001 and T1555.003 are
+  marked observed on "would have communicated" and "the stealer targets".
+- **Grounding table (unscored).** macOS marks `77.221.152.34` "UNSUPPORTED —
+  ip in no source" and `138.124.118.69` "research only"; both are in the
+  report's IOC table. It also lists `com.apple.quarantine` as a domain.
+- **Unsupported prose and attacker context remain (unscored).** Redis
+  Justification says the attack works "without requiring exploit code," though
+  the report describes exploit scripts; its Evidence says the heartbeat
+  carries token `f90c8b1d...`, while the source gives `/ping?h=<hostname>` and
+  calls it unauthenticated. macOS Justification assumes an organization's
+  macOS/EDR deployment not mentioned by the inputs and calls wallet theft an
+  outcome although the report says the public wallet addresses have received
+  no value. VShell Justification asserts "high-value ... defense-related
+  research environments" though the source says the target sector is not
+  established.
+- **Redis research repeats the false token claim (unscored).** R-0616 says
+  requests use `f90c8b1d...` in the query string and recommends matching it
+  (`research.md`, Key Findings and Focus). The report says only that the cron
+  job makes a plain GET of `/ping?h=<hostname>` and that the endpoint is
+  token-protected; the token is not shown as a request parameter
+  (`source.txt`, Command-and-Control and Persistence Architecture). The trail
+  also says the source publishes no detection guidance, although the report
+  has a “Detection and Mitigation Recommendations” section with cron auditing
+  advice (`source.txt`, that section; `trail.log`, guidance step).
+- **Smaller rule quality issues (unscored).** The Redis `mv` rule pins the
+  XMRig directory wildcard literally, and the `curl` rule pins release
+  `v6.22.2`; its root-crontab rule fires on any edit. The macOS `launchctl
+  bootstrap` rule matches any such use. A model DNS rule duplicates the
+  deterministic `socket.ayakliborsa.net` rule; the VShell model network rule
+  duplicates the deterministic 50812 selection. Deterministic rules in all
+  three cases have `tags: []`.
+- **Gold sets.** `any_of` detections pass on their weakest alternative
+  (Redis `cron-written` without the primary path, macOS `launch-agent` on any
+  `launchctl bootstrap`); no check can forbid an address-and-port pair; the
+  Redis set has no check for `ayakliborsa.net`, operator files in rules, or
+  T1213.006; VShell's does not list T1571; claim patterns are literal, so
+  "wallet theft", "defense-related research" and `python.exe` pass. The Redis
+  source gives both `/etc/cron.d/.redis-miner` (prose) and
+  `/etc/cron.d/redis-miner` (IOC table), and says cron skips dotfiles in
+  `cron.d`; accepting both is reasonable, but the gold comment should explain
+  the discrepancy. VShell and Redis saved rules predate the title-to-file
+  collision fix. The three absent Redis rules named in `evals/README.md` are
+  excluded here.
+- **Additional source coverage gaps (unscored).** The VShell ABLE Behaviour
+  says the SNOWLIGHT stager downloads and decodes VShell "via a decoy DOCX",
+  although the source describes the DOCX as a lure/decoy and the stager's
+  network payload as the RAT transfer (`vshell-fake-resume/draft.md`, ABLE
+  Scoping; `source.txt`, process-chain passages). Its model-drafted network
+  rule also filters out `winword.exe` without source support
+  (`rules/network_connection__suspicious_c2_beaconing...yml`). On macOS, the
+  proxy rule uses `c-uri|endswith: /92392991a0cca55` while the source URL ends
+  in `?force=1`; logs retaining the query string will not match. `T1684` cites
+  only the summary phrase "leverages ClickFix social engineering". The source
+  does describe `osascript` credential prompts, but the macOS gold set has no
+  observed `T1059.002` check. On Redis, `mv` is matched against the literal
+  `/tmp/xmrig-*/xmrig`; the shell expands that wildcard before `mv` runs, so
+  the process command line records an expanded path. The gold set also omits
+  explicit QA-target addresses and several fallback persistence paths.
 
 ## Independent review and recommendation audit
 

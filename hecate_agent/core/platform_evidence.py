@@ -17,7 +17,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Tuple
 
-from hecate_agent.core.technique_evidence import passage_status, sentences
+from hecate_agent.core.technique_evidence import actor_material_report, passage_status, sentences
 
 #: Markers unique to one platform. Ambiguous ones stay out: bash, cron, /tmp/
 #: and Python run on Linux and macOS alike, and architecture tags such as
@@ -69,10 +69,11 @@ def platform_evidence(texts: List[str]) -> PlatformEvidence:
     found: Dict[str, Dict[str, str]] = {}
     patterns = [(p, m) for p, markers in _MARKERS.items() for m in markers]
     patterns += [(platform, rf"\b{re.escape(name)}\b") for name, platform in _NAMES.items()]
+    actor_material = any(actor_material_report(text) for text in texts)
     for sentence in (s for text in texts for s in sentences(text)):
         for platform, pattern in patterns:
             for match in re.finditer(pattern, sentence, re.IGNORECASE):
-                if passage_status(sentence, match.start(), match.end())[0] != "observed":
+                if passage_status(sentence, match.start(), match.end(), actor_material)[0] != "observed":
                     continue
                 marker = key = match.group(0).lower()
                 slot = found.setdefault(platform, {})

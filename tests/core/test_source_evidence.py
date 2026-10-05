@@ -249,7 +249,7 @@ def test_records_route_hashes_hosts_ports_and_paths() -> None:
         (IP, 50813),
     }
     assert rules["proxy"]["logsource"] == {"category": "proxy"}  # proxy logs have no endpoint OS
-    assert rules["proxy"]["detection"]["selection"]["c-uri|endswith"] == ["/MySQL_LOG.txt"]
+    assert rules["proxy"]["detection"]["selection"]["c-uri|contains"] == ["/MySQL_LOG.txt"]
 
 
 def test_without_records_the_old_placements_are_unchanged() -> None:

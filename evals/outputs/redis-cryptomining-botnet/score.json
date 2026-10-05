@@ -1,0 +1,379 @@
+{
+  "case_id": "redis-cryptomining-botnet",
+  "draft": "evals/outputs/redis-cryptomining-botnet/draft.md",
+  "score": 1.0,
+  "passed": 53,
+  "total": 53,
+  "technique_recall": {
+    "hits": 9,
+    "denominator": 9,
+    "value": 1.0,
+    "matched": [
+      "T1190",
+      "T1053.003",
+      "T1105",
+      "T1496",
+      "T1059.004",
+      "T1564.001",
+      "T1071.001",
+      "T1571",
+      "T1070.004"
+    ]
+  },
+  "acceptable_found": [
+    "T1027",
+    "T1140"
+  ],
+  "unreviewed_techniques": [
+    "T1059.006",
+    "T1213.006"
+  ],
+  "rules_scored": 15,
+  "rules_source": "evals/outputs/redis-cryptomining-botnet/rules",
+  "dimensions": {
+    "techniques": {
+      "passed": 19,
+      "total": 19
+    },
+    "platform": {
+      "passed": 7,
+      "total": 7
+    },
+    "claims": {
+      "passed": 11,
+      "total": 11
+    },
+    "indicators": {
+      "passed": 7,
+      "total": 7
+    },
+    "detections": {
+      "passed": 6,
+      "total": 6
+    },
+    "rule semantics": {
+      "passed": 3,
+      "total": 3
+    }
+  },
+  "checks": [
+    {
+      "dimension": "techniques",
+      "id": "observed T1190",
+      "passed": true,
+      "detail": "matched by T1190"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1053.003",
+      "passed": true,
+      "detail": "matched by T1053.003"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1105",
+      "passed": true,
+      "detail": "matched by T1105"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1496",
+      "passed": true,
+      "detail": "matched by T1496"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1059.004",
+      "passed": true,
+      "detail": "matched by T1059.004"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1564.001",
+      "passed": true,
+      "detail": "matched by T1564.001"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1071.001",
+      "passed": true,
+      "detail": "matched by T1071.001"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1571",
+      "passed": true,
+      "detail": "matched by T1571"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1070.004",
+      "passed": true,
+      "detail": "matched by T1070.004"
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1098.004",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1037.004",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1574.006",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1041",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1568.002",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1210",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1136.003",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1003.002",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1547.001",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1059.001",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "includes Linux",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Windows",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes macOS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Containers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes ESXi",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes IaaS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Network Devices",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states rogue-replication",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states cron-d",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states xmrig",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states mining-pool",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states unauthenticated-redis",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states hidden-miner",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states c2-port",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids ssh-keys-as-fact",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids meterpreter-deployed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids known-group-attribution",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids windows-artifacts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "c2-bearer-token-not-a-hash not in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "c2-bearer-token-not-a-hash not in file_event.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "c2-bearer-token-not-a-hash not in image_load.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "pinned-pool-tls-fingerprint-not-a-file not in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "pinned-pool-tls-fingerprint-not-a-file not in file_event.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "pinned-pool-tls-fingerprint-not-a-file not in image_load.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "operator-test-target-ownership-unconfirmed not in network_connection.DestinationIp",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "c2-callback",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "rogue-replication",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "mining-pool",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "cron-written",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "hidden-miner",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "xmrig-download",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no field-outside-category",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no non-executable-image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no description-overclaims",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-import sqlite3
 from hecate_agent.orchestrator.graph import hecate_graph
 
 config = {"configurable": {"thread_id": "HITL-Demo-001"}}

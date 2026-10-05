@@ -1,0 +1,54 @@
+title: DNS lookup of a domain named in the source intelligence
+id: afa599a0-69f9-4046-b3ad-95784a1c01c4
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - ayakliborsa.net
+    - socket.ayakliborsa.net
+    - pool.moneroocean.stream
+  selection_subdomain:
+    QueryName|endswith:
+    - .ayakliborsa.net
+    - .pool.moneroocean.stream
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: ayakliborsa.net
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: socket.ayakliborsa[.]net is live operator infrastructure, not a stale pivot
+- value: socket.ayakliborsa.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: A follow-up pass against DNS and certificate history flips our earlier read on this hostname.
+    Hunt.io's DNS history has its A record pointed at 188.245[.]99.156 continuously from 2026-01-12 through
+    20
+- value: pool.moneroocean.stream
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: The mining pool is independently confirmed by an unrelated campaign. pool.moneroocean[.]stream
+    (registered 2017-08-11 via Porkbun) carries two IOC Hunter sightings from 24 July 2026, both from
+    reporti
+hunt_id: H-0618

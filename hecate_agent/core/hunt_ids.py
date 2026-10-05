@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - fcntl is POSIX-only
 #: research ID allocation already is there.
 _fcntl: Optional[Any] = _fcntl_module
 
-from hecate_agent.core.research_manager import _DEFAULT_FILE_MODE
+from hecate_agent.core.research_manager import _DEFAULT_FILE_MODE  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

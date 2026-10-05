@@ -195,10 +195,75 @@ _PORT_RANGE = _PORT + r"(?:\s*(?:-{1,2}|\u2013|\u2014|through|to)\s*" + _PORT + 
 _MAX_RANGE = 32
 
 
+#: The words beside an endpoint give it a job a victim's host would be seen doing.
+_SERVING_WORDING = re.compile(
+    r"\b(c2|c&c|command[- ]and[- ]control|callback|check[- ]?in|staging|rogue|payloads?|exfiltrat\w+|mining pool|beacon\w*"
+    r"|download\w*|transfer)\b",
+    re.IGNORECASE,
+)
+#: The words beside it say how someone else came to see the port: an old sighting, a
+#: certificate or DNS record, the researchers' own access. That is not this intrusion's traffic.
+_SIGHTING_WORDING = re.compile(
+    r"\b(sightings?|passive[- ]dns|feed (listed|lists)|secondary[- ]source|(months|years) (before|earlier)"
+    r"|historical(ly)?|previously|certificates?|resolv(ed|es|ing)|indexed|crawl\w*|we found it|open directory|rdp)\b",
+    re.IGNORECASE,
+)
+#: A line that stops mid-phrase, so the next line continues it.
+_RUNS_ON_LINE = re.compile(
+    r"([(\[,:]|\b(at|to|on|from|and|or|of|for|with|the|is|as|by|via|in|against|listed))\s*$", re.IGNORECASE
+)
+_ADDRESS_LINE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+
+
+#: Characters of a prose line read either side of an endpoint.
+_NEAR = 150
+
+
+def _mention_context(text: str, start: int, end: int) -> str:
+    """The words that describe one mention of an endpoint: its own lines, and the description after them.
+
+    Page extraction puts each inline element and table cell on its own line,
+    so the row for "188.245.99.156" / ":10000" continues on the next lines
+    ("IP:port", "C2 callback endpoint") until the next address. A line of
+    prose that already says something about the endpoint is the whole context.
+    """
+    first = text.rfind("\n", 0, start) + 1
+    last = text.find("\n", end)
+    last = len(text) if last < 0 else last
+    # A paragraph of prose has other subjects: keep the endpoint's own sentence, or what is near it.
+    sentence_start = text.rfind(". ", first, start)
+    sentence_end = text.find(". ", end, last)
+    near_first = max(first, start - _NEAR, sentence_start + 2 if sentence_start >= 0 else first)
+    near_last = min(last, end + _NEAR, sentence_end + 1 if sentence_end >= 0 else last)
+    own = " ".join(text[near_first:near_last].split())
+    parts = [own]
+    before = text[:first].rstrip("\n").rsplit("\n", 1)[-1].strip()
+    if before and near_first == first and _RUNS_ON_LINE.search(before):
+        parts.insert(0, before[-_NEAR:])
+    if len(re.findall(r"[A-Za-z]{2,}", own)) < 4:
+        described = 0
+        for later in text[last:].split("\n")[1:8]:
+            later = later.strip()
+            if _ADDRESS_LINE.search(later):
+                break
+            if len(re.findall(r"[A-Za-z]{2,}", later)) >= 2:
+                parts.append(later)
+                described += 1
+                if described == 2:
+                    break
+    return " ".join(parts)
+
+
 def _ports_in_text(value: str, text: str) -> List[int]:
-    """Ports the text writes beside an address or host: "host:port", "host on port N", "port(s) N at host"."""
+    """Ports the text ties to an address or host: "host:port", "host on port N", "port(s) N at host".
+
+    A port is kept unless every mention of it is a sighting, not service: the
+    VShell report listed "38.207.178.192:40010 ThreatFox-derived VShell
+    sighting, 2026-04-15" beside the two ports the sample used, and the Redis
+    report named port 80 only as where the researchers found the directory.
+    """
     host = r"(?<![\w.-])" + re.escape(value)
-    found: List[int] = []
+    verdicts: Dict[int, List[str]] = {}
     for pattern in (
         host + r"\s*:" + _PORT_RANGE,
         host + r"\s+on\s+(?:tcp\s+|udp\s+)?port\s+" + _PORT_RANGE,
@@ -209,8 +274,15 @@ def _ports_in_text(value: str, text: str) -> List[int]:
             high = int(match.group(2)) if match.group(2) else low
             if not (0 < low <= high < 65536 and high - low < _MAX_RANGE):
                 continue
-            found += [p for p in range(low, high + 1) if p not in found]
-    return found
+            context = _mention_context(text, match.start(), match.end())
+            verdict = (
+                "serving"
+                if _SERVING_WORDING.search(context)
+                else "sighting" if _SIGHTING_WORDING.search(context) else "neutral"
+            )
+            for port in range(low, high + 1):
+                verdicts.setdefault(port, []).append(verdict)
+    return [port for port, seen in verdicts.items() if any(v != "sighting" for v in seen)]
 
 
 def attach_text_ports(records: List[IndicatorRecord], text: str) -> None:

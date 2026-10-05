@@ -1,0 +1,397 @@
+{
+  "case_id": "macos-clickfix-stealer",
+  "draft": "evals/outputs/macos-clickfix-stealer/draft.md",
+  "score": 1.0,
+  "passed": 55,
+  "total": 55,
+  "technique_recall": {
+    "hits": 12,
+    "denominator": 12,
+    "value": 1.0,
+    "matched": [
+      "T1566.002",
+      "T1204.004",
+      "T1059.004",
+      "T1105",
+      "T1082",
+      "T1033",
+      "T1070.003",
+      "T1070.004",
+      "T1553.001",
+      "T1036.005",
+      "T1543.001",
+      "T1056.002"
+    ]
+  },
+  "acceptable_found": [
+    "T1555.001",
+    "T1555.003",
+    "T1027",
+    "T1571"
+  ],
+  "unreviewed_techniques": [
+    "T1059.002",
+    "T1684",
+    "T1569.001"
+  ],
+  "rules_scored": 14,
+  "rules_source": "evals/outputs/macos-clickfix-stealer/rules",
+  "dimensions": {
+    "techniques": {
+      "passed": 20,
+      "total": 20
+    },
+    "platform": {
+      "passed": 7,
+      "total": 7
+    },
+    "claims": {
+      "passed": 12,
+      "total": 12
+    },
+    "indicators": {
+      "passed": 7,
+      "total": 7
+    },
+    "detections": {
+      "passed": 6,
+      "total": 6
+    },
+    "rule semantics": {
+      "passed": 3,
+      "total": 3
+    }
+  },
+  "checks": [
+    {
+      "dimension": "techniques",
+      "id": "observed T1566.002",
+      "passed": true,
+      "detail": "matched by T1566.002"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1204.004",
+      "passed": true,
+      "detail": "matched by T1204.004"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1059.004",
+      "passed": true,
+      "detail": "matched by T1059.004"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1105",
+      "passed": true,
+      "detail": "matched by T1105"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1082",
+      "passed": true,
+      "detail": "matched by T1082"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1033",
+      "passed": true,
+      "detail": "matched by T1033"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1070.003",
+      "passed": true,
+      "detail": "matched by T1070.003"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1070.004",
+      "passed": true,
+      "detail": "matched by T1070.004"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1553.001",
+      "passed": true,
+      "detail": "matched by T1553.001"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1036.005",
+      "passed": true,
+      "detail": "matched by T1036.005"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1543.001",
+      "passed": true,
+      "detail": "matched by T1543.001"
+    },
+    {
+      "dimension": "techniques",
+      "id": "observed T1056.002",
+      "passed": true,
+      "detail": "matched by T1056.002"
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1657",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1053",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1547.015",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1547.001",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1059.001",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1112",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1021",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "techniques",
+      "id": "forbidden T1486",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "includes macOS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Windows",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Linux",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Containers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes ESXi",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes IaaS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "platform",
+      "id": "excludes Network Devices",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states clickfix-delivery",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states terminal-paste",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states mach-o",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states launch-agent-persistence",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states gatekeeper-bypass",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states osascript-prompt",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "states c2-port",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids drain-as-fact",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids aeza-as-actor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids russian-actor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids unrelated-families",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "claims",
+      "id": "avoids windows-artifacts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "stealer-executable-arm64 in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "stealer-executable-x86_64 in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "persistence-payload-executable in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "profiler-loader-bash-script not in process_creation.Hashes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "clickfix-phase-domain in dns_query.QueryName",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "loader-download-path not in file_event.TargetFilename",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "indicators",
+      "id": "loader-download-path not in process_creation.Image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "c2-connection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "payload-host",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "payload-written",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "launch-agent",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "quarantine-removed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "detections",
+      "id": "loader-fetched",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no field-outside-category",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no non-executable-image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "dimension": "rule semantics",
+      "id": "no description-overclaims",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

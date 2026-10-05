@@ -42,6 +42,7 @@ Complete reference for all `hecate-agent` command-line interface commands.
 | [`hecate-agent investigate promote`](#hecate-agent-investigate-promote) | Investigation | Promote investigation to formal hunt |
 | [`hecate-agent context`](#hecate-agent-context) | AI Optimization | Export AI-optimized context bundle (saves ~75% tokens) |
 | [`hecate-agent similar`](#hecate-agent-similar) | AI Optimization | Find similar hunts using semantic search |
+| [`hecate-agent monitor`](#hecate-agent-monitor) | Monitoring | Live terminal dashboard for pipeline activity, host resources, and usage |
 | [`hecate-agent eval`](#hecate-agent-eval) | Model Quality | Score a model against known-answer fixtures |
 | [`hecate-agent mcp serve`](#hecate-agent-mcp-serve) | Integration | Serve Hecate operations as MCP tools |
 
@@ -60,6 +61,7 @@ Complete reference for all `hecate-agent` command-line interface commands.
 - [hecate-agent research search](#hecate-agent-research-search)
 - [hecate-agent research stats](#hecate-agent-research-stats)
 - [hecate-agent context](#hecate-agent-context)
+- [hecate-agent monitor](#hecate-agent-monitor)
 - [hecate-agent similar](#hecate-agent-similar)
 - [hecate-agent hunt new](#hecate-agent-hunt-new)
 - [hecate-agent hunt list](#hecate-agent-hunt-list)
@@ -105,6 +107,52 @@ These options work with any `hecate-agent` command:
 hecate-agent --version          # Show version and exit
 hecate-agent --help             # Show help message
 hecate-agent <command> --help   # Show help for specific command
+```
+
+---
+
+## hecate-agent monitor
+
+Open a live, htop-style terminal dashboard for the Hecate Runner pipeline.
+
+### Synopsis
+
+```bash
+hecate-agent monitor [OPTIONS]
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--workspace` | Path | detected workspace | Workspace containing the Runner `logs/` directory |
+| `--interval` | Number | `1.0` | Screen refresh interval in seconds (0.5–30) |
+
+The dashboard follows `logs/orchestrator.log` for the live cycle, pipeline
+stage, and action stream. It reads `logs/stage_metrics.jsonl` for the latest
+completed cycle's model calls, tokens, and reported cost. Token metrics are
+written at cycle completion, so live calls show as pending until then. On
+wider terminals the usage panel also breaks token counts down by pipeline
+stage. System panels display CPU, memory, Hecate workspace storage, and NVIDIA
+GPU metrics when available. Storage includes the filesystem containing the
+workspace and any separate filesystems mounted inside it; unrelated mounted
+drives, pseudo-filesystems, and duplicate bind mounts are omitted. Unsupported
+hardware is shown as unavailable. Credential panels show only
+whether a key is configured, never its value. Press Ctrl-C to exit.
+
+When the `hecate-runner-orchestrator` systemd service is installed, the
+dashboard also shows service and timer state, a countdown to the timer's next
+run, daily draft and research quota, parked items, and total drafts. The
+high-signal backlog count comes from the most recent intake trail event and is
+timestamped; it is the last observed count, not a live feed query. Compact
+terminals show this service summary in the footer. The service panel is omitted
+when the systemd unit is not installed.
+
+### Example
+
+```bash
+hecate-agent monitor
+hecate-agent monitor --workspace /path/to/Hecate-Core --interval 2
 ```
 
 ---

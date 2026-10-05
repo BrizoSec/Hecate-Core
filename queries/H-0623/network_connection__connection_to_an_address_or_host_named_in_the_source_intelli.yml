@@ -1,0 +1,109 @@
+title: Connection to an address or host named in the source intelligence
+id: bd9f19ed-3062-4e85-a384-2cd7cff22d6d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-04'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 145.249.109.147
+  selection_2_any:
+    DestinationIp: 45.150.34.2
+  selection_3_any:
+    DestinationIp: 212.118.56.166
+  selection_4_any:
+    DestinationHostname: leaguejazire.com
+  selection_5_any:
+    DestinationHostname: riyazinikokar.xyz
+  selection_6_any:
+    DestinationHostname: pf.ch
+  selection_7_any:
+    DestinationHostname: github.com
+  selection_8_any:
+    DestinationHostname: bsc.rpc.blxrbdn.com
+  selection_9_any:
+    DestinationHostname: lb.propertyfind.cc
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: leaguejazire.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: 'The copied command opens a WebDAV path on a randomized subdomain of ''leaguejazire.com'',
+    places the victim identifier in the path, and executes ''pf.ch'' through ordinal #1.'
+- value: riyazinikokar.xyz
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: The request goes to a subdomain of 'riyazinikokar.xyz'.
+- value: pf.ch
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: Before starting its Amatera C2 session, the Amatera sample used in "pf.ch" branch constructs
+    the dead drop C2 URL "https[:]//telegra[.]ph/Functions-04-03".
+- value: 145.249.109.147
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: Decoding MTQ1LjI0OS4xMDkuMTQ3 produces “145.249.109[.]147” as its C2 address.
+- value: 45.150.34.2
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: At runtime, it decrypts the fixed address "45.150.34[.]2" and connects to it directly on TCP
+    port 443
+- value: github.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: After connecting, it sends the GetEndpoints command to obtain working endpoints used for subsequent
+    communication.
+- value: bsc.rpc.blxrbdn.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: The payload makes a separate JSON-RPC eth_call through "bsc[.]rpc[.]blxrbdn[.]com" to BNB
+    Smart Chain contract 0x7CC3cFC1Ac007B8c6566fD2C7419b15a75473468
+- value: lb.propertyfind.cc
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: During our analysis, the contract returned "lb[.]propertyfind[.]cc", which ZigCryptoStealer
+    then used as its C2 domain.
+- value: 212.118.56.166
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: At the time of the analysis the domain resolved to the IP address "212.118.56[.]166", based
+    in Russia.
+hunt_id: H-0623

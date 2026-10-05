@@ -1,0 +1,47 @@
+title: Request for a URL path named in the source intelligence
+id: ff65aad9-2636-4d10-b480-9e37b55dc7b5
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-04'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|endswith:
+    - /Functions-04-03
+    - /hub.log
+    - /jewel.js
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: telegra.ph/Functions-04-03
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: Before starting its Amatera C2 session, the Amatera sample used in "pf.ch" branch constructs
+    the dead drop C2 URL "https[:]//telegra[.]ph/Functions-04-03".
+- value: https://phys.stunned-amniotic.com/hub.log
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: The script downloads "https://phys[.]stunned-amniotic[.]com/hub[.]log".
+- value: https://kr.cedar2glanz.ru/jewel.js
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  evidence: The secondary payload in this branch is "https://kr[.]cedar2glanz[.]ru/jewel[.]js".
+hunt_id: H-0623

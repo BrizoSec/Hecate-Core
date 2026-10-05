@@ -1,0 +1,30 @@
+title: Request for a URL path named in the source intelligence
+id: 485a0ed6-6099-4138-9db3-18df2b711560
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|endswith:
+    - /92392991a0cca55
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://193.29.224.151/92392991a0cca55?force=1
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: 193.29.224[.]151 IP address hosting the loader
+hunt_id: H-0001

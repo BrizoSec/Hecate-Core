@@ -1,0 +1,23 @@
+title: 'Source guidance G5: A resume-themed executable launching cmd.exe'
+id: 2403f5ce-fadc-45bc-af4b-7bc5a54a20bb
+status: experimental
+description: 'Deterministic rule built from the detection guidance the source published, with no model
+  involvement. The source advises hunting for: "Resume-themed executables launching cmd.exe and then Word".
+  Scope: one event of the chain the source describes.'
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source detection guidance - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    ParentImage|contains: resume
+    Image|endswith: \cmd.exe
+  condition: selection
+falsepositives:
+- Legitimate activity that matches the guidance; tune against the environment
+level: medium
+hunt_id: H-0618

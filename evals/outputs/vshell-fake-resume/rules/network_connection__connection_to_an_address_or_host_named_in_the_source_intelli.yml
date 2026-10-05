@@ -1,0 +1,38 @@
+title: Connection to an address or host named in the source intelligence
+id: 9a58a2a8-18e0-4d06-8f30-c077fdb3cb85
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_40010:
+    DestinationIp: 38.207.178.192
+    DestinationPort: 40010
+  selection_1_50812:
+    DestinationIp: 38.207.178.192
+    DestinationPort: 50812
+  selection_1_50813:
+    DestinationIp: 38.207.178.192
+    DestinationPort: 50813
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 38.207.178.192
+  type: ipv4
+  role: c2
+  status: active
+  confidence: high
+  source: https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+  evidence: SNOWLIGHT connects to 38.207.178[.]192:50812, downloads 4.65 MB, XOR-decodes it with 0x99
+    and jumps into a fileless VShell RAT.
+hunt_id: H-0618

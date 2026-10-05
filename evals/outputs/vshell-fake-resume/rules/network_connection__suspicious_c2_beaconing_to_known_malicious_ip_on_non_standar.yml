@@ -1,0 +1,54 @@
+title: Suspicious C2 Beaconing to Known Malicious IP on Non-Standard Ports
+id: 154d0136-2ba8-4b0b-90de-047c7b49006d
+status: experimental
+description: Detects outbound network connections to a known malicious IP address on non-standard ports
+  (50812/50813), consistent with the VShell RAT's C2 infrastructure. This behavior aligns with the threat
+  hypothesis of fileless execution and sandbox evasion via deceptive DOCX lures, where the malware establishes
+  command and control communication after initial compromise. The use of non-standard ports and a specific
+  IP indicates evasion of basic network monitoring.
+references:
+- https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-03'
+tags:
+- attack.t1071.001
+- attack.t1105
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp: 38.207.178.192
+    DestinationPort: 50812
+    Initiated: true
+  filter:
+    Image|endswith: \winword.exe
+  condition: selection and not filter
+falsepositives:
+- Legitimate software using non-standard ports for internal services
+- Network testing or scanning tools with custom configurations
+level: high
+hecate_provenance:
+- value: 38.207.178.192
+  type: ipv4
+  role: c2
+  status: active
+  confidence: high
+  source: https://blog.himanshuanand.com/2026/08/a-fake-resume-invoked-chinas-defence-tech-elite-then-installed-vshell
+  evidence: SNOWLIGHT connects to 38.207.178[.]192:50812, downloads 4.65 MB, XOR-decodes it with 0x99
+    and jumps into a fileless VShell RAT.
+hunt_id: H-0618
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses only on outbound connections to a specific IP and port, but misses key behavioral
+    indicators from the source passages such as fileless execution, use of XOR decoding, memory allocation
+    patterns, and the presence of a kill-switch file.
+  - The rule does not account for the fileless nature of the attack, which involves decoding and executing
+    shellcode in memory without writing to disk, a critical aspect of the hypothesis.
+  - The rule does not detect the deceptive DOCX lure or the process behavior described (e.g., Word launching
+    cmd.exe), which are central to the hypothesis.
+  - The rule uses a single port (50812) but the report mentions two ports (50812 and 50813), and the malware
+    uses both for different purposes (C2 and decoy download).
+  - The rule lacks detection of the kill-switch mechanism (%TEMP%\log_de.log), which is explicitly mentioned
+    in the report as part of the malware's behavior.

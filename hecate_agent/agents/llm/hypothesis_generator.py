@@ -173,8 +173,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 output_data["is_indicator_only"] = True
             output = HypothesisGenerationOutput(**output_data)
 
-            # Validate technique IDs against the real ATT&CK matrix
-            output, warnings = self._apply_technique_validation(output)
+            # Validate technique IDs against the real ATT&CK matrix and extracted evidence
+            output, warnings = self._apply_technique_validation(output, input_data)
 
             provider = self._get_provider()
             model_name = getattr(
@@ -236,13 +236,25 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 
         return re.findall(r"\bT\d{4}(?:\.\d{3})?\b", text)
 
-    def _apply_technique_validation(self, output: HypothesisGenerationOutput) -> Tuple[HypothesisGenerationOutput, List[str]]:
-        """Reconcile the model's ATT&CK IDs with the real matrix.
+    def _apply_technique_validation(self, output: HypothesisGenerationOutput, input_data: HypothesisGenerationInput) -> Tuple[HypothesisGenerationOutput, List[str]]:
+        """Reconcile the model's ATT&CK IDs with the real matrix and evidence table.
 
         Returns the output (rebuilt with the corrected technique list when
         anything changed) and any warnings describing what changed.
         """
         warnings: List[str] = []
+        
+        # Enforce Evidence Boundary: Strip techniques not grounded in the ResearchContext
+        if input_data.research and input_data.research.mitre_techniques:
+            evidenced = set(input_data.research.mitre_techniques)
+            filtered = []
+            for tid in output.mitre_techniques:
+                if tid in evidenced or tid.split(".")[0] in evidenced:
+                    filtered.append(tid)
+                else:
+                    warnings.append(f"Removed '{tid}' because it lacks technical observables in the Technique Evidence table.")
+            output.mitre_techniques = filtered
+            
         valid, remapped, invalid = self._validate_techniques(output.mitre_techniques)
 
         if remapped:

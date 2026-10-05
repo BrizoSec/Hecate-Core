@@ -1,0 +1,88 @@
+title: Suspicious C2 Communication via Compromised YouTube Channel Infrastructure
+id: fdd99d39-45dc-40ba-8f73-28a974b7cff8
+status: experimental
+description: Detects network connections to known malicious domains associated with a multi-stage infostealer
+  campaign leveraging compromised YouTube channels. The behavior includes connections to domains resembling
+  legitimate services (e.g., 'config.hubdisplay.lol', 'metric.gardenpark.click') and blockchain-based
+  C2 endpoints (e.g., 'polygon.iwmukj.xyz'), which are indicative of command-and-control infrastructure
+  used to exfiltrate credentials and deploy cryptocurrency miners. These domains are linked to the resightloader.exe
+  payload and exhibit patterns consistent with evasion and persistence.
+references:
+- https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-04'
+tags:
+- attack.t1566.002
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|endswith:
+    - static4.livelab.one
+    - monitor5.roast-core85.click
+    - metric.gardenpark.click
+    - config.hubdisplay.lol
+    - health.journal-metric.lol
+    - polygon.iwmukj.xyz
+    - polygon.mnyhgxda.xyz
+  filter:
+    DestinationHostname|contains: cloudflare.com
+  condition: selection and not filter
+falsepositives:
+- Legitimate traffic to similar-looking domains during development or testing
+- Misconfigured internal services using similar naming patterns
+level: medium
+hecate_provenance:
+- value: monitor5.roast-core85.click
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: monitor5.roast-core85[.]click domain-name REVSTEALER C2 server
+- value: metric.gardenpark.click
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: metric.gardenpark[.]click domain-name SoftManager C2 domain
+- value: config.hubdisplay.lol
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: config.hubdisplay[.]lol domain-name ProManager C2 domain
+- value: health.journal-metric.lol
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: health.journal-metric[.]lol domain-name WinUpdate C2 domain
+- value: polygon.iwmukj.xyz
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: polygon.iwmukj[.]xyz:443
+- value: polygon.mnyhgxda.xyz
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: polygon.mnyhgxda[.]xyz:443
+- value: static4.livelab.one
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.elastic.co/security-labs/threat-command/revstealer-credential-harvesting-infostealer
+  evidence: static4.livelab[.]one:443
+hunt_id: H-0624
+hecate_review:
+  verdict: keep

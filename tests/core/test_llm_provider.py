@@ -212,6 +212,31 @@ class TestOllamaProvider:
         assert _ollama_num_ctx({}) == 32768
         assert _ollama_num_ctx({"num_ctx": 8192}) == 8192
 
+    def _sent_body(self, provider):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"message": {"content": "ok"}}).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            provider.complete(messages=[{"role": "user", "content": "test"}])
+        return json.loads(mock_urlopen.call_args[0][0].data.decode("utf-8"))
+
+    def test_ollama_provider_sends_think_only_when_set(self):
+        """qwen3.6 and gemma4 think by default and returned an empty answer; a model without thinking rejects the option."""
+        assert "think" not in self._sent_body(OllamaProvider(model="llama3"))
+        assert self._sent_body(OllamaProvider(model="qwen3.6", think=False))["think"] is False
+        assert self._sent_body(OllamaProvider(model="qwen3.6", think=True))["think"] is True
+
+    def test_ollama_think_resolution(self, monkeypatch):
+        from hecate_agent.core.llm_provider import _ollama_think
+
+        monkeypatch.delenv("HECATE_OLLAMA_THINK", raising=False)
+        assert _ollama_think({}) is None
+        monkeypatch.setenv("HECATE_OLLAMA_THINK", "false")
+        assert _ollama_think({}) is False
+        assert _ollama_think({"think": True}) is True
+        monkeypatch.setenv("HECATE_OLLAMA_THINK", "")
+        assert _ollama_think({}) is None
+
     def test_ollama_provider_connection_error(self):
         """ConnectionError is raised when Ollama is unreachable."""
         from urllib.error import URLError
@@ -294,9 +319,11 @@ class TestCreateProvider:
 
     def test_create_provider_explicit_config(self):
         """Explicit config dict selects the correct provider class."""
-        with patch.object(BedrockProvider, "_get_client", return_value=MagicMock()), patch(
-            "hecate_agent.core.llm_provider._load_config_file", return_value={}
-        ), patch.dict("os.environ", self._clean_env(), clear=False):
+        with (
+            patch.object(BedrockProvider, "_get_client", return_value=MagicMock()),
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", self._clean_env(), clear=False),
+        ):
             provider = create_provider({"provider": "bedrock", "model": "us.anthropic.claude-sonnet-4-5-v1:0"})
             assert isinstance(provider, BedrockProvider)
 
@@ -305,8 +332,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["HECATE_LLM_PROVIDER"] = "ollama"
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
         ):
             provider = create_provider()
             assert isinstance(provider, OllamaProvider)
@@ -316,8 +344,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["ANTHROPIC_API_KEY"] = "sk-ant-test"
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
         ):
             provider = create_provider()
             assert isinstance(provider, LiteLLMProvider)
@@ -327,8 +356,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["OPENAI_API_KEY"] = "sk-test"
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
         ):
             provider = create_provider()
             assert isinstance(provider, OpenAICompatibleProvider)
@@ -338,8 +368,9 @@ class TestCreateProvider:
         env = self._clean_env()
         env["AWS_PROFILE"] = "default"
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
         ):
             provider = create_provider()
             assert isinstance(provider, BedrockProvider)
@@ -348,9 +379,11 @@ class TestCreateProvider:
         """Running Ollama triggers OllamaProvider when no API keys set."""
         env = self._clean_env()
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
-        ), patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=True):
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
+            patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=True),
+        ):
             provider = create_provider()
             assert isinstance(provider, OllamaProvider)
 
@@ -358,16 +391,19 @@ class TestCreateProvider:
         """RuntimeError when no provider can be determined."""
         env = self._clean_env()
 
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", env, clear=False
-        ), patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=False):
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", env, clear=False),
+            patch("hecate_agent.core.llm_provider._ollama_is_running", return_value=False),
+        ):
             with pytest.raises(RuntimeError, match="No LLM provider"):
                 create_provider()
 
     def test_create_provider_unknown_provider(self):
         """ValueError for an unrecognized provider name."""
-        with patch("hecate_agent.core.llm_provider._load_config_file", return_value={}), patch.dict(
-            "os.environ", self._clean_env(), clear=False
+        with (
+            patch("hecate_agent.core.llm_provider._load_config_file", return_value={}),
+            patch.dict("os.environ", self._clean_env(), clear=False),
         ):
             with pytest.raises(ValueError, match="Unknown LLM provider"):
                 create_provider({"provider": "unknown"})

@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: system_profiler SPHardwareDataType'
+id: f382bbb6-283d-4c6f-b114-e4f983cdd18b
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "system_profiler SPHardwareDataType".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /system_profiler
+    CommandLine|contains: SPHardwareDataType
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0001

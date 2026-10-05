@@ -17,6 +17,7 @@ import yaml
 
 from hecate_agent.agents.llm.sigma_generator import SigmaGenerationInput, SigmaGeneratorAgent, rule_filenames
 from hecate_agent.core import source_evidence as se
+from hecate_agent.core.command_rules import command_candidates
 from hecate_agent.core.platform_evidence import platform_evidence
 from hecate_agent.core.provenance import IndicatorRecord, attach_text_ports, merge_records, placements, records_from_cti
 from hecate_agent.core.query_literals import literals_from_artifacts
@@ -158,7 +159,16 @@ def test_ports_written_beside_an_address_scope_its_rule() -> None:
     ("text", "ports"),
     [
         ("outbound HTTP to 188.245.99.156 on port 10000", [10000]),
-        ("We found it on port 80 at 188.245.99.156 and pulled the files", [80]),
+        ("A rogue server on port 9000 at 188.245.99.156 delivers the blob", [9000]),
+        # How someone else saw the port is not this intrusion's traffic.
+        ("We found it on port 80 at 188.245.99.156 and pulled the files", []),
+        ("MEDIUM confidence 188.245.99.156:40010 ThreatFox-derived VShell sighting, 2026-04-15", []),
+        ("A feed listed\n188.245.99.156:40010\nas VShell in April, months before this sample", []),
+        ("Certificates for the hostname show up on\n188.245.99.156\n:8081, confirming it never resolved elsewhere", []),
+        # A port with any mention as a service is kept, whatever else is said of it.
+        ("188.245.99.156:8443 was indexed in May.\nThe implant's C2 check-in goes to 188.245.99.156:8443", [8443]),
+        # Nothing said either way: kept.
+        ("188.245.99.156:8133\nIP address and nonstandard http port", [8133]),
         ("scanned 188.245.99.156:1024-65535", []),  # a scan range, not service ports
         ("188.245.99.156: 147 files were recovered", []),  # a count, not a port
         ("connects to 8.188.245.99.156:9000", []),  # a different, longer value
@@ -168,6 +178,17 @@ def test_port_wording(text: str, ports: List[int]) -> None:
     record = IndicatorRecord(C2, "ipv4")
     attach_text_ports([record], text)
     assert record.ports == ports
+
+
+def test_a_table_row_is_judged_by_its_own_cells_not_its_neighbours() -> None:
+    table = (
+        "HIGH confidence 38.207.178.192:50813 HTTP staging and DOCX decoy\n"
+        "HIGH confidence 38.207.178.192:50812 SNOWLIGHT check-in and VShell transfer\n"
+        "MEDIUM confidence 38.207.178.192:40010 ThreatFox-derived VShell sighting, 2026-04-15\n"
+    )
+    record = IndicatorRecord("38.207.178.192", "ipv4", role="c2", status="active")
+    attach_text_ports([record], table)
+    assert record.ports == [50812, 50813]
 
 
 def test_a_hostnames_port_is_not_given_to_its_parent_domain() -> None:
@@ -268,6 +289,71 @@ def test_rules_for_files_with_the_same_name_each_get_their_own_file() -> None:
     assert names[1] == names[0][:-4] + "_2.yml" and names[2] == names[0][:-4] + "_3.yml"
 
 
+# --- Tags and severity of deterministic rules --------------------------------------------------
+
+
+def _file_rules(paths: List[str], techniques: List[str]) -> Dict[str, Dict[str, Any]]:
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    built = agent._written_file_rules(
+        SigmaGenerationInput(
+            hunt_id="H-0001",
+            hypothesis="A cron entry is written.",
+            justification="",
+            techniques=techniques,
+            platforms=["Linux"],
+            source_artifacts=[_artifact(p, "file_path", role="persistence file", evidence=f"writes {p}") for p in paths],
+        )
+    )
+    rules = [yaml.safe_load(rule.rule_yaml) for rule, _ in built if rule]
+    return {r["detection"]["selection"]["TargetFilename"]: r for r in rules}
+
+
+def test_a_deterministic_rule_is_tagged_with_the_technique_its_own_text_shows() -> None:
+    rules = _file_rules(
+        ["/etc/cron.d/backup-sync", "/tmp/.cache-worker", "/opt/app/data.bin"], ["T1053.003", "T1564.001", "T1105"]
+    )
+    assert rules["/etc/cron.d/backup-sync"]["tags"] == ["attack.t1053.003"]
+    assert rules["/tmp/.cache-worker"]["tags"] == ["attack.t1564.001"]
+    assert rules["/opt/app/data.bin"]["tags"] == []  # the path shows no technique
+
+
+def test_a_tag_never_adds_a_technique_the_hunt_does_not_map() -> None:
+    assert _file_rules(["/etc/cron.d/backup-sync"], ["T1105"])["/etc/cron.d/backup-sync"]["tags"] == []
+
+
+def test_a_command_rule_is_tagged_from_its_command() -> None:
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    text = "The loader then ran xattr -d com.apple.quarantine /tmp/payload on the Mac."
+    built = agent._command_rules(
+        SigmaGenerationInput(
+            hunt_id="H-0001",
+            hypothesis="Quarantine is removed.",
+            justification="",
+            techniques=["T1553.001", "T1105"],
+            platforms=["macOS"],
+            observed_commands=command_candidates(text, ["macOS"]),
+        )
+    )
+    ((rule, _),) = built
+    assert yaml.safe_load(rule.rule_yaml)["tags"] == ["attack.t1553.001"] and rule.techniques == ["T1553.001"]
+
+
+@pytest.mark.parametrize(
+    ("path", "level"),
+    [
+        ("/var/spool/cron/crontabs/root", "low"),  # root's crontab: any edit of it matches
+        ("/var/spool/cron/deploy", "low"),
+        ("/home/svc/.ssh/authorized_keys", "low"),
+        ("/etc/cron.d/backup-sync", "high"),  # a file the actor named
+        ("/tmp/.cache-worker", "high"),
+    ],
+)
+def test_a_rule_on_a_shared_system_file_is_a_low_level_lead(path: str, level: str) -> None:
+    rule = _file_rules([path], [])[path]
+    assert rule["level"] == level
+    assert ("administrators write this file too" in rule["description"]) is (level == "low")
+
+
 # --- Server-side tradecraft -------------------------------------------------------------------
 
 
@@ -360,6 +446,92 @@ def test_a_victim_side_path_in_a_capability_sentence_stays_tied_to_the_intrusion
         ),
     )
     assert [(a.role, a.status) for a in evidence.artifacts] == [("unknown", "active")]
+
+
+def test_a_full_path_is_tied_to_the_intrusion_when_its_file_is() -> None:
+    """Huntress named the stealer in prose and gave its full path in the IOC table."""
+    page = (
+        "It copies the downloaded malware executable to this directory, under the name com.apple.verified.\n"
+        "$HOME/Library/Caches/com.apple.trustd/com.apple.verified\nFilesystem path used by this malware\n"
+        "And maybe do not let personal_resume.exe join the lab.\n"
+    )
+    replies = [
+        _artifact(
+            "com.apple.verified",
+            "file_path",
+            role="malware executable",
+            evidence="It copies the downloaded malware executable to this directory, under the name com.apple.verified.",
+        ),
+        _artifact("$HOME/Library/Caches/com.apple.trustd/com.apple.verified", "file_path", status="unknown"),
+        _artifact("personal_resume.exe", "file_path", status="unknown"),
+    ]
+    evidence = se.extract_source_evidence(URL, page_text=page, complete=lambda _: json.dumps({"artifacts": replies}))
+    by_value = {a.value: a for a in evidence.artifacts}
+    full = by_value["$HOME/Library/Caches/com.apple.trustd/com.apple.verified"]
+    assert (full.status, full.role) == ("active", "malware executable")
+    assert by_value["personal_resume.exe"].status == "unknown"  # nothing ties it: still left out
+
+
+# --- A report written from the actor's own material --------------------------------------------
+
+OPENING = (
+    "Most open directories hold a payload and little else. This one held the operator's entire working toolkit, "
+    "and everything in this report traces back to the operator's own files.\n"
+)
+TOOLKIT_REPORT = OPENING + (
+    "wp_spray.py sprays credentials across the fleet and writes wp_scan_results.json.\n"
+    "Two files, SAM.save and SYSTEM.save, checked out as genuine exported registry hives.\n"
+    "On each victim the cron job downloads loader.sh and writes /tmp/.cache-worker.\n"
+    "The payload is fetched from https://example.org/releases/miner.tgz by the same job.\n"
+)
+
+
+def test_a_report_says_at_its_opening_when_it_was_written_from_the_actors_files() -> None:
+    from hecate_agent.core.technique_evidence import actor_material_report
+
+    assert actor_material_report(TOOLKIT_REPORT)
+    assert not actor_material_report("The sample was found in an open directory. It drops a loader and beacons home.")
+    assert not actor_material_report("A fake resume opens a decoy and installs a RAT on the recipient's workstation.")
+
+
+@pytest.mark.parametrize(
+    ("value", "actors"),
+    [
+        ("wp_spray.py", True),  # a tool named by itself
+        ("wp_scan_results.json", True),
+        ("SAM.save", True),  # no tool wording, but a bare file never tied to a victim
+        ("loader.sh", False),  # named beside what happens on a victim
+        ("/tmp/.cache-worker", False),  # has a location
+        ("miner.tgz", False),  # appears only inside a URL
+    ],
+)
+def test_in_such_a_report_a_file_named_without_a_victim_is_the_actors(value: str, actors: bool) -> None:
+    assert bool(se.attacker_side_passage(TOOLKIT_REPORT, value)) is actors
+
+
+def test_the_same_file_names_in_an_ordinary_report_are_not_the_actors() -> None:
+    ordinary = TOOLKIT_REPORT.replace(OPENING, "The dropper unpacks its tools on the workstation.\n")
+    assert not any(se.attacker_side_passage(ordinary, v) for v in ("wp_spray.py", "SAM.save", "loader.sh"))
+
+
+def test_a_technique_is_not_mapped_from_the_actors_own_tool() -> None:
+    text = OPENING + "The loader script boot.py base64-decodes the payload before running it.\n"
+    assert "T1140" not in {e.technique_id for e in map_behaviours([("primary source", text)])}
+    victim = OPENING + "On each victim the dropper base64-decodes the payload before running it.\n"
+    assert "T1140" in {e.technique_id for e in map_behaviours([("primary source", victim)])}
+
+
+def test_prose_values_from_the_actors_side_or_another_platform_are_reported() -> None:
+    from hecate_agent.core.claim_audit import prose_value_reasons
+
+    prose = ["Execution of wp_spray.py and python.exe; the cron job writes /tmp/.cache-worker and loader.sh."]
+    reasons = prose_value_reasons(prose, TOOLKIT_REPORT, ["Linux"])
+    assert set(reasons) == {"wp_spray.py", "python.exe"}
+    assert "actor's own side" in reasons["wp_spray.py"] and "Windows artifact" in reasons["python.exe"]
+    # Platforms unknown: nothing is ruled out as off-platform.
+    assert set(prose_value_reasons(prose, TOOLKIT_REPORT, [])) == {"wp_spray.py"}
+    # On a Windows hunt the same .exe is where it belongs.
+    assert "python.exe" not in prose_value_reasons(prose, "", ["Windows"])
 
 
 # --- Literals a hunt's platforms can show -----------------------------------------------------

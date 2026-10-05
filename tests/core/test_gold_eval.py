@@ -247,7 +247,7 @@ def test_h0618_baseline_score_is_locked() -> None:
     """The draft reviewed in docs/H-0618_DEEP_DIVE.md. A change to the scorer or
     the gold set that moves these numbers must be deliberate."""
     report = score_draft(load_gold(GOLD), FIXTURE / "hunts" / "2026" / "Q3" / "H-0618.md.txt")
-    assert (report.passed, report.total) == (23, 71)
+    assert (report.passed, report.total) == (24, 72)
     assert (report.technique_hits, report.technique_denominator) == (["T1036"], 11)
     assert report.rules_scored == 4
     assert report.dimensions() == {
@@ -255,7 +255,7 @@ def test_h0618_baseline_score_is_locked() -> None:
         "platform": (6, 7),
         "claims": (3, 13),
         "indicators": (6, 24),
-        "detections": (1, 6),
+        "detections": (2, 7),
         "rule semantics": (0, 3),
     }
 

