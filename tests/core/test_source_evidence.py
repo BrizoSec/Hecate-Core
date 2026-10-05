@@ -360,3 +360,29 @@ def test_evidence_that_names_no_role_leaves_the_hash_role_unknown() -> None:
     raw = {"value": value, "kind": "sha256", "role": "executable", "status": "active", "evidence": f"SHA-256: {value}"}
     artifact, _ = _checked(raw, normalise(page), " ".join(_words(page)))
     assert artifact is not None and artifact.role == "unknown"
+
+
+def test_the_models_usage_is_counted_across_both_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Chunk extraction and indicator typing both call the model; neither may go unreported."""
+    from hecate_agent.core import llm_provider
+
+    class Provider:
+        def complete(self, messages: List[Dict[str, str]], **_kwargs: Any) -> llm_provider.LLMResponse:
+            return llm_provider.LLMResponse(
+                text=_reply(), input_tokens=1000, output_tokens=50, model="claude-sonnet-4-5", duration_ms=2000, cost_usd=0.01
+            )
+
+    monkeypatch.setattr(llm_provider, "create_provider", lambda *_a, **_k: Provider())
+    ev = se.extract_source_evidence("https://report.example/a", page_text=PAGE)
+    assert ev.usage_metadata()["llm_calls"] == ev.chunks
+    se.classify_feed_indicators([IndicatorRecord(DECODED, "sha256")], ev)
+    usage = ev.usage_metadata()
+    assert usage["llm_calls"] == ev.chunks + 1
+    assert usage["input_tokens"] == 1000 * usage["llm_calls"]
+    assert usage["output_tokens"] == 50 * usage["llm_calls"]
+    assert usage["llm_duration_ms"] == 2000 * usage["llm_calls"]
+    assert usage["models"] == ["claude-sonnet-4-5"]
+
+
+def test_a_caller_supplied_model_reports_no_usage() -> None:
+    assert _extract().usage_metadata() == {}

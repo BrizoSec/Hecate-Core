@@ -20,6 +20,7 @@ import json
 import logging
 import re
 from dataclasses import asdict, dataclass, field
+from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import httpx
@@ -114,10 +115,32 @@ class SourceEvidence:
     dropped: List[str] = field(default_factory=list)
     error: str = ""
     text: str = ""
+    #: Running provider totals for every model call made about this source.
+    usage: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         return not self.error and bool(self.artifacts)
+
+    def usage_metadata(self) -> Dict[str, Any]:
+        """Provider usage in the shape agents report it; empty when no call reported any."""
+        if not self.usage:
+            return {}
+        from hecate_agent.core.cost_tracker import summarize_cost
+
+        snapshot = {key: self.usage[key] for key in ("llm_calls", "input_tokens", "output_tokens", "llm_duration_ms")}
+        snapshot["models"] = sorted(self.usage["models"])
+        # Zero from a local model or from missing usage is unknown, not free.
+        cost, basis = summarize_cost(
+            snapshot["models"],
+            snapshot["llm_calls"],
+            snapshot["input_tokens"],
+            snapshot["output_tokens"],
+            float(self.usage["cost_usd"]),
+        )
+        snapshot["estimated_cost_usd"] = cost
+        snapshot["cost_basis"] = basis
+        return snapshot
 
     @property
     def behaviours(self) -> List[SourceArtifact]:
@@ -799,7 +822,7 @@ def classify_feed_indicators(
     listing = "\n".join(f"- {r.value} ({r.type})" for r in pending)
     prompt = f"Indicators:\n{listing}\n\nPassages:\n" + "\n---\n".join(passages)
     try:
-        reply = (complete or _default_complete)(
+        reply = (complete or partial(_default_complete, usage=evidence.usage))(
             [{"role": "system", "content": CLASSIFY_PROMPT}, {"role": "user", "content": prompt[: CHUNK_CHARS * 2]}]
         )
     except Exception as exc:  # the provider raises its SDK's own error types
@@ -828,10 +851,19 @@ def classify_feed_indicators(
 Complete = Callable[[List[Dict[str, str]]], str]
 
 
-def _default_complete(messages: List[Dict[str, str]]) -> str:
+def _default_complete(messages: List[Dict[str, str]], usage: Optional[Dict[str, Any]] = None) -> str:
+    """One provider call; its token usage is added to ``usage`` when one is given."""
     from hecate_agent.core.llm_provider import create_provider
 
-    return create_provider().complete(messages, max_tokens=3000, temperature=0.0).text
+    response = create_provider().complete(messages, max_tokens=3000, temperature=0.0)
+    if usage is not None:
+        usage["llm_calls"] = usage.get("llm_calls", 0) + 1
+        usage["input_tokens"] = usage.get("input_tokens", 0) + response.input_tokens
+        usage["output_tokens"] = usage.get("output_tokens", 0) + response.output_tokens
+        usage["llm_duration_ms"] = usage.get("llm_duration_ms", 0) + response.duration_ms
+        usage["cost_usd"] = usage.get("cost_usd", 0.0) + response.cost_usd
+        usage["models"] = sorted({*usage.get("models", []), response.model})
+    return response.text
 
 
 def extract_source_evidence(
@@ -853,7 +885,7 @@ def extract_source_evidence(
     page = normalise(text)
     page_words = " ".join(_words(text))
     merged: Dict[Tuple[str, str], SourceArtifact] = {}
-    call = complete or _default_complete
+    call = complete or partial(_default_complete, usage=evidence.usage)
     chunks = chunk_text(text)
     evidence.chunks = len(chunks)
     for chunk in chunks:

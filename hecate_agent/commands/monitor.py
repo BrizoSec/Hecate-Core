@@ -493,7 +493,8 @@ def _stage_in_progress(events: List[TrailEvent]) -> int:
     Most stages log one line, when they finish, so the stage named on the
     latest line is the one just completed and the work in hand is the next.
     Research, the hypothesis and rule generation also log when they begin and
-    are in progress until their "done" line.
+    are in progress until their "done" line; source extraction logs "starting"
+    and is in progress until its next line.
     """
     if not events:
         return -1
@@ -508,7 +509,11 @@ def _stage_in_progress(events: List[TrailEvent]) -> int:
         if order < 0:
             continue
         key = _STAGES[order][0]
-        finished = key not in _SELF_STARTING or re.search(r"\bdone\b", event.message) is not None
+        if event.stage == "source":
+            # Source extraction logs "starting" and then one line when it is finished.
+            finished = not event.message.startswith("starting")
+        else:
+            finished = key not in _SELF_STARTING or re.search(r"\bdone\b", event.message) is not None
         furthest = max(furthest, min(order + 1, len(_STAGES) - 1) if finished else order)
     return furthest
 
@@ -613,7 +618,7 @@ def _usage_panel(
             if searches:
                 search_count = searches.group(1)
             break
-    if active and current and current.stage in {"research", "hypothesis", "sigma"}:
+    if active and current and current.stage in {"source", "research", "hypothesis", "sigma"}:
         usage_note = "Live token totals are written when the cycle ends."
     elif not metrics:
         usage_note = "No completed cycle metrics found yet."

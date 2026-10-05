@@ -45,6 +45,9 @@ def _render(events: List[m.TrailEvent], runner: Optional[m.RunnerStatus] = None,
         # A stage logs when it finishes: after routing, the cycle is reading the report.
         (["start: cycle 54ac42", "intake: otx: item", "triage: pass", "quota: slot 1/5", "route: narrative"], "source"),
         (["route: narrative", "source: https://x (13497 chars) in 310s", "guidance: none"], "research"),
+        # Source extraction says when it starts, and is in hand until its next line.
+        (["route: narrative", "source: starting: reading https://x"], "source"),
+        (["source: starting: reading https://x", "source: https://x (13497 chars) in 310s"], "research"),
         # Research, the hypothesis and rule generation log their own start and are in hand until "done".
         (["source: done reading", "research: starting: topic"], "research"),
         (["research: R-0001 done in 137s; grounding: independent"], "hypothesis"),
@@ -131,3 +134,14 @@ def test_a_cycle_whose_service_has_stopped_is_reported_as_stopped() -> None:
 
 def test_it_renders_with_no_events_at_all() -> None:
     assert "waiting for a pipeline cycle" in _render([])
+
+
+def test_source_extraction_reads_as_live_model_work_not_as_the_last_cycle() -> None:
+    """The model reads the report for minutes before research starts; the last cycle's outcome is not news."""
+    metrics = {"cycle_id": "e2675e", "outcome": "research_quota_reached", "stages": []}
+    events = _events("route: narrative", "source: starting: reading https://x")
+    m.console = Console(width=140, height=30, record=True, force_terminal=False)
+    m.console.print(m._usage_panel(metrics, events[-1], True, events))
+    text = m.console.export_text()
+    assert "Live token totals are written when the cycle ends." in text
+    assert "e2675e" not in text
