@@ -1,6 +1,8 @@
 # Hecate Documentation
 
-Complete documentation for the Agentic Threat Hunting Framework.
+Framework documentation shipped with the `hecate-agent` Python package. For
+the GitHub documentation index and developer guides, see the repository's
+[documentation directory](https://github.com/BrizoSec/Hecate-Core/tree/main/docs).
 
 ## Getting Started
 

@@ -1,8 +1,11 @@
 # Hecate Hunt Showcase
 
-Real hunts from our [hunts/](../hecate_agent/data/hunts/) directory demonstrating how the LOCK pattern structures threat hunting from hypothesis to detection.
+Illustrative sample hunts from [the bundled examples](../hecate_agent/data/hunts/)
+demonstrate how the LOCK pattern structures a hunt. Names, findings, and
+metrics in these examples are sample content; they are not claims about a
+verified customer incident.
 
-## 🆕 New in v0.3.0: AI-Powered Hunt Capabilities
+## AI-Assisted Workflow Examples
 
 - **Research Agent:** `hecate-agent research new --topic "LSASS dumping"` - 5-skill research (15-20 min) using web search + LLM
 - **Hypothesis Generator:** `hecate-agent agent run hypothesis-generator --threat-intel "..."` - AI-generated hunt hypotheses

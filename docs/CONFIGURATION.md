@@ -84,9 +84,11 @@ Each LLM call is grounded with real data where possible:
 ### Minimum viable (no AI, no web search)
 
 ```bash
-pip install hecate-agent
+pip install -e .        # from your Hecate-Core clone; the package is not on PyPI
 hecate-agent hunt new --technique T1003.001 --title "LSASS Dumping" --non-interactive
 ```
+
+Install commands in this guide are run from your clone.
 
 No API keys required. Hunt creation and management work fully offline.
 
@@ -95,7 +97,7 @@ No API keys required. Hunt creation and management work fully offline.
 ```bash
 # Option A: Anthropic (Claude)
 export ANTHROPIC_API_KEY=sk-ant-...
-pip install 'hecate-agent[litellm]'
+pip install -e ".[litellm]"
 
 # Option B: OpenAI
 export OPENAI_API_KEY=sk-...
@@ -118,7 +120,7 @@ Get a free Tavily key at <https://tavily.com> (1,000 free searches/month).
 ### With live ATT&CK data (better grounding)
 
 ```bash
-pip install 'hecate-agent[attack]'
+pip install -e ".[attack]"
 hecate-agent attack update   # Downloads ~50 MB STIX bundle once
 ```
 
@@ -157,7 +159,7 @@ When no provider is explicitly configured, Hecate checks in this order:
 1. ANTHROPIC_API_KEY set?  → LiteLLM + anthropic/claude-sonnet-4-5-20250514
 2. OPENAI_API_KEY set?     → OpenAI-compatible + gpt-4o
 3. AWS_PROFILE or
-   AWS_ACCESS_KEY_ID set?  → Bedrock + claude-sonnet-4-5-20250929-v1:0
+   AWS_ACCESS_KEY_ID set?  → Bedrock + us.anthropic.claude-sonnet-4-5-20250929-v1:0
 4. Ollama reachable at
    OLLAMA_HOST (or
    localhost:11434)?        → Ollama + llama3
@@ -217,19 +219,19 @@ explicit config dict (programmatic API)
 ### Provider-specific notes
 
 **LiteLLM** (`provider: litellm`)
-- Requires: `pip install 'hecate-agent[litellm]'`
+- Requires: `pip install -e ".[litellm]"`
 - Supports 100+ models via a single interface (Anthropic, OpenAI, Gemini, Cohere, etc.)
 - Model names follow LiteLLM format: `anthropic/claude-opus-4-5`, `openai/gpt-4o`, `gemini/gemini-2.0-flash`
 - Set the corresponding provider API key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
 
 **Bedrock** (`provider: bedrock`)
-- Requires: `pip install 'hecate-agent[bedrock]'`
+- Requires: `pip install -e ".[bedrock]"`
 - Uses your existing AWS credentials (`~/.aws/credentials` or IAM role)
 - Set `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
 - Region defaults to `us-east-1`; override with `AWS_REGION` or config `region:`
 
 **Ollama** (`provider: ollama`)
-- Requires: `pip install 'hecate-agent[ollama]'` + local Ollama installation
+- Requires: `pip install -e ".[ollama]"` + local Ollama installation
 - No API key needed — runs locally
 - Install Ollama: <https://ollama.com>
 - Pull a model before use: `ollama pull qwen2.5:14b`
@@ -246,9 +248,11 @@ explicit config dict (programmatic API)
 
 ## `.hecateconfig.yaml` Format
 
-Hecate searches for this file in two locations (in order):
-1. `<workspace>/.hecateconfig.yaml`
-2. `<workspace>/config/.hecateconfig.yaml`
+Hecate looks for this file in two locations: `.hecateconfig.yaml` and
+`config/.hecateconfig.yaml`. Keep only one. Workspace discovery checks the
+root file first, while the LLM settings and hunt creation read
+`config/.hecateconfig.yaml` first, both relative to the directory you run
+`hecate-agent` from.
 
 **Full example:**
 
@@ -258,14 +262,15 @@ llm:
   provider: ollama          # litellm | bedrock | ollama | openai
   model: qwen2.5:14b
   base_url: http://localhost:11434
-  timeout_sec: 300          # Ollama only
+  timeout_sec: 300          # Ollama only (default: 180)
+  num_ctx: 16384            # Ollama only: context window in tokens (default: 16384)
+  think: false              # Ollama only: turn off a reasoning model's thinking
 
-# Workspace settings (optional; written by hand)
-workspace:
-  hunt_prefix: H            # Prefix for hunt IDs (default: H)
-  research_prefix: R        # Prefix for research IDs (default: R)
-  investigation_prefix: I   # Prefix for investigation IDs (default: I)
+# Prefix for hunt IDs (optional, top-level; default: H-)
+hunt_prefix: H-
 ```
+
+Research (`R-`) and investigation (`I-`) prefixes are fixed.
 
 This file is gitignored by default — it is machine-local config (your LLM key, local Ollama URL, etc.). Commit `environment.md` for team-shared context instead.
 
@@ -283,6 +288,10 @@ This file is gitignored by default — it is machine-local config (your LLM key,
 | `HECATE_LLM_MODEL` | provider default | Override model name |
 | `HECATE_LLM_BASE_URL` | provider default | Override API base URL (useful in Docker) |
 | `HECATE_OLLAMA_TIMEOUT_SEC` | `180` | Per-request timeout for Ollama calls |
+| `HECATE_OLLAMA_NUM_CTX` | `16384` | Context window requested per Ollama call. Ollama's own default of 4096 silently truncates long prompts |
+| `HECATE_OLLAMA_THINK` | model default | `false` stops a reasoning model spending its output budget on thinking |
+| `GOOGLE_API_KEY` / `GEMINI_API_KEY` | — | Gemini key, used through LiteLLM. Not auto-detected: also set `HECATE_LLM_PROVIDER=litellm` and a `gemini/...` model |
+| `HECATE_LLM_CALL_LOG` | unset (off) | File to append every provider call to as it starts and ends. Hecate-Runner sets it so `hecate-agent monitor` can show a running cycle's usage |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama service URL |
 
 ### AWS Bedrock
@@ -443,7 +452,7 @@ Live ATT&CK data improves grounding across all LLM calls:
 ### Setup
 
 ```bash
-pip install 'hecate-agent[attack]'
+pip install -e ".[attack]"
 hecate-agent attack update        # Downloads enterprise-attack.json (~50 MB, one-time)
 hecate-agent attack status        # Verify: shows provider type, technique count, version
 hecate-agent attack lookup T1003.001   # Spot-check a technique
@@ -491,6 +500,7 @@ ollama serve
 ollama pull qwen2.5:14b
 
 # 2. Start Hecate container (points at host Ollama)
+cd deploy
 docker compose up -d hecate
 docker compose exec hecate bash
 
@@ -501,6 +511,7 @@ hecate-agent agent run hypothesis-generator --threat-intel "..."
 ### Running with containerized Ollama
 
 ```bash
+cd deploy
 # Pulls qwen2.5:14b on first run (~9 GB)
 docker compose --profile ollama up -d
 
@@ -510,12 +521,13 @@ OLLAMA_MODEL=llama3.1:8b docker compose --profile ollama up -d
 
 ### `.env` file
 
-Copy `.env.example` to `.env` and fill in your keys:
+The compose file lives in `deploy/` and reads its `.env` from there. Copy the
+template next to it and fill in your keys:
 
 ```bash
-cp .env.example .env
-# Edit .env with your API keys
-docker compose up -d
+cp .env.example deploy/.env
+# Edit deploy/.env with your API keys
+cd deploy && docker compose up -d
 ```
 
 The `.env` file is gitignored. Never commit API keys to version control.

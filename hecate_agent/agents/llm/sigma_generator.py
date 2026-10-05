@@ -1473,13 +1473,17 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # rules of which none survived validation. Per-source, each response is
         # short, a failure costs one rule instead of all six, and the field
         # guidance can be narrowed to the category actually being written.
-        for logsource in logsources:
-            rule, problems = self._generate_for_logsource(input_data, logsource)
-            rejected.extend(problems)
-            if rule is None:
-                warnings.append(f"no valid rule generated for log source '{logsource}'")
-            else:
-                rules.append(rule)
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=min(len(logsources) or 1, 6)) as executor:
+            futures = {executor.submit(self._generate_for_logsource, input_data, logsource): logsource for logsource in logsources}
+            for future in futures:
+                rule, problems = future.result()
+                rejected.extend(problems)
+                if rule is None:
+                    warnings.append(f"no valid rule generated for log source '{futures[future]}'")
+                else:
+                    rules.append(rule)
 
         # Built from the indicators alone, with no model call. On the first
         # live cycle with the fixed pipeline, a pulse carrying ten file hashes

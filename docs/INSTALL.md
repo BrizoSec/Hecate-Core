@@ -1,15 +1,21 @@
 # Hecate Installation & Development Guide
 
-This guide covers installation methods and development setup for the Agentic Threat Hunting Framework (Hecate).
+This guide covers installation methods and development setup for Hecate.
 
 ## Quick Start
 
 The fastest way to get started:
 
 ```bash
-pip install hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
+pip install -e .
 hecate-agent hunt new
 ```
+
+Hecate is installed from source: the `hecate-agent` package is not published on
+PyPI. Optional features are extras, installed from your checkout with
+`pip install -e ".[extra]"`.
 
 That's it! You're ready to start threat hunting — there is no separate
 initialization step, and the workspace directories are created on first use.
@@ -18,13 +24,14 @@ initialization step, and the workspace directories are created on first use.
 
 ## Installation Options
 
-### Option 1: Install from PyPI (Recommended)
+### Option 1: Install from a clone (Recommended)
 
-**Best for**: Most users who want a stable, production-ready installation.
+**Best for**: Everyone. The checkout is also a working hunt workspace.
 
 ```bash
-# Install the latest stable release
-pip install hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
+pip install -e .
 
 # Verify installation
 hecate-agent --version
@@ -44,26 +51,26 @@ python3 -m venv hecate-env
 source hecate-env/bin/activate  # On macOS/Linux
 hecate-env\Scripts\activate     # On Windows
 
-# Install Hecate
-pip install hecate-agent
+# Install Hecate from your clone
+pip install -e /path/to/Hecate-Core
 ```
 
 ---
 
-### Option 2: Install from Source
+### Option 2: Install with optional features
 
-**Best for**: Contributors, developers, or users who want the latest features.
+**Best for**: Running the AI agents, web research, ATT&CK validation or the MCP server.
 
 ```bash
 # Clone the repository
 git clone https://github.com/BrizoSec/Hecate-Core.git
 cd Hecate-Core
 
-# Install in editable mode (changes take effect immediately)
-pip install -e .
+# Everything the agents and the Runner use
+pip install -e ".[all]"
 
-# Or install normally
-pip install .
+# Or pick extras: attack, research, similarity, sigma, litellm, ollama, mcp, splunk
+pip install -e ".[attack,research]"
 
 # Verify installation
 hecate-agent --version
@@ -81,9 +88,9 @@ git clone https://github.com/BrizoSec/Hecate-Core.git
 cd Hecate-Core
 
 # Copy the template structure
-mkdir -p my-hunts/hunts my-hunts/queries my-hunts/runs
+mkdir -p my-hunts/hunts my-hunts/queries my-hunts/runs my-hunts/templates
 cp templates/HUNT_LOCK.md my-hunts/templates/
-cp docs/AGENTS.md my-hunts/
+cp AGENTS.md my-hunts/
 
 # Start creating hunts by copying the template
 cp templates/HUNT_LOCK.md my-hunts/hunts/H-0001.md
@@ -204,7 +211,7 @@ The mypy configuration in `pyproject.toml` enforces:
 pytest tests/ -v
 
 # Run specific test file
-pytest tests/test_commands.py -v
+pytest tests/commands/test_commands.py -v
 
 # Run with coverage
 pytest tests/ -v --cov=hecate_agent --cov-report=term-missing
@@ -269,7 +276,7 @@ def mycustom() -> None:
     """My custom command."""
     console.print("[cyan]Running custom command![/cyan]")
 
-# Register in hecate/cli.py
+# Register in hecate_agent/cli.py
 from hecate_agent.commands import custom
 cli.add_command(custom.mycustom)
 ```
@@ -294,8 +301,7 @@ owner_team: {{ owner_team | default('SOC') }}
 
 # Get all completed hunts from last week
 hecate-agent hunt list --status completed --output json | \
-  jq '[.[] | select(.date >= "2025-11-29")]' | \
-  hecate-agent stats
+  jq '[.[] | select(.date >= "2025-11-29")] | length'
 ```
 
 ### CI/CD Integration
@@ -303,7 +309,7 @@ hecate-agent hunt list --status completed --output json | \
 Hecate includes a GitHub Actions workflow ([.github/workflows/tests.yml](../.github/workflows/tests.yml)) that runs:
 
 - Tests across Python 3.11-3.13 on Ubuntu, macOS, Windows
-- Linting with flake8
+- Linting with ruff
 - Type checking with mypy
 - Hunt validation
 - Package building
@@ -314,6 +320,7 @@ Customize the workflow for your organization's needs.
 
 All tools are configured in `pyproject.toml`:
 
+- **Ruff**: The lint CI runs (`ruff check .`), line length 127
 - **Black**: Line length 127, targets Python 3.11-3.13
 - **isort**: Black-compatible profile
 - **mypy**: Strict type checking enabled
@@ -368,8 +375,8 @@ Add the PATH export to your `~/.bashrc` to make it permanent.
 # Verify installation
 python --version
 
-# Install Hecate
-pip install hecate-agent
+# Install Hecate from your clone
+pip install -e C:\path\to\Hecate-Core
 
 # Verify
 hecate-agent --version
@@ -414,7 +421,7 @@ If all commands work, you're ready to go!
 
 ## Troubleshooting
 
-### "hecate: command not found"
+### "hecate-agent: command not found"
 
 **Cause**: The Python scripts directory is not in your PATH.
 
@@ -433,14 +440,14 @@ If all commands work, you're ready to go!
 3. Add to PATH:
    ```bash
    # macOS/Linux (add to ~/.zshrc or ~/.bashrc)
-   export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+   export PATH="$HOME/Library/Python/3.11/bin:$PATH"
 
    # Windows (use System Properties > Environment Variables)
    ```
 
 4. Reload your shell or open a new terminal.
 
-### "No module named 'hecate'"
+### "No module named 'hecate_agent'"
 
 **Cause**: Package not installed or wrong Python environment.
 
@@ -450,8 +457,8 @@ If all commands work, you're ready to go!
 # Check if installed
 pip list | grep hecate
 
-# If not listed, install it
-pip install hecate-agent
+# If not listed, install it from your clone
+pip install -e /path/to/Hecate-Core
 
 # Check which Python pip is using
 pip --version
@@ -484,15 +491,15 @@ python --version
 
 ```bash
 # Option 1: Install for current user only (recommended)
-pip install --user hecate-agent
+pip install --user -e /path/to/Hecate-Core
 
 # Option 2: Use a virtual environment (best practice)
 python3 -m venv hecate-env
 source hecate-env/bin/activate
-pip install hecate-agent
+pip install -e /path/to/Hecate-Core
 
 # Option 3: Install globally (not recommended)
-sudo pip install hecate-agent
+sudo pip install /path/to/Hecate-Core
 ```
 
 ### Import errors with dependencies
@@ -507,7 +514,7 @@ python3 -m venv fresh-env
 source fresh-env/bin/activate
 
 # Install Hecate in the clean environment
-pip install hecate-agent
+pip install -e /path/to/Hecate-Core
 
 # Verify dependencies
 pip list
@@ -531,13 +538,9 @@ pip list
 To upgrade to the latest version:
 
 ```bash
-# Upgrade from PyPI
-pip install --upgrade hecate-agent
-
-# Or from source
-cd hecate-agent
+cd Hecate-Core
 git pull
-pip install --upgrade .
+pip install -e .    # only needed when dependencies changed
 
 # Verify new version
 hecate-agent --version
@@ -575,7 +578,7 @@ After installation:
 
 ## Getting Help
 
-- **CLI help**: `hecate-agent --help` or `hecate <command> --help`
+- **CLI help**: `hecate-agent --help` or `hecate-agent <command> --help`
 - **Documentation**: [getting-started.md](getting-started.md)
 - **Issues**: [GitHub Issues](https://github.com/BrizoSec/Hecate-Core/issues)
 
@@ -585,6 +588,6 @@ After installation:
 
 - **Python**: 3.11 or higher
 - **OS**: macOS, Linux, or Windows
-- **Disk Space**: ~5 MB for package, more for your hunt data
-- **Memory**: Minimal (< 50 MB)
-- **Dependencies**: 4 packages (click, pyyaml, rich, jinja2)
+- **Disk Space**: small for the base install; the optional extras (LLM clients, ATT&CK data, scikit-learn) add several hundred MB
+- **Core dependencies**: click, pyyaml, rich, jinja2, python-dotenv, httpx, beautifulsoup4, langgraph, langchain-core, langgraph-checkpoint-sqlite
+- **Optional extras**: see the table in [CLAUDE.md](../CLAUDE.md#optional-dependencies)

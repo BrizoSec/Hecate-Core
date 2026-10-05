@@ -1,4 +1,4 @@
-"""Agentic Threat Hunting Framework (Hecate)
+"""Hecate: an agentic threat hunting framework.
 
 A memory and automation layer for threat hunting programs.
 Makes every past investigation accessible to both humans and AI.

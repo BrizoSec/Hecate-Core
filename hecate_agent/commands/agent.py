@@ -457,9 +457,9 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print(r"  pip install 'hecate-agent\[litellm]'   # All providers via LiteLLM")
-            console.print(r"  pip install 'hecate-agent\[openai]'    # OpenAI/GPT")
-            console.print(r"  pip install 'hecate-agent\[bedrock]'   # AWS Bedrock")
+            console.print(r"  pip install -e '.\[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install -e '.\[openai]'    # OpenAI/GPT")
+            console.print(r"  pip install -e '.\[bedrock]'   # AWS Bedrock")
             raise click.Abort()
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
@@ -516,7 +516,7 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print(r"  pip install 'hecate-agent\[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install -e '.\[litellm]'   # All providers via LiteLLM")
             console.print("  pip install tavily-python      # Web search (optional)")
             raise click.Abort()
         except Exception as e:
@@ -555,7 +555,7 @@ def run(  # noqa: C901
         except ImportError as e:
             console.print(f"[red]Error loading agent: {e}[/red]")
             console.print("\n[dim]Install an LLM provider:[/dim]")
-            console.print(r"  pip install 'hecate-agent\[litellm]'   # All providers via LiteLLM")
+            console.print(r"  pip install -e '.\[litellm]'   # All providers via LiteLLM")
             raise click.Abort()
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")

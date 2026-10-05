@@ -45,7 +45,7 @@ Getting Started:
 
 \b
 Documentation:
-  • Full docs: https://github.com/Nebulock-Inc/agentic-threat-hunting-framework
+  • Full docs: https://github.com/BrizoSec/Hecate-Core/tree/main/docs
   • CLI reference: docs/CLI_REFERENCE.md
 
 \b
@@ -58,10 +58,10 @@ Need help? Run 'hecate-agent COMMAND --help' for command-specific help.
 @click.version_option(
     version=__version__,
     prog_name="hecate-agent",
-    message="%(prog)s version %(version)s\nAgentic Threat Hunting Framework\nCreated by Sydney Marrone © 2025",
+    message="%(prog)s version %(version)s\nHecate, by BrizoSec\nBased on ATHF, © 2025 Sydney Marrone (MIT)",
 )
 def cli() -> None:
-    r"""Agentic Threat Hunting Framework (Hecate) - Hunt management CLI.
+    r"""Hecate - Hunt management CLI.
 
     \b
     Hecate gives your threat hunting program memory and agency by:

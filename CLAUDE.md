@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **Hecate (Agentic Threat Hunting Framework)** — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is published as the `hecate-agent` PyPI package, with the `hecate-agent` entry point.
+This is **Hecate**, an agentic threat hunting framework — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is the `hecate-agent` Python package, installed from this checkout (it is not published on PyPI), with the `hecate-agent` entry point.
 
 **This repository is dual-purpose:** it is both the framework's source (`hecate_agent/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using Hecate against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
 
@@ -51,6 +51,10 @@ pytest tests/core/test_hunt_manager.py -v
 # Run a single test
 pytest tests/core/test_hunt_manager.py::TestGetHuntDirectory::test_get_hunt_directory_production -v
 
+# Lint as CI does (ruff, default rules, 127-column lines)
+ruff check .
+
+# flake8, black and isort below are the pre-commit hooks' formatting checks
 # Lint (syntax errors only — fast)
 flake8 hecate_agent --count --select=E9,F63,F7,F82 --show-source --statistics
 
@@ -98,6 +102,7 @@ hecate_agent/
 │   ├── env.py              # `hecate-agent env setup/clean` — creates/manages the project .venv
 │   ├── eval.py             # Model-quality eval harness — scripted known-answer spot checks
 │   ├── mcp.py              # MCP server control
+│   ├── monitor.py          # Live terminal dashboard over a Runner cycle (trail, stage metrics, live call log)
 │   └── splunk.py           # Optional Splunk integration (loaded conditionally)
 ├── core/                   # Business logic layer
 │   ├── hunt_manager.py     # Hunt file discovery, lifecycle, stats, ATT&CK coverage; class-level cache keyed on fs fingerprint
@@ -105,6 +110,8 @@ hecate_agent/
 │   ├── investigation_parser.py
 │   ├── research_manager.py # Research document lifecycle (R-XXXX.md)
 │   ├── llm_provider.py     # Model-agnostic LLM abstraction (LiteLLM / OpenAI / Anthropic / Bedrock / Ollama); lazy imports
+│   ├── llm_activity.py     # Live per-call log, written only when HECATE_LLM_CALL_LOG is set (the Runner sets it)
+│   ├── source_evidence.py  # Fetches a CTI item's report and keeps only artifacts verified verbatim against it
 │   ├── attack_matrix.py    # MITRE ATT&CK coverage; STIX provider with JSON fallback
 │   ├── cost_tracker.py     # Token cost estimation with fuzzy model-name matching
 │   ├── envelope.py         # Structured data envelope / schema
@@ -117,6 +124,8 @@ hecate_agent/
 │   └── llm/
 │       ├── hypothesis_generator.py  # Generates hunt hypotheses from threat intel
 │       ├── hunt_researcher.py       # 5-skill pre-hunt research methodology
+│       ├── sigma_generator.py       # Drafts Sigma rules per log source
+│       ├── rule_reviewer.py         # Reviews drafted rules against the hypothesis and source
 │       └── pivot_suggester.py       # Suggests pivot queries from hunt findings
 ├── mcp/                    # MCP server (FastMCP)
 │   ├── server.py           # Server factory, workspace discovery, plugin tool loading

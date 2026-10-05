@@ -1,6 +1,6 @@
 # Getting Started with Hecate
 
-This guide walks you through setting up the Agentic Threat Hunting Framework, from your first documented hunt to advanced AI-powered capabilities.
+This guide walks you through setting up Hecate, from your first documented hunt to advanced AI-powered capabilities.
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
@@ -45,25 +45,18 @@ cd Hecate-Core
 Take a few minutes to understand the repository layout:
 
 ```
-hecate-agent/
-├── README.md              # Framework overview
-├── AGENTS.md              # AI assistant context
-├── config/                # Workspace configuration
-│   └── .hecateconfig.yaml   # Hunt prefix, SIEM/EDR settings
-├── hecate/                  # CLI source code (optional)
-│   ├── commands/          # Hunt management commands
-│   ├── core/              # Hunt parsing and validation
-│   └── utils/             # Helper utilities
-├── hunts/                 # Hunt hypothesis cards (H-XXXX.md)
-├── queries/               # Query implementations (H-XXXX.spl/kql)
-├── runs/                  # Hunt execution results (H-XXXX_YYYY-MM-DD.md)
-├── templates/             # LOCK-structured hunt templates
-├── knowledge/             # Threat hunting expertise
-├── prompts/               # AI workflow templates
-├── integrations/          # MCP server catalog and quickstart guides
-├── docs/                  # Detailed documentation
-└── assets/                # Images and diagrams
+workspace/
+├── .hecateconfig.yaml     # Optional workspace settings
+├── hunts/                 # Hunt documents (created when needed)
+├── research/              # Research documents (created when needed)
+├── queries/               # Query files (created when needed)
+├── templates/             # Workspace templates
+├── knowledge/             # Environment and hunting context
+└── integrations/          # Integration guides
 ```
+
+The installed CLI's Python source lives in the Hecate package, not in a
+workspace. Exact folders vary with the commands and templates you use.
 
 **Key files to review:**
 
@@ -201,11 +194,11 @@ Set **one** of the following environment variables and Hecate auto-detects your 
 
 | Provider | Environment Variable | Install Extra |
 |----------|---------------------|---------------|
-| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `pip install 'hecate-agent[anthropic]'` |
-| OpenAI (GPT) | `OPENAI_API_KEY` | `pip install 'hecate-agent[openai]'` |
-| AWS Bedrock | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` | `pip install 'hecate-agent[bedrock]'` |
-| Ollama (local) | `OLLAMA_HOST` (default: `localhost:11434`) | `pip install 'hecate-agent[ollama]'` |
-| Any via LiteLLM | varies | `pip install 'hecate-agent[litellm]'` |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `pip install -e ".[anthropic]"` |
+| OpenAI (GPT) | `OPENAI_API_KEY` | `pip install -e ".[openai]"` |
+| AWS Bedrock | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` | `pip install -e ".[bedrock]"` |
+| Ollama (local) | `OLLAMA_HOST` (default: `localhost:11434`) | `pip install -e ".[ollama]"` |
+| Any via LiteLLM | varies | `pip install -e ".[litellm]"` |
 
 ```bash
 # Example: configure OpenAI
@@ -224,7 +217,7 @@ export HECATE_LLM_MODEL=gpt-4o
 
 See [`.env.example`](https://github.com/BrizoSec/Hecate-Core/blob/main/.env.example) for all supported variables.
 
-### Test AI Integration and Agent Framework (v0.3.0+)
+### Try AI-Assisted Features
 
 1. Open your repository in Claude Code, GitHub Copilot, or Cursor
 2. Ask: "What hunts have we documented?"
@@ -376,7 +369,7 @@ Don't build a full agent pipeline on day one:
 
 If you installed the CLI (Option A), here are the most useful commands:
 
-### Agent Framework (v0.3.0+)
+### Agent Framework
 
 ```bash
 # List all available agents
@@ -387,11 +380,9 @@ hecate-agent agent info hypothesis-generator
 
 # Run an agent
 hecate-agent agent run hypothesis-generator --threat-intel "APT29 using WMI"
-hecate-agent agent run context-loader --hunt H-0013
-hecate-agent agent run similarity-scorer --query "password spraying"
 ```
 
-### Research Workflow (v0.3.0+)
+### Research Workflow (Optional)
 
 ```bash
 # Create research document (15-20 min deep research)
@@ -413,8 +404,8 @@ hecate-agent hunt new                           # Interactive mode
 hecate-agent hunt new --technique T1003.001 --title "LSASS Dumping"
 hecate-agent hunt new --research R-0001         # Link to research document
 
-# Execute hunt workflow with agents (v0.3.0+)
-hecate-agent hunt execute H-0013
+# Review available hunt commands
+hecate-agent hunt --help
 
 # List and search
 hecate-agent hunt list                          # All hunts

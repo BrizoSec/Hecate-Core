@@ -237,7 +237,7 @@ def _find_similar_hunts(
         # carries no meaning outside a Click app. The CLI command renders it.
         raise SimilarityUnavailable(
             "scikit-learn is required for similarity search. "
-            "Install with: pip install 'hecate-agent[similarity]'"
+            "Install with: pip install -e '.[similarity]'"
         ) from exc
 
     # Load all hunts (HuntManager handles recursive search + deduplication)

@@ -166,7 +166,7 @@ class TestUpdateCanSetAttackMetadata:
         from hecate_agent.core.attack_matrix import is_using_stix
 
         if not is_using_stix():
-            pytest.skip("technique validation requires STIX data (pip install 'hecate-agent[attack]')")
+            pytest.skip("technique validation requires STIX data (pip install -e '.[attack]')")
 
         _write_hunt(temp_workspace, techniques=["T1059"])
 

@@ -1,23 +1,35 @@
 # Hecate Documentation
 
+New to the project? Start with the [onboarding guide](ONBOARDING.md).
+
 ## Core Framework Docs
 
-The canonical framework documentation lives in [`hecate_agent/data/docs/`](../hecate_agent/data/docs/) — these ship as package data inside `hecate-agent`. The copies in this directory are kept byte-identical to them so they render on GitHub; edit the `hecate_agent/data/docs/` copy and mirror it here.
+The guides in this directory are the GitHub source of truth. Matching files in
+`hecate_agent/data/docs/` ship with the Python package so installed workspaces
+can use them. When a guide changes, copy it to the matching package-data path.
+Run `python scripts/sync_docs.py` to update all mirrored framework guides, or
+`python scripts/sync_docs.py --check` to report drift.
 
-- [Getting Started](../hecate_agent/data/docs/getting-started.md)
-- [The LOCK Pattern](../hecate_agent/data/docs/lock-pattern.md)
-- [Maturity Model](../hecate_agent/data/docs/maturity-model.md)
-- [Level 4: Agentic Workflows](../hecate_agent/data/docs/level4-agentic-workflows.md)
-- [CLI Reference](../hecate_agent/data/docs/CLI_REFERENCE.md)
-- [Environment Setup](../hecate_agent/data/docs/environment.md)
-- [Why Hecate?](../hecate_agent/data/docs/why-hecate.md)
+Only the guides listed below are mirrored. The repository's own `prompts/`,
+`templates/` and `integrations/` are this workspace's working copies and may
+differ from the defaults bundled under `hecate_agent/data/`.
+
+- [Getting Started](getting-started.md)
+- [The LOCK Pattern](lock-pattern.md)
+- [Maturity Model](maturity-model.md)
+- [Level 4: Agentic Workflows](level4-agentic-workflows.md)
+- [CLI Reference](CLI_REFERENCE.md)
+- [Environment Setup](environment.md)
+- [Why Hecate?](why-hecate.md)
 
 ## Supplementary Docs (this directory)
 
 Files here are GitHub/developer-facing and are not deployed into workspaces:
 
+- [Onboarding](ONBOARDING.md) — What Hecate is for, how the two repositories fit, and a first run
+- [Architecture](https://github.com/BrizoSec/Hecate-Runner/blob/main/docs/ARCHITECTURE.md) — Design diagrams for the whole pipeline (lives in Hecate-Runner)
 - [Installation](INSTALL.md) — Install options and requirements
 - [Configuration Reference](CONFIGURATION.md) — All config keys and environment variables
 - [Using Hecate](USING_HECATE.md) — Adoption guide for teams
-- [Hunt Showcase](SHOWCASE.md) — Example completed hunts
-- [H-0618 Deep Dive](H-0618_DEEP_DIVE.md) — 2026-09-27 review of one generated hunt, its rules and research: accuracy, root causes, ranked enhancements
+- [Hunt Showcase](SHOWCASE.md) — Illustrative sample hunts and workflows
+- [H-0618 Deep Dive](H-0618_DEEP_DIVE.md) — historical engineering review of one generated hunt and subsequent pipeline changes (2026-09-27 to 2026-10-03)

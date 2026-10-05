@@ -1,14 +1,14 @@
-# Agentic Threat Hunting Framework - Docker Compose
+# Hecate - Docker Compose
 #
 # ── Quick start (you have an API key) ───────────────────────────────────────
-#   cp .env.example .env              # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
-#   docker compose up -d
+#   cp .env.example deploy/.env       # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   cd deploy && docker compose up -d
 #   docker compose exec hecate bash
 #
 # ── Quick start (no API key – uses local Ollama) ────────────────────────────
 #   docker compose --profile ollama up -d
 #   docker compose exec hecate bash
-#   # First run pulls the model (~2 GB); wait for ollama-pull to finish.
+#   # First run pulls the model (~9 GB for the default); wait for ollama-pull to finish.
 #   # Override model: OLLAMA_MODEL=llama3.2:1b docker compose --profile ollama up -d
 #
 # ── AWS Bedrock ──────────────────────────────────────────────────────────────

@@ -6,7 +6,13 @@ Hecate formalizes that loop with the **LOCK Pattern**, a lightweight structure t
 
 **Why LOCK?** It's small enough to use and strict enough for agents to interpret.
 
-![The LOCK Pattern](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_lock.png)
+```mermaid
+flowchart LR
+    L["<b>Learn</b><br/>Gather context:<br/>CTI, alerts, anomalies"] --> O["<b>Observe</b><br/>Form a hypothesis<br/>about adversary behaviour"]
+    O --> C["<b>Check</b><br/>Test it with<br/>bounded queries"]
+    C --> K["<b>Keep</b><br/>Record findings<br/>and lessons learned"]
+    K -. "the next hunt starts from what was kept" .-> L
+```
 
 ## The Four Phases
 

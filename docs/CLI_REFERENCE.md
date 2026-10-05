@@ -1,6 +1,9 @@
 # Hecate CLI Reference
 
-Complete reference for all `hecate-agent` command-line interface commands.
+Reference for the main `hecate-agent` commands. The CLI also includes
+`eval-gold`, `orchestrate`, and optional `splunk` commands; use
+`hecate-agent --help` and `hecate-agent COMMAND --help` for the installed
+version's complete, authoritative command and option list.
 
 ## Command Quick Reference
 
@@ -92,7 +95,9 @@ Complete reference for all `hecate-agent` command-line interface commands.
 ## Installation
 
 ```bash
-pip install hecate-agent
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
+pip install -e .
 ```
 
 See [INSTALL.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/INSTALL.md) for detailed installation instructions.
@@ -180,6 +185,7 @@ Provides commands for managing Python virtual environments, including setup, inf
 | `clean` | Remove virtual environment |
 | `activate` | Show command to activate virtual environment |
 | `deactivate` | Show command to deactivate virtual environment |
+| `check` | Run a dependency health checklist for the workspace |
 
 ### hecate-agent env setup
 
@@ -534,7 +540,7 @@ Similarity Score Legend:
 Requires `scikit-learn`:
 
 ```bash
-pip install "hecate-agent[similarity]"
+pip install -e ".[similarity]"
 ```
 
 Or install scikit-learn separately:
@@ -2492,7 +2498,7 @@ hecate-agent attack update [OPTIONS]
 
 Downloads the Enterprise ATT&CK STIX bundle from the official MITRE repository and caches it locally. Once downloaded, Hecate automatically switches from the hardcoded fallback data (14 tactics, approximate counts) to live STIX data (835+ techniques with full metadata including platforms, data sources, and sub-techniques).
 
-**Prerequisites:** Requires `mitreattack-python` — install with `pip install 'hecate-agent[attack]'`.
+**Prerequisites:** Requires `mitreattack-python` — install with `pip install -e ".[attack]"`.
 
 **Cache locations (checked in order):**
 1. `HECATE_STIX_CACHE` environment variable
@@ -3166,8 +3172,8 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-      - run: pip install hecate-agent
+          python-version: '3.11'
+      - run: pip install "git+https://github.com/BrizoSec/Hecate-Core.git"
       - run: hecate-agent hunt validate
 ```
 
@@ -3202,6 +3208,6 @@ done
 
 ## Need Help?
 
-- **CLI help**: `hecate-agent --help` or `hecate <command> --help`
+- **CLI help**: `hecate-agent --help` or `hecate-agent <command> --help`
 - **GitHub Issues**: [Report bugs or request features](https://github.com/BrizoSec/Hecate-Core/issues)
 - **Documentation**: [docs/getting-started.md](getting-started.md)

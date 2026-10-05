@@ -145,3 +145,39 @@ def test_source_extraction_reads_as_live_model_work_not_as_the_last_cycle() -> N
     text = m.console.export_text()
     assert "Live token totals are written when the cycle ends." in text
     assert "e2675e" not in text
+
+
+def test_a_running_cycle_shows_its_own_calls_as_they_happen() -> None:
+    """Minutes into a read, the panel says what has been sent and what has come back."""
+    metrics = {"cycle_id": "e2675e", "outcome": "research_quota_reached", "stages": []}
+    events = _events("route: narrative", "source: starting: reading https://x")
+    now = START + timedelta(minutes=5)
+    live = {
+        "llm_calls": 2,
+        "in_flight": 1,
+        "failed": 0,
+        "input_tokens": 12400,
+        "output_tokens": 900,
+        "cost_usd": 0.0,
+        "models": ["ollama/qwen2.5"],
+        "last_start": (now - timedelta(seconds=95)).timestamp(),
+        "last_end": (now - timedelta(seconds=96)).timestamp(),
+    }
+    m.console = Console(width=140, height=30, record=True, force_terminal=False)
+    m.console.print(m._usage_panel(metrics, events[-1], True, events, live=live, now=now))
+    text = m.console.export_text()
+    assert "2 done · 1 in flight" in text
+    assert "12,400" in text and "900" in text
+    assert "ollama/qwen2.5" in text
+    assert "Live · cycle 54ac42 so far" in text
+    assert "n/a" not in text and "e2675e" not in text
+
+
+def test_a_finished_cycle_shows_its_recorded_totals_not_the_call_log() -> None:
+    events = _events("route: narrative", "done: draft_created")
+    live = {"llm_calls": 9, "in_flight": 0, "failed": 0, "input_tokens": 1, "output_tokens": 1, "cost_usd": 0.0, "models": [], "last_start": 0.0, "last_end": 0.0}
+    metrics = {"cycle_id": "54ac42", "outcome": "draft_created", "stages": [{"stage": "research", "llm_calls": 4, "input_tokens": 5000, "output_tokens": 600, "models": ["m"]}]}
+    m.console = Console(width=140, height=30, record=True, force_terminal=False)
+    m.console.print(m._usage_panel(metrics, events[-1], False, events, live=live))
+    text = m.console.export_text()
+    assert "Last cycle 54ac42 · draft_created" in text and "5,000" in text

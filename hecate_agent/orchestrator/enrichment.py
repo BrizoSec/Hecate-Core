@@ -240,19 +240,40 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         
     summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, Shodan, Censys, Abuse.ch & MISP)"]
     
-    for h in indicators["hashes"][:5]:  # Limit to 5 to save API quota/time
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def process_hash(h: str) -> str:
         res = query_vt_hash(h)
         misp_res = query_misp_indicator(h)
         threatfox_res = query_threatfox(h)
-        summary.append(f"- **Hash {h}**:\n  - *VirusTotal:* {res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}")
-        
-    for ip in indicators["ips"][:5]:
+        return f"- **Hash {h}**:\n  - *VirusTotal:* {res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+
+    def process_ip(ip: str) -> str:
         vt_res = query_vt_ip(ip)
         shodan_res = query_shodan_ip(ip)
         censys_res = query_censys_ip(ip)
         misp_res = query_misp_indicator(ip)
         threatfox_res = query_threatfox(ip)
-        summary.append(f"- **IP {ip}**:\n  - *VirusTotal:* {vt_res}\n  - *Shodan:* {shodan_res}\n  - *Censys:* {censys_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}")
+        return f"- **IP {ip}**:\n  - *VirusTotal:* {vt_res}\n  - *Shodan:* {shodan_res}\n  - *Censys:* {censys_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        hash_futures = {executor.submit(process_hash, h): h for h in indicators["hashes"][:5]}
+        ip_futures = {executor.submit(process_ip, ip): ip for ip in indicators["ips"][:5]}
+        
+        # To maintain order
+        hash_results = {future: future.result() for future in hash_futures}
+        for h in indicators["hashes"][:5]:
+            for future, result in hash_results.items():
+                if hash_futures[future] == h:
+                    summary.append(result)
+                    break
+                    
+        ip_results = {future: future.result() for future in ip_futures}
+        for ip in indicators["ips"][:5]:
+            for future, result in ip_results.items():
+                if ip_futures[future] == ip:
+                    summary.append(result)
+                    break
         
     # Exclude domains to keep it fast, or add domain endpoint if needed
     

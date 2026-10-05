@@ -22,6 +22,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from hecate_agent.core.cost_tracker import summarize_cost
+from hecate_agent.core.llm_activity import summarize_calls
 from hecate_agent.core.workspace import workspace_root
 
 console = Console()
@@ -588,16 +590,7 @@ def _activity_table(events: List[TrailEvent]) -> Table:
     return table
 
 
-def _usage_panel(
-    metrics: Dict[str, Any],
-    current: Optional[TrailEvent],
-    active: bool,
-    events: List[TrailEvent],
-    compact: bool = False,
-    workspace: Optional[Path] = None,
-) -> Panel:
-    stages = metrics.get("stages") or []
-    llm_stages = [stage for stage in stages if isinstance(stage, dict) and stage.get("llm_calls") is not None]
+def _calculate_llm_metrics(llm_stages: List[Dict[str, Any]]) -> Tuple[int, int, int, List[str], str]:
     calls = sum(int(stage.get("llm_calls") or 0) for stage in llm_stages)
     input_tokens = sum(int(stage.get("input_tokens") or 0) for stage in llm_stages)
     output_tokens = sum(int(stage.get("output_tokens") or 0) for stage in llm_stages)
@@ -609,15 +602,69 @@ def _usage_panel(
         cost_text = f"${sum(known_costs):.4f} partial estimate"
     else:
         cost_text = "unknown"
-    search_count = "pending"
-    if current:
-        for event in reversed(events):
-            if event.cycle_id != current.cycle_id or event.stage != "research":
-                continue
-            searches = re.search(r"(\d+) web search\(es\)", event.message)
-            if searches:
-                search_count = searches.group(1)
-            break
+    return calls, input_tokens, output_tokens, models, cost_text
+
+
+def _build_summary_table(
+    compact: bool, calls: int, input_tokens: int, output_tokens: int, cost_text: str,
+    search_count: str, models: List[str], workspace: Optional[Path],
+    usage_note: str, has_stages: bool
+) -> Table:
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("label", style="dim", width=17)
+    table.add_column("value", style="bright_white")
+    if compact:
+        llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
+        table.add_row("LLM", llm_summary)
+        table.add_row("Cost", cost_text)
+        table.add_row("Tavily", f"{search_count} searches")
+        table.add_row("Model", ", ".join(models) or "not reported")
+        table.add_row("Keys", _credential_summary(workspace))
+    else:
+        table.add_row("LLM calls", str(calls) if has_stages else "n/a")
+        table.add_row("Input tokens", f"{input_tokens:,}" if has_stages else "n/a")
+        table.add_row("Output tokens", f"{output_tokens:,}" if has_stages else "n/a")
+        table.add_row("Cost", cost_text)
+        table.add_row("Tavily searches", search_count)
+        table.add_row("Model", ", ".join(models) or "not reported")
+        table.add_row("Credentials", _credential_summary(workspace))
+        table.add_row("Usage note", usage_note)
+    return table
+
+
+def _build_stage_table(llm_stages: List[Dict[str, Any]]) -> Table:
+    stage_table = Table(box=None, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    stage_table.add_column("STAGE", style="bright_magenta")
+    stage_table.add_column("CALLS", justify="right")
+    stage_table.add_column("TOKENS IN / OUT", justify="right")
+    for stage in llm_stages:
+        stage_table.add_row(
+            str(stage.get("stage", "unknown")),
+            str(stage.get("llm_calls") or 0),
+            f"{int(stage.get('input_tokens') or 0):,} / {int(stage.get('output_tokens') or 0):,}",
+        )
+    return stage_table
+
+
+def _usage_panel(
+    metrics: Dict[str, Any],
+    current: Optional[TrailEvent],
+    active: bool,
+    events: List[TrailEvent],
+    compact: bool = False,
+    workspace: Optional[Path] = None,
+    live: Optional[Dict[str, Any]] = None,
+    now: Optional[datetime] = None,
+) -> Panel:
+    if active and current and live:
+        # The running cycle's own calls, not the totals of the last one to finish.
+        return _live_usage_panel(live, current, events, compact, workspace, now or datetime.now())
+    
+    stages = metrics.get("stages") or []
+    llm_stages = [stage for stage in stages if isinstance(stage, dict) and stage.get("llm_calls") is not None]
+    calls, input_tokens, output_tokens, models, cost_text = _calculate_llm_metrics(llm_stages)
+    search_count = _search_count(current, events)
+    
     if active and current and current.stage in {"source", "research", "hypothesis", "sigma"}:
         usage_note = "Live token totals are written when the cycle ends."
     elif not metrics:
@@ -625,42 +672,85 @@ def _usage_panel(
     else:
         usage_note = f"Last cycle {metrics.get('cycle_id', 'unknown')} · {metrics.get('outcome', 'unknown')}"
 
-    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=17)
-    table.add_column("value", style="bright_white")
-    if compact:
-        llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if llm_stages else "no completed metrics"
-        table.add_row("LLM", llm_summary)
-        table.add_row("Cost", cost_text)
-        table.add_row("Tavily", f"{search_count} searches")
-        table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Keys", _credential_summary(workspace))
-    else:
-        table.add_row("LLM calls", str(calls) if llm_stages else "n/a")
-        table.add_row("Input tokens", f"{input_tokens:,}" if llm_stages else "n/a")
-        table.add_row("Output tokens", f"{output_tokens:,}" if llm_stages else "n/a")
-        table.add_row("Cost", cost_text)
-        table.add_row("Tavily searches", search_count)
-        table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Credentials", _credential_summary(workspace))
-        table.add_row("Usage note", usage_note)
+    table = _build_summary_table(
+        compact, calls, input_tokens, output_tokens, cost_text,
+        search_count, models, workspace, usage_note, bool(llm_stages)
+    )
+    
     content: Any = table
     if not compact and llm_stages:
-        stage_table = Table(box=None, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
-        stage_table.add_column("STAGE", style="bright_magenta")
-        stage_table.add_column("CALLS", justify="right")
-        stage_table.add_column("TOKENS IN / OUT", justify="right")
-        for stage in llm_stages:
-            stage_table.add_row(
-                str(stage.get("stage", "unknown")),
-                str(stage.get("llm_calls") or 0),
-                f"{int(stage.get('input_tokens') or 0):,} / {int(stage.get('output_tokens') or 0):,}",
-            )
+        stage_table = _build_stage_table(llm_stages)
         content = Table.grid(expand=True, padding=(0, 1))
         content.add_column(ratio=1)
         content.add_column(ratio=1)
         content.add_row(table, stage_table)
+        
     return Panel(content, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+
+
+def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> str:
+    if current:
+        for event in reversed(events):
+            if event.cycle_id != current.cycle_id or event.stage != "research":
+                continue
+            searches = re.search(r"(\d+) web search\(es\)", event.message)
+            if searches:
+                return searches.group(1)
+            break
+    return "pending"
+
+
+def _live_usage(call_log: Path) -> Dict[str, Any]:
+    """The running cycle's provider calls so far; empty when the Runner keeps no call log."""
+    return summarize_calls(_tail(call_log, limit=2000))
+
+
+def _live_usage_panel(
+    live: Dict[str, Any],
+    current: TrailEvent,
+    events: List[TrailEvent],
+    compact: bool,
+    workspace: Optional[Path],
+    now: datetime,
+) -> Panel:
+    calls, in_flight, failed = live["llm_calls"], live["in_flight"], live["failed"]
+    call_text = f"{calls} done"
+    if in_flight:
+        waited = _duration(max(0.0, now.timestamp() - live["last_start"]))
+        call_text += f" · {in_flight} in flight (latest sent {waited} ago)"
+    if failed:
+        call_text += f" · {failed} failed"
+    cost, basis = summarize_cost(live["models"], calls, live["input_tokens"], live["output_tokens"], live["cost_usd"])
+    cost_text = "unknown" if cost is None else f"${cost:.4f} so far"
+    if cost is None and calls:
+        cost_text = basis.split(":")[0]
+    models = ", ".join(live["models"]) or "not reported yet"
+    search_count = _search_count(current, events)
+    if live["last_end"]:
+        last = f"last reply {datetime.fromtimestamp(live['last_end']):%H:%M:%S}"
+    else:
+        last = "no reply yet"
+    usage_note = f"Live · cycle {current.cycle_id} so far · {last}"
+
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("label", style="dim", width=17)
+    table.add_column("value", style="bright_white")
+    if compact:
+        table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
+        table.add_row("Cost", cost_text)
+        table.add_row("Tavily", f"{search_count} searches")
+        table.add_row("Model", models)
+        table.add_row("Keys", _credential_summary(workspace))
+    else:
+        table.add_row("LLM calls", call_text)
+        table.add_row("Input tokens", f"{live['input_tokens']:,}")
+        table.add_row("Output tokens", f"{live['output_tokens']:,}")
+        table.add_row("Cost", cost_text)
+        table.add_row("Tavily searches", search_count)
+        table.add_row("Model", models)
+        table.add_row("Credentials", _credential_summary(workspace))
+        table.add_row("Usage note", usage_note)
+    return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _credential_summary(workspace: Optional[Path] = None) -> str:
@@ -906,6 +996,7 @@ def _render_dashboard(
     refreshed: datetime,
     runner: Optional[RunnerStatus] = None,
     recent_error: str = "",
+    live: Optional[Dict[str, Any]] = None,
 ) -> Layout:
     runner = runner or RunnerStatus()
     latest, active, elapsed = _pipeline_state(events, _service_running(runner, workspace), refreshed)
@@ -962,7 +1053,7 @@ def _render_dashboard(
             Layout(_compact_resources(host), name="resources", size=4),
             Layout(_compact_progress(latest, active, stale, in_progress), name="progress", size=3),
             Layout(action_panel, name="activity", size=6),
-            Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace), name="usage", size=7),
+            Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), name="usage", size=7),
             Layout(
                 Text(
                     f"Updated {refreshed:%H:%M:%S} · Ctrl-C exits"
@@ -980,7 +1071,7 @@ def _render_dashboard(
         Layout(header_panel, name="header", size=4),
         Layout(name="resources", size=6 if len(host.disks) <= 1 else 5 + len(host.disks) + 3),
         Layout(name="middle", ratio=2),
-        Layout(_usage_panel(metrics, latest, active, events, workspace=workspace), name="usage", size=11),
+        Layout(_usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed), name="usage", size=11),
         Layout(
             Panel(
                 Text(
@@ -1117,6 +1208,7 @@ def monitor(workspace: Optional[Path], interval: float) -> None:
     root = workspace_root(workspace)
     log_path = root / "logs" / "orchestrator.log"
     metrics_path = root / "logs" / "stage_metrics.jsonl"
+    call_log = root / "logs" / "llm_calls.jsonl"
     sampler = HostSampler(root)
     runner_sampler = RunnerStatusSampler(root)
     try:
@@ -1127,7 +1219,10 @@ def monitor(workspace: Optional[Path], interval: float) -> None:
                 metrics = _latest_metrics(metrics_path)
                 host = sampler.sample()
                 runner = runner_sampler.sample()
-                live.update(_render_dashboard(root, events, metrics, host, datetime.now(), runner, recent_error), refresh=True)
+                calls = _live_usage(call_log)
+                live.update(
+                    _render_dashboard(root, events, metrics, host, datetime.now(), runner, recent_error, calls), refresh=True
+                )
                 time.sleep(interval)
     except KeyboardInterrupt:
         console.show_cursor(True)

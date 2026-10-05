@@ -1,6 +1,6 @@
 # AGENTS.md - Context for AI Assistants Using Hecate
 
-**Purpose:** This file provides AI assistants with context about threat hunting repositories using the Agentic Threat Hunting Framework (Hecate).
+**Purpose:** This file provides AI assistants with context about threat hunting repositories using Hecate.
 
 ---
 
@@ -10,7 +10,7 @@ This repository contains threat hunting investigations using the LOCK pattern (L
 
 **AI assistants should:**
 
-- **🔧 ALWAYS activate the virtual environment FIRST** - Run `source .venv/bin/activate` before any `hecate-agent` commands (verify with `which hecate-agent`)
+- Use the installed `hecate-agent` command. In a source checkout, activate `.venv` first only when using that checkout’s virtual environment.
 - **Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md)** - Expert hunting frameworks and analytical methods
 - **Browse past hunts** - Search hunt history before suggesting new hypotheses
 - Reference lessons learned when generating queries
@@ -89,75 +89,34 @@ You MAY use Read, Edit, Grep, Glob tools for:
 
 ## Repository Structure
 
-### Framework Source Code (hecate/)
+### Framework Source Code (`hecate_agent/`)
 
-```
-hecate/                           # CLI source code
-├── agents/                     # Agent implementations
-│   ├── base.py                 # Base agent classes
-│   └── llm/                    # LLM-powered agents
-│       ├── hypothesis_generator.py  # Hypothesis generation
-│       └── hunt_researcher.py       # Pre-hunt research agent
-├── commands/                   # CLI commands
-│   ├── agent.py                # Agent management
-│   ├── attack.py               # ATT&CK data management (STIX)
-│   ├── context.py              # Context export for AI
-│   ├── env.py                  # Virtual environment setup
-│   ├── hunt.py                 # Hunt management commands
-│   ├── init.py                 # Workspace initialization
-│   ├── investigate.py          # Investigation commands
-│   ├── research.py             # Research management
-│   └── similar.py              # Semantic search
-├── core/                       # Core functionality
-│   ├── attack_matrix.py        # MITRE ATT&CK coverage (STIX provider + fallback)
-│   ├── hunt_manager.py         # Hunt lifecycle management
-│   ├── hunt_parser.py          # Hunt file parser
-│   ├── investigation_parser.py # Investigation parser
-│   ├── research_manager.py     # Research lifecycle
-│   ├── template_engine.py      # Template rendering
-│   └── web_search.py           # Tavily search integration
-├── utils/                      # Helper utilities
-└── data/                       # Bundled templates and docs
-    ├── docs/                   # Framework documentation
-    ├── templates/              # Hunt templates
-    ├── knowledge/              # Hunting expertise
-    ├── prompts/                # AI workflow templates
-    ├── hunts/                  # Example hunts
-    └── integrations/           # Integration guides
+```text
+hecate_agent/                     # Python package and CLI source
+├── agents/                       # Agent implementations
+├── commands/                     # Click command groups
+├── core/                         # Managers, parsers, and shared logic
+├── orchestrator/                 # Agentic workflow
+├── mcp/                          # MCP server and tools
+└── data/                         # Bundled docs, examples, prompts, templates
 ```
 
-### User Workspace (created on first use)
+### User Workspace
 
-```
-/
-├── README.md                   # Project overview
-├── AGENTS.md                   # 🤖 This file - AI context
-├── .hecateconfig.yaml            # Workspace configuration
-├── knowledge/environment.md              # Data sources and tech stack
-│
-├── hunts/                      # Hunt investigations (H-XXXX.md)
-│   └── README.md               # Hunt creation guide
-│
-├── investigations/             # Exploratory work (I-XXXX.md)
-│   └── README.md               # Investigation workflow guide
-│
-├── queries/                    # Query implementations
-│   └── README.md               # Query library documentation
-│
-├── knowledge/                  # Hunting expertise and frameworks
-│   ├── hunting-knowledge.md   # Core hunting knowledge
-│   ├── mitre-attack.md        # ATT&CK framework methodology
-│   └── domains/               # (EXAMPLE) Domain-specific knowledge
-│       ├── endpoint-security.md
-│       ├── iam-security.md
-│       ├── insider-threat.md
-│       └── cloud-security.md
-│
-├── integrations/               # Data source integrations
-│   └── MCP_CATALOG.md          # Available integrations
-│
-└── docs/                       # Additional documentation
-    └── CLI_REFERENCE.md        # Complete CLI command reference
+The CLI uses the current directory or configured workspace. It creates `hunts/`,
+`research/`, and `queries/` as needed. Other content such as `knowledge/`,
+`integrations/`, templates, and this `AGENTS.md` is supplied or maintained by
+workspace owners; it is not guaranteed to exist in every workspace.
+
+```text
+workspace/
+├── .hecateconfig.yaml          # Optional settings
+├── AGENTS.md                   # Optional assistant guidance
+├── hunts/                      # Hunt records
+├── research/                   # Research records
+├── queries/                    # Query files
+├── knowledge/                  # Environment and hunting knowledge
+└── integrations/               # Optional integration guidance
 ```
 
 ---
@@ -317,39 +276,30 @@ Query syntax, field naming, and performance optimization vary by data source. Re
 
 ---
 
-## CLI Commands (Required Workflow)
+## CLI Commands (Recommended Workflow)
 
 **Purpose:** Hecate includes CLI tools (`hecate-agent` command) that automate common hunt management tasks. When available, these commands are faster and more reliable than manual file operations.
 
-### 🔧 SETUP: Virtual Environment Activation
+### Environment Setup
 
-**CRITICAL:** The `hecate-agent` command requires the virtual environment to be activated. Activate it once at the start of your session:
+For a source checkout, `hecate-agent env setup` can create the project virtual
+environment. Activate it when you need the checkout’s installed command:
 
 ```bash
 source .venv/bin/activate
-```
-
-**Verify activation:**
-```bash
 which hecate-agent
-# Should output: /path/to/workspace/.venv/bin/hecate
-
 hecate-agent --version
-# Should succeed with version number
 ```
 
-**Why this matters:**
-- System `hecate-agent` (if installed) may lack dependencies like `scikit-learn`
-- Venv `hecate-agent` has all required dependencies (scikit-learn, anthropic, etc.)
-- Activation ensures correct Python interpreter
-
-**For AI Assistants:** Before running any `hecate-agent` commands, verify venv is activated with `which hecate-agent`. If it returns a system path, run `source .venv/bin/activate` first.
+For a normal package installation, use the command in the environment where
+`hecate-agent` was installed. Optional features may require extras; see
+[`docs/INSTALL.md`](docs/INSTALL.md).
 
 ---
 
-### ⚠️ CRITICAL: Two Mandatory Tools for AI Assistants
+### Useful Context and Search Commands
 
-**These two commands are REQUIRED for all hunt workflows:**
+Use these commands when they fit the task and are available:
 
 1. **`hecate-agent similar "hypothesis keywords"`** - BEFORE creating hunt hypothesis
    - Prevents duplicate hunts
@@ -370,13 +320,13 @@ hecate-agent --version
 
 ---
 
-### Five Mandatory Tools
+### Suggested Hunt Workflow
 
 | Step | Command | When | Purpose |
 |------|---------|------|---------|
 | 1 | `hecate-agent similar "keywords"` | BEFORE hypothesis | Check for duplicate hunts |
-| 2 | `hecate-agent research new --topic "..."` | REQUIRED: Before hypothesis | Thorough pre-hunt research (15-20 min) - **NEW** |
-| 3 | `hecate-agent agent run hypothesis-generator --threat-intel "..."` | AFTER research | Generate structured hypothesis - **NEW** |
+| 2 | `hecate-agent research new --topic "..."` | Optional, before hypothesis when useful | Research grounded in available sources and configuration |
+| 3 | `hecate-agent agent run hypothesis-generator --threat-intel "..."` | AFTER research | Generate structured hypothesis |
 | 4 | `hecate-agent hunt new --technique T1XXX --title "..." --non-interactive` | WHEN creating hunt | Auto-generate hunt file (⚠️ NEVER use Write tool) |
 | 5 | `hecate-agent context --hunt H-XXXX --format json` | BEFORE executing queries | Load all context efficiently |
 
@@ -385,7 +335,7 @@ hecate-agent --version
 ### Hunt Execution Steps
 
 1. **Check duplicates:** `hecate-agent similar "hypothesis keywords"`
-2. **Deep research (REQUIRED):** `hecate-agent research new --topic "..."` (creates R-XXXX.md with 5-skill methodology)
+2. **Deep research (optional):** `hecate-agent research new --topic "..."` (creates R-XXXX.md with 5-skill methodology)
 3. **Generate hypothesis:** `hecate-agent agent run hypothesis-generator --threat-intel "..."`
 4. **Create hunt file:** `hecate-agent hunt new --research R-XXXX --non-interactive ...` (link to research)
 5. **Load context:** `hecate-agent context --hunt H-XXXX --format json`
@@ -399,7 +349,7 @@ hecate-agent --version
 ### Additional Commands
 
 ```bash
-# Agent management (NEW - AI-powered capabilities)
+# Agent management
 hecate-agent agent list                       # List available agents
 hecate-agent agent info hypothesis-generator  # Get info about specific agent
 hecate-agent agent run hunt-researcher --topic "LSASS dumping"
@@ -410,13 +360,13 @@ hecate-agent hunt coverage --tactic credential-access
 hecate-agent hunt search "credential dumping" # Full-text search across hunts
 hecate-agent hunt validate H-0001             # Validate hunt file structure
 
-# Research management (NEW)
+# Research management
 hecate-agent research list                    # List research documents
 hecate-agent research view R-0001             # View specific research
 hecate-agent research search "credential access"  # Search research documents
 hecate-agent research stats                   # Show research metrics
 
-# ATT&CK data management (optional: pip install 'hecate-agent[attack]')
+# ATT&CK data management (optional: pip install -e ".[attack]")
 hecate-agent attack update                    # Download/refresh STIX data
 hecate-agent attack status                    # Show provider type, version, cache info
 hecate-agent attack lookup T1003.001          # Look up technique metadata
@@ -429,7 +379,7 @@ hecate-agent similar --hunt H-0001            # Find hunts similar to H-0001
 
 ---
 
-### Research Commands (REQUIRED Pre-Hunt Investigation) - **NEW**
+### Research Commands (Optional)
 
 ```bash
 # Deep research before hunting (15-20 min, uses web search + LLM) - DEFAULT
@@ -450,11 +400,11 @@ hecate-agent research search "kerberos"
 # Statistics
 hecate-agent research stats
 
-# Link research to hunt during creation (REQUIRED)
+# Link research to hunt during creation (optional)
 hecate-agent hunt new --research R-0001 --non-interactive
 ```
 
-**Research is now REQUIRED for all hunts** to ensure:
+**Research can improve hunts when the topic or available context warrants it. The research command and its web-search/LLM dependencies are optional:**
 
 - Deep understanding of system internals before hunting (Skill 1: System Research)
 - Adversary tradecraft is mapped to available telemetry (Skill 2: Adversary Tradecraft via web search)
@@ -484,7 +434,7 @@ hecate-agent hunt new --research R-0001 --non-interactive
 
 ### AI-Friendly Hunt Creation (One-Liner Support)
 
-**NEW:** `hecate-agent hunt new` supports rich content flags for fully-populated hunt files without manual editing.
+`hecate-agent hunt new` supports rich content flags for fully-populated hunt files without manual editing.
 
 **Basic Usage:**
 ```bash
@@ -533,7 +483,7 @@ hecate-agent hunt new \
 |---------|-----------|
 | Write tool → hunt file | `hecate-agent hunt new --non-interactive` |
 | Skip duplicate check | `hecate-agent similar "keywords"` first |
-| Skip research | `hecate-agent research new --topic "..."` (REQUIRED) |
+| Skip research | `hecate-agent research new --topic "..."` (optional) |
 | Manual hypothesis | `hecate-agent agent run hypothesis-generator --threat-intel "..."` |
 | Multiple Read operations | `hecate-agent context --hunt H-XXXX` |
 
@@ -600,24 +550,23 @@ Hecate includes bundled hunting knowledge files to inform hunt hypotheses and qu
 
 - Execute queries via data source integrations
 - Semantic similarity search (`hecate-agent similar`)
-- **Pre-hunt research with web search** (`hecate-agent research new`) - 5-skill methodology - **NEW**
-- **LLM-powered agents** (`hecate-agent agent run`) - Hypothesis generation, hunt research - **NEW**
-- Automated hypothesis generation (`hecate-agent agent run hypothesis-generator`) - **NEW**
-- Automated hunt research (`hecate-agent agent run hunt-researcher`) - **NEW**
+- **Pre-hunt research with web search** (`hecate-agent research new`) - 5-skill methodology
+- **LLM-powered agents** (`hecate-agent agent run`) - Hypothesis generation, hunt research
+- Automated hypothesis generation (`hecate-agent agent run hypothesis-generator`)
+- Automated hunt research (`hecate-agent agent run hunt-researcher`)
 - ATT&CK coverage analysis (`hecate-agent hunt coverage`)
-- **ATT&CK STIX data** (`hecate-agent attack update/status/lookup/techniques`) - live technique metadata - **NEW**
+- **ATT&CK STIX data** (`hecate-agent attack update/status/lookup/techniques`) - live technique metadata
 - Context loading optimization (`hecate-agent context`)
-- Session tracking (`hecate session`)
 - MCP integrations (Notion, GitHub, custom tools)
 
 **Data sources AI can access:**
 - `hunts/` folder and past hunt files
-- `research/` folder (R-XXXX.md documents) - **NEW**
+- `research/` folder (R-XXXX.md documents)
 - Data sources via integrations (Splunk, etc. - via CLI or MCP)
-- Web search via Tavily API (`hecate-agent research new`) - **NEW**
+- Web search via Tavily API (`hecate-agent research new`)
 - User's knowledge/environment.md
 
-**Agent Infrastructure (NEW):**
+**Agent Infrastructure:**
 
 - **LLM Agents:** AI-powered agents
 - **Agent Types:**
@@ -733,7 +682,7 @@ AI: 1. hecate-agent similar "kerberoasting" --format json
 **Core Process:**
 
 1. **Consult Hunting Brain** - Read [knowledge/hunting-knowledge.md](knowledge/hunting-knowledge.md) Section 1 (Hypothesis Generation) and Section 5 (Pyramid of Pain)
-2. **Search Memory First** - **REQUIRED: Use `hecate-agent similar "your hypothesis keywords"` to check for duplicate hunts** (saves time, avoids redundant work)
+2. **Search Memory First** - Use `hecate-agent similar "your hypothesis keywords"` when semantic duplicate checking is available (saves time and avoids redundant work)
 3. **Validate Environment** - Read user's knowledge/environment.md to confirm data sources exist
 4. **Generate LOCK Hypothesis** - Create testable hypothesis following [templates/HUNT_LOCK.md](templates/HUNT_LOCK.md)
 5. **Apply Quality Criteria** - Use quality checklist (Falsifiable, Scoped, Observable, Actionable, Contextual)
@@ -764,5 +713,5 @@ AI: 1. hecate-agent similar "kerberoasting" --format json
 - New integrations or MCP servers added (update "Memory and Search")
 - Team practices change (update CLI workflow or hunt execution steps)
 
-**Last Updated:** 2026-01-12
+**Last reviewed:** 2026-10-05
 **Maintained By:** Hecate Framework Team

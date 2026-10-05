@@ -41,7 +41,7 @@ Workflow:
   5. Track results → hecate-agent hunt stats
 
 \b
-Learn more: https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/blob/main/docs/CLI_REFERENCE.md
+Learn more: https://github.com/BrizoSec/Hecate-Core/blob/main/docs/CLI_REFERENCE.md
 """
 
 

@@ -85,6 +85,13 @@ the Redis `rules/` lacks the rules for `/etc/cron.d/.redis-miner`,
 hecate-agent eval-gold evals/gold/<case>.yaml evals/outputs/<case>/draft.md --queries evals/outputs/<case>/rules
 ```
 
+## Reviews
+
+`reviews/` holds one file per model that reviewed the saved outputs against
+their source reports, named `eval_<model>_<UTC timestamp>.md`. A review finds
+what the scorer cannot: a rule that is valid but would not fire, a claim the
+source does not support. New reviews go there, not in the repository root.
+
 ## What is scored
 
 Every positive and every negative item is one check; the score is checks passed

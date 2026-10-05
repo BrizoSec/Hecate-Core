@@ -40,7 +40,7 @@ def serve(workspace: str, transport: str, port: int) -> None:
     try:
         from hecate_agent.mcp.server import main as mcp_main
     except ImportError:
-        click.echo("Error: MCP dependencies not installed. Install with: pip install 'hecate-agent[mcp]'", err=True)
+        click.echo("Error: MCP dependencies not installed. Install with: pip install -e '.[mcp]'", err=True)
         raise SystemExit(1) from None
 
     mcp_main(workspace_path=workspace, transport=transport, port=port)

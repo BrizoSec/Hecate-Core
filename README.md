@@ -1,12 +1,14 @@
-# Agentic Threat Hunting Framework (Hecate)
+# Hecate
 
 Hecate provides structure and persistence for threat hunting programs. It's a markdown-based framework, wrapped in a Python CLI, that enables AI-powered threat hunting.
 
 ## 🚀 Quick Start
 
 ```bash
-# Install Hecate
-pip install hecate-agent
+# Install Hecate from source (it is not published on PyPI)
+git clone https://github.com/BrizoSec/Hecate-Core.git
+cd Hecate-Core
+pip install -e .
 
 # Conduct research before hunting
 hecate-agent research new --topic "LSASS dumping" --technique T1003.001
@@ -21,18 +23,29 @@ commands actually need, run `hecate-agent env check`.
 
 For more detailed instructions, see the [Getting Started Guide](docs/getting-started.md).
 
+**Joining the project?** Read the [onboarding guide](docs/ONBOARDING.md): what
+Hecate is for, how this repository and Hecate-Runner fit together, and how to
+get to a first drafted hunt.
+
 ## Key Features
 
 * **Structured Hunting:** Documents hunts using the LOCK pattern (Learn → Observe → Check → Keep).
 * **Searchable Repository:** Maintains a searchable repository of past investigations.
-* **AI-Powered:** Includes AI-powered research and hypothesis generation agents.
-* **Extensible:** Works with any SIEM/EDR platform and can be extended with custom plugins.
+* **AI-Assisted:** Optional research and hypothesis generation agents use configured LLM and search providers.
+* **Extensible:** Supports platform-specific workflows and optional plugins.
+* **Observable:** `hecate-agent monitor` is a live terminal dashboard of an automated pipeline run.
 
 ## The LOCK Pattern
 
 Every threat hunt follows the same basic loop: **Learn → Observe → Check → Keep**.
 
-![The LOCK Pattern](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_lock.png)
+```mermaid
+flowchart LR
+    L["<b>Learn</b><br/>Gather context:<br/>CTI, alerts, anomalies"] --> O["<b>Observe</b><br/>Form a hypothesis<br/>about adversary behaviour"]
+    O --> C["<b>Check</b><br/>Test it with<br/>bounded queries"]
+    C --> K["<b>Keep</b><br/>Record findings<br/>and lessons learned"]
+    K -. "the next hunt starts from what was kept" .-> L
+```
 
 This structure makes it possible for AI assistants to recall prior work and suggest refined queries based on past results. For more details, see the [LOCK Pattern Guide](docs/lock-pattern.md).
 
@@ -40,23 +53,39 @@ This structure makes it possible for AI assistants to recall prior work and sugg
 
 Hecate defines a simple maturity model to help you assess and improve your threat hunting capabilities.
 
-![The Five Levels](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_fivelevels.png)
+```mermaid
+flowchart LR
+    L0["<b>Level 0</b><br/>Ad-hoc<br/>Hunts live in Slack,<br/>tickets and notes"] --> L1["<b>Level 1</b><br/>Documented<br/>Persistent hunt records<br/>in LOCK format"]
+    L1 --> L2["<b>Level 2</b><br/>Searchable<br/>AI reads and recalls<br/>your hunts"]
+    L2 --> L3["<b>Level 3</b><br/>Generative<br/>AI executes queries<br/>through tools"]
+    L3 --> L4["<b>Level 4</b><br/>Agentic<br/>Autonomous agents<br/>monitor and act"]
+```
 
 Most teams will live at Levels 1–2. Everything beyond that is optional maturity. For more details, see the [Maturity Model Guide](docs/maturity-model.md).
 
 ## Documentation
 
+* [Onboarding for new joiners](docs/ONBOARDING.md)
+* [Architecture and design diagrams](https://github.com/BrizoSec/Hecate-Runner/blob/main/docs/ARCHITECTURE.md)
 * [Getting Started](docs/getting-started.md)
 * [Installation](docs/INSTALL.md)
 * [CLI Reference](docs/CLI_REFERENCE.md)
 * [Configuration](docs/CONFIGURATION.md)
 * [LOCK Pattern](docs/lock-pattern.md)
 * [Maturity Model](docs/maturity-model.md)
+* [Using Hecate](docs/USING_HECATE.md)
+* [Integrations](integrations/README.md)
 
 ## Related repositories
 
 * [Hecate-Runner](https://github.com/BrizoSec/Hecate-Runner) — autonomous orchestrator that drafts hunts into this workspace from live CTI.
-* [agentic-threat-hunting-framework](https://github.com/Nebulock-Inc/agentic-threat-hunting-framework) — the upstream project Hecate grew out of.
+
+## Acknowledgements
+
+Hecate began as a fork of the MIT-licensed Agentic Threat Hunting Framework
+(ATHF) by Sydney Marrone at Nebulock, which introduced the LOCK pattern and the
+five-level maturity model. It is now developed independently and does not
+track or depend on that project.
 
 ## Contributing
 

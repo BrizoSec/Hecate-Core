@@ -6,7 +6,7 @@ Hecate includes its own MCP server that exposes hunting operations as tools for 
 
 **Install:**
 ```bash
-pip install 'hecate-agent[mcp]'
+pip install -e ".[mcp]"
 ```
 
 **Configure for Claude Code** (`~/.claude/mcp-servers.json`):

@@ -85,6 +85,14 @@ class LLMProvider(ABC):
     Subclasses must implement ``complete`` and ``provider_name``.
     """
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Every provider's calls are visible to the live call log, whoever makes them.
+        if "complete" in cls.__dict__:
+            from hecate_agent.core.llm_activity import recorded
+
+            cls.complete = recorded(cls.__dict__["complete"])  # type: ignore[method-assign]
+
     @abstractmethod
     def complete(
         self,

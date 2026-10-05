@@ -219,7 +219,7 @@ class TestRunHypothesisGenerator:
 
         assert result.exit_code != 0
         assert "Install an LLM provider" in result.output
-        assert "pip install 'hecate-agent[litellm]'" in result.output
+        assert "pip install -e '.[litellm]'" in result.output
 
     def test_environment_md_loaded_when_present(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
         monkeypatch.chdir(tmp_path)

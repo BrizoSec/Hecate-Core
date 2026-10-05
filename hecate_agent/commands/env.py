@@ -304,7 +304,7 @@ def info() -> None:  # noqa: C901
     # Check for hecate-agent installation
     try:
         result = subprocess.run(
-            [str(pip_path), "show", "agentic-threat-hunting-framework"],
+            [str(pip_path), "show", "hecate-agent"],
             check=True,
             capture_output=True,
             text=True,

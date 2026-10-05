@@ -5,15 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hecate-agent"
 dynamic = ["version"]
-description = "Agentic Threat Hunting Framework - Memory and AI for threat hunters"
+description = "Hecate - memory and AI for threat hunters"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Sydney Marrone", email = "hecate@nebulock.io"}
+    {name = "BrizoSec"},
+    {name = "Sydney Marrone"},
 ]
 maintainers = [
-    {name = "Sydney Marrone", email = "hecate@nebulock.io"}
+    {name = "BrizoSec"},
 ]
 keywords = [
     "threat-hunting",
@@ -68,6 +69,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "flake8>=6.0.0",
     "flake8-pyproject>=1.2.0",
+    "ruff>=0.6.0",
     "mypy>=1.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
@@ -135,11 +137,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework"
-Documentation = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/tree/main/docs"
-Repository = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework"
-Issues = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/issues"
-Discussions = "https://github.com/Nebulock-Inc/agentic-threat-hunting-framework/discussions"
+Homepage = "https://github.com/BrizoSec/Hecate-Core"
+Documentation = "https://github.com/BrizoSec/Hecate-Core/tree/main/docs"
+Repository = "https://github.com/BrizoSec/Hecate-Core"
+Issues = "https://github.com/BrizoSec/Hecate-Core/issues"
 
 [project.scripts]
 hecate-agent = "hecate_agent.cli:main"
@@ -193,6 +194,10 @@ exclude = '''
   | dist
 )/
 '''
+
+[tool.ruff]
+line-length = 127
+target-version = "py311"
 
 [tool.isort]
 profile = "black"

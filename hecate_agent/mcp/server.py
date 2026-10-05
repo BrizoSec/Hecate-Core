@@ -54,7 +54,7 @@ def create_server(workspace_path: Optional[str] = None) -> "FastMCP":  # type: i
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError:
-        raise ImportError("MCP dependencies not installed. Install with: pip install 'hecate-agent[mcp]'") from None
+        raise ImportError("MCP dependencies not installed. Install with: pip install -e '.[mcp]'") from None
 
     from hecate_agent.mcp.utils import find_workspace, load_workspace_config
 
@@ -65,7 +65,7 @@ def create_server(workspace_path: Optional[str] = None) -> "FastMCP":  # type: i
     mcp = FastMCP(
         name="hecate",
         instructions=(
-            "Hecate (Agentic Threat Hunting Framework) server. "
+            "Hecate threat hunting server. "
             "Provides threat hunting operations: search hunts, check ATT&CK coverage, "
             "find similar hunts, create new hunts, run AI-powered research, and more. "
             f"Workspace: {_workspace}"

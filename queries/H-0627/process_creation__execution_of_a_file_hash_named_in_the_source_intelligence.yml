@@ -1,0 +1,79 @@
+title: Execution of a file hash named in the source intelligence
+id: a8d9bfaf-b228-4fff-aeca-3230efe94fb9
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://sansec.io/research/stylesmuggler
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-05'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=a07bc08eded18cc7317216cbbd7032d2
+    - SHA1=11d6a0c1000576915584c49c7039206bbb4c24d1
+    - SHA256=b79dfdc1eed860e0b76c629d6adfce251db379b0b45a6d728d4ef483f7551420
+    - SHA256=e315687a1dfe61ef4a5a5642214db6d3b2b05d81391285eebc2af664641a26a7
+    - SHA256=64bcb4426783e2b4f8ec68b2f63e42cf4b404af6cd65c4c47f5ae3ac0a3d439e
+    - SHA256=d94f75a70b5cabaf786ac57177ed841732e62bdcc9a29e06e5b41d9be567bcfa
+    - SHA256=8cef8dcac2bb4598fb821859deb61c9b6889b4bdad00498a38d113954334bbb3
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: a07bc08eded18cc7317216cbbd7032d2
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 11d6a0c1000576915584c49c7039206bbb4c24d1
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: b79dfdc1eed860e0b76c629d6adfce251db379b0b45a6d728d4ef483f7551420
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://sansec.io/research/stylesmuggler
+  evidence: sha256 b79dfdc1eed860e0b76c629d6adfce251db379b0b45a6d728d4ef483f7551420
+- value: e315687a1dfe61ef4a5a5642214db6d3b2b05d81391285eebc2af664641a26a7
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://sansec.io/research/stylesmuggler
+  evidence: sha256 e315687a1dfe61ef4a5a5642214db6d3b2b05d81391285eebc2af664641a26a7
+- value: 64bcb4426783e2b4f8ec68b2f63e42cf4b404af6cd65c4c47f5ae3ac0a3d439e
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://sansec.io/research/stylesmuggler
+  evidence: 'Four copies were found in php-fpm''s private /tmp, hashed separately and every one 64bcb4426783e2b4f8ec68b2f63e42cf4b404af6cd65c4c47f5ae3ac0a3d439e,
+    the image the process is running:'
+- value: d94f75a70b5cabaf786ac57177ed841732e62bdcc9a29e06e5b41d9be567bcfa
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://sansec.io/research/stylesmuggler
+  evidence: sha256 d94f75a70b5cabaf786ac57177ed841732e62bdcc9a29e06e5b41d9be567bcfa
+- value: 8cef8dcac2bb4598fb821859deb61c9b6889b4bdad00498a38d113954334bbb3
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://sansec.io/research/stylesmuggler
+  evidence: sha256 8cef8dcac2bb4598fb821859deb61c9b6889b4bdad00498a38d113954334bbb3 Adminer 6.0.2, 316536
+    bytes
+hunt_id: H-0627

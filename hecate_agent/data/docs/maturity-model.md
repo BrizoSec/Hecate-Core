@@ -4,7 +4,13 @@ Hecate defines a simple maturity model for evolving your hunting program. Each l
 
 **Most teams will live at Levels 1–2. Everything beyond that is optional maturity.**
 
-![The Five Levels of Agentic Hunting](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_fivelevels.png)
+```mermaid
+flowchart LR
+    L0["<b>Level 0</b><br/>Ad-hoc<br/>Hunts live in Slack,<br/>tickets and notes"] --> L1["<b>Level 1</b><br/>Documented<br/>Persistent hunt records<br/>in LOCK format"]
+    L1 --> L2["<b>Level 2</b><br/>Searchable<br/>AI reads and recalls<br/>your hunts"]
+    L2 --> L3["<b>Level 3</b><br/>Generative<br/>AI executes queries<br/>through tools"]
+    L3 --> L4["<b>Level 4</b><br/>Agentic<br/>Autonomous agents<br/>monitor and act"]
+```
 
 ## Overview
 
@@ -156,7 +162,17 @@ The AI automatically searches your hunts directory, references past investigatio
 
 **The combination of AGENTS.md (environmental context) and hunting-knowledge.md (domain expertise) transforms AI assistants from generic helpers into informed threat hunting partners.**
 
-![Manual vs. AI-Assisted Content Creation](https://raw.githubusercontent.com/Nebulock-Inc/agentic-threat-hunting-framework/main/assets/athf_manual_v_ai.png)
+```mermaid
+flowchart LR
+    subgraph manual["Manual: about 20 minutes"]
+        direction LR
+        M1["Grep old notes<br/>and tickets"] --> M2["Copy and paste<br/>context together"] --> M3["Write the<br/>hypothesis"]
+    end
+    subgraph assisted["AI-assisted: seconds"]
+        direction LR
+        A1["Ask the question"] --> A2["AI searches hunts/<br/>and the knowledge base"] --> A3["Refined hypothesis,<br/>with past lessons"]
+    end
+```
 
 ### Getting Started at Level 2
 
