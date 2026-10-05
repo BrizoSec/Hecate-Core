@@ -52,6 +52,9 @@ jobs:
 
     - name: Upload coverage to Codecov
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      # The action can fail before it uploads (a TLS error fetching its uploader),
+      # which fail_ci_if_error does not cover. Coverage reporting must not fail the build.
+      continue-on-error: true
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
