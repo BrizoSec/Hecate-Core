@@ -229,8 +229,8 @@ class LLMAgent(Agent[InputT, OutputT]):
             if attempt < max_retries:
                 logger.debug("LLM response validation failed (attempt %d): %s", attempt + 1, error)
                 current_prompt = (
-                    "{}\n\nYour previous response had an error: {}\n"
-                    "Please fix the issue and try again. Return valid JSON only.".format(prompt, error)
+                    "{}\n\nYour previous response:\n```json\n{}\n```\n\nFailed validation with error: {}\n"
+                    "Please fix the issue in the JSON and try again. Return valid JSON only.".format(prompt, result, error)
                 )
 
         return result

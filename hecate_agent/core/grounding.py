@@ -708,8 +708,8 @@ def audit_draft(
     uses (the deterministic phrase match), so they are reported as coming
     from the source's text rather than from the hypothesis.
     """
-    primary = cti_text.lower()
-    secondary = research_text.lower()
+    primary = cti_text.lower().replace("[.]", ".").replace("(.)", ".").replace("hxxp", "http").replace("[:]", ":")
+    secondary = research_text.lower().replace("[.]", ".").replace("(.)", ".").replace("hxxp", "http").replace("[:]", ":")
     asserted_techniques = {t.upper() for t in (cti_techniques or [])}
     wording_matched = {t.upper() for t in (matched_techniques or [])}
     facts = {k.upper(): v for k, v in (technique_facts or {}).items()}

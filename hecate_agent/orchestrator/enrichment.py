@@ -5,6 +5,9 @@ import logging
 from typing import List, Dict
 
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
 def _setting(name: str, default: str = "") -> str:
     """Read a credential or endpoint from the environment (loaded from .env by the CLI).
 

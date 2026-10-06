@@ -1991,7 +1991,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             output_text = self._call_llm_with_retry(
                 self._build_prompt(input_data, logsource),
                 validate_json,
-                max_retries=2,
+                max_retries=3,
                 temperature=0.1,
             )
             raw_rules = self._parse_json_response(output_text).get("rules", [])
@@ -2413,11 +2413,13 @@ RULES OF THE TASK:
 10. Give realistic falsepositives. "None" is never a correct answer.
 11. The JSON below shows the *shape* only. Its values are placeholders, not
    examples to copy: "FieldName", "value" and "known-good" must never appear
+12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If you cannot write a precise rule for the specific behavior described in the hypothesis without hallucinating, do not write a rule.
    in what you return, and a rule matching on them is rejected. Neither may
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
 12. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
+13. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
 Return exactly this JSON shape, with a single entry in "rules":
 {{
   "rules": [

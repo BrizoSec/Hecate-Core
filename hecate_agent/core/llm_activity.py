@@ -92,9 +92,11 @@ def summarize_calls(lines: List[str]) -> Dict[str, Any]:
         "failed": failed,
         "input_tokens": sum(int(r.get("input_tokens") or 0) for r in ended),
         "output_tokens": sum(int(r.get("output_tokens") or 0) for r in ended),
+        "duration_ms": sum(int(r.get("duration_ms") or 0) for r in ended),
         "cost_usd": sum(float(r.get("cost_usd") or 0.0) for r in ended),
         "models": sorted({str(r["model"]) for r in ended if r.get("model")}),
         "last_start": last_start,
         "last_end": last_end,
+        "ended_calls": ended,
     }
 

@@ -23,7 +23,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from hecate_agent.core.cost_tracker import summarize_cost
 from hecate_agent.core.llm_activity import summarize_calls
 from hecate_agent.core.workspace import workspace_root
 
@@ -478,7 +477,7 @@ def _pipeline_state(
     current_events = [event for event in events if event.cycle_id == latest.cycle_id]
     last_update = _parse_time(latest.timestamp)
     fresh = last_update is not None and (now - last_update).total_seconds() < _QUIET_SECONDS
-    active = latest.stage != "done" and (fresh if service_running is None else service_running)
+    active = latest.stage != "done" and (fresh or bool(service_running))
     logged = max((event.elapsed for event in current_events), default=latest.elapsed)
     # A stage logs when it ends, so the log's own clock stops at the last line:
     # ten minutes into source extraction it still read "elapsed 4s".
@@ -528,7 +527,12 @@ def _stage_table(current: Optional[TrailEvent], active: bool, stale: bool, in_pr
     current_order = in_progress if in_progress is not None else (_stage_order(current.stage) if current else -1)
     for index, (key, label) in enumerate(_STAGES):
         if current and current.stage == "done":
-            state, style = "DONE", "bright_green"
+            ev_time = _parse_time(current.timestamp) if current.timestamp else None
+            is_fresh = ev_time and (datetime.now() - ev_time).total_seconds() < _QUIET_SECONDS
+            if is_fresh:
+                state, style = "DONE", "bright_green"
+            else:
+                state, style = "WAIT", "dim"
         elif index < current_order:
             state, style = "DONE", "bright_green"
         elif index == current_order:
@@ -620,18 +624,17 @@ def _calculate_llm_metrics(llm_stages: List[Dict[str, Any]]) -> Tuple[int, int, 
     input_tokens = sum(int(stage.get("input_tokens") or 0) for stage in llm_stages)
     output_tokens = sum(int(stage.get("output_tokens") or 0) for stage in llm_stages)
     models = sorted({model for stage in llm_stages for model in (stage.get("models") or [])})
-    known_costs = [float(stage.get("estimated_cost_usd") or 0.0) for stage in llm_stages if stage.get("estimated_cost_usd") is not None]
-    if known_costs and len(known_costs) == len(llm_stages):
-        cost_text = f"${sum(known_costs):.4f} reported estimate"
-    elif known_costs:
-        cost_text = f"${sum(known_costs):.4f} partial estimate"
+    duration_ms = sum(int(stage.get("duration_ms") or 0) for stage in llm_stages)
+    if duration_ms > 0:
+        tps = (input_tokens + output_tokens) / (duration_ms / 1000)
+        speed_text = f"{tps:.1f} tok/s ({duration_ms / 1000:.1f}s)"
     else:
-        cost_text = "unknown"
-    return calls, input_tokens, output_tokens, models, cost_text
+        speed_text = "unknown"
+    return calls, input_tokens, output_tokens, models, speed_text
 
 
 def _build_summary_table(
-    compact: bool, calls: int, input_tokens: int, output_tokens: int, cost_text: str,
+    compact: bool, calls: int, input_tokens: int, output_tokens: int, speed_text: str,
     search_count: str, models: List[str], workspace: Optional[Path],
     usage_note: str, has_stages: bool, stage_line: str = "", narrow: bool = False
 ) -> Table:
@@ -643,7 +646,7 @@ def _build_summary_table(
             table,
             f"{calls} calls" if has_stages else "no usage recorded",
             f"{input_tokens:,} in / {output_tokens:,} out" if has_stages else "—",
-            cost_text,
+            speed_text,
             ", ".join(models) or "not reported",
             search_count,
             stage_line,
@@ -653,15 +656,15 @@ def _build_summary_table(
     elif compact:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
         table.add_row("LLM", llm_summary)
-        table.add_row("Cost", cost_text)
+        table.add_row("Speed", speed_text)
         table.add_row("Tavily", f"{search_count} searches")
         table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Keys", _credential_summary(workspace))
+        table.add_row("Integrations", _credential_summary(workspace))
     else:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no usage recorded"
         _usage_rows(
             table,
-            f"{llm_summary} · cost {cost_text}",
+            f"{llm_summary} · speed {speed_text}",
             f"{', '.join(models) or 'not reported'} · Tavily searches: {search_count}",
             stage_line,
             f"{usage_note} · {_credential_summary(workspace)}",
@@ -670,32 +673,33 @@ def _build_summary_table(
 
 
 def _narrow_usage_rows(
-    table: Table, llm: str, tokens: str, cost: str, model: str, searches: str, by_stage: str, status: str,
+    table: Table, llm: str, tokens: str, speed: str, model: str, searches: str, by_stage: str, latency: str,
     workspace: Optional[Path],
 ) -> None:
     """The usage rows for a column a third of the screen wide: one fact a row."""
     table.add_row("LLM", llm)
     table.add_row("Tokens", tokens)
-    table.add_row("Cost", cost)
+    table.add_row("Speed", speed)
     table.add_row("Model", model)
     table.add_row("Tavily", f"{searches} searches" if searches.isdigit() else f"searches {searches}")
     first, _, second = by_stage.partition("\n")
     table.add_row("By stage", first)
-    table.add_row("", second)
-    table.add_row("Status", status)
-    table.add_row("Keys", _credential_summary(workspace))
+    if second:
+        table.add_row("", second)
+    table.add_row("Latency", latency)
+    table.add_row("Integrations", _credential_summary(workspace))
 
 
 #: Rows of the usage panel in a side column, with its border.
 _NARROW_USAGE_PANEL_HEIGHT = 11
 
 
-def _usage_rows(table: Table, llm: str, model: str, by_stage: str, status: str) -> None:
+def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
     """The full layout's four usage rows: the panel is this tall and no taller."""
     table.add_row("LLM", llm)
     table.add_row("Model", model)
     table.add_row("By stage", by_stage)
-    table.add_row("Status", status)
+    table.add_row("Latency", latency)
 
 
 #: Rows of the usage panel in the full layout, with its border.
@@ -740,18 +744,22 @@ def _usage_panel(
     calls, input_tokens, output_tokens, models, cost_text = _calculate_llm_metrics(llm_stages)
     search_count = _search_count(current, events)
     
+    duration_ms = sum(int(stage.get("duration_ms") or 0) for stage in llm_stages)
     if active and current and current.stage in {"source", "research", "hypothesis", "sigma"}:
         usage_note = "Live token totals are written when the cycle ends."
     elif not metrics:
         usage_note = "No completed cycle metrics found yet."
+    elif duration_ms > 0 and calls > 0:
+        avg_latency = duration_ms / calls / 1000
+        usage_note = f"{avg_latency:.1f}s per call"
     else:
-        usage_note = f"Last cycle {metrics.get('cycle_id', 'unknown')} · {metrics.get('outcome', 'unknown')}"
+        usage_note = "unknown"
 
     table = _build_summary_table(
         compact, calls, input_tokens, output_tokens, cost_text,
         search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages, tokens=not narrow), narrow
     )
-    return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+    return Panel(table, title="[bold bright_cyan]TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> str:
@@ -787,17 +795,40 @@ def _live_usage_panel(
         call_text += f" · {in_flight} in flight ({waited})" if narrow else f" · {in_flight} in flight (latest sent {waited} ago)"
     if failed:
         call_text += f" · {failed} failed"
-    cost, basis = summarize_cost(live["models"], calls, live["input_tokens"], live["output_tokens"], live["cost_usd"])
-    cost_text = "unknown" if cost is None else f"${cost:.4f} so far"
-    if cost is None and calls:
-        cost_text = basis.split(":")[0]
+    duration_ms = live.get("duration_ms", 0)
+    if duration_ms > 0:
+        tps = (live["input_tokens"] + live["output_tokens"]) / (duration_ms / 1000)
+        speed_text = f"{tps:.1f} tok/s ({duration_ms / 1000:.1f}s inference)"
+    else:
+        speed_text = "unknown"
+    if duration_ms > 0 and live["llm_calls"] > 0:
+        avg_latency = duration_ms / live["llm_calls"] / 1000
+        latency_text = f"{avg_latency:.1f}s per call (last reply at {datetime.fromtimestamp(live['last_end']):%H:%M:%S})"
+    else:
+        latency_text = "no replies yet"
+        
     models = ", ".join(live["models"]) or "not reported yet"
     search_count = _search_count(current, events)
-    if live["last_end"]:
-        last = f"last reply {datetime.fromtimestamp(live['last_end']):%H:%M:%S}"
+
+    ended_calls = live.get("ended_calls", [])
+    stage_counts = {}
+    cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
+    for call in ended_calls:
+        call_ts = call.get("ts", 0.0)
+        active_stage = "unknown"
+        for event in cycle_events:
+            ev_time = _parse_time(event.timestamp)
+            if ev_time and ev_time.timestamp() <= call_ts:
+                active_stage = event.stage
+            elif ev_time and ev_time.timestamp() > call_ts:
+                break
+        clean_stage = active_stage.removesuffix("_generation").removesuffix("_evidence")
+        stage_counts[clean_stage] = stage_counts.get(clean_stage, 0) + 1
+        
+    if stage_counts:
+        live_stage_line = " · ".join(f"{stage} {count}" for stage, count in stage_counts.items() if stage != "cycle")
     else:
-        last = "no reply yet"
-    usage_note = f"Live · cycle {current.cycle_id} so far · {last}"
+        live_stage_line = "no usage recorded yet"
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
@@ -807,28 +838,28 @@ def _live_usage_panel(
             table,
             call_text,
             f"{live['input_tokens']:,} in / {live['output_tokens']:,} out",
-            cost_text,
+            speed_text,
             models,
             search_count,
-            "written when the cycle ends",
-            usage_note,
+            live_stage_line,
+            latency_text,
             workspace,
         )
     elif compact:
         table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
-        table.add_row("Cost", cost_text)
+        table.add_row("Speed", speed_text)
         table.add_row("Tavily", f"{search_count} searches")
         table.add_row("Model", models)
-        table.add_row("Keys", _credential_summary(workspace))
+        table.add_row("Integrations", _credential_summary(workspace))
     else:
         _usage_rows(
             table,
-            f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out · cost {cost_text}",
+            f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out · speed {speed_text}",
             f"{models} · Tavily searches: {search_count}",
-            "written when the cycle ends",
-            f"{usage_note} · {_credential_summary(workspace)}",
+            live_stage_line,
+            f"Latency: {latency_text} · {_credential_summary(workspace)}",
         )
-    return Panel(table, title="[bold bright_cyan]LLM / API TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+    return Panel(table, title="[bold bright_cyan]TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _credential_summary(workspace: Optional[Path] = None) -> str:
@@ -848,6 +879,9 @@ def _credential_summary(workspace: Optional[Path] = None) -> str:
         ),
         ("Tavily", ("TAVILY_API_KEY",)),
         ("OTX", ("OTX_API_KEY",)),
+        ("MISP", ("MISP_API_KEY",)),
+        ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
     if workspace:
@@ -1033,7 +1067,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
         rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), "bright_white")))
     return Panel(
         Group(*rows),
-        title="[bold bright_cyan]HECATE RUNNER SERVICE[/]",
+        title="[bold bright_cyan]RUNNER SERVICE[/]",
         border_style="bright_magenta",
         box=box.ROUNDED,
     )
@@ -1086,15 +1120,13 @@ def _render_dashboard(
     title = Text.assemble(
         (" HECATE ", "bold black on bright_cyan"),
         ("  PIPELINE MONITOR  ", "bold bright_white"),
-        ("  CYBER OPS / LIVE TELEMETRY", "bright_magenta"),
-        (f"     {status}", "bold bright_green" if active else "bold bright_red" if stale else "bold yellow"),
     )
     pending, completed, failed = _get_inbox_counts(workspace)
     queue_str = f"  ·  Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
 
     if latest and active:
         subline = (
-            f"cycle {cycle}  ·  now: {working_on}  ·  elapsed {_duration(elapsed)}"
+            f"[{status}] cycle {cycle}  ·  now: {working_on}  ·  elapsed {_duration(elapsed)}"
             f"  ·  last: {latest.stage}: {latest.message[:60]}{queue_str}"
         )
     elif latest and stale:
@@ -1103,14 +1135,15 @@ def _render_dashboard(
             if _service_running(runner, workspace) is False
             else f"no log activity for {_QUIET_SECONDS // 60}+ minutes"
         )
-        subline = f"cycle {cycle}  ·  stopped in {working_on}  ·  last seen {latest.timestamp}  ·  {why}{queue_str}"
+        subline = f"[{status}] cycle {cycle}  ·  stopped in {working_on}  ·  last seen {latest.timestamp}  ·  {why}{queue_str}"
     elif latest:
-        subline = f"last cycle {cycle}  ·  {latest.message[:100]}{queue_str}"
+        subline = f"[{status}] last cycle {cycle}  ·  {latest.message[:100]}{queue_str}"
     else:
-        subline = f"monitoring {workspace}  ·  waiting for a pipeline cycle{queue_str}"
+        subline = f"[{status}] monitoring {workspace}  ·  waiting for a pipeline cycle{queue_str}"
 
     layout = Layout()
-    header_panel = Panel(Group(title, Text(subline, style="dim")), border_style="bright_cyan", box=box.DOUBLE)
+    title.append("   " + subline.replace("\n", "  "), style="dim")
+    header_panel = Panel(title, border_style="bright_cyan", box=box.DOUBLE)
     compact = console.size.height < 40
     if compact:
         activity = Table(box=None, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
@@ -1127,7 +1160,7 @@ def _render_dashboard(
         else:
             action_panel = Panel(activity, title="[bold bright_cyan]ACTION STREAM[/]", border_style="bright_magenta", box=box.SIMPLE)
         layout.split_column(
-            Layout(header_panel, name="header", size=4),
+            Layout(header_panel, name="header", size=3),
             Layout(_compact_resources(host), name="resources", size=4),
             Layout(_compact_progress(latest, active, stale, in_progress), name="progress", size=3),
             Layout(action_panel, name="activity", size=6),
@@ -1149,19 +1182,16 @@ def _render_dashboard(
     stages_height = len(_STAGES) + 3
     service_height = 8 if runner.installed else 0
     footer = Layout(
-        Panel(
-            Text(
-                f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
-                f"{workspace / 'logs' / 'orchestrator.log'}",
-                style="dim",
-            ),
-            border_style="bright_magenta",
-            box=box.SIMPLE,
+        Text(
+            f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
+            f"{workspace / 'logs' / 'orchestrator.log'}",
+            style="dim",
+            justify="center"
         ),
         name="footer",
-        size=3,
+        size=1,
     )
-    body_height = console.size.height - 4 - resources_height - 3
+    body_height = console.size.height - 3 - resources_height - 1
     # A full-width usage panel is mostly empty to the right of its values, and
     # every row it takes is one the stream loses. With room for all three
     # panels in the left-hand column, the stream runs the full height instead.
@@ -1170,7 +1200,7 @@ def _render_dashboard(
     if usage_on_left:
         middle_height = body_height
         layout.split_column(
-            Layout(header_panel, name="header", size=4),
+            Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
             footer,
@@ -1178,7 +1208,7 @@ def _render_dashboard(
     else:
         middle_height = body_height - _USAGE_PANEL_HEIGHT
         layout.split_column(
-            Layout(header_panel, name="header", size=4),
+            Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
             Layout(usage_panel, name="usage", size=_USAGE_PANEL_HEIGHT),
@@ -1205,7 +1235,7 @@ def _render_dashboard(
             ),
             Layout(
                 _resource_panel(
-                    "HECATE FS",
+                    "STORAGE",
                     _percent(host.disks[0].used, host.disks[0].total) if host.disks else None,
                     f"{_bytes(host.disks[0].used)} / {_bytes(host.disks[0].total)} used" if host.disks else "not detected",
                 ),
