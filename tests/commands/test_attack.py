@@ -156,8 +156,8 @@ class TestAttackUpdate:
         original_import = builtins.__import__
         fake_mitreattack = types.ModuleType("mitreattack")
         fake_stix20 = types.ModuleType("mitreattack.stix20")
-        fake_stix20.MitreAttackData = type("MitreAttackData", (), {})
-        fake_mitreattack.stix20 = fake_stix20
+        fake_stix20.MitreAttackData = type("MitreAttackData", (), {})  # type: ignore
+        fake_mitreattack.stix20 = fake_stix20  # type: ignore
 
         def mock_import(name, *args, **kwargs):
             if name == "mitreattack.stix20":
@@ -410,7 +410,7 @@ class TestLookupFollowsRevocations:
             "T1574.002",
             None,
             lambda _: "T1574.001",
-            lambda _: live,
+            lambda _: live,  # type: ignore
         )
         assert superseded_from == "T1574.002"
         assert tech == live
@@ -420,7 +420,7 @@ class TestLookupFollowsRevocations:
 
         live = {"id": "T1059.003"}
         superseded_from, tech = _follow_revocation(
-            "T1059.003", live, lambda _: pytest.fail("must not be consulted"), lambda _: None
+            "T1059.003", live, lambda _: pytest.fail("must not be consulted"), lambda _: None  # type: ignore
         )
         assert superseded_from is None
         assert tech is live

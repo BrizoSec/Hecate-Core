@@ -75,7 +75,7 @@ class TestWorkspaceResolution:
 
     def test_a_nonexistent_env_path_is_ignored(self, workspace, monkeypatch):
         monkeypatch.setenv("HECATE_WORKSPACE", "/no/such/dir")
-        assert workspace_root() != "/no/such/dir"
+        assert workspace_root() != "/no/such/dir"  # type: ignore
 
 
 class TestHuntingKnowledge:

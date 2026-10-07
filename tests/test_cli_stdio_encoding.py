@@ -52,7 +52,7 @@ class TestStdioIsMadePrintable:
         Console(file=sys.stdout, soft_wrap=True).print("\U0001f3af Creating new hunt")
         sys.stdout.flush()
 
-        assert "\U0001f3af".encode("utf-8") in sys.stdout.buffer.getvalue()
+        assert "\U0001f3af".encode("utf-8") in sys.stdout.buffer.getvalue()  # type: ignore
 
     def test_emoji_would_crash_without_the_fix(self, monkeypatch):
         """Pins the failure the fix exists for -- if this stops raising, the

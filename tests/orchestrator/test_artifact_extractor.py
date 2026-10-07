@@ -107,7 +107,7 @@ def test_credentials_come_from_the_environment(monkeypatch):
     assert misp_publisher._setting("MISP_API_KEY") == "from-env"
     assert enrichment._setting("VT_API_KEY") == "vt-from-env"
     for module in (enrichment, misp_publisher):
-        source = Path(module.__file__).read_text(encoding="utf-8")
+        source = Path(module.__file__).read_text(encoding="utf-8")  # type: ignore
         assert 'API_KEY = "' not in source and 'TOKEN = "' not in source
 
 

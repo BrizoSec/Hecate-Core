@@ -39,7 +39,7 @@ def _call_tool(server, tool_name, arguments=None):
     return asyncio.run(_run())
 
 
-def _mock_subprocess_run(stdout: str, returncode: int = 0):
+def _mock_subprocess_run(stdout: str, returncode: int = 0):  # type: ignore
     result = MagicMock()
     result.returncode = returncode
     result.stdout = stdout

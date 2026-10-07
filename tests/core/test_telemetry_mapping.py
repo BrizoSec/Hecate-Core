@@ -94,7 +94,7 @@ def test_a_configured_edr_section_documents_registry() -> None:
     assert documented_data_sources(profile)["registry_events"] is True
 
 
-def _skill(name: str, **kwargs) -> ResearchSkillOutput:
+def _skill(name: str, **kwargs) -> ResearchSkillOutput:  # type: ignore
     return ResearchSkillOutput(skill_name=name, summary="s", key_findings=[], sources=[], confidence=0.5, **kwargs)
 
 

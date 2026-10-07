@@ -134,7 +134,7 @@ class TestExecuteHappyPath:
             result = agent.execute(ResearchInput(topic="Some topic"))
 
         assert result.success is True
-        assert result.data.web_searches_performed == 0
+        assert result.data.web_searches_performed == 0  # type: ignore
 
     def test_execute_reuses_a_caller_supplied_research_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """`hecate-agent research new` allocates an ID for its "Starting Research:"
@@ -209,7 +209,7 @@ class TestExecuteHappyPath:
                 ResearchInput(topic="Some topic", source_context="The actor exploited CVE-2026-4021.")
             )
 
-        assert "Initial access exploits CVE-2026-4021." in result.data.adversary_tradecraft.key_findings
+        assert "Initial access exploits CVE-2026-4021." in result.data.adversary_tradecraft.key_findings  # type: ignore
 
     def test_execute_web_search_disabled_flag_skips_all_search(
         self, fake_search_client: Any, monkeypatch: pytest.MonkeyPatch
@@ -229,7 +229,7 @@ class TestExecuteHappyPath:
         # disabling web search specifically because there's nothing real to
         # search for (e.g. hecate-runner, for narrative-free CTI) would
         # still have skill 1 search anyway. Both skills must respect it now.
-        assert result.data.web_searches_performed == 0
+        assert result.data.web_searches_performed == 0  # type: ignore
 
     def test_execute_catches_unexpected_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         provider = CapturingProvider()
@@ -241,7 +241,7 @@ class TestExecuteHappyPath:
 
         assert result.success is False
         assert result.data is None
-        assert "db unavailable" in result.error
+        assert "db unavailable" in result.error  # type: ignore
 
 
 @pytest.mark.unit
@@ -457,7 +457,7 @@ class TestWebSearchFailureIsReported:
     bare `except Exception: pass`. The client built fine and the key was set,
     so every upstream check looked healthy while every search returned 403."""
 
-    def test_a_failing_search_is_logged_not_swallowed(self, caplog) -> None:
+    def test_a_failing_search_is_logged_not_swallowed(self, caplog) -> None:  # type: ignore
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
 
         class Failing:
@@ -471,7 +471,7 @@ class TestWebSearchFailureIsReported:
         assert "UNGROUNDED" in caplog.text
         assert "usage limit" in caplog.text
 
-    def test_it_is_reported_once_per_agent(self, caplog) -> None:
+    def test_it_is_reported_once_per_agent(self, caplog) -> None:  # type: ignore
         """Called per skill; a traceback per skill buries the first one."""
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())
 
@@ -486,7 +486,7 @@ class TestWebSearchFailureIsReported:
 
         assert caplog.text.count("UNGROUNDED") == 1
 
-    def test_research_still_completes(self, caplog) -> None:
+    def test_research_still_completes(self, caplog) -> None:  # type: ignore
         """Reported, not fatal: an ungrounded document is still worth more than
         no document, as long as the degradation is visible."""
         agent = HuntResearcherAgent(llm_enabled=False, provider=CapturingProvider())

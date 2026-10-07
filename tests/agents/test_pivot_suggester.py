@@ -87,7 +87,7 @@ class TestPivotSuggesterHeuristic:
             )
         )
         assert result.is_success
-        queries = [p.query for p in result.data.pivots]
+        queries = [p.query for p in result.data.pivots]  # type: ignore
         assert any("svc_backup" in q for q in queries)
 
     def test_ip_field_generates_network_pivot(self):
@@ -98,14 +98,14 @@ class TestPivotSuggesterHeuristic:
             )
         )
         assert result.is_success
-        queries = [p.query for p in result.data.pivots]
+        queries = [p.query for p in result.data.pivots]  # type: ignore
         assert any("198.51.100.42" in q for q in queries)
 
     def test_plain_text_finding_generates_default_pivots(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
         result = agent.execute(PivotInput(finding="suspicious outbound DNS to rare domain"))
         assert result.is_success
-        assert len(result.data.pivots) >= 2
+        assert len(result.data.pivots) >= 2  # type: ignore
 
     def test_technique_propagated_to_output(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
@@ -116,7 +116,7 @@ class TestPivotSuggesterHeuristic:
             )
         )
         assert result.is_success
-        assert "T1003.001" in result.data.technique_matches
+        assert "T1003.001" in result.data.technique_matches  # type: ignore
 
     def test_pivots_are_ordered_by_priority(self):
         agent = PivotSuggesterAgent(llm_enabled=False)
@@ -126,7 +126,7 @@ class TestPivotSuggesterHeuristic:
             )
         )
         assert result.is_success
-        priorities = [p.priority for p in result.data.pivots]
+        priorities = [p.priority for p in result.data.pivots]  # type: ignore
         assert priorities == sorted(priorities)
 
     def test_metadata_includes_mode(self):
@@ -159,16 +159,16 @@ class TestPivotSuggesterLLM:
             )
         )
         assert result.is_success
-        assert result.data.finding_summary == "PowerShell spawned by Word — classic phishing execution chain."
-        assert "T1566.001" in result.data.technique_matches
-        assert len(result.data.pivots) == 3
+        assert result.data.finding_summary == "PowerShell spawned by Word — classic phishing execution chain."  # type: ignore
+        assert "T1566.001" in result.data.technique_matches  # type: ignore
+        assert len(result.data.pivots) == 3  # type: ignore
 
     def test_pivots_have_correct_fields(self):
         provider = _mock_provider(VALID_PIVOT_JSON)
         agent = PivotSuggesterAgent(llm_enabled=True, provider=provider)
         result = agent.execute(PivotInput(finding='{"process": "powershell.exe", "parent": "winword.exe"}'))
         assert result.is_success
-        first = result.data.pivots[0]
+        first = result.data.pivots[0]  # type: ignore
         assert first.query
         assert first.rationale
         assert first.data_source
@@ -193,7 +193,7 @@ class TestPivotSuggesterLLM:
         provider = _mock_provider(VALID_PIVOT_JSON)
         agent = PivotSuggesterAgent(llm_enabled=True, provider=provider)
         agent.execute(PivotInput(finding='{"process": "notepad.exe", "parent": "explorer.exe"}'))
-        call_args = provider.complete.call_args
+        call_args = provider.complete.call_args  # type: ignore
         prompt = call_args[1]["messages"][0]["content"]
         assert "notepad.exe" in prompt
 
@@ -213,7 +213,7 @@ class TestPivotSuggesterLLM:
             }
             agent.execute(PivotInput(finding="suspicious process", hunt_id="H-0042"))
 
-        prompt = provider.complete.call_args[1]["messages"][0]["content"]
+        prompt = provider.complete.call_args[1]["messages"][0]["content"]  # type: ignore
         assert "H-0042" in prompt
         assert "LSASS Dump Hunt" in prompt
 
@@ -221,7 +221,7 @@ class TestPivotSuggesterLLM:
         provider = _mock_provider(VALID_PIVOT_JSON)
         agent = PivotSuggesterAgent(llm_enabled=True, provider=provider)
         agent.execute(PivotInput(finding="test", technique="T1059.001"))
-        prompt = provider.complete.call_args[1]["messages"][0]["content"]
+        prompt = provider.complete.call_args[1]["messages"][0]["content"]  # type: ignore
         assert "T1059.001" in prompt
 
 

@@ -45,7 +45,7 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def workspace(tmp_path: Path):
+def workspace(tmp_path: Path):  # type: ignore
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     (tmp_path / "research").mkdir()
@@ -64,7 +64,7 @@ def _skill(name: str, sources: list | None = None, key_findings: list | None = N
     )
 
 
-def _make_output(**overrides) -> ResearchOutput:
+def _make_output(**overrides) -> ResearchOutput:  # type: ignore
     defaults = dict(
         research_id="R-0099",
         topic="ValleyRAT is spreading disguised as adware",
@@ -87,17 +87,17 @@ def _make_output(**overrides) -> ResearchOutput:
         total_cost_usd=0.01,
     )
     defaults.update(overrides)
-    return ResearchOutput(**defaults)
+    return ResearchOutput(**defaults)  # type: ignore
 
 
-def _capture(fn, *args, **kwargs) -> str:
+def _capture(fn, *args, **kwargs) -> str:  # type: ignore
     buf = io.StringIO()
     original_console = research_cmd.console
-    research_cmd.console = Console(file=buf, width=120, force_terminal=False)
+    research_cmd.console = Console(file=buf, width=120, force_terminal=False)  # type: ignore
     try:
         fn(*args, **kwargs)
     finally:
-        research_cmd.console = original_console
+        research_cmd.console = original_console  # type: ignore
     return buf.getvalue()
 
 

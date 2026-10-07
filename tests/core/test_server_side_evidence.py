@@ -410,7 +410,7 @@ def test_a_command_rule_is_tagged_from_its_command() -> None:
         )
     )
     ((rule, _),) = built
-    assert yaml.safe_load(rule.rule_yaml)["tags"] == ["attack.t1553.001"] and rule.techniques == ["T1553.001"]
+    assert yaml.safe_load(rule.rule_yaml)["tags"] == ["attack.t1553.001"] and rule.techniques == ["T1553.001"]  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -677,4 +677,4 @@ def test_a_bare_file_name_gets_no_written_file_rule() -> None:
         )
     )
     ((rule, _),) = built
-    assert yaml.safe_load(rule.rule_yaml)["detection"]["selection"] == {"TargetFilename": "/tmp/kworkerd"}
+    assert yaml.safe_load(rule.rule_yaml)["detection"]["selection"] == {"TargetFilename": "/tmp/kworkerd"}  # type: ignore

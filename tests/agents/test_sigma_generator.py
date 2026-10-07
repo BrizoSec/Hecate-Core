@@ -510,7 +510,7 @@ def test_one_llm_call_is_made_per_log_source():
 
     assert len(calls) == 3
     assert result.metadata["llm_calls"] == 3
-    assert {r.logsource_category for r in result.data.rules} == set(sources)
+    assert {r.logsource_category for r in result.data.rules} == set(sources)  # type: ignore
 
 
 def test_each_prompt_names_only_its_own_log_source():
@@ -538,8 +538,8 @@ def test_one_log_source_failing_does_not_lose_the_others():
         result = agent.execute(_input(logsources=sources))
 
     assert result.success is True
-    assert [r.logsource_category for r in result.data.rules] == ["process_creation"]
-    assert any("network_connection" in r for r in result.data.rejected)
+    assert [r.logsource_category for r in result.data.rules] == ["process_creation"]  # type: ignore
+    assert any("network_connection" in r for r in result.data.rejected)  # type: ignore
     assert any("network_connection" in w for w in result.warnings)
 
 
@@ -552,7 +552,7 @@ def test_a_rule_for_the_wrong_category_is_rejected_not_relabelled():
         result = agent.execute(_input(logsources=["dns_query"]))
 
     assert result.success is False
-    assert any("returned a process_creation rule instead" in r for r in result.data.rejected)
+    assert any("returned a process_creation rule instead" in r for r in result.data.rejected)  # type: ignore
 
 
 def test_a_malformed_sibling_is_reported_even_when_a_good_rule_survives():
@@ -564,8 +564,8 @@ def test_a_malformed_sibling_is_reported_even_when_a_good_rule_survives():
         result = agent.execute(_input(logsources=["process_creation"]))
 
     assert result.success is True
-    assert len(result.data.rules) == 1
-    assert any("nonsense" in r for r in result.data.rejected)
+    assert len(result.data.rules) == 1  # type: ignore
+    assert any("nonsense" in r for r in result.data.rejected)  # type: ignore
 
 
 # --- Placeholder detection values are rejected (G6) -------------------------
@@ -606,13 +606,13 @@ class TestPlaceholderGuard:
     def test_an_impossible_ipv4_is_rejected(self):
         """123.456.789 cannot match anything -- it was invented, not observed."""
         problem = _placeholder_problem(self._det("DestinationIp|contains", "123.456.789"), {})
-        assert "not a valid IPv4" in problem
+        assert "not a valid IPv4" in problem  # type: ignore
 
     def test_a_partial_ip_prefix_is_a_legitimate_contains_idiom(self):
         assert _placeholder_problem(self._det("DestinationIp|contains", "192.168."), {}) is None
 
     def test_an_empty_value_is_rejected(self):
-        assert "empty" in _placeholder_problem(self._det("TargetFilename|endswith", ""), {})
+        assert "empty" in _placeholder_problem(self._det("TargetFilename|endswith", ""), {})  # type: ignore
 
     @pytest.mark.parametrize(
         "value",
@@ -685,7 +685,7 @@ class TestPySigmaValidation:
             "  selection:\n    Image|endswith: \\cmd.exe\n",
             "  selection:\n    $or:\n    - Image|endswith: \\cmd.exe\n",
         )
-        assert "not valid Sigma" in _pysigma_problem(bad)
+        assert "not valid Sigma" in _pysigma_problem(bad)  # type: ignore
 
     def test_an_unknown_modifier_is_rejected(self):
         """H-0005 used `|in`, which is not a Sigma modifier."""
@@ -861,7 +861,7 @@ class TestCompleteIndicatorLists:
         )
         built, problem = _agent()._build_rule(rule, _input(indicators=self.SUPPLIED))
         assert problem is None
-        assert "193.247.144.38" in built.rule_yaml
+        assert "193.247.144.38" in built.rule_yaml  # type: ignore
 
 
 @pytest.mark.unit
@@ -1180,8 +1180,8 @@ class TestAggregationConditions:
         )
         rule, problem = agent._build_rule(raw, inp)
         assert problem is None, problem
-        assert "count() by TargetUserName > 25" in rule.rule_yaml
-        assert _pysigma_problem(rule.rule_yaml) is None
+        assert "count() by TargetUserName > 25" in rule.rule_yaml  # type: ignore
+        assert _pysigma_problem(rule.rule_yaml) is None  # type: ignore
 
 
 class TestBreadthProblem:
@@ -1204,7 +1204,7 @@ class TestBreadthProblem:
             "filter": {"OriginalFileName": "nvidia*.dll"},
             "condition": "selection and not filter",
         }
-        assert "names no particular" in _breadth_problem(detection)
+        assert "names no particular" in _breadth_problem(detection)  # type: ignore
 
     @pytest.mark.parametrize("value", ["\\nvidia-sysruntime.exe", "\\svchost.exe", "msbuild.exe", "exe"])
     def test_a_named_file_passes(self, value):
@@ -1247,7 +1247,7 @@ class TestBreadthProblem:
         rule = _rule(detection={"selection": {"Image|endswith": ".exe"}, "condition": "selection"})
         built, problem = _agent()._build_rule(rule, _input())
         assert built is None
-        assert "names no particular" in problem
+        assert "names no particular" in problem  # type: ignore
 
 
 def test_prompt_lists_the_drafts_observables():
@@ -1292,7 +1292,7 @@ class TestAnchorBareFilenames:
         rule = _rule(detection={"selection": {"Image": "nvidia-sysruntime.exe"}, "condition": "selection"})
         built, problem = _agent()._build_rule(rule, _input())
         assert problem is None
-        assert "Image|endswith: \\nvidia-sysruntime.exe" in built.rule_yaml
+        assert "Image|endswith: \\nvidia-sysruntime.exe" in built.rule_yaml  # type: ignore
 
 
 @pytest.mark.parametrize("value", ["malware", "Payload", "suspicious"])

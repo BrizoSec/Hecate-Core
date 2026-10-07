@@ -8,7 +8,7 @@ from hecate_agent.core.envelope import build_envelope
 
 
 def test_under_threshold_returns_inline(tmp_path: Path) -> None:
-    env = build_envelope("hello", persist_dir=tmp_path)
+    env = build_envelope("hello", persist_dir=tmp_path)  # type: ignore
 
     assert env["persisted"] is False
     assert env["path"] == ""
@@ -19,7 +19,7 @@ def test_under_threshold_returns_inline(tmp_path: Path) -> None:
 
 def test_at_threshold_boundary_inline(tmp_path: Path) -> None:
     payload = "a" * 2048
-    env = build_envelope(payload, threshold=2048, persist_dir=tmp_path)
+    env = build_envelope(payload, threshold=2048, persist_dir=tmp_path)  # type: ignore
 
     assert env["persisted"] is False
     assert env["byte_count"] == 2048
@@ -33,7 +33,7 @@ def test_over_threshold_persists_to_disk(tmp_path: Path) -> None:
     env = build_envelope(
         payload,
         threshold=2048,
-        persist_dir=tmp_path,
+        persist_dir=tmp_path,  # type: ignore
         artifact_name="big.txt",
     )
 
@@ -51,7 +51,7 @@ def test_persist_dir_is_created_when_missing(tmp_path: Path) -> None:
     env = build_envelope(
         payload,
         threshold=2048,
-        persist_dir=target,
+        persist_dir=target,  # type: ignore
         artifact_name="result.json",
     )
 
@@ -65,7 +65,7 @@ def test_gate_b_requires_persist_dir_and_artifact_name(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         build_envelope(payload, threshold=2048)
     with pytest.raises(ValueError):
-        build_envelope(payload, threshold=2048, persist_dir=tmp_path)
+        build_envelope(payload, threshold=2048, persist_dir=tmp_path)  # type: ignore
     with pytest.raises(ValueError):
         build_envelope(payload, threshold=2048, artifact_name="x.txt")
 
@@ -111,7 +111,7 @@ def test_path_is_made_absolute_for_gate_a(tmp_path: Path, monkeypatch: pytest.Mo
 def test_metadata_is_preserved(tmp_path: Path) -> None:
     env = build_envelope(
         "ok",
-        persist_dir=tmp_path,
+        persist_dir=tmp_path,  # type: ignore
         metadata={"row_count": 1000, "columns": ["time", "host"]},
     )
 
@@ -122,7 +122,7 @@ def test_explicit_preview_overrides_default(tmp_path: Path) -> None:
     env = build_envelope(
         "ignored as preview source",
         preview="custom preview",
-        persist_dir=tmp_path,
+        persist_dir=tmp_path,  # type: ignore
     )
 
     assert env["preview"] == "custom preview"
@@ -130,7 +130,7 @@ def test_explicit_preview_overrides_default(tmp_path: Path) -> None:
 
 def test_default_preview_collapses_whitespace_and_truncates(tmp_path: Path) -> None:
     payload = "line1\n  line2\t\tline3 " + ("z" * 500)
-    env = build_envelope(payload, persist_dir=tmp_path, artifact_name="x.txt")
+    env = build_envelope(payload, persist_dir=tmp_path, artifact_name="x.txt")  # type: ignore
 
     assert "\n" not in env["preview"]
     assert "\t" not in env["preview"]
@@ -140,7 +140,7 @@ def test_default_preview_collapses_whitespace_and_truncates(tmp_path: Path) -> N
 
 def test_non_string_payload_is_json_serialized(tmp_path: Path) -> None:
     payload = {"rows": [{"a": 1}, {"a": 2}]}
-    env = build_envelope(payload, threshold=10, persist_dir=tmp_path, artifact_name="r.json")
+    env = build_envelope(payload, threshold=10, persist_dir=tmp_path, artifact_name="r.json")  # type: ignore
 
     assert env["persisted"] is True
     body = Path(env["path"]).read_text(encoding="utf-8")
@@ -161,7 +161,7 @@ def test_gate_b_rejects_absolute_artifact_name(tmp_path: Path, artifact_name: st
         build_envelope(
             payload,
             threshold=2048,
-            persist_dir=tmp_path,
+            persist_dir=tmp_path,  # type: ignore
             artifact_name=artifact_name,
         )
     assert list(tmp_path.iterdir()) == []
@@ -177,7 +177,7 @@ def test_gate_b_rejects_parent_segment_traversal(tmp_path: Path) -> None:
         build_envelope(
             payload,
             threshold=2048,
-            persist_dir=persist_dir,
+            persist_dir=persist_dir,  # type: ignore
             artifact_name="../escaped.txt",
         )
     assert not sibling_target.exists()
@@ -192,6 +192,6 @@ def test_gate_b_rejects_deep_traversal(tmp_path: Path) -> None:
         build_envelope(
             payload,
             threshold=2048,
-            persist_dir=persist_dir,
+            persist_dir=persist_dir,  # type: ignore
             artifact_name="../../../tmp/pwned.txt",
         )

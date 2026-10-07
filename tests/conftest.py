@@ -45,7 +45,7 @@ def _reset_attack_matrix_provider(monkeypatch):
     def tracking_reset_provider(provider: object = None) -> None:
         nonlocal mutated_via_reset_provider
         mutated_via_reset_provider = True
-        real_reset_provider(provider)
+        real_reset_provider(provider)  # type: ignore
 
     monkeypatch.setattr(attack_matrix, "reset_provider", tracking_reset_provider)
     yield

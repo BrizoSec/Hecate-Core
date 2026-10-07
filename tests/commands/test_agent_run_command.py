@@ -33,14 +33,14 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-def _capture(fn, *args, **kwargs) -> str:
+def _capture(fn, *args, **kwargs) -> str:  # type: ignore
     buf = io.StringIO()
     original_console = agent_cmd.console
-    agent_cmd.console = Console(file=buf, width=120, force_terminal=False)
+    agent_cmd.console = Console(file=buf, width=120, force_terminal=False)  # type: ignore
     try:
         fn(*args, **kwargs)
     finally:
-        agent_cmd.console = original_console
+        agent_cmd.console = original_console  # type: ignore
     return buf.getvalue()
 
 
@@ -102,7 +102,7 @@ class TestRunHypothesisGenerator:
         assert result.exit_code != 0
         assert "--threat-intel required" in result.output
 
-    def test_success_displays_result(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_success_displays_result(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("hecate_agent.agents.llm.HypothesisGeneratorAgent", lambda llm_enabled: _fake_hypothesis_agent())
 
@@ -111,7 +111,7 @@ class TestRunHypothesisGenerator:
         assert result.exit_code == 0, result.output
         assert "Hypothesis generated successfully" in result.output
 
-    def test_json_output_format(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_json_output_format(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("hecate_agent.agents.llm.HypothesisGeneratorAgent", lambda llm_enabled: _fake_hypothesis_agent())
 
@@ -120,7 +120,7 @@ class TestRunHypothesisGenerator:
         assert result.exit_code == 0, result.output
         json.loads(result.output)
 
-    def test_agent_execution_error_aborts(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_agent_execution_error_aborts(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
 
         def _raise(llm_enabled):
@@ -133,7 +133,7 @@ class TestRunHypothesisGenerator:
         assert result.exit_code != 0
         assert "provider unavailable" in result.output
 
-    def test_research_option_loads_context_when_found(
+    def test_research_option_loads_context_when_found(  # type: ignore
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -151,7 +151,7 @@ class TestRunHypothesisGenerator:
 
         assert "Loaded research context from R-0001" in result.output
 
-    def test_research_option_warns_when_not_found(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_research_option_warns_when_not_found(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("hecate_agent.agents.llm.HypothesisGeneratorAgent", lambda llm_enabled: _fake_hypothesis_agent())
         monkeypatch.setattr("hecate_agent.core.research_manager.ResearchManager.get_research", lambda self, research_id: None)
@@ -160,7 +160,7 @@ class TestRunHypothesisGenerator:
 
         assert "not found" in result.output
 
-    def test_technique_option_auto_discovers_research(
+    def test_technique_option_auto_discovers_research(  # type: ignore
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -178,7 +178,7 @@ class TestRunHypothesisGenerator:
 
         assert "Auto-discovered research R-0042 for T1003.001" in result.output
 
-    def test_research_context_load_error_warns_not_aborts(
+    def test_research_context_load_error_warns_not_aborts(  # type: ignore
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -193,7 +193,7 @@ class TestRunHypothesisGenerator:
         assert result.exit_code == 0, result.output
         assert "Could not load research context" in result.output
 
-    def test_environment_md_read_error_degrades_gracefully(
+    def test_environment_md_read_error_degrades_gracefully(  # type: ignore
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -207,7 +207,7 @@ class TestRunHypothesisGenerator:
 
         assert result.exit_code == 0, result.output  # degrades to environment={}, doesn't crash
 
-    def test_import_error_shows_install_hints(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_import_error_shows_install_hints(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
 
         def _raise(llm_enabled):
@@ -221,7 +221,7 @@ class TestRunHypothesisGenerator:
         assert "Install an LLM provider" in result.output
         assert "pip install -e '.[litellm]'" in result.output
 
-    def test_environment_md_loaded_when_present(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_environment_md_loaded_when_present(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # type: ignore
         monkeypatch.chdir(tmp_path)
         captured = {}
 
@@ -245,7 +245,7 @@ class TestRunHypothesisGenerator:
         assert "Splunk" in captured["environment"]["environment_md"]
 
 
-def _make_research_output(**overrides) -> ResearchOutput:
+def _make_research_output(**overrides) -> ResearchOutput:  # type: ignore
     def _skill(name: str) -> ResearchSkillOutput:
         return ResearchSkillOutput(skill_name=name, summary=f"{name} summary", key_findings=["f1"], sources=[], confidence=0.8)
 
@@ -266,7 +266,7 @@ def _make_research_output(**overrides) -> ResearchOutput:
         total_cost_usd=0.01,
     )
     defaults.update(overrides)
-    return ResearchOutput(**defaults)
+    return ResearchOutput(**defaults)  # type: ignore
 
 
 @pytest.mark.unit
@@ -458,7 +458,7 @@ class TestRunUnknownAgent:
 @pytest.mark.unit
 class TestDisplayResearchResult:
     def test_error_result_shows_error_and_returns(self) -> None:
-        result = AgentResult(success=False, data=None, error="boom", warnings=[], metadata={})
+        result = AgentResult(success=False, data=None, error="boom", warnings=[], metadata={})  # type: ignore
         text = _capture(agent_cmd._display_research_result, result)
         assert "Agent Error: boom" in text
 

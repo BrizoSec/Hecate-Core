@@ -368,7 +368,7 @@ class TestHuntOutputPath:
         (temp_workspace / "hunts").mkdir(exist_ok=True)
         result = runner.invoke(hunt, ["new", "--title", "Regular Hunt", "--non-interactive"])
         match = re.search(r"Created (H-\d+)", result.output)
-        hunt_id = match.group(1)
+        hunt_id = match.group(1)  # type: ignore
 
         promote_result = runner.invoke(hunt, ["promote", hunt_id, "--yes"])
         assert (
@@ -492,8 +492,8 @@ class TestHuntNewBaselineCommand:
 
         import re
 
-        first_id = re.search(r"Created (H-\d+):", first.output).group(1)
-        second_id = re.search(r"Created (H-\d+):", second.output).group(1)
+        first_id = re.search(r"Created (H-\d+):", first.output).group(1)  # type: ignore
+        second_id = re.search(r"Created (H-\d+):", second.output).group(1)  # type: ignore
 
         assert int(second_id.split("-")[1]) == int(first_id.split("-")[1]) + 1
 
@@ -1022,7 +1022,7 @@ Yes -- proposed as a Sigma rule for rundll32 + comsvcs.dll + MiniDump.
 - Hunt for other LOLBins used for credential access
 """
 
-    def _write_hunt_file(self, tmp_path, content: str, hunt_id: str = "H-9001") -> None:
+    def _write_hunt_file(self, tmp_path, content: str, hunt_id: str = "H-9001") -> None:  # type: ignore
         hunt_dir = tmp_path / "hunts" / "production" / "2025" / "Q4"
         hunt_dir.mkdir(parents=True, exist_ok=True)
         (hunt_dir / f"{hunt_id}.md").write_text(content)
@@ -1054,7 +1054,7 @@ Yes -- proposed as a Sigma rule for rundll32 + comsvcs.dll + MiniDump.
             hunt,
             ["new", "--title", "Test Hunt", "--hypothesis", "Adversaries abuse X to achieve Y.", "--non-interactive"],
         )
-        hunt_id = re.search(r"Created (H-\d+):", new_result.output).group(1)
+        hunt_id = re.search(r"Created (H-\d+):", new_result.output).group(1)  # type: ignore
 
         result = runner.invoke(hunt, ["brief", hunt_id])
 
@@ -1199,7 +1199,7 @@ H-9003 was created to investigate the winword.exe -> powershell.exe anomaly.
         )
         import re
 
-        hunt_id = re.search(r"Created (H-\d+):", new_result.output).group(1)
+        hunt_id = re.search(r"Created (H-\d+):", new_result.output).group(1)  # type: ignore
 
         result = runner.invoke(hunt, ["brief", hunt_id])
 

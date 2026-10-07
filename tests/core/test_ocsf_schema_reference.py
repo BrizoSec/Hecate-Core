@@ -42,7 +42,7 @@ class TestItFitsAndLoads:
             f"{len(text)} chars: the tail would be cut off before reaching the model"
         )
 
-    def test_the_researcher_loads_it(self, monkeypatch, tmp_path) -> None:
+    def test_the_researcher_loads_it(self, monkeypatch, tmp_path) -> None:  # type: ignore
         workspace = REFERENCE.parents[1]
         monkeypatch.setenv("HECATE_WORKSPACE", str(workspace))
         monkeypatch.chdir(tmp_path)  # not the workspace, as the orchestrator runs it
@@ -50,11 +50,11 @@ class TestItFitsAndLoads:
         assert "not found" not in loaded
         assert "process" in loaded
 
-    def test_a_missing_file_degrades_rather_than_crashes(self, monkeypatch, tmp_path) -> None:
+    def test_a_missing_file_degrades_rather_than_crashes(self, monkeypatch, tmp_path) -> None:  # type: ignore
         monkeypatch.setenv("HECATE_WORKSPACE", str(tmp_path))
         assert HuntResearcherAgent()._load_ocsf_schema() == "OCSF schema reference not found"
 
-    def test_the_workspace_copy_is_the_one_resolved(self, monkeypatch, tmp_path) -> None:
+    def test_the_workspace_copy_is_the_one_resolved(self, monkeypatch, tmp_path) -> None:  # type: ignore
         monkeypatch.setenv("HECATE_WORKSPACE", str(REFERENCE.parents[1]))
         assert knowledge_file("OCSF_SCHEMA_REFERENCE.md") == REFERENCE
 

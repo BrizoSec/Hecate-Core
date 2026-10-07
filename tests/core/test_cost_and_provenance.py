@@ -59,7 +59,7 @@ RECORDS: List[Dict[str, Any]] = [
         ([], 0, 0, 0, 0.0, 0.0, "no model calls"),
     ],
 )
-def test_zero_is_only_reported_when_it_is_known(models, calls, tokens_in, tokens_out, cost, expected, basis) -> None:
+def test_zero_is_only_reported_when_it_is_known(models, calls, tokens_in, tokens_out, cost, expected, basis) -> None:  # type: ignore
     value, why = summarize_cost(models, calls, tokens_in, tokens_out, cost)
     assert value == expected and why.startswith(basis)
 

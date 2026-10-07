@@ -36,7 +36,7 @@ def _input(**overrides: Any) -> SigmaGenerationInput:
 def _hash_rule(result: Any) -> Dict[str, Any]:
     rules = [r for r in result.data.rules if "file hash" in r.title]
     assert len(rules) == 1
-    return yaml.safe_load(rules[0].rule_yaml)
+    return yaml.safe_load(rules[0].rule_yaml)  # type: ignore
 
 
 class TestHashSelectors:
@@ -82,7 +82,7 @@ def test_hashes_get_a_rule_even_when_every_model_rule_is_rejected() -> None:
         result = agent.execute(_input(indicators={"FileHash-MD5": [MD5], "FileHash-SHA256": [SHA256]}))
 
     assert result.success is True
-    assert any(".ps1" in r for r in result.data.rejected)
+    assert any(".ps1" in r for r in result.data.rejected)  # type: ignore
     rule = _hash_rule(result)
     assert rule["logsource"] == {"category": "process_creation", "product": "windows"}
     assert rule["detection"]["selection"]["Hashes|contains"] == [f"MD5={MD5}", f"SHA256={SHA256}"]

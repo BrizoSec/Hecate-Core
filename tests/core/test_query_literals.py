@@ -128,12 +128,12 @@ def test_a_file_the_source_says_is_written_becomes_a_rule_without_the_model() ->
     built = agent._written_file_rules(_input(source_artifacts=ARTIFACTS))
     assert [p for _, p in built] == [None]
     ((rule, _),) = built
-    assert yaml.safe_load(rule.rule_yaml)["detection"] == {
+    assert yaml.safe_load(rule.rule_yaml)["detection"] == {  # type: ignore
         "selection": {"TargetFilename": r"C:\Windows\Temp\Beijing Institute of Technology_*_personal resume (2).docx"},
         "condition": "selection",
     }
     # The kill-switch marker is checked for, not written: no rule.
-    assert "log_de" not in rule.rule_yaml
+    assert "log_de" not in rule.rule_yaml  # type: ignore
 
 
 MAC = [

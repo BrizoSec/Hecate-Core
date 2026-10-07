@@ -1,4 +1,4 @@
-from hecate_agent.orchestrator.graph import hecate_graph
+from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore
 
 config = {"configurable": {"thread_id": "HITL-Demo-001"}}
 

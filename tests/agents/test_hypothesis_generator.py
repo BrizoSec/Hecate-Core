@@ -133,10 +133,10 @@ class TestHypothesisGeneratorAgent:
         result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.actor == "Generic post-exploitation toolkit"
-        assert result.data.behavior == "LSASS memory access via comsvcs.dll MiniDump"
-        assert result.data.location == "Windows domain-joined endpoints"
-        assert result.data.evidence == "EDR process telemetry - process.name, parent.process.name"
+        assert result.data.actor == "Generic post-exploitation toolkit"  # type: ignore
+        assert result.data.behavior == "LSASS memory access via comsvcs.dll MiniDump"  # type: ignore
+        assert result.data.location == "Windows domain-joined endpoints"  # type: ignore
+        assert result.data.evidence == "EDR process telemetry - process.name, parent.process.name"  # type: ignore
 
     def test_execute_defaults_able_fields_when_model_omits_them(self):
         """Regression test: HypothesisGenerationOutput(**output_data) used to
@@ -153,11 +153,11 @@ class TestHypothesisGeneratorAgent:
 
         assert result.success is True
         assert result.metadata.get("fallback") is not True  # real LLM response, not template fallback
-        assert result.data.hypothesis.startswith("Adversaries use")
-        assert result.data.actor == ""
-        assert result.data.behavior == ""
-        assert result.data.location == ""
-        assert result.data.evidence == ""
+        assert result.data.hypothesis.startswith("Adversaries use")  # type: ignore
+        assert result.data.actor == ""  # type: ignore
+        assert result.data.behavior == ""  # type: ignore
+        assert result.data.location == ""  # type: ignore
+        assert result.data.evidence == ""  # type: ignore
 
     def test_execute_preserves_able_fields_after_invalid_technique_rebuild(self):
         """Regression test: the output gets manually rebuilt (dropping
@@ -193,11 +193,11 @@ class TestHypothesisGeneratorAgent:
                     result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.mitre_techniques == ["T1003.001"]  # invalid ID dropped
-        assert result.data.actor == "Test actor"
-        assert result.data.behavior == "Test behavior"
-        assert result.data.location == "Test location"
-        assert result.data.evidence == "Test evidence"
+        assert result.data.mitre_techniques == ["T1003.001"]  # type: ignore
+        assert result.data.actor == "Test actor"  # type: ignore
+        assert result.data.behavior == "Test behavior"  # type: ignore
+        assert result.data.location == "Test location"  # type: ignore
+        assert result.data.evidence == "Test evidence"  # type: ignore
 
     def test_execute_remaps_deprecated_technique_instead_of_dropping_it(self):
         """A revoked ATT&CK ID names a real behavior with a stale label
@@ -232,7 +232,7 @@ class TestHypothesisGeneratorAgent:
                     result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.mitre_techniques == ["T1055.012"]
+        assert result.data.mitre_techniques == ["T1055.012"]  # type: ignore
         assert any("T1093 -> T1055.012" in w for w in result.warnings)
 
     def test_validate_techniques_deduplicates_old_and_new_id(self):
@@ -269,8 +269,8 @@ class TestHypothesisGeneratorAgent:
         result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.is_threat_report is False
-        assert "vendor compliance/product announcement" in result.data.low_confidence_reason
+        assert result.data.is_threat_report is False  # type: ignore
+        assert "vendor compliance/product announcement" in result.data.low_confidence_reason  # type: ignore
 
     def test_execute_defaults_is_threat_report_true_when_model_omits_it(self):
         """A model response that doesn't include is_threat_report (didn't
@@ -283,8 +283,8 @@ class TestHypothesisGeneratorAgent:
         result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.is_threat_report is True
-        assert result.data.low_confidence_reason == ""
+        assert result.data.is_threat_report is True  # type: ignore
+        assert result.data.low_confidence_reason == ""  # type: ignore
 
     def test_execute_preserves_low_confidence_flag_after_invalid_technique_rebuild(self):
         """Regression test: same rebuild-after-technique-validation path as
@@ -315,8 +315,8 @@ class TestHypothesisGeneratorAgent:
                 result = agent.execute(_make_input())
 
         assert result.success is True
-        assert result.data.is_threat_report is False
-        assert result.data.low_confidence_reason == "Vendor announcement, no adversary described"
+        assert result.data.is_threat_report is False  # type: ignore
+        assert result.data.low_confidence_reason == "Vendor announcement, no adversary described"  # type: ignore
 
     def test_execute_invalid_json_retries(self):
         """Provider returns garbage first, valid JSON second -- retry works."""

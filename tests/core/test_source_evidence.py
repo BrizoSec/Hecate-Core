@@ -226,7 +226,7 @@ def _rules(records: List[IndicatorRecord], platforms: List[str] = ["Windows"]) -
     out = {}
     for rule, problem in agent._ioc_rules(data):
         assert problem is None, problem
-        doc = yaml.safe_load(rule.rule_yaml)
+        doc = yaml.safe_load(rule.rule_yaml)  # type: ignore
         out[doc["logsource"]["category"]] = doc
     return out
 

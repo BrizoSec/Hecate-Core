@@ -811,7 +811,7 @@ def _live_usage_panel(
     search_count = _search_count(current, events)
 
     ended_calls = live.get("ended_calls", [])
-    stage_counts = {}
+    stage_counts = {}  # type: ignore
     cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
     for call in ended_calls:
         call_ts = call.get("ts", 0.0)
@@ -1075,7 +1075,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph
+        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():

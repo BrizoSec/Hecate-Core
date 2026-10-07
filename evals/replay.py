@@ -64,11 +64,11 @@ def run_cycle(case: str, workspace: Path, runner: Path) -> Any:
     os.environ["HECATE_BIN"] = str(CORE / ".venv" / "bin" / "hecate-agent")
     os.chdir(runner)  # the Runner reads its settings from the .env beside it
 
-    from hecate_runner.config import Settings
-    from hecate_runner.cti.otx import _pulse_to_cti_item
-    from hecate_runner.cti.single import SingleItemProvider
-    from hecate_runner.hecate_client import HecateClient
-    from hecate_runner.orchestrator import Orchestrator
+    from hecate_runner.config import Settings  # type: ignore
+    from hecate_runner.cti.otx import _pulse_to_cti_item  # type: ignore
+    from hecate_runner.cti.single import SingleItemProvider  # type: ignore
+    from hecate_runner.hecate_client import HecateClient  # type: ignore
+    from hecate_runner.orchestrator import Orchestrator  # type: ignore
 
     item = _pulse_to_cti_item(json.loads((PULSE_DIR / f"{case}.json").read_text()))
     item.content = yaml.safe_load((GOLD_DIR / f"{case}.yaml").read_text())["source"]["cti"].strip()

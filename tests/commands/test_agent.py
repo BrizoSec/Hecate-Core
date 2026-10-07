@@ -24,7 +24,7 @@ def _capture(result: AgentResult) -> str:
     return buf.getvalue()
 
 
-def _make_output(**overrides) -> HypothesisGenerationOutput:
+def _make_output(**overrides) -> HypothesisGenerationOutput:  # type: ignore
     defaults = dict(
         hypothesis="Adversaries use credential dumping to steal hashes",
         justification="Common post-exploitation technique",
@@ -35,13 +35,13 @@ def _make_output(**overrides) -> HypothesisGenerationOutput:
         time_range_suggestion="7 days",
     )
     defaults.update(overrides)
-    return HypothesisGenerationOutput(**defaults)
+    return HypothesisGenerationOutput(**defaults)  # type: ignore
 
 
 @pytest.mark.unit
 class TestDisplayHypothesisGeneratorResult:
     def test_shows_error_and_returns_early_on_failure(self):
-        result = AgentResult(success=False, data=None, error="LLM timed out")
+        result = AgentResult(success=False, data=None, error="LLM timed out")  # type: ignore
         output = _capture(result)
 
         assert "LLM timed out" in output

@@ -67,7 +67,7 @@ def test_only_gaps_quoted_from_the_hypothesis_or_source_are_reported() -> None:
 def _agent(replies: List[Dict[str, Any]]) -> SigmaGeneratorAgent:
     agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
     queue = [json.dumps(r) for r in replies]
-    agent._call_llm_with_retry = lambda prompt, validate, **kwargs: queue.pop(0)  # type: ignore[method-assign]
+    agent._call_llm_with_retry = lambda prompt, validate, **kwargs: queue.pop(0)  # type: ignore
     return agent
 
 
@@ -121,7 +121,7 @@ def test_deterministic_rules_are_not_reviewed_and_a_failed_review_keeps_the_rule
         calls.append(prompt)
         raise TimeoutError("model timed out")
 
-    agent._call_llm_with_retry = failing  # type: ignore[method-assign]
+    agent._call_llm_with_retry = failing  # type: ignore
     kept, rejected, gaps, warnings = agent._review_rules(
         [_rule("IOC rule", origin="deterministic"), _rule("Word spawning cmd")], _input()
     )

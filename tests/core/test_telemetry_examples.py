@@ -67,7 +67,7 @@ def test_the_prompts_carry_the_examples(prompt_of: str) -> None:
         agent = HypothesisGeneratorAgent(llm_enabled=False)
         prompt = agent._build_prompt(HypothesisGenerationInput(threat_intel=cti, past_hunts=[], environment={}))
     else:
-        agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
-        prompt = agent._build_prompt(SigmaGenerationInput(hypothesis=VSHELL, platforms=["Windows"]), "process_creation")
+        agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)  # type: ignore
+        prompt = agent._build_prompt(SigmaGenerationInput(hypothesis=VSHELL, platforms=["Windows"]), "process_creation")  # type: ignore
     assert "HOW OS INTERNALS APPEAR IN TELEMETRY" in prompt
     assert "Win32 API calls (VirtualAlloc, VirtualProtect, CreateThread, Beep, AllocADsMem)" in prompt

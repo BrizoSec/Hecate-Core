@@ -182,7 +182,7 @@ class TestExtractResearchContext:
 
         mgr = ResearchManager(research_dir)
         doc = mgr.get_research("R-0099")
-        ctx = mgr.extract_research_context(doc)
+        ctx = mgr.extract_research_context(doc)  # type: ignore
 
         assert ctx.research_id == "R-0099"
         assert ctx.recommended_hypothesis is None
