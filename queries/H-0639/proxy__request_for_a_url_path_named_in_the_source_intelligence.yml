@@ -1,0 +1,101 @@
+title: Request for a URL path named in the source intelligence
+id: 7185dccc-ea49-4b8e-8125-438eb7f80c93
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /ChromeUpdate.exe
+    - /d/85rY.dat
+    - /d/SysPr.prx
+    - /d/calibre-launcher.dll
+    - /d/wint.exe
+    - /dist.zip
+    - /download
+    - /feed
+    - /json
+    - /msgbox.exe
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://project.secboxes.com/ChromeUpdate.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+  evidence: Download URL
+- value: https://recommendation-letter.secboxes.com/ChromeUpdate.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+  evidence: Download URL
+- value: https://download.secboxes.com:443/dist.zip
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://api-prod.secboxes.com:443/download
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://evidence.msbenefit.com/msgbox.exe
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://zki0y83.msbenefit.com:443/feed
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://homepage.brianwilli.com/d/calibre-launcher.dll
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://homepage.brianwilli.com/d/wint.exe
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://homepage.brianwilli.com/d/85rY.dat
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://homepage.brianwilli.com/d/SysPr.prx
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://ipinfo.io/json
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+  evidence: 'It obtains this public IP from public IP address identification services: hxxps://api.ipify[.]org?format/json'
+hunt_id: H-0639

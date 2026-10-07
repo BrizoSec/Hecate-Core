@@ -1,0 +1,31 @@
+title: Load of a file hash named in the source intelligence
+id: 28971c3c-7be9-42c8-b9d0-ecc0a7d18625
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=bc7d24f5cf8937b334966201bdcce8ca9bab6ec5889d40a399d4094dcad73360
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: bc7d24f5cf8937b334966201bdcce8ca9bab6ec5889d40a399d4094dcad73360
+  type: sha256
+  role: library
+  status: active
+  confidence: unknown
+  source: https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+  evidence: mctsetup64.dll
+hunt_id: H-0639

@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: powershell Get-MpComputerStatus'
+id: f3487419-aca1-4eae-ab20-ba00d4d7df3a
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell Get-MpComputerStatus &gt; C:\Windows\Temp\KMzFGwGn.tmp
+  2&gt;&amp;1</pre> <!-- /wp:paragraph --> <!-- wp:paragraph --> <p>AdFind was".'
+references: []
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: Get-MpComputerStatus
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0632

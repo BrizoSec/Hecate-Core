@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: net user'
+id: f8a85022-35e1-419a-8bd4-8eedd401ffec
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "net user backup_EA P@ssw0rd1234 /add /dom </pre> <p class="wp-block-paragraph">Following
+  creation, the threat actor".'
+references: []
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \net.exe
+    CommandLine|contains: user
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0633

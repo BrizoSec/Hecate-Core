@@ -1,0 +1,26 @@
+title: SPIRE Agent Socket Access for SVID Harvesting
+id: 1ad6a33c-8e49-4d7a-9ccf-c4141656efda
+status: experimental
+description: Detects access to the SPIRE agent Unix socket, which is required to fetch valid SVIDs (JWTs)
+  for identity spoofing within a service mesh. This behavior indicates an attacker attempting to harvest
+  credentials from a compromised node.
+references:
+- https://unit42.paloaltonetworks.com/kubernetes-spiffe-spire-identity-spoofing/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1036.005
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: /run/spire/sockets/agent.sock
+  condition: selection
+falsepositives:
+- Legitimate SPIRE agent operations
+- Service mesh sidecar injection scripts
+- Automated workload identity management tools
+level: high
+hunt_id: H-0638
+hecate_review:
+  verdict: keep

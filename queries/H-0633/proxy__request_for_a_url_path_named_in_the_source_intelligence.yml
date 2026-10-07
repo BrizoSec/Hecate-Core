@@ -1,0 +1,36 @@
+title: Request for a URL path named in the source intelligence
+id: af31763f-3726-4f02-9c93-f85a5d7d9d70
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references: []
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /250530-ttmjhayzhw
+    - /250812-zw4tfszpy4
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://tria.ge/250530-ttmjhayzhw
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+  evidence: Sample https://tria.ge/250530-ttmjhayzhw
+- value: https://tria.ge/250812-zw4tfszpy4
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0633

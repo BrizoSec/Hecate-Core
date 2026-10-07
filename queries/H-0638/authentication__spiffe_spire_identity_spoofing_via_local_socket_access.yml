@@ -1,0 +1,43 @@
+title: SPIFFE/SPIRE Identity Spoofing via Local Socket Access
+id: f8a41bbb-3a1b-49c2-af61-c9791adf19f8
+status: experimental
+description: Detects authentication events originating from the SPIRE agent socket path, indicating potential
+  unauthorized access to the SPIRE agent API. This behavior is consistent with an attacker attempting
+  to harvest valid SVIDs for lateral movement within a service mesh by leveraging local file system access
+  to the agent's Unix domain socket.
+references:
+- https://unit42.paloaltonetworks.com/kubernetes-spiffe-spire-identity-spoofing/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1078
+logsource:
+  category: authentication
+detection:
+  selection:
+    WorkstationName|contains: /run/spire/sockets/agent.sock
+  condition: selection
+falsepositives:
+- Legitimate SPIRE agent operations on the local node
+- Monitoring tools inspecting local socket connections
+level: high
+hunt_id: H-0638
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule relies on ''logsource: category: authentication'' and ''WorkstationName'', which implies
+    Windows Event Logs or similar structured logs. However, the source passages describe a Linux-based
+    attack vector involving direct interaction with Unix domain sockets (/run/spire/sockets/agent.sock)
+    and cgroup file manipulation (/sys/fs/cgroup/...). These actions are typically detected via process
+    execution logs (e.g., auditd, sysmon for Linux), file integrity monitoring, or network traffic analysis
+    of local socket connections, not standard ''authentication'' log categories with ''WorkstationName''
+    fields.'
+  - 'The rule fails to detect the core mechanism described in the hypothesis and passages: cgroup path
+    manipulation. The passages explicitly detail creating fake cgroup paths (Passage 7) and writing PIDs
+    to them (Passage 8) to spoof identity. The current rule only looks for socket access, missing the
+    critical ''cgroup path manipulation'' aspect of the attack.'
+  unverified_contradiction: The rule specifies a log source category ('authentication') and field ('WorkstationName')
+    that are inconsistent with the Linux-specific, file-system/socket-level interactions described in
+    the passages. The passages describe manipulating /sys/fs/cgroup/... and using curl/spire-agent CLI
+    tools via Unix sockets, which do not generate 'authentication' logs with 'WorkstationName' fields
+    in the manner implied.

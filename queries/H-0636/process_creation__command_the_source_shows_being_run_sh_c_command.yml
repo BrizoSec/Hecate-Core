@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: sh -c <command>.'
+id: b1d474df-0bd2-473e-abaa-cb1b881db8b1
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "sh -c <command>.".'
+references:
+- https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1059.004
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /sh
+    CommandLine|contains: -c <command>.
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0636

@@ -1,0 +1,54 @@
+title: DNS Query to Known Cryptomining Pool Domain
+id: 3835a57b-8768-40cc-9704-dc4ca5cbbff1
+status: experimental
+description: Detects DNS queries for the domain 'pool.moneroocean.stream', which is associated with a
+  cryptomining pool used in campaigns exploiting unauthenticated Redis instances to deploy XMRig miners.
+  This behavior indicates active communication with a mining infrastructure.
+references:
+- https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - pool.moneroocean.stream
+    - alastyr.com
+  condition: selection
+falsepositives:
+- Legitimate use of MoneroOcean mining pool by authorized users or developers
+- Misconfigured internal DNS forwarding resolving external domains incorrectly
+level: high
+hecate_provenance:
+- value: pool.moneroocean.stream
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: points the resulting hidden /tmp/.xmrig binary at pool.moneroocean[.]stream :443 over TLS
+- value: alastyr.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://hunt.io/blog/redis-cryptomining-botnet-3562-servers
+  evidence: on alastyr.com nameservers.
+hunt_id: H-0634
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects DNS queries, but the source passages describe network communication over TLS (port
+    443) and HTTP (port 10000), not specifically DNS resolution. While DNS is a prerequisite for connecting
+    to a domain, the specific behavior described ('points the resulting hidden /tmp/.xmrig binary at pool.moneroocean[.]stream
+    :443') is an outbound connection event, not a DNS query event.
+  - The inclusion of 'alastyr.com' in the detection logic is unsupported by the provided text. The passages
+    mention 'pool.moneroocean.stream' and 'c2_persist.py' (188.245.99.156), but never mention 'alastyr.com'.
+    Including an unverified domain increases false positives and drifts from the specific evidence provided.
+  - The hypothesis specifies 'rogue Redis replication' as the mechanism. A DNS rule does not detect the
+    exploitation vector (Redis) or the persistence mechanism (cron jobs/XMRig binaries), making it a weak
+    indicator for this specific threat hunt compared to rules detecting the Redis CONFIG SET commands,
+    cron file creation, or XMRig process execution.

@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: curl –data-binary'
+id: 4fea7c36-7ed9-43eb-a9c2-39519f2666ed
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "curl -k -s -X PUT –data-binary @- … Splits /tmp/osalogging.zip
+  into 10 MB".'
+references:
+- https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /curl
+    CommandLine|contains: –data-binary
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0637

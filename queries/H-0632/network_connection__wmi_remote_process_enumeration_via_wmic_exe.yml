@@ -1,0 +1,43 @@
+title: WMI Remote Process Enumeration via wmic.exe
+id: fb831b47-32f1-4c8e-8069-94790cca227d
+status: experimental
+description: Detects network connections initiated by wmic.exe to remote hosts. While wmic is a legitimate
+  administrative tool, its use for remote process enumeration (often involving ping or WMI RPC calls)
+  is a common technique used by Cobalt Strike beacons and other threat actors for lateral movement reconnaissance.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1027
+- attack.t1047
+- attack.t1053.005
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_wmic:
+    Image|endswith: \wmic.exe
+  condition: selection_wmic
+falsepositives:
+- Legitimate system administration scripts using wmic for inventory or troubleshooting
+- Automated monitoring tools querying remote process information
+- Group Policy processing or SCCM tasks invoking wmiadap.exe/wmic.exe
+level: medium
+hunt_id: H-0632
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects network connections initiated by wmic.exe, but the source passage explicitly states
+    that wmic was used locally to retrieve executable paths ('wmic /node:<REDACTED> process get executablepath').
+    It does not describe wmic initiating outbound network connections itself; rather, it describes a command
+    line execution. The rule's detection logic (network connection by wmic) is technically inaccurate
+    for the described behavior (local WMI query via command line).
+  - 'The rule misses the specific indicator mentioned in the hypothesis and passage: the use of ''ping''
+    as part of the command line to trigger or accompany the WMI call, which is a common beacon technique.
+    The current rule relies solely on the image name ending in wmic.exe for network connections, which
+    may have high false positives and does not capture the specific reconnaissance action described.'
+  unverified_contradiction: The rule describes detecting 'network connections initiated by wmic.exe',
+    whereas the passage describes a command line execution involving ping and wmic to get process information,
+    not necessarily an outbound network connection initiated directly by the wmic binary in the context
+    of the detection logic provided (which filters on Image|endswith for network category). More critically,
+    the rule fails to detect the specific 'ping' indicator linked to the WMI call in the passage.

@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: codesign utility'
+id: 99eda243-9880-438a-87b0-c37297c1770b
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "codesign utility revealing ad-hoc signing, unnotarized status,
+  and spoofed utility identifier.".'
+references:
+- https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-06'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /codesign
+    CommandLine|contains: utility
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0637

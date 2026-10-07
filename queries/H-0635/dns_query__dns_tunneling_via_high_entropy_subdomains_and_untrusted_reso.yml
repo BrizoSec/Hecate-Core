@@ -1,0 +1,35 @@
+title: DNS Tunneling via High Entropy Subdomains and Untrusted Resolver
+id: 0d95ae41-f3b9-4759-9c33-b2f37860b035
+status: experimental
+description: 'Detects potential DNS tunneling exfiltration by identifying DNS queries with high-entropy
+  subdomains (indicative of encoded data) directed to external or untrusted recursive resolvers, initiated
+  by non-standard system processes. This behavior aligns with T1438 (DNS) and T1071.004 (Application Layer
+  Protocol: DNS) where adversaries encode sensitive information within legitimate-looking DNS queries
+  to bypass traditional security controls.'
+references:
+- https://localhost:8443/events/view/1816
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-06'
+tags:
+- attack.t1071.004
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|re: ^[a-zA-Z0-9]{20,}\.
+    Image|contains: /bin/
+  condition: selection
+falsepositives:
+- Legitimate long-lived session tokens in URLs passed via DNS (rare)
+- Custom internal applications using high-entropy identifiers for load balancing
+- Automated CI/CD pipelines generating unique hostnames for temporary resources
+level: high
+hunt_id: H-0635
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages list is empty, so the rule cannot be validated against specific evidence.
+  - The rule includes specific technical constraints (Image contains /bin/, high entropy regex) that are
+    not supported by any provided text.
+  - Without source passages, it is impossible to confirm if 'non-standard system processes' or 'untrusted
+    resolvers' are the correct indicators for this specific hypothesis.
