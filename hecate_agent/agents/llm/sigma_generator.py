@@ -1978,6 +1978,31 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 if problem:
                     problems.append(problem)
                 elif rule and rule.logsource_category == logsource:
+                    if input_data.review_rules:
+                        from hecate_agent.agents.llm.rule_reviewer import RuleReviewer
+
+                        reviewer = RuleReviewer(
+                            lambda prompt, validate: self._call_llm_with_retry(
+                                prompt, validate, max_retries=1, max_tokens=1024, temperature=0.0
+                            )
+                        )
+                        passages = SigmaGeneratorAgent._source_passages(input_data)
+                        try:
+                            review = reviewer.review(rule.rule_yaml, input_data.hypothesis, passages)
+                            if review.verdict == "revise" and review.issues:
+                                problems.append(
+                                    "The rule requires revision. Please fix these issues and try again:\n"
+                                    + "\n".join(f"- {i}" for i in review.issues)
+                                )
+                                continue
+                            elif review.verdict == "reject" and review.verified:
+                                problems.append(
+                                    f"The rule matches legitimate verified behavior: {review.contradiction} "
+                                    f"(source: '{review.quote[:160]}'). Please write a different rule or adjust it."
+                                )
+                                continue
+                        except Exception as exc:
+                            logger.warning("rule review failed during generation: %s", exc)
                     return None  # We successfully built the requested rule!
 
             if problems:
@@ -2413,13 +2438,14 @@ RULES OF THE TASK:
 10. Give realistic falsepositives. "None" is never a correct answer.
 11. The JSON below shows the *shape* only. Its values are placeholders, not
    examples to copy: "FieldName", "value" and "known-good" must never appear
-12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If you cannot write a precise rule for the specific behavior described in the hypothesis without hallucinating, do not write a rule.
    in what you return, and a rule matching on them is rejected. Neither may
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
-12. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
-13. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
+12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If you cannot write a precise rule for the specific behavior described in the hypothesis without hallucinating, do not write a rule.
+13. PREVENT TTP CONFLATION: If the hypothesis or intelligence mentions multiple distinct behaviors (e.g., Scheduled Tasks AND Registry Run Keys), ensure your rule focuses ONLY on the behavior that matches the current log source category. Do not mix the names, titles, or logic of distinct TTPs into a single rule.
+14. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
+15. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
 Return exactly this JSON shape, with a single entry in "rules":
 {{
   "rules": [

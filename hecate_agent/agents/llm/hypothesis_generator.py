@@ -3,7 +3,7 @@
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
@@ -88,6 +88,7 @@ class HypothesisGenerationOutput:
     # Defaults False (assume real narrative) so a model that omits the field
     # keeps the normal behavior-hypothesis path.
     is_indicator_only: bool = False
+    indicator_records: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _bullet_block(heading: str, items: List[str]) -> List[str]:
@@ -499,7 +500,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "sources says so. A Linux server compromise scoped to Windows "
             "endpoints finds nothing.\n"
             "- Evidence: The specific data sources and key fields a hunter "
-            "would actually query to test this hypothesis. DO NOT suggest Windows registry keys for macOS/Linux hunts.\n\n"
+            "would actually query to test this hypothesis. DO NOT suggest Windows registry keys for macOS/Linux hunts.\n"
+            "- Indicator Records: A strictly structured list of observables (IPs, domains, hashes, URLs) extracted exactly as they appear in the intel. Do not extract file paths or registry keys here. Each record must be an object with 'value', 'type' (e.g., 'ipv4', 'domain', 'sha256', 'md5', 'url'), and 'role' (e.g., 'c2', 'delivery', 'unknown'). If none exist, return an empty array.\n\n"
             "**IMPORTANT:** Return your response as a JSON object matching "
             "this schema. The values below show the *shape* only -- anything "
             "in angle brackets is a placeholder, and copying it, or any "
@@ -521,7 +523,10 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '  "evidence": "string",\n'
             '  "is_threat_report": true,\n'
             '  "low_confidence_reason": "string (only if is_threat_report is false)",\n'
-            '  "is_indicator_only": false\n'
+            '  "is_indicator_only": false,\n'
+            '  "indicator_records": [\n'
+            '    {{"value": "198.51.100.45", "type": "ipv4", "role": "c2"}}\n'
+            '  ]\n'
             "}}\n"
         ).format(
             grounding=grounding,
