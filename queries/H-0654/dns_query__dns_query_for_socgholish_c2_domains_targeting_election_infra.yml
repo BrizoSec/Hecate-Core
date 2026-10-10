@@ -1,0 +1,45 @@
+title: DNS Query for SocGholish C2 Domains Targeting Election Infrastructure
+id: 30ef86fa-54bf-4899-8ed5-a13fd7c8c2d8
+status: experimental
+description: Detects DNS queries for known SocGholish command and control domains associated with the
+  campaign targeting Washington State election infrastructure. These domains are used to deliver obfuscated
+  JavaScript payloads via WScript execution.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1566.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - wa-elections-support.com
+    - secure-voter-wa.org
+  condition: selection
+falsepositives:
+- Legitimate voter registration or election information websites
+- Internal DNS forwarding to external resolvers
+level: high
+hecate_provenance:
+- value: wa-elections-support.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: secure-voter-wa.org
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0654
+hecate_review:
+  verdict: revise
+  issues:
+  - The hypothesis specifies detection of 'obfuscated WScript execution from temporary directories' and
+    'UpdateCheck scheduled tasks', but the rule only detects DNS queries for C2 domains.
+  - The source passages are empty, so the rule cannot be validated against specific technical details
+    provided in a report, making it an unverified draft based on the hypothesis alone.

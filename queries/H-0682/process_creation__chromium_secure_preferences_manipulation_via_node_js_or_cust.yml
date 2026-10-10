@@ -1,0 +1,43 @@
+title: Chromium Secure Preferences Manipulation via Node.js or Custom Installer
+id: e73eeac8-37d0-4f38-82ad-6303de2a08d5
+status: experimental
+description: Detects the execution of node.exe or unknown executables from temporary directories or Chrome
+  extension folders, which correlates with the KREMLIN TTP of forging HMACs in 'Secure Preferences' to
+  silently install malicious browser extensions.
+references:
+- https://www.elastic.co/security-labs/threat-command/malicious-browser-extension-kremlin-banking-malware#key-takeaways
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1059.001
+- attack.t1059.007
+- attack.t1140
+- attack.t1204.004
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_node:
+    Image|endswith: \node.exe
+  selection_installer:
+    OriginalFileName|contains: .exe
+    CommandLine|contains: '%LOCALAPPDATA%\Google\Chrome\User Data\Default\Secure Preferences'
+  condition: selection_node or selection_installer
+falsepositives:
+- Legitimate development tools using node.exe for local web server testing
+- Browser update mechanisms or legitimate extension developers modifying user data during debugging
+- Automated build scripts executing node.exe in temporary directories
+level: high
+hunt_id: H-0682
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule relies on detecting 'node.exe' execution, but the source passages explicitly state the adversary
+    uses 'custom C++ installers', not Node.js.
+  - The detection logic for 'selection_installer' checks if CommandLine contains the path to 'Secure Preferences',
+    which is a weak indicator and does not align with the specific TTP of regenerating HMACs described
+    in the text.
+  unverified_contradiction: The rule assumes the use of Node.js, whereas the report specifies custom C++
+    installers.

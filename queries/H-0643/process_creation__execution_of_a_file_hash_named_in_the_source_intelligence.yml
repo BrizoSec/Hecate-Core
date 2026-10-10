@@ -1,0 +1,48 @@
+title: Execution of a file hash named in the source intelligence
+id: 74711b89-cbc6-4eca-828a-65820ad70469
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=a598fcdcd49247312861ff90c16cb4a5d49fede6072e30e7416dd276668fa2a9
+    - SHA256=6bfcdb4920383375b7e519918df7eb4db751b974b5571a15ce66b82478012620
+    - SHA256=4504006d1911057be42435d4625f03d83c4d0b7b6898d14beb9cdeba6cf667b9
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: a598fcdcd49247312861ff90c16cb4a5d49fede6072e30e7416dd276668fa2a9
+  type: sha256
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+  evidence: 'Installer for AMOS stealer SHA-256 hash: a598fcdcd49247312861ff90c16cb4a5d49fede6072e30e7416dd276668fa2a9'
+- value: 6bfcdb4920383375b7e519918df7eb4db751b974b5571a15ce66b82478012620
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+  evidence: 'Binary from AMOS stealer infection persistent on the infected macOS host SHA-256 hash: 6bfcdb4920383375b7e519918df7eb4db751b974b5571a15ce66b82478012620'
+- value: 4504006d1911057be42435d4625f03d83c4d0b7b6898d14beb9cdeba6cf667b9
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+  evidence: 'Another binary from AMOS stealer infection persistent on the infected macOS host SHA-256
+    hash: 4504006d1911057be42435d4625f03d83c4d0b7b6898d14beb9cdeba6cf667b9'
+hunt_id: H-0643

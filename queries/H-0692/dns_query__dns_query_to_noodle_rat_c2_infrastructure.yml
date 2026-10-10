@@ -1,0 +1,51 @@
+title: DNS Query to Noodle RAT C2 Infrastructure
+id: 4d47776b-7139-4375-803f-2dadaa08d95c
+status: experimental
+description: Detects DNS queries for known Command and Control (C2) domains associated with the Noodle
+  RAT (ANGRYREBEL) threat actor. This rule supports the hunt hypothesis by identifying communication with
+  infrastructure used to exfiltrate archived and encrypted data across Windows and Linux platforms.
+references:
+- https://cyberint.com/blog/dark-web/noodle-rat-a-recipe-for-cross-platform-espionage
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1027
+- attack.t1041
+- attack.t1053.005
+- attack.t1068
+- attack.t1095
+- attack.t1190
+- attack.t1195.002
+- attack.t1547.001
+- attack.t1566.002
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: shdufysuf.com
+  condition: selection
+falsepositives:
+- Legitimate use of compromised or shared hosting services
+- Typosquatting domains that may resemble the C2 domain
+level: high
+hecate_provenance:
+- value: shdufysuf.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0692
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects DNS queries, but the source passages do not mention DNS-based C2 communication. The
+    passages explicitly state that Noodle RAT uses 'sophisticated encryption' for its C2 traffic (RC4,
+    XOR, HMAC-SHA1, AES-128-CBC) and describes it as a 'TCP proxy' or 'reverse shell', implying direct
+    network connections rather than DNS tunneling.
+  - The specific domain 'shdufysuf.com' is not mentioned in the provided source passages. While the rule
+    claims to detect C2 infrastructure, the evidence for this specific domain is missing from the provided
+    text, making the rule unverifiable against the given hypothesis and passages.
+  unverified_contradiction: The rule implies DNS-based detection of C2, but the passages describe encrypted
+    TCP/HTTP-like C2 channels without mentioning DNS as a transport mechanism or listing 'shdufysuf.com'.

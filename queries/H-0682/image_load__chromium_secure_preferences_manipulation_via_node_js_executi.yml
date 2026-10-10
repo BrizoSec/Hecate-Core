@@ -1,0 +1,35 @@
+title: Chromium Secure Preferences Manipulation via Node.js Execution
+id: ce295ac7-f92b-4fcb-bbcf-dccd0b473da3
+status: experimental
+description: Detects the loading of node.dll by a process, which is a specific behavioral indicator of
+  adversaries forging HMAC integrity checks in 'Secure Preferences' to install malicious browser extensions.
+  This aligns with KREMLIN toolkit TTPs for session hijacking.
+references:
+- https://www.elastic.co/security-labs/threat-command/malicious-browser-extension-kremlin-banking-malware#key-takeaways
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1574.001
+- attack.t1620
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    ImageLoaded|contains: \node.dll
+  condition: selection
+falsepositives:
+- Legitimate development environments running Node.js
+- Electron-based applications bundling Node.js
+- Automated build scripts using Node.js
+level: medium
+hunt_id: H-0682
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects `node.dll` loading, but the source passages do not mention Node.js or `node.dll`.
+    The passages describe 'multi-stage JavaScript loaders' and 'custom C++ installers', but do not specify
+    the use of Node.js for forging integrity checks.
+  - The hypothesis mentions 'forged Chromium integrity checks via Secure Preferences manipulation', which
+    is supported by Passage [3], but the specific mechanism (Node.js) in the rule is an assumption not
+    found in the provided text.

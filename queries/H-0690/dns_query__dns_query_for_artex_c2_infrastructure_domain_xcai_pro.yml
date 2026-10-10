@@ -1,0 +1,46 @@
+title: DNS Query for ARTEX C2 Infrastructure Domain xcai.pro
+id: db50c98e-92ca-4d33-8489-069a07bb8585
+status: experimental
+description: Detects DNS queries for the domain 'xcai.pro', which is associated with the ARTEX tool used
+  by financially motivated threat actors targeting South Korean financial institutions. This rule hunts
+  for the specific C2 infrastructure indicator identified in threat intelligence.
+references:
+- https://www.crowdstrike.com/en-us/blog/unknown-threat-actor-uses-artex-to-target-south-korean-finance/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1090
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains: xcai.pro
+  condition: selection
+falsepositives:
+- Legitimate use of proxy services or anonymization tools that may share infrastructure
+- Internal DNS forwarding to external resolvers logging third-party domains
+level: high
+hecate_provenance:
+- value: xcai.pro
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.crowdstrike.com/en-us/blog/unknown-threat-actor-uses-artex-to-target-south-korean-finance/
+  evidence: The threat actor likely accessed DeepSeek via the likely LLM API proxy/reseller xcai[.]pro.
+hunt_id: H-0690
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects DNS queries for 'xcai.pro', but the source passages (specifically [2]) describe xcai.pro
+    as an 'LLM API proxy/reseller' used to access DeepSeek, not as ARTEX C2 infrastructure. The hypothesis
+    states proxies are used to route outbound C2 traffic, but the text does not explicitly link xcai.pro
+    to the ARTEX C2 channel; it links it to LLM access. Furthermore, the rule description incorrectly
+    labels xcai.pro as 'ARTEX C2 Infrastructure' when the text identifies 38.244.50[.]120 as hosting the
+    ARTEX instance.
+  - The hypothesis focuses on obscuring origin for C2 traffic. While using a proxy fits this, the specific
+    indicator 'xcai.pro' is tied to LLM API access in the text, not explicitly to the ARTEX C2 channel
+    described in [1]. A more accurate rule would target the IPs listed in [3]-[11] which are explicitly
+    called out as 'proxy IP addresses... during the ARTEX-related activity'.
+  unverified_contradiction: The rule claims xcai.pro is ARTEX C2 infrastructure, but the text says it
+    was used to access DeepSeek via an LLM API proxy/reseller.

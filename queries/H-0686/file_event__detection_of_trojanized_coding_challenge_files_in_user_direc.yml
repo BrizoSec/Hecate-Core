@@ -1,0 +1,37 @@
+title: Detection of Trojanized Coding Challenge Files in User Directories
+id: ecedc779-cf62-4d12-b3cb-735e08fd3fb4
+status: experimental
+description: Detects the creation of files with coding challenge extensions (e.g., .cs, .py, .java) within
+  user profile directories. This behavior aligns with the Blinder Tunnel campaign's use of trojanized
+  coding challenge files to establish persistence and deploy ShelbyLoader V2 via AppDomainManager hijacking.
+  While DLL sideloading is a key TTP, it is primarily observed in process execution telemetry; however,
+  the initial deployment vector involves writing these deceptive source files to disk.
+references:
+- https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1574.001
+- attack.t1574.014
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: .cs
+    User|startswith: C:\Users\
+  condition: selection
+falsepositives:
+- Legitimate source code creation by developers
+- Automated build artifacts in user temp directories
+- Educational software installations
+level: medium
+hunt_id: H-0686
+hecate_review:
+  verdict: keep
+  issues:
+  - The rule detects file creation in user directories, which aligns with the 'initial deployment vector'
+    described in the source passages (writing deceptive source files).
+  - The hypothesis mentions specific TTPs (AppDomainManager hijacking, DLL sideloading) and malware (ShelbyLoader
+    V2), but the rule is scoped to the initial file drop phase. This is acceptable as the prompt states
+    rules are intentionally scoped to a single log source and partial coverage does not warrant rejection.

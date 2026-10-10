@@ -1,0 +1,34 @@
+title: Detection of Fake Bitrefill Checkout Page Artifacts via DNS Cache File Modification
+id: 7406593e-d192-4219-9d94-31ceefe084b0
+status: experimental
+description: Detects the creation or modification of DNS cache files (dnscache.mdb) containing lookalike
+  domains associated with fake Bitrefill checkouts. While the primary attack involves social engineering
+  and HTTPS, the resolution of these malicious domains often results in temporary file system artifacts
+  on Windows systems via the DNS Client service caching mechanisms. This rule targets the specific IOCs
+  provided in the intelligence.
+references:
+- https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1566
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: dnscache.mdb
+  condition: selection
+falsepositives:
+- Normal DNS resolution activity
+- System updates to DNS cache files
+level: medium
+hunt_id: H-0680
+hecate_review:
+  verdict: reject
+  unverified_contradiction: The rule claims to detect artifacts via 'DNS Cache File Modification' and
+    specifically targets 'dnscache.mdb'. However, the provided source passages describe the attack mechanism
+    as 'search engine manipulation', 'typosquatting/Punycode', and 'fake Bitrefill checkouts' that replicate
+    payment flows. The passages never mention DNS cache files, dnscache.mdb, or any file system artifacts
+    related to DNS resolution on Windows. The rule introduces specific technical IOCs (dnscache.mdb) that
+    are not present in the source text.

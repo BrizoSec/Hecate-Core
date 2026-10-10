@@ -1,0 +1,38 @@
+title: Detection of LLM Prompt Aggregation via Temp File Creation
+id: 23eeb4d8-54d5-4aed-bf06-72aa6fe76f49
+status: experimental
+description: Detects the creation of temporary files in system temp directories, which is a common behavior
+  for adversaries aggregating multi-step prompts or staging obfuscated content before sending it to an
+  LLM endpoint. This aligns with T1027.010 (Obfuscated Files or Information) where data is prepared for
+  exfiltration or injection.
+references:
+- https://www.crowdstrike.com/en-us/blog/how-attackers-can-bypass-llm-safety-classifiers/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027.010
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: /tmp/
+  condition: selection
+falsepositives:
+- Legitimate application caching
+- Compiler temporary files
+- Package manager downloads
+level: medium
+hunt_id: H-0685
+hecate_review:
+  verdict: reject
+  issues:
+  - The rule relies on detecting file creation in /tmp/, which is a Linux path, while the logsource specifies
+    'windows'. This is technically invalid for Windows logs.
+  - The provided source passages do not describe or support the specific behavior of creating temporary
+    files to aggregate prompts. The hypothesis mentions 'multi-step prompt aggregation' but does not specify
+    the mechanism (e.g., file creation). The rule invents a detection method not grounded in the provided
+    text.
+  unverified_contradiction: The logsource specifies 'windows', but the detection logic looks for '/tmp/',
+    which is a Unix/Linux path, not a standard Windows temporary directory path. Furthermore, the passages
+    do not mention file creation as the method of aggregation.

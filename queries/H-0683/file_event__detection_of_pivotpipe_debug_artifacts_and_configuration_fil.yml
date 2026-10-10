@@ -1,0 +1,39 @@
+title: Detection of PivotPipe Debug Artifacts and Configuration Files
+id: 9c218989-1c37-493a-bc5a-c33a8acee68e
+status: experimental
+description: Detects the creation of specific debug text files and configuration artifacts associated
+  with the PivotPipe threat actor. These artifacts, typically dropped in C:\WINDOWS\Temp or specific payload
+  directories, serve as forensic indicators of a custom .NET loader executing an in-memory RAT with AMSI
+  bypass capabilities.
+references:
+- https://sect.iij.ad.jp/blog/2026/09/pivotpipe/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains:
+    - nb_drip_dbg.txt
+    - nb_hook_dbg.txt
+    - nb_fatal.txt
+    - nb_hook_exports.txt
+    - nb_hello_postex_ok.txt
+    - nb_spawn_rewrite.txt
+    - nb_postex_dbg.txt
+    - nb_postex_fail.txt
+    - nb_hb_dbg.txt
+    - nb_post_last.txt
+    - nb_export_dbg.txt
+    - nb_sleep_dbg.txt
+  condition: selection
+falsepositives:
+- Legitimate debugging tools writing to Temp directories
+- Custom application error logging
+level: high
+hunt_id: H-0683
+hecate_review:
+  verdict: keep

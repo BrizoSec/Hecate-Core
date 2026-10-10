@@ -1,0 +1,29 @@
+title: Request for a URL path named in the source intelligence
+id: 4728380a-1649-4f14-8b62-3d4a4c286b28
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.lumen.com/blog/en-us/the-banana-stand-brokering-and-managing-infections-across-asia-using-mqtt
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /Windows_Defender/Malwarebytes/
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://api80.c2iznja.com/Windows_Defender/Malwarebytes/
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0684

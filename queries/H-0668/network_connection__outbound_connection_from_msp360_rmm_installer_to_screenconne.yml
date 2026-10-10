@@ -1,0 +1,29 @@
+title: Outbound Connection from MSP360 RMM Installer to ScreenConnect Infrastructure
+id: e6d62337-7d8b-4c2c-841a-dc930a0e08bf
+status: experimental
+description: Detects outbound network connections initiated by an MSP360 RMM installer process to destinations
+  associated with ScreenConnect. This behavior aligns with the hypothesis of adversaries using legitimate
+  MSP360 RMM installers to silently deploy ScreenConnect for redundant persistent remote access.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/29/phishing-abuses-rmm-tools-persistent-access/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_process:
+    Image|contains: msp360
+  selection_dest:
+    DestinationHostname|endswith: .screenconnect.com
+    DestinationPort: 443
+  condition: selection_process and selection_dest
+falsepositives:
+- Legitimate MSP360 RMM updates or cloud synchronization
+- Authorized IT administration using ScreenConnect for remote support
+level: high
+hunt_id: H-0668
+hecate_review:
+  verdict: keep

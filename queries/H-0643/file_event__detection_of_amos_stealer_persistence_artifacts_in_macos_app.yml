@@ -1,0 +1,27 @@
+title: Detection of AMOS Stealer Persistence Artifacts in macOS Application Support
+id: e507c10a-0656-4642-bd69-bc4c231dba4c
+status: experimental
+description: Detects the creation of hidden files within /Library/Application Support directories, specifically
+  masquerading as legitimate Apple system components (accountsd, metadata.mds). This behavior is consistent
+  with the AMOS Stealer campaign which installs persistent Mach-O binaries and configuration files to
+  harvest user data.
+references:
+- https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027.015
+- attack.t1036
+logsource:
+  category: file_event
+detection:
+  selection_hidden_appsupport:
+    TargetFilename|contains: /Library/Application Support/.com.apple.
+  condition: selection_hidden_appsupport
+falsepositives:
+- Legitimate software updates or plugins that may create hidden configuration files in Application Support
+- User-installed macOS utilities that use similar naming conventions for privacy
+level: high
+hunt_id: H-0643
+hecate_review:
+  verdict: keep

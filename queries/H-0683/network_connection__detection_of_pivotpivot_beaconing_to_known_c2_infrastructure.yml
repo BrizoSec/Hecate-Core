@@ -1,0 +1,34 @@
+title: Detection of PivotPivot Beaconing to Known C2 Infrastructure
+id: 3ce803c2-2284-45f1-bf45-f332d0702c24
+status: experimental
+description: Detects network connections to the specific IP address associated with PivotPivot threat
+  activity. This rule targets the command and control (C2) communication channel used by the custom .NET
+  loader to execute in-memory RAT operations, bypass AMSI, and drop debug artifacts.
+references:
+- https://sect.iij.ad.jp/blog/2026/09/pivotpipe/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1059.006
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|contains: 45.32.253.166
+  condition: selection
+falsepositives:
+- Legitimate traffic to cloud infrastructure or CDNs that may share IP ranges
+- User-initiated connections to known malicious domains if the IP is part of a larger pool
+level: high
+hecate_provenance:
+- value: 45.32.253.166
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://sect.iij.ad.jp/blog/2026/09/pivotpipe/
+  evidence: 'ポート8088 : Cobalt Strike C2サーバ'
+hunt_id: H-0683
+hecate_review:
+  verdict: keep

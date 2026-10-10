@@ -1,0 +1,40 @@
+title: DNS Query to Known GTA VI SEO Poisoning C2 Infrastructure
+id: 20c1e5f9-fc9a-489b-ab36-2cedd370797f
+status: experimental
+description: Detects DNS queries for the specific hostname associated with the active campaign distributing
+  malicious ISO files disguised as Grand Theft Auto VI installers. This rule targets the command and control
+  or download infrastructure identified in threat intelligence, which is used to deliver payloads like
+  NJRAT, DCRAT, Mercurial Grabber, and Chaos via SEO poisoning.
+references:
+- https://www.huntress.com/blog/fake-gta6-download-malware-analysis
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1684
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: a0700877.xsph.ru
+  condition: selection
+falsepositives:
+- Legitimate use of xsph.ru hosting for non-malicious purposes
+- Users accessing unrelated content hosted on the same infrastructure
+level: high
+hecate_provenance:
+- value: a0700877.xsph.ru
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+hunt_id: H-0646
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, making it impossible to verify the specific IOC 'a0700877.xsph.ru'
+    or confirm the rule aligns with the reported infrastructure. The rule relies on external intelligence
+    not present in the provided context.
+  - The hypothesis states that credential exfiltration is 'not observed in the source', but the rule focuses
+    on C2 DNS queries which are part of the broader campaign described. Without source text, the specificity
+    and accuracy of the IOC cannot be validated.

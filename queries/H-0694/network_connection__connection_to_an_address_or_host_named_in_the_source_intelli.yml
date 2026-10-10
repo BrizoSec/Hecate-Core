@@ -1,0 +1,30 @@
+title: Connection to an address or host named in the source intelligence
+id: c1906a18-990d-4e6b-ae39-e667da1c250b
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://unit42.paloaltonetworks.com/web3-cloud-supply-chain-attacks/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: crates.io
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: crates.io
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/web3-cloud-supply-chain-attacks/
+  evidence: the actor poisoned the arrayref crate on crates.io, using Rust's native compilation hook to
+    execute a second-stage payload upon project builds.
+hunt_id: H-0694

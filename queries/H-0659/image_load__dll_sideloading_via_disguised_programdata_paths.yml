@@ -1,0 +1,36 @@
+title: DLL Sideloading via Disguised ProgramData Paths
+id: 0384b106-bf41-42f7-bfa5-967e8618e69c
+status: experimental
+description: Detects the loading of legitimate-looking DLL names from non-standard, disguised subdirectories
+  within %ProgramData%. This behavior is indicative of DLL sideloading attacks where adversaries drop
+  malicious payloads (e.g., WinSparkle.dll, libcurl.dll) into folders like \USOShared\ or \VIM\ to evade
+  detection and establish persistent access.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1574.001
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    ImageLoaded|endswith:
+    - \USOShared\libcurl.dll
+    - \VIM\vim64.dll
+    - \office\dbghelp.dll
+    - \broadcom\dbghelp.dll
+    - \Intel\jli.dll
+    - \modifiable\nvml.dll
+    - \ics\nvml.dll
+  condition: selection
+falsepositives:
+- Legitimate software updates (e.g., Windows Update components in USOShared)
+- Adobe Creative Cloud or Office installer components
+- Intel driver installation utilities
+- Broadcom network driver installations
+level: high
+hunt_id: H-0659
+hecate_review:
+  verdict: keep

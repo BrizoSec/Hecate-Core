@@ -1,0 +1,268 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 0e07c6ac-734f-4af8-87e9-f0b0a4714788
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - bitretill.com
+    - bitrefill-payments.com
+    - bitrefill-pays.com
+    - bitruflli.com
+    - bitrefall.com
+    - bitrnfill.com
+    - biterflll.com
+    - bitregift.com
+    - bitigift.com
+    - pay-bitregill.com
+    - bitregill.com
+    - bitrgift.com
+    - bitrgifts.com
+    - butrefill.com
+    - pay-bitrgift.com
+    - pay-bitrgifts.com
+    - pay-butrefill.com
+    - pay-bitigift.com
+    - xn--bitrefll-71a.com
+    - xn--bitrefll-h2a.com
+    - xn--bitrefll-pay-kfb.com
+    - xn--bitrefll-pay-xfb.com
+    - xn--bitrefll-q2a.com
+    - xn--bitreill-cz9c.com
+    - xn--bitreill-pay-yq4f.com
+    - xn--btrefill-l2a.com
+    - xn--pay-bitrefll-fgb.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .bitretill.com
+    - .bitrefill-payments.com
+    - .bitrefill-pays.com
+    - .bitruflli.com
+    - .bitrefall.com
+    - .bitrnfill.com
+    - .biterflll.com
+    - .bitregift.com
+    - .bitigift.com
+    - .pay-bitregill.com
+    - .bitregill.com
+    - .bitrgift.com
+    - .bitrgifts.com
+    - .butrefill.com
+    - .pay-bitrgift.com
+    - .pay-bitrgifts.com
+    - .pay-butrefill.com
+    - .pay-bitigift.com
+    - .xn--bitrefll-71a.com
+    - .xn--bitrefll-h2a.com
+    - .xn--bitrefll-pay-kfb.com
+    - .xn--bitrefll-pay-xfb.com
+    - .xn--bitrefll-q2a.com
+    - .xn--bitreill-cz9c.com
+    - .xn--bitreill-pay-yq4f.com
+    - .xn--btrefill-l2a.com
+    - .xn--pay-bitrefll-fgb.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: bitretill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrefill-payments.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrefill-pays.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitruflli.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrefall.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrnfill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: biterflll.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitregift.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitigift.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: pay-bitregill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitregill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrgift.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: bitrgifts.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: butrefill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: pay-bitrgift.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: pay-bitrgifts.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: pay-butrefill.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: pay-bitigift.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitrefll-71a.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitrefll-h2a.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitrefll-pay-kfb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitrefll-pay-xfb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitrefll-q2a.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitreill-cz9c.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--bitreill-pay-yq4f.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--btrefill-l2a.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+- value: xn--pay-bitrefll-fgb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+  evidence: The fake site then takes them through what appears to be a normal purchase.
+hunt_id: H-0680

@@ -1,0 +1,42 @@
+title: DNS Query to SocGholish C2 Domains Targeting WA Election Infrastructure
+id: 0cfbb5fb-0401-46be-ab30-e8e2809c970e
+status: experimental
+description: Detects DNS queries for domains associated with the SocGholish campaign targeting Washington
+  State election infrastructure. These domains are used for initial access and command-and-control communications,
+  often preceding obfuscated WScript execution and scheduled task persistence.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1059.007
+- attack.t1105
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - wa-elections-support.com
+    - secure-voter-wa.org
+  condition: selection
+falsepositives:
+- Legitimate administrative scripts or monitoring tools querying internal or partner domains with similar
+  naming conventions
+- User browsing errors or typosquatting attempts by non-adversarial actors
+level: high
+hecate_provenance:
+- value: wa-elections-support.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: secure-voter-wa.org
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0670
+hecate_review:
+  verdict: keep

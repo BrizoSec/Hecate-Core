@@ -1,0 +1,29 @@
+title: Request for a URL path named in the source intelligence
+id: f8eb5440-3a22-43d3-bbdf-be48611a4e58
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.acronis.com/en/tru/posts/red-heron-exploits-gitea-n-day-flaw-in-multinational-campaign-exposing-new-linux-rootkit/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /api/v1/metrics
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://gitea.redacted.com.ar/api/v1/metrics?k=[auth
+  type: url
+  role: backdoor_endpoint
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0681

@@ -1,0 +1,28 @@
+title: Noodle RAT Loader Execution via MULTIDROP or MICROLOAD
+id: 1be07f32-7c90-44e6-9a9f-fbe656a07a6e
+status: experimental
+description: Detects the execution of known Noodle RAT (ANGRYREBEL) loader binaries named MULTIDROP or
+  MICROLOAD. These lightweight loaders are used to establish the initial foothold and in-memory operations
+  for the modular backdoor, preceding data archival and C2 communication.
+references:
+- https://cyberint.com/blog/dark-web/noodle-rat-a-recipe-for-cross-platform-espionage
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1068
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_multidrop:
+    Image|endswith: \MULTIDROP.exe
+  selection_microload:
+    Image|endswith: \MICROLOAD.exe
+  condition: selection_multidrop or selection_microload
+falsepositives:
+- Legitimate software with similar naming conventions
+- Custom internal tools using generic loader names
+level: high
+hunt_id: H-0692
+hecate_review:
+  verdict: keep

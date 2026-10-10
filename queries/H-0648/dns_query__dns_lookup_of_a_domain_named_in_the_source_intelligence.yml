@@ -1,0 +1,86 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 64ee9cc6-43c6-4c49-b2e2-53feb308b852
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - relay.goldenmelon.us
+    - relay.illuminantgroup.net
+    - scx.illuminantgroup.net
+    - wir.consultingics.com
+    - hosthiifran.screenconnect.com
+    - instance-uxh86b-relay.screenconnect.com
+    - victory.mkc1.digitaloceanspaces.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .hosthiifran.screenconnect.com
+    - .instance-uxh86b-relay.screenconnect.com
+    - .victory.mkc1.digitaloceanspaces.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: relay.goldenmelon.us
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: Infrastructure associated with the initial rogue ScreenConnect Client ( d751818fd46e5ca9 )
+- value: relay.illuminantgroup.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: configured to communicate with relay[.]illuminantgroup[.]net
+- value: scx.illuminantgroup.net
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: which downloaded from scx[.]illuminantgroup[.]net
+- value: wir.consultingics.com
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: 'ScreenConnect installer hosting site and delivery: infrastructure associated with the patch.msi
+    ScreenConnect installer.'
+- value: hosthiifran.screenconnect.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: However, the purported "Adobe" installation file was actually ScreenConnect.ClientSetup.exe,
+    a ScreenConnect installer that was downloaded from the attacker-controlled infrastructure, hosthiifran[.]sc
+- value: instance-uxh86b-relay.screenconnect.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: 'ScreenConnect trial relay domain: associated with the initial Rogue ScreenConnect Client
+    ( 9c1aea531ba4c511 )'
+- value: victory.mkc1.digitaloceanspaces.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0648

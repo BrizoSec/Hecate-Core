@@ -1,0 +1,79 @@
+title: SSH PermitLocalCommand Abuse for Malicious Payload Download
+id: 56d37e93-27b7-49ac-b268-abadccaa2108
+status: experimental
+description: Detects outbound network connections initiated by ssh.exe that are likely part of the SSH
+  PermitLocalCommand abuse technique. This behavior is consistent with the Star Blizzard (SEABORGIUM)
+  RedFlick TTP, where legitimate SSH clients are used to execute local commands that download decoy files
+  or malware payloads from external servers.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1071.001
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ssh_download:
+    Image|endswith: \ssh.exe
+    DestinationIp|cidr:
+    - 103.245.231.248/32
+    - 2.57.241.246/32
+    - 89.125.209.168/32
+    - 103.245.231.79/32
+    - 45.84.59.66/32
+    - 103.160.59.97/32
+  condition: selection_ssh_download
+falsepositives:
+- Legitimate SSH usage for remote administration or file transfer (e.g., scp, sftp) to known corporate
+  servers
+- Automated backup or sync tools using SSH protocols
+level: high
+hecate_provenance:
+- value: 103.245.231.248
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in January 2026 campaign
+- value: 2.57.241.246
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in February 2026 campaign
+- value: 89.125.209.168
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in February 2026 campaign
+- value: 103.245.231.79
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in March 2026 campaign
+- value: 45.84.59.66
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in April 2026 campaign
+- value: 103.160.59.97
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in July 2026 campaign
+hunt_id: H-0665
+hecate_review:
+  verdict: keep

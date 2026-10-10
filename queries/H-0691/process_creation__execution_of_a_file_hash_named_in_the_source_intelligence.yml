@@ -1,0 +1,73 @@
+title: Execution of a file hash named in the source intelligence
+id: 68cd5e22-de0c-467d-9e36-61c8d342341b
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=ae77f1834ccde53258bc27a779102af2
+    - MD5=f16f507a8ed515663a4f07050cd97a74
+    - SHA1=00e1cc0fb1355c196c069791a02b4a5f3b57ae94
+    - SHA1=761ccb15af1c3fe6e4365ddf65578966e4c84fc9
+    - SHA256=70fc6cba3c2021889fb4093d0221dc6925818666df25718a630c562cac18da31
+    - SHA256=80fdde0dafa450ae33937ccef752b46666da567926b2f39b37e02e77f9d6a92e
+    - MD5=F16f507a8ed515663a4f07050cd97a74
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: ae77f1834ccde53258bc27a779102af2
+  type: md5
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: DriverInstaller.exe RUSTYSHADE
+- value: f16f507a8ed515663a4f07050cd97a74
+  type: md5
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Automata-20.exe RUSTYMOVE
+- value: 00e1cc0fb1355c196c069791a02b4a5f3b57ae94
+  type: sha1
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Automata-20.exe RUSTYMOVE
+- value: 761ccb15af1c3fe6e4365ddf65578966e4c84fc9
+  type: sha1
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: DriverInstaller.exe RUSTYSHADE
+- value: 70fc6cba3c2021889fb4093d0221dc6925818666df25718a630c562cac18da31
+  type: sha256
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Automata-20.exe RUSTYMOVE
+- value: 80fdde0dafa450ae33937ccef752b46666da567926b2f39b37e02e77f9d6a92e
+  type: sha256
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: DriverInstaller.exe RUSTYSHADE
+hunt_id: H-0691

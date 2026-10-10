@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: nc echo'
+id: d2f0fb82-fcc2-4cfd-82f1-da6897faa831
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "nc 48931 echo "[auth key]:ls"".'
+references:
+- https://www.acronis.com/en/tru/posts/red-heron-exploits-gitea-n-day-flaw-in-multinational-campaign-exposing-new-linux-rootkit/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /nc
+    CommandLine|contains: echo
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0681

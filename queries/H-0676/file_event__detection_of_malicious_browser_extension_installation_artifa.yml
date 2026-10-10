@@ -1,0 +1,35 @@
+title: Detection of Malicious Browser Extension Installation Artifacts via JeetBot Infrastructure
+id: 3de90061-d132-4cb3-ad2a-692257420632
+status: experimental
+description: Detects the creation of files associated with the 'Twitch Enhanced Viewer | JeetBot' malicious
+  browser extension. This rule targets the installation artifacts (likely unpacked extension code or configuration
+  files) that are written to disk when a user installs this rogue extension, which is used to intercept
+  and exfiltrate OAuth tokens via cleartext query parameters.
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1539
+- attack.t1550.004
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: jeetbot
+  condition: selection
+falsepositives:
+- Legitimate browser extensions with 'jet' or 'bot' in their names (e.g., JetBrain tools, bot management
+  utilities)
+- Custom user scripts or configuration files named by the user
+level: high
+hunt_id: H-0676
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects file creation artifacts (installation), whereas the hypothesis and source passages
+    describe network-based interception and exfiltration behavior (proxied requests, token stripping).
+    The rule does not detect the core malicious activity described in the hypothesis.
+  - 'The detection logic `TargetFilename|contains: jeetbot` is overly broad and likely to generate false
+    positives from legitimate software or user files, as noted in its own false positives section, making
+    it a weak indicator for this specific threat hunt.'

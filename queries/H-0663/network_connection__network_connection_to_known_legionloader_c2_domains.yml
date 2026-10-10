@@ -1,0 +1,42 @@
+title: Network Connection to Known LegionLoader C2 Domains
+id: 79765a3f-e013-4a7e-aaf6-e989c5fae6e1
+status: experimental
+description: Detects outbound network connections to domains associated with the LegionLoader malware
+  campaign. These domains (dallasbackstage.com, gemscocl.com) are used as part of a ClickFix social engineering
+  attack where victims are tricked into executing PowerShell commands that download and execute the malicious
+  payload.
+references:
+- https://asec.ahnlab.com/en/95374/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1566.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|contains:
+    - dallasbackstage.com
+    - gemscocl.com
+  condition: selection
+falsepositives:
+- Legitimate web traffic if the domain is used for benign purposes (unlikely given threat intel)
+- Typosquatting or similar looking domains
+level: high
+hecate_provenance:
+- value: dallasbackstage.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: gemscocl.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0663
+hecate_review:
+  verdict: keep

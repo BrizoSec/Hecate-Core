@@ -1,0 +1,26 @@
+title: Execution of ARTEX Agentic Tool for C2 Proxying
+id: a274ebf5-a40a-468e-8063-85bb858622e6
+status: experimental
+description: Detects the execution of the ARTEX tool, an AI-driven penetration testing utility used by
+  threat actors to automate exploitation and route Command and Control traffic through proxy networks
+  to evade IP reputation blocklists targeting South Korean financial institutions.
+references:
+- https://www.crowdstrike.com/en-us/blog/unknown-threat-actor-uses-artex-to-target-south-korean-finance/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1027.010
+- attack.t1204.004
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: ARTeX
+  condition: selection
+falsepositives:
+- Legitimate security researchers using ARTEX for authorized penetration testing
+- Development or QA environments utilizing the tool for automated vulnerability assessment
+level: high
+hunt_id: H-0690
+hecate_review:
+  verdict: keep

@@ -1,0 +1,57 @@
+title: DNS Query to AMOS Stealer Staging and C2 Domains
+id: 07dd00ea-434f-4a63-a721-0f0b56b110aa
+status: experimental
+description: Detects DNS lookups for domains associated with the Atomic macOS (AMOS) Stealer campaign.
+  These domains are used for staging Z-shell scripts and exfiltrating harvested user data via HTTP POST
+  requests. This behavior indicates active infection or command-and-control communication.
+references:
+- https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - getmacouscloud.com
+    - ferncore13.com
+    - grove-89.com
+  condition: selection
+falsepositives:
+- Legitimate cloud storage or CDN services with similar naming conventions
+- Internal development domains mimicking external staging URLs
+level: high
+hecate_provenance:
+- value: getmacouscloud.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+  evidence: The domain hosting the malicious page claiming to have installation instructions for a macOS
+    toolkit is getmacouscloud[.]com.
+- value: https://getmacouscloud.com
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/atomic-macos-amos-stealer-activity/
+  evidence: 'Malicious website with instructions that will infect a vulnerable macOS host: hxxps[:]//getmacouscloud[.]com'
+hunt_id: H-0643
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule title and description claim to detect 'C2 Domains', but the detection logic only includes
+    staging domains (getmacouscloud.com, ferncore13.com, grove-89.com). It omits the actual C2 IP addresses
+    (161.35.146.120, 188.166.78.138) mentioned in the hypothesis and passages.
+  - The rule relies on DNS queries for domains that are primarily described as hosting malicious pages
+    or serving payloads via HTTP/HTTPS (URLs), not necessarily requiring distinct DNS lookups for C2 communication
+    in the context of the hypothesis which emphasizes HTTP POST exfiltration to IPs.
+  - The description states it detects 'exfiltrating harvested user data via HTTP POST requests', but DNS
+    queries do not detect HTTP POST traffic; they only detect domain resolution. The rule fails to detect
+    the actual exfiltration mechanism described.
+  unverified_contradiction: The rule claims to detect C2 domains and exfiltration, but the provided detection
+    list contains only staging/initial access domains and no C2 infrastructure (IPs or domains) associated
+    with the post-infection HTTP POST traffic.

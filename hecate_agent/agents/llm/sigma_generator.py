@@ -332,6 +332,7 @@ class SigmaGenerationInput:
     """Input for Sigma rule generation."""
 
     hypothesis: str
+    threat_intel: str = ""
     hunt_id: str = ""
     justification: str = ""
     techniques: List[str] = field(default_factory=list)
@@ -895,7 +896,8 @@ def _partial_indicator_problem(detection: Dict[str, Any], supplied: Dict[str, Li
     return None
 
 
-def _self_defeating_filter_problem(detection: Dict[str, Any], hypothesis: str) -> Optional[str]:
+def _self_defeating_filter_problem(detection: Dict[str, Any], 
+    hypothesis: str) -> Optional[str]:
     """Reject an exclusion that removes the hunt's own stated attack path.
 
     Also rejects an empty filter block: `filter: {}` referenced by a condition
@@ -1544,11 +1546,18 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
     def _source_passages(input_data: SigmaGenerationInput) -> List[str]:
         """The verified source text the reviewer judges against: artifact and indicator evidence, and guidance."""
         passages: List[str] = []
-        for text in [
+        texts = [
             *(str(a.get("evidence", "")) for a in input_data.source_artifacts),
             *(str(g.get("text", "")) for g in input_data.detection_guidance),
             *(str(r.get("evidence", "")) for r in input_data.indicator_records),
-        ]:
+        ]
+        if input_data.threat_intel:
+            from hecate_agent.core.source_evidence import chunk_text
+            texts.extend(chunk_text(input_data.threat_intel, size=300, overlap=50))
+            
+        for text in texts:
+            if not text or text == "cti":
+                continue
             text = " ".join(text.split())[:300]
             if len(text) >= 12 and text not in passages:
                 passages.append(text)

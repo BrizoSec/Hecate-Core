@@ -1,0 +1,41 @@
+title: Web3 Supply Chain Compromise via Infected npm Dependencies on macOS
+id: c36d9b8b-4377-4aff-aebc-562bc1a026b5
+status: experimental
+description: Detects the creation of files associated with known backdoored npm packages identified in
+  Unit 42's Web3 cloud supply chain attack report. This rule targets the persistence mechanism where attackers
+  compromise open-source registries (npm, crates.io) to distribute malicious dependencies like 'keyv'
+  and 'cacheable-request' to developer workstations. While the hypothesis mentions process execution of
+  custom Bun runtimes, this file_event rule specifically hunts for the disk artifacts written during the
+  dependency installation phase, which is a prerequisite for the subsequent credential harvesting and
+  C2 activities.
+references:
+- https://unit42.paloaltonetworks.com/web3-cloud-supply-chain-attacks/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1027
+- attack.t1566
+logsource:
+  category: file_event
+detection:
+  selection_infected_packages:
+    TargetFilename|contains: cacheable-request
+  condition: selection_infected_packages
+falsepositives:
+- Legitimate software development using the 'keyv' caching library or 'cacheable-request' HTTP client
+- Standard npm install operations in CI/CD pipelines or local developer environments
+level: high
+hecate_provenance:
+- value: cacheable-request
+  type: file_path
+  role: infected_package
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0694
+hecate_review:
+  verdict: keep
+  issues:
+  - The rule detects file creation events for 'cacheable-request', which is explicitly identified in the
+    source passages as an infected npm package (Passage 10, 11). This aligns with the hypothesis's mention
+    of indicators appearing in developer workstations/CI/CD runners during supply chain attacks.

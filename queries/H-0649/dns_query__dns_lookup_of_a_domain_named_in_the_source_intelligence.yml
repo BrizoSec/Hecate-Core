@@ -1,0 +1,205 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 5e98ff78-8430-4aef-bf04-a91ca56f4592
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - setupmypasskey.com
+    - validationsetupac.com
+    - portalsetuphub.com
+    - myconnectkey.com
+    - oskeysync.com
+    - keysyncos.com
+    - oskeyregister.com
+    - passkeyhelpdesk.com
+    - oskeysetup.com
+    - add-passkey.com
+    - company-name.integratedsso.com
+    - company-name.secure-passkey.com
+    - companyname.maliciousdomain.com
+    - contoso.add-passkey.com
+    - secure-passkey.com
+    - integratedsso.com
+    - oktasession.com
+    - syncmykey.com
+    - oskeyconnect.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .setupmypasskey.com
+    - .validationsetupac.com
+    - .portalsetuphub.com
+    - .myconnectkey.com
+    - .oskeysync.com
+    - .keysyncos.com
+    - .oskeyregister.com
+    - .passkeyhelpdesk.com
+    - .oskeysetup.com
+    - .add-passkey.com
+    - .secure-passkey.com
+    - .integratedsso.com
+    - .oktasession.com
+    - .syncmykey.com
+    - .oskeyconnect.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: setupmypasskey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: validationsetupac.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Setup and verification validationsetupac[.]com, portalsetuphub[.]com
+- value: portalsetuphub.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Setup and verification validationsetupac[.]com, portalsetuphub[.]com
+- value: myconnectkey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: oskeysync.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: keysyncos.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: oskeyregister.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: passkeyhelpdesk.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: oskeysetup.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: add-passkey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: company-name.integratedsso.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: For example, company-name.integratedsso[.]com and company-name.secure-passkey[.]com illustrate
+    how the same company name can appear under different actor-controlled domains.
+- value: company-name.secure-passkey.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: For example, company-name.integratedsso[.]com and company-name.secure-passkey[.]com illustrate
+    how the same company name can appear under different actor-controlled domains.
+- value: companyname.maliciousdomain.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The actor creates domains following the pattern companyname[.]maliciousdomain[.]com to impersonate
+    organization-specific authentication portals.
+- value: contoso.add-passkey.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: 'Example: contoso[.]add-passkey[.]com .'
+- value: secure-passkey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: integratedsso.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: SSO and identity provider integratedsso[.]com†, oktasession[.]com
+- value: oktasession.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: SSO and identity provider integratedsso[.]com†, oktasession[.]com
+- value: syncmykey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: oskeyconnect.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+hunt_id: H-0649

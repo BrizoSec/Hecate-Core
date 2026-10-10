@@ -1,0 +1,34 @@
+title: GhostCode Device Code Phishing HTML Payload Creation
+id: 098b3f74-d803-4727-b2d4-63898cce5661
+status: experimental
+description: Detects the creation of obfuscated HTML files associated with the GhostCode campaign's OAuth
+  2.0 device code phishing attacks. These payloads are used to register unauthorized devices and harvest
+  Primary Refresh Tokens (PRT) by bypassing traditional MFA prompts.
+references:
+- https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: 3arhCt9c0p.html
+  condition: selection
+falsepositives:
+- Legitimate HTML document generation by developers
+- Automated web scraping or content management systems creating temporary HTML files
+level: high
+hunt_id: H-0689
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule uses a specific filename '3arhCt9c0p.html' as a detection indicator. Passage [4] states this
+    is *an* HTML file used in the campaign, implying it is an example or instance, not necessarily the
+    only variant or a static signature for all instances of the attack. Hardcoding a specific temporary
+    filename makes the rule brittle and likely to miss other variants of the same campaign.
+  - The logsource is 'file_event', which typically refers to file creation/modification on endpoints.
+    While Passage [4] mentions the HTML file, it does not explicitly confirm that the detection relies
+    on observing its *creation* event on a host, nor does it rule out network-based detection (e.g., HTTP
+    request for this file). However, the primary issue is the over-scoping to a single filename.

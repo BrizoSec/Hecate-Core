@@ -1,0 +1,83 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 27af21ed-6922-4777-a3c2-ccadb83ab57b
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - skipraid.com
+    - 9342371634011778.com
+    - linked4x.com
+    - api.truesmart.org
+    - api.telephoneip.net
+    - finger.linked4x.com
+    - finger.linked4x.com
+    - api.truesmart.org
+  selection_subdomain:
+    QueryName|endswith:
+    - .skipraid.com
+    - .9342371634011778.com
+    - .linked4x.com
+    - .finger.linked4x.com
+    - .api.truesmart.org
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: skipraid.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: Note that the CastleLoader and CastleRAT components were downloaded from skipraid[.]com using
+    the User-Agent string K8VGmQTrzX.
+- value: 9342371634011778.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: 'The renamed curl executable is then used to download IronPython from GitHub using the following
+    command line: "C:\Users\[redacted]\AppData\Local\9342371634011778.com"'
+- value: linked4x.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: finger.linked4x[.]com ClickFix script domain
+- value: api.truesmart.org
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: 'Host: api.truesmart.org'
+- value: api.telephoneip.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: api.telephoneip[.]net SloppyRAT C2 Domain
+- value: finger.linked4x.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/sloppyrat-new-tool-ransomware-attacks
+  evidence: ThreatLabz observed SloppyRAT distributed via a ClickFix style lure, using finger.exe to download
+    and execute a batch script from finger.linked4x[.]com
+hunt_id: H-0661

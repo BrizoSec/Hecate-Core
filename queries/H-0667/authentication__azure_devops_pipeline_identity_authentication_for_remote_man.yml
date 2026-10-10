@@ -1,0 +1,48 @@
+title: Azure DevOps Pipeline Identity Authentication for Remote Management Tools
+id: ea37e38e-5ae3-4262-b319-f31c48057f13
+status: experimental
+description: Detects authentication events from Azure DevOps service identities or pipeline agents that
+  are associated with the execution of remote management agents (Atera) or tunneling utilities (Chisel).
+  While the tools themselves execute in process creation logs, their installation and initial configuration
+  often require elevated administrative privileges authenticated via the CI/CD platform's identity. This
+  rule hunts for the authentication context that enables the subsequent malicious tool deployment.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/29/beyond-source-code-a-path-to-the-keys-to-the-kingdom/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1078
+logsource:
+  category: authentication
+detection:
+  selection:
+    TargetUserName|contains:
+    - _service
+    - vssps://
+    - 'AAD:'
+  condition: selection
+falsepositives:
+- Legitimate CI/CD pipeline deployments
+- Standard Azure DevOps service account operations
+- Automated infrastructure provisioning scripts
+level: medium
+hunt_id: H-0667
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule targets ''authentication'' logs (logsource: authentication), but the hypothesis and source
+    passages describe the *modification* of pipeline scripts and the *installation* of tools, which are
+    typically detected via file creation/modification or process execution logs, not just authentication
+    events.'
+  - The detection logic relies on `TargetUserName` containing generic strings like '_service' or 'vssps://',
+    which are likely to cause high false positives in any Azure DevOps environment and do not specifically
+    correlate with the malicious activity described (installing Atera/Chisel) without further context
+    linking these identities to the specific pipeline modification events.
+  - The rule description mentions hunting for 'authentication context', but the core threat is the *action*
+    of modifying scripts to install agents, which is a distinct behavioral indicator from the authentication
+    event itself.
+  unverified_contradiction: The rule focuses on authentication logs to detect the behavior, whereas the
+    source passages explicitly state the actor 'modified pipeline scripts' and 'created a malicious pipeline',
+    implying file system or CI/CD configuration changes are the primary indicators, not just the authentication
+    event. While authentication is involved, relying solely on it for this specific detection logic is
+    weak and potentially misses the actual modification events described.

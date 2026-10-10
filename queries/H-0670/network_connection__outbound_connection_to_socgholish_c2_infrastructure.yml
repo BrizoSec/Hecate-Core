@@ -1,0 +1,41 @@
+title: Outbound Connection to SocGholish C2 Infrastructure
+id: ee66928f-9246-4c72-87d8-f6d8e4943e9d
+status: experimental
+description: Detects outbound network connections to known SocGholish framework command and control infrastructure
+  associated with the campaign targeting Washington State election infrastructure. This behavior indicates
+  potential initial access or persistence establishment via obfuscated WScript execution.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1105
+- attack.t1566.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all:
+    - 198.51.100.45
+    - 203.0.113.88
+  condition: selection_ip
+falsepositives:
+- Legitimate traffic to cloud hosting providers or CDNs that may share IP ranges with threat actors
+- Internal network scanning or monitoring tools targeting these IPs for validation
+level: high
+hecate_provenance:
+- value: 198.51.100.45
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 203.0.113.88
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0670
+hecate_review:
+  verdict: keep

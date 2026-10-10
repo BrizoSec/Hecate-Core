@@ -1,0 +1,32 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 0d45eb45-44ff-4e2f-919e-58fe737851c2
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.wiz.io/blog/artifactory-under-attack-in-the-wild-exploitation-of-cve-2026-42016-cve-2026-4201
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - log.gitclone.org
+  selection_subdomain:
+    QueryName|endswith:
+    - .log.gitclone.org
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: log.gitclone.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0658

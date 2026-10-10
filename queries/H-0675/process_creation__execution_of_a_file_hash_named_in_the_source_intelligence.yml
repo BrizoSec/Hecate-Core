@@ -1,0 +1,39 @@
+title: Execution of a file hash named in the source intelligence
+id: 0822de86-2902-4a6a-a68e-1f044481bb2c
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=1bd314b661396c7086f6367fbbb48025e03ca2de69c073d53a8b0a38aa5fbb7d
+    - SHA256=ae22ef2517b5c0fb47f78745b9cb5260acee0e751b89bcd354640ff8bc8d29ec
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 1bd314b661396c7086f6367fbbb48025e03ca2de69c073d53a8b0a38aa5fbb7d
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+  evidence: 1bd314b661396c7086f6367fbbb48025e03ca2de69c073d53a8b0a38aa5fbb7d - Base64 payload
+- value: ae22ef2517b5c0fb47f78745b9cb5260acee0e751b89bcd354640ff8bc8d29ec
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+  evidence: ae22ef2517b5c0fb47f78745b9cb5260acee0e751b89bcd354640ff8bc8d29ec - nsg64.deb file
+hunt_id: H-0675

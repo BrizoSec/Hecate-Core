@@ -1,0 +1,25 @@
+title: Scheduled Task Persistence via UpdateCheck in Temp Directory
+id: 0d41b3f1-f1f2-46fb-a41f-ef984359a40e
+status: experimental
+description: Detects the creation of a scheduled task named 'UpdateCheck' within temporary directories,
+  a technique used by SocGholish to establish persistence on Windows endpoints. This behavior aligns with
+  adversary campaigns targeting election infrastructure.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: \Tasks\UpdateCheck
+  condition: selection
+falsepositives:
+- Legitimate software installers or updaters creating scheduled tasks in temp folders
+- System maintenance scripts
+level: high
+hunt_id: H-0670
+hecate_review:
+  verdict: keep

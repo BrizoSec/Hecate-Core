@@ -1,0 +1,28 @@
+title: DNS Query to Bitrefill Typosquatting and Punycode Domains
+id: e9f9b159-488a-4c42-8b3b-281bc81109c4
+status: experimental
+description: Detects DNS queries to known lookalike domains registered by threat actors to mimic the legitimate
+  cryptocurrency gift card retailer Bitrefill. These domains utilize typosquatting (e.g., bitretill.com)
+  and Punycode encoding (xn--...) to bypass visual inspection and direct users to fake checkout pages
+  for credential or cryptocurrency theft.
+references:
+- https://www.malwarebytes.com/blog/threat-intel/2026/09/search-results-are-sending-people-to-fake-bitrefill-checkouts
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1176.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|re: (?i)(bitretill|bitrefill-payments|bitrefill-pays|bitruflli|bitrefall|bitrnfill|biterflll|bitregift|bitigift|pay-bitregill|bitrgift|bitrgifts|butrefill|pay-butrefill|pay-bitrgift|pay-bitrgifts|pay-bitigift|xn--bitrefll-71a|xn--bitrefll-h2a|xn--bitrefll-pay-kfb|xn--bitrefll-pay-xfb|xn--bitrefll-q2a|xn--bitreill-cz9c|xn--bitreill-pay-yq4f|xn--btrefill-l2a|xn--pay-bitrefll-fgb)
+  condition: selection
+falsepositives:
+- Legitimate users mistyping bitrefill.com
+- Security researchers monitoring threat infrastructure
+- CDN or proxy services resolving to these domains
+level: high
+hunt_id: H-0680
+hecate_review:
+  verdict: keep

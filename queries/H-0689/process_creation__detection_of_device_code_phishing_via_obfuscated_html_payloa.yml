@@ -1,0 +1,46 @@
+title: Detection of Device Code Phishing via Obfuscated HTML Payload Execution
+id: 8c1e3c7c-fe9b-439f-9831-679c3a0a334a
+status: experimental
+description: Detects the execution of obfuscated HTML payloads associated with the GhostCode campaign.
+  Adversaries use this technique to initiate the Microsoft OAuth 2.0 Device Authorization Grant flow,
+  bypassing traditional MFA prompts to harvest Primary Refresh Tokens (PRT). This rule targets the specific
+  file name and command-line patterns observed in the malicious artifacts.
+references:
+- https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1036
+- attack.t1059.007
+- attack.t1204.002
+logsource:
+  category: process_creation
+detection:
+  selection_file:
+    CommandLine|contains: 3arhCt9c0p.html
+  condition: selection_file
+falsepositives:
+- Legitimate HTML file processing by system utilities or scripts
+- User opening local HTML documentation
+level: high
+hunt_id: H-0689
+hecate_review:
+  verdict: reject
+  issues:
+  - 'The rule specifies `logsource: category: process_creation`, implying detection via command-line execution
+    logs.'
+  - The source passages describe an HTML file ('3arhCt9c0p.html') that is 'password-gated' and functions
+    as a relay/bot-filtering layer accessed via a redirect URL. There is no mention of the HTML file being
+    executed locally via a process creation event (e.g., `cmd.exe`, `powershell.exe`, or a browser launching
+    the file).
+  - The rule claims to target 'command-line patterns observed in the malicious artifacts', but Passage
+    [4] and [5] describe the artifact as a web-based phishing kit accessed via URL, not a local executable
+    or script run via command line.
+  - Passage [18] mentions `python-requests/2.34.2` being used for requests, which implies server-side
+    or automated client-side HTTP traffic, not necessarily a local process creation event on the victim's
+    machine that would be captured by standard `process_creation` logs in the manner described (matching
+    the filename directly in CommandLine). Even if it were, the primary mechanism described is web-based
+    phishing, not local file execution.
+  unverified_contradiction: The rule asserts detection via process creation command lines containing the
+    HTML filename. The passages describe the HTML as a password-gated web artifact used in a phishing
+    relay, with no evidence of it being executed as a local process via command line.

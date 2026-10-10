@@ -1,0 +1,28 @@
+title: Detection of PIVOTPIPE Loader Execution via netbeacon_pivot.exe
+id: e35f3644-61ba-4889-b360-79ea6be6b974
+status: experimental
+description: Detects the execution of the PIVOTPIPE custom .NET loader binary (netbeacon_pivot.exe). This
+  binary is used to deploy an in-memory RAT and drop debug artifacts. Detection focuses on the specific
+  executable name found in process creation events, as standard EDR signatures may miss the associated
+  AMSI bypass and indirect syscall techniques.
+references:
+- https://sect.iij.ad.jp/blog/2026/09/pivotpipe/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027
+- attack.t1059.006
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: netbeacon_pivot.exe
+  condition: selection
+falsepositives:
+- Legitimate .NET development tools or internal custom binaries with similar naming
+- Software installers containing embedded components with similar names
+level: high
+hunt_id: H-0683
+hecate_review:
+  verdict: keep

@@ -1,0 +1,49 @@
+title: macOS ClickFix Social Engineering and Malicious LaunchAgent Deployment
+id: ef8bf45d-0fa1-4741-ab8b-27f4ca8d0647
+status: experimental
+description: Detects the execution of malicious AppleScript commands that trigger the download and installation
+  of a Go-based Mach-O stealer disguised as a legitimate macOS system update process. This rule targets
+  the initial social engineering vector (osascript) and the subsequent persistence mechanism (launchctl
+  installing a LaunchAgent with a spoofed name).
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1036.005
+- attack.t1059.002
+- attack.t1059.004
+- attack.t1204.004
+- attack.t1543.001
+logsource:
+  category: process_creation
+detection:
+  selection_osascript:
+    Image|endswith: /usr/bin/osascript
+  selection_launchctl:
+    Image|endswith: /usr/sbin/launchctl
+    CommandLine|contains: bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist
+  condition: selection_osascript or selection_launchctl
+falsepositives:
+- Legitimate system administration scripts using osascript to configure macOS settings.
+- Automated deployment tools using launchctl to manage system services.
+- Users manually running osascript for personal automation tasks.
+level: high
+hunt_id: H-0642
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule description claims the stealer is 'Go-based', but the hypothesis and source passages (specifically
+    Passage 11 and 12) identify the stealer executables as Mach-O binaries without specifying Go, while
+    explicitly identifying the loader/profiler as a Bash script. More critically, the detection logic
+    relies on `osascript` execution, but Passage 8 states privileges were attained by 'prompting the victim
+    for their credentials via an osascript dialogue', implying user interaction rather than silent automated
+    execution of malicious AppleScript commands to trigger downloads. The primary download mechanism described
+    in Passage 2 is a Bash one-liner using `curl`, not `osascript`.
+  - The rule targets `osascript` as the initial vector, but Passage 15 and Passage 2 indicate the ClickFix
+    phase involves a domain (`profitnow.io`) and a Bash command (`curl ... && bash .UlaccK`). The `osascript`
+    usage in Passage 8 is for credential harvesting/elevation, not the initial download/installation of
+    the stealer described in the hypothesis's 'ClickFix' context.
+  unverified_contradiction: The rule describes detecting 'malicious AppleScript commands that trigger
+    the download', but the source passages describe the download being triggered by a Bash command (curl)
+    and osascript being used later for credential prompting, not as the primary download trigger.

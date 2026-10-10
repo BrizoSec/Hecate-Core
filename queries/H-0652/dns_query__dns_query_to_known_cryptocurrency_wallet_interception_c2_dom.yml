@@ -1,0 +1,95 @@
+title: DNS Query to Known Cryptocurrency Wallet Interception C2 Domains
+id: e5a61595-d499-4183-ae1e-8a9c4e0b5c33
+status: experimental
+description: Detects DNS queries for domains associated with a campaign targeting cryptocurrency traders.
+  These domains are used by malicious browser extensions (e.g., axiom-fetch-intercept.js) to exfiltrate
+  session tokens and wallet data via Base64-encoded HTTP requests. The presence of these specific domains
+  indicates potential compromise of financial assets.
+references:
+- https://socket.dev/blog/chrome-firefox-crypto-data-theft
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1176.001
+- attack.t1204.002
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - j7tracker.io
+    - snapshot.xyz
+    - dcfdc-eight.vercel.app
+    - snipex-iota.vercel.app
+    - cloudflare.bonto.run
+    - susi.bonto.run
+  condition: selection
+falsepositives:
+- Legitimate use of Vercel for web hosting
+- Legitimate use of snapshot.xyz for blockchain governance
+- Legitimate use of j7tracker.io for analytics
+level: high
+hecate_provenance:
+- value: j7tracker.io
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: 'VREO — Firefox ID: vreo@j7tracker.io'
+- value: snapshot.xyz
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: 'Orbit Tracker — Firefox ID: orbittracker@snapshot.xyz'
+- value: cloudflare.bonto.run
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: susi[.]bonto[.]run hxxps://susi[.]bonto[.]run/collect?d= cloudflare[.]bonto[.]run
+- value: susi.bonto.run
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: Hunt DNS, proxy, browser, and EDR telemetry for susi[.]bonto[.]run
+- value: dcfdc-eight.vercel.app
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: Hunt DNS, proxy, browser, and EDR telemetry for dcfdc-eight[.]vercel[.]app
+- value: snipex-iota.vercel.app
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/chrome-firefox-crypto-data-theft
+  evidence: Hunt DNS, proxy, browser, and EDR telemetry for snipex-iota[.]vercel[.]app
+hunt_id: H-0652
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects DNS queries to 'j7tracker.io' and 'snapshot.xyz'. The source passages [9] and [10]
+    identify these domains only as Firefox IDs (e.g., 'vreo@j7tracker.io') associated with malicious extensions,
+    not as C2 infrastructure. The hypothesis states exfiltration occurs via HTTP requests to Vercel and
+    custom domains (like bonto.run), not to the extension provider's domain.
+  - The rule includes 'cloudflare.bonto.run' in the detection list. Passage [11] lists this as part of
+    a URL path or associated infrastructure ('susi[.]bonto[.]run hxxps://susi[.]bonto[.]run/collect?d=
+    cloudflare[.]bonto[.]run'), but it is not explicitly identified as a primary C2 domain for DNS hunting
+    in the same way 'susi.bonto.run' is. Including it may cause false positives if it is merely a CDN
+    edge node rather than the specific C2 host.
+  - The rule misses the specific file indicator 'axiom-fetch-intercept.js' mentioned in passage [1] as
+    the malicious browser extension, focusing only on network indicators.
+  unverified_contradiction: The rule treats j7tracker.io and snapshot.xyz as C2 domains for exfiltration.
+    The source passages identify them only as Firefox IDs for malicious extensions, not as destinations
+    for data exfiltration.

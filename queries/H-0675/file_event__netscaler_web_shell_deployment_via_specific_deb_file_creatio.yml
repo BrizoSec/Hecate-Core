@@ -1,0 +1,27 @@
+title: NetScaler Web Shell Deployment via Specific .deb File Creation
+id: 7f72fce2-a79a-42a5-82c6-df4046fd38a6
+status: experimental
+description: Detects the creation of specific .deb files (nsgclient18.deb or nsg64.deb) in the NetScaler
+  web shell directory (/vpn/scripts/linux/), which is a known TTP for establishing persistent access via
+  CVE-2026-88771 and CVE-2026-88772 exploitation.
+references:
+- https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1505.003
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith:
+    - /vpn/scripts/linux/nsgclient18.deb
+    - /vpn/scripts/linux/nsg64.deb
+  condition: selection
+falsepositives:
+- Legitimate NetScaler software updates or package installations
+- Administrative maintenance scripts deploying configuration packages
+level: high
+hunt_id: H-0675
+hecate_review:
+  verdict: keep

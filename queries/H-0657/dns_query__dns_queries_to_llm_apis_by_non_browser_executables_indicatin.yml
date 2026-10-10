@@ -1,0 +1,81 @@
+title: DNS Queries to LLM APIs by Non-Browser Executables Indicating Autonomous Decision-Making
+id: 8d91ce83-6c54-4915-b9a3-ce03b6142b70
+status: experimental
+description: Detects DNS queries to commercial Large Language Model API endpoints (DeepSeek, OpenRouter,
+  Mistral) initiated by non-browser Windows executables. This behavior indicates the CLOSEDQUORUM malware
+  performing autonomous, AI-driven tactical decision-making for post-exploitation capabilities, as it
+  queries these APIs to determine subsequent actions like credential theft or process injection.
+references:
+- https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1573
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_query:
+    QueryName|endswith:
+    - api.mistral.ai
+    - api.deepseek.com
+    - openrouter.ai
+    - cdn.discordapp.com
+  selection_exec:
+    Image|endswith: \rundll32.exe
+  condition: selection_query and selection_exec
+falsepositives:
+- Legitimate developer tools or IDEs using LLM APIs for code assistance
+- Enterprise software updates or telemetry services integrating with OpenRouter or Mistral
+- Research or testing environments explicitly configured to use these AI services
+level: high
+hecate_provenance:
+- value: api.deepseek.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: openrouter.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: api.mistral.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: cdn.discordapp.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: Discord webhook communication from the same process or host ... The implant posts stolen credentials
+    and other collected material to an operator-controlled Discord webhook.
+hunt_id: H-0657
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule restricts detection to 'rundll32.exe' via the 'selection_exec' condition, but the source
+    passages describe the malware as a Go binary ('gohno-final.exe') that uses PowerShell for persistence
+    and various other mechanisms. There is no evidence in the provided text that the autonomous LLM decision-making
+    or C2 communication occurs specifically within rundll32.exe.
+  - The rule includes 'cdn.discordapp.com' in the DNS query selection, but the hypothesis focuses on 'autonomous
+    LLM-driven decision-making'. Discord webhooks are used for exfiltration (passage 22), not for the
+    dynamic selection of post-exploitation capabilities via LLM APIs. Including it dilutes the specificity
+    regarding the hypothesis.
+  - The rule relies solely on DNS queries, which is a weak indicator for 'autonomous decision-making'
+    compared to the actual API traffic or process behavior described.
+  unverified_contradiction: The rule specifies that the detection applies to rundll32.exe, but the source
+    passages identify the malware as a Go binary (gohno-final.exe) and do not mention rundll32.exe being
+    used for the LLM-driven decision-making or C2 activities.

@@ -1,0 +1,61 @@
+title: Connection to an address or host named in the source intelligence
+id: d621c997-a826-4004-bf22-ff850133579a
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: api.deepseek.com
+  selection_2_any:
+    DestinationHostname: openrouter.ai
+  selection_3_any:
+    DestinationHostname: api.mistral.ai
+  selection_4_any:
+    DestinationHostname: cdn.discordapp.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: api.deepseek.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: openrouter.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: api.mistral.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: AI-provider API traffic originating from an unexpected Windows executable ... Similar requests
+    potentially sent to several model providers within a short interval
+- value: cdn.discordapp.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: Discord webhook communication from the same process or host ... The implant posts stolen credentials
+    and other collected material to an operator-controlled Discord webhook.
+hunt_id: H-0657

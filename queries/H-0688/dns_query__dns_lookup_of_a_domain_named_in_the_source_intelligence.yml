@@ -1,0 +1,51 @@
+title: DNS lookup of a domain named in the source intelligence
+id: fdbcba19-429a-45ed-ba24-e836a305fc95
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://isc.sans.edu/diary/rss/33400
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - server.na-2.action1.com
+    - up-theta-rose.vercel.app
+    - update-two-tau.vercel.app
+  selection_subdomain:
+    QueryName|endswith:
+    - .server.na-2.action1.com
+    - .up-theta-rose.vercel.app
+    - .update-two-tau.vercel.app
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: server.na-2.action1.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://isc.sans.edu/diary/rss/33400
+  evidence: 'The CustomerID is: 49b18106-681d-456a-b098-092e2818c09a and is connecting to the Action1
+    infrastructure via server[.]na-2.action1[.]com.'
+- value: up-theta-rose.vercel.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: update-two-tau.vercel.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0688

@@ -1,0 +1,33 @@
+title: SocGholish Persistence via UpdateCheck Scheduled Task Creation
+id: e00e398c-83f8-477c-8561-1dcf4488f6fd
+status: experimental
+description: Detects the creation of a scheduled task named 'UpdateCheck' using schtasks.exe. This specific
+  task name is an indicator of SocGholish post-exploitation activity used to establish persistence on
+  compromised election infrastructure systems.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1053.005
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \schtasks.exe
+    CommandLine|contains: /create
+  condition: selection
+falsepositives:
+- Legitimate system administration scripts creating maintenance tasks
+- Software installers or updaters scheduling background updates
+- Group Policy Objects applying scheduled task configurations
+level: high
+hunt_id: H-0654
+hecate_review:
+  verdict: revise
+  issues:
+  - The hypothesis specifies 'obfuscated WScript execution from temporary directories' as the method to
+    download payloads, but the rule only detects scheduled task creation via schtasks.exe, ignoring the
+    WScript/obfuscation aspect.
+  - The source passages are empty, so the rule cannot be validated against specific technical details
+    provided in a report, making it an unverified draft based solely on the hypothesis.

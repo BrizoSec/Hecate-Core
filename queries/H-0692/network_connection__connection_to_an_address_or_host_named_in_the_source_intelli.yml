@@ -1,0 +1,69 @@
+title: Connection to an address or host named in the source intelligence
+id: 0124f498-efdb-413b-9af2-61b2d43e7784
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://cyberint.com/blog/dark-web/noodle-rat-a-recipe-for-cross-platform-espionage
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 58.181.61.142
+  selection_2_any:
+    DestinationIp: 137.220.158.91
+  selection_3_any:
+    DestinationIp: 124.230.195.242
+  selection_4_any:
+    DestinationIp: 191.223.42.34
+  selection_5_any:
+    DestinationIp: 64.118.132.233
+  selection_6_any:
+    DestinationHostname: shdufysuf.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 58.181.61.142
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 137.220.158.91
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 124.230.195.242
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 191.223.42.34
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 64.118.132.233
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: shdufysuf.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0692

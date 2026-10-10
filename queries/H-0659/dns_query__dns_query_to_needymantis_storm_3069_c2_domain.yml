@@ -1,0 +1,54 @@
+title: DNS Query to NeedyMantis Storm-3069 C2 Domain
+id: 43bcafa8-1317-41fd-b58a-e3d6d3caf93b
+status: experimental
+description: Detects DNS queries to the domain 'corp.tripswithengine.com', which is associated with the
+  NeedyMantis framework (Storm-3069) used for WebSocket C2 channels. This behavior indicates an active,
+  persistent intrusion attempting to establish long-term access on targeted enterprise workstations.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith:
+    - corp.tripswithengine.com
+    - google.com
+  condition: selection
+falsepositives:
+- Legitimate business communications if the organization uses tripswithengine.com for travel services
+- Google API calls from legitimate applications
+level: high
+hecate_provenance:
+- value: corp.tripswithengine.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+  evidence: '0x12c : C2 host ( corp.tripswithengine[.]com )'
+- value: google.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+  evidence: A 256-byte buffer is created that starts with google.com followed by random bytes
+hunt_id: H-0659
+hecate_review:
+  verdict: revise
+  issues:
+  - The hypothesis specifies 'DLL sideloading from disguised %ProgramData% paths', but the rule detects
+    DNS queries, completely ignoring the DLL path aspect of the hypothesis.
+  - The rule includes 'google.com' in the detection logic. Passage [19] states that a buffer starts with
+    'google.com followed by random bytes', implying it is part of a payload or configuration string, not
+    necessarily a direct DNS query target for C2. Including it as a standalone domain to detect creates
+    high false positives and misrepresents the specific C2 indicator.
+  - 'The rule fails to address the core mechanism described in the hypothesis: DLL sideloading.'
+  unverified_contradiction: The rule detects DNS queries, whereas the hypothesis focuses on DLL sideloading
+    from %ProgramData% paths. While the C2 domain is mentioned in the passages, the rule ignores the primary
+    behavioral indicator (DLL path) defined in the hypothesis.

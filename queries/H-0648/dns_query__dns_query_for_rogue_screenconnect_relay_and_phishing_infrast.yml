@@ -1,0 +1,90 @@
+title: DNS Query for Rogue ScreenConnect Relay and Phishing Infrastructure
+id: e6192227-b4d0-4d9b-8593-ca8b00ea680e
+status: experimental
+description: Detects DNS queries to domains associated with a Browser-in-the-Browser phishing campaign
+  delivering rogue ScreenConnect installers. This behavior indicates an adversary establishing communication
+  with their Command and Control (C2) infrastructure or downloading the malicious payload disguised as
+  legitimate software updates.
+references:
+- https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1204.001
+- attack.t1566.001
+- attack.t1566.002
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - hosthiifran.screenconnect.com
+    - instance-uxh86b-relay.screenconnect.com
+    - relay.goldenmelon.us
+    - relay.illuminantgroup.net
+    - scx.illuminantgroup.net
+    - wir.consultingics.com
+    - victory.mkc1.digitaloceanspaces.com
+  condition: selection
+falsepositives:
+- Legitimate use of ScreenConnect (ConnectWise Control) by IT support staff
+- Users accessing legitimate Adobe update domains if they share similar naming patterns (though unlikely
+  given the specific rogue subdomains)
+- Cloud storage services like DigitalOcean Spaces used for benign file hosting
+level: high
+hecate_provenance:
+- value: relay.goldenmelon.us
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: Infrastructure associated with the initial rogue ScreenConnect Client ( d751818fd46e5ca9 )
+- value: relay.illuminantgroup.net
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: configured to communicate with relay[.]illuminantgroup[.]net
+- value: scx.illuminantgroup.net
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: which downloaded from scx[.]illuminantgroup[.]net
+- value: wir.consultingics.com
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: 'ScreenConnect installer hosting site and delivery: infrastructure associated with the patch.msi
+    ScreenConnect installer.'
+- value: hosthiifran.screenconnect.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: However, the purported "Adobe" installation file was actually ScreenConnect.ClientSetup.exe,
+    a ScreenConnect installer that was downloaded from the attacker-controlled infrastructure, hosthiifran[.]sc
+- value: instance-uxh86b-relay.screenconnect.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+  evidence: 'ScreenConnect trial relay domain: associated with the initial Rogue ScreenConnect Client
+    ( 9c1aea531ba4c511 )'
+- value: victory.mkc1.digitaloceanspaces.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0648
+hecate_review:
+  verdict: keep

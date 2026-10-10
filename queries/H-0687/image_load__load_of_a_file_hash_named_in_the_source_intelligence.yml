@@ -1,0 +1,40 @@
+title: Load of a file hash named in the source intelligence
+id: b150b53a-ded5-4d96-8846-2dfdc066986d
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=4aa9fb1bf9223dfcdac920759bc7a3c7
+    - MD5=631fb131a56caf4ca0f287ed73e876ab
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 4aa9fb1bf9223dfcdac920759bc7a3c7
+  type: md5
+  role: library
+  status: active
+  confidence: unknown
+  source: https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+  evidence: App_Web_Container_1.dll 4aa9fb1bf9223dfcdac920759bc7a3c7 1c-office-plugin.exe, 1cbroker.exe,
+    trueconf.exe
+- value: 631fb131a56caf4ca0f287ed73e876ab
+  type: md5
+  role: library
+  status: active
+  confidence: unknown
+  source: https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+  evidence: 3ecd1cd627d0340c92901a478a7caad8 631fb131a56caf4ca0f287ed73e876ab App_Web_Container_1.dll
+hunt_id: H-0687

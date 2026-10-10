@@ -1,0 +1,27 @@
+title: Telnet Brute Force Attempt on IoT Infrastructure
+id: 243315ba-0fab-4583-a2a5-1977b32e84f2
+status: experimental
+description: Detects high-volume outbound connections to port 23 (Telnet) which indicates credential brute-forcing
+  activity. This behavior is consistent with the KATARU malware campaign targeting IoT devices for initial
+  access before privilege escalation.
+references:
+- https://www.nozominetworks.com/blog/kataru-iot-malware-adopts-public-lpe-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1071
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationPort|all: 23
+    Initiated: true
+  condition: selection | count() > 5
+falsepositives:
+- Legacy industrial control system management
+- Automated configuration scripts for network devices
+- Remote terminal access by administrators
+level: high
+hunt_id: H-0677
+hecate_review:
+  verdict: keep

@@ -1,0 +1,33 @@
+title: Detection of ClickFix Mach-O Stager via Spoofed LaunchAgent Persistence
+id: e6c4ac98-21a5-4794-bd01-a52342e83014
+status: experimental
+description: Detects the loading of the MacSync stealer stager binary (com.utils.Launcher) which is deployed
+  as part of a ClickFix social engineering attack. This rule specifically targets the persistence mechanism
+  where malicious LaunchAgents are installed with spoofed names (e.g., com.google.keystone.plist or com.apple.sync.plist)
+  to evade detection, followed by the execution of the stager.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1620
+logsource:
+  category: image_load
+detection:
+  selection:
+    ImageLoaded|endswith: /com.utils.Launcher
+  condition: selection
+falsepositives:
+- Legitimate system utilities or custom internal tools with similar naming conventions
+- Other malware variants using different binary names but same persistence logic
+level: high
+hecate_provenance:
+- value: com.utils.launcher
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: Code Signing ID com.utils.Launcher Ad-hoc signature bundle identifier
+hunt_id: H-0673
+hecate_review:
+  verdict: keep

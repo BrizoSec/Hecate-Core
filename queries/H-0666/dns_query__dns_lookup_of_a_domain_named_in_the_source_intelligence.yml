@@ -1,0 +1,44 @@
+title: DNS lookup of a domain named in the source intelligence
+id: ec3b4b1b-17eb-4174-b7a9-742f7d782548
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.gendigital.com/blog/insights/research/one-click-backdoor-sogou
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - noht1ng.top
+    - mail.uaiubifas.top
+    - mail.uaiubifas.top
+  selection_subdomain:
+    QueryName|endswith:
+    - .noht1ng.top
+    - .mail.uaiubifas.top
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: noht1ng.top
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.gendigital.com/blog/insights/research/one-click-backdoor-sogou
+  evidence: The exploit page at noht1ng.top served a JavaScript exploit for CVE-2021-38003
+- value: mail.uaiubifas.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.gendigital.com/blog/insights/research/one-click-backdoor-sogou
+  evidence: The domain mail.uaiubifas[.]top is split across a 16-byte XMM constant...
+hunt_id: H-0666

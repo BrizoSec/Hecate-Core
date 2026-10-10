@@ -1,0 +1,70 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 6be98748-996b-4e25-b5c2-700dad0ab4f3
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - pc-sec.hiv
+    - pc-security.hiv
+    - pc-sys-reg.hiv
+    - pc-sys.hiv
+    - pc-system.hiv
+  selection_subdomain:
+    QueryName|endswith:
+    - .pc-sec.hiv
+    - .pc-security.hiv
+    - .pc-sys-reg.hiv
+    - .pc-sys.hiv
+    - .pc-system.hiv
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: pc-sec.hiv
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: SECURITY hive staged for exfil
+- value: pc-security.hiv
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: SECURITY hive staged for exfil
+- value: pc-sys-reg.hiv
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: SYSTEM hive staged for exfil (alternate path)
+- value: pc-sys.hiv
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: SYSTEM hive staged for exfil
+- value: pc-system.hiv
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: SYSTEM hive staged for exfil
+hunt_id: H-0645

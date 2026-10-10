@@ -1,0 +1,72 @@
+title: Noodle RAT C2 Communication via Known Infrastructure
+id: 699a7b01-c8e2-4d88-895a-36b125680217
+status: experimental
+description: Detects network connections to known Command and Control (C2) infrastructure associated with
+  the Noodle RAT (ANGRYREBEL) threat actor. This rule targets the exfiltration phase where collected data
+  is archived and encrypted prior to transmission over these specific IP addresses.
+references:
+- https://cyberint.com/blog/dark-web/noodle-rat-a-recipe-for-cross-platform-espionage
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1041
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|all:
+    - 58.181.61.142
+    - 137.220.158.91
+    - 124.230.195.242
+    - 191.223.42.34
+    - 64.118.132.233
+  condition: selection
+falsepositives:
+- Legitimate traffic to cloud hosting providers or CDNs that may share IP ranges with threat actors
+- Misconfigured internal DNS resolving to public IPs
+level: high
+hecate_provenance:
+- value: 58.181.61.142
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 137.220.158.91
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 124.230.195.242
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 191.223.42.34
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 64.118.132.233
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0692
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule is scoped exclusively to Windows (logsource: product: windows), whereas the hypothesis and
+    source passages explicitly state that Noodle RAT operates on both Windows and Linux systems.'
+  - The rule description claims it targets the phase where 'collected data is archived and encrypted prior
+    to transmission', but the detection logic only checks for network connections to specific IPs. The
+    source passages describe the encryption methods (RC4, XOR, AES-128-CBC) but do not provide specific
+    IP addresses associated with this activity in the provided text, making the specific IPs unverifiable
+    against the source and potentially hallucinated or from external CTI not present in the context.
+  - The hypothesis mentions 'archive and encrypt', which implies file system or process behavior, but
+    the rule only detects network connections (T1041), missing the archival/encryption aspect of the hypothesis.

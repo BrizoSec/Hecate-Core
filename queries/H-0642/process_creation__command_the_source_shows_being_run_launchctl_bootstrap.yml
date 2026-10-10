@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: launchctl bootstrap'
+id: eccaecad-7a4c-4c4c-a893-3dea1f6651be
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "launchctl bootstrap gui/501 /Users/m1/Library/LaunchAgents/com.apple.softwareupdated.plist
+  .".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1543.001
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /launchctl
+    CommandLine|contains: bootstrap
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0642

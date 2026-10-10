@@ -1,0 +1,32 @@
+title: Modification of Chromium Secure Preferences File
+id: 013a14f8-b9a2-4ba3-85c2-101f7ec58906
+status: experimental
+description: Detects modifications to the 'Secure Preferences' file in Chrome or Edge User Data directories.
+  This file contains integrity checks (HMACs) for browser configuration; unauthorized modifications often
+  indicate adversaries forging these checks to silently install malicious extensions for session hijacking.
+references:
+- https://www.elastic.co/security-labs/threat-command/malicious-browser-extension-kremlin-banking-malware#key-takeaways
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1053.005
+- attack.t1070.004
+- attack.t1105
+- attack.t1574.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: \Secure Preferences
+  condition: selection
+falsepositives:
+- Legitimate browser updates or profile migrations
+- Browser sync operations
+- User-initiated extension installations via official store
+level: high
+hunt_id: H-0682
+hecate_review:
+  verdict: keep

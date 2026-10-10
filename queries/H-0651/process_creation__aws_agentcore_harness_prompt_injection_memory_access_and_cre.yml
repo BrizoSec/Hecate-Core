@@ -1,0 +1,29 @@
+title: AWS AgentCore Harness Prompt Injection Memory Access and Credential Exfiltration
+id: 222ea98b-10b7-4755-81ef-f55398c290df
+status: experimental
+description: Detects the execution of python3 within the AWS AgentCore Harness environment accessing /proc/1/mem
+  to extract plaintext IAM credentials, followed by exfiltration via a script named pid1_identity_recon_exfil.py.
+  This indicates a successful prompt injection attack bypassing agent isolation.
+references:
+- https://unit42.paloaltonetworks.com/securing-aws-agentcore-harness-credentials/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1059.006
+logsource:
+  category: process_creation
+detection:
+  selection_memory_access:
+    CommandLine|contains: /proc/1/mem
+    Image|endswith: /python3
+  selection_exfil_script:
+    CommandLine|contains: pid1_identity_recon_exfil.py
+    Image|endswith: /python3
+  condition: (selection_memory_access or selection_exfil_script)
+falsepositives:
+- Legitimate AWS AgentCore internal health checks or debugging scripts (rare)
+- Security researchers testing harness isolation in controlled environments
+level: critical
+hunt_id: H-0651
+hecate_review:
+  verdict: keep

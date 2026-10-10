@@ -1,0 +1,117 @@
+title: Connection to an address or host named in the source intelligence
+id: 648362bc-8834-40a8-8a03-1a26b67eaad7
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 162.201.178.68
+  selection_2_any:
+    DestinationIp: 115.201.178.68
+  selection_3_any:
+    DestinationIp: 116.181.62.50
+  selection_4_any:
+    DestinationIp: 128.200.178.68
+  selection_5_any:
+    DestinationIp: 129.202.178.68
+  selection_6_any:
+    DestinationIp: 135.201.178.68
+  selection_7_any:
+    DestinationIp: 181.202.178.68
+  selection_8_any:
+    DestinationIp: 209.99.188.28
+  selection_9_any:
+    DestinationIp: 76.180.62.50
+  selection_10_any:
+    DestinationIp: 85.182.62.50
+  selection_11_any:
+    DestinationHostname: gexwalltool.com
+  selection_12_any:
+    DestinationHostname: x-wolverine.servebbs.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 162.201.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 115.201.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 116.181.62.50
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 128.200.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 129.202.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 135.201.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 181.202.178.68
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 209.99.188.28
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 76.180.62.50
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 85.182.62.50
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: gexwalltool.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: x-wolverine.servebbs.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0660

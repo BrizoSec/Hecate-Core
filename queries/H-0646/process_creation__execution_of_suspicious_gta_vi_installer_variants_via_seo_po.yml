@@ -1,0 +1,107 @@
+title: Execution of Suspicious GTA VI Installer Variants via SEO Poisoning Campaign
+id: f4e07d83-289f-45c2-81f2-ca86c92a8f50
+status: experimental
+description: Detects the execution of specific malicious executables associated with the Grand Theft Auto
+  VI SEO poisoning campaign. These files, often disguised as game installers or fixers (e.g., rockstargamescrashfixer.exe),
+  are dropped into %TEMP% to deliver malware families such as NJRAT, DCRAT, Mercurial Grabber, and Chaos.
+  This rule targets the initial execution phase of this specific threat intelligence.
+references:
+- https://www.huntress.com/blog/fake-gta6-download-malware-analysis
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1036
+- attack.t1684
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_hash:
+    Image|endswith: .exe
+    Hashes|contains:
+    - ea991bc9334b36a6b958f564ee716776
+    - 0e39e8d7b641bcda4376ebbfeff7b12e
+    - 15eca4a3f7350423cf4db0b4c30d1968
+    - 1ec9eff863dc4418d1498bc3d904899d
+    - 2a0834560ed3770fc33d7a42f8229722
+    - 2a385fe7bed9899d77d05cb8e302d557
+    - 57b9c56ef97a7ada98257b23577bf5e3
+    - 60a0f58001ea7be538cd42b651924cc7
+    - 6b49f24d5d5b49127476bc385565f8b0
+    - 8da3fe3664d81226b0fb2a50a0537d4f
+  selection_name:
+    Image|endswith:
+    - \rockstargamescrashfixer.exe
+    - \svchost.exe
+    - \steam.exe
+    - \licensechecker.exe
+    CommandLine|contains: '%TEMP%'
+  condition: selection_hash or selection_name
+falsepositives:
+- Legitimate game installers (Steam, Epic Games) may use svchost.exe or steam.exe names in temp folders
+  during updates.
+- System utility scripts named licensechecker.exe used by enterprise management tools.
+level: high
+hecate_provenance:
+- value: ea991bc9334b36a6b958f564ee716776
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 0e39e8d7b641bcda4376ebbfeff7b12e
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 15eca4a3f7350423cf4db0b4c30d1968
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 1ec9eff863dc4418d1498bc3d904899d
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 2a0834560ed3770fc33d7a42f8229722
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 2a385fe7bed9899d77d05cb8e302d557
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 57b9c56ef97a7ada98257b23577bf5e3
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 60a0f58001ea7be538cd42b651924cc7
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 6b49f24d5d5b49127476bc385565f8b0
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: 8da3fe3664d81226b0fb2a50a0537d4f
+  type: FileHash-MD5
+  role: unknown
+  status: unknown
+  source: cti feed
+hunt_id: H-0646
+hecate_review:
+  verdict: revise
+  issues:
+  - The hypothesis states the threat involves 'malicious ISO files', but the rule detects '.exe' execution.
+    While the description mentions disguised executables, the core artifact in the hypothesis is an ISO,
+    which this rule will not detect.
+  - The logsource is set to 'process_creation', which detects the execution of the payload (exe), not
+    the initial distribution vector or file drop described as 'ISO files' in the hypothesis.
+  - The hypothesis mentions 'social engineering' and 'SEO poisoning' as the method, but the rule only
+    covers the technical execution phase. While acceptable for a hunt rule, the mismatch between 'ISO'
+    in hypothesis and '.exe' in rule is significant.

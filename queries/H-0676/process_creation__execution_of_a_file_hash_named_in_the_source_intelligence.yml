@@ -1,0 +1,39 @@
+title: Execution of a file hash named in the source intelligence
+id: d70f6505-9319-4012-b1e0-fe2842ae80a4
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=141c35607dc0e8e400deb380126b3052bd0495b4d37c8dd979c6aa0204b142fc
+    - SHA256=e17e1e671b597da19b89c5b2d0fa821e90e627860e756ae4947ed27c035330a8
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 141c35607dc0e8e400deb380126b3052bd0495b4d37c8dd979c6aa0204b142fc
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: 'Firefox: twitchenhancedviewer@example.com, SHA-256 141c35607dc0e8e400deb380126b3052bd0495b4d37c8dd979c6aa0204b142fc'
+- value: e17e1e671b597da19b89c5b2d0fa821e90e627860e756ae4947ed27c035330a8
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: 'Chrome: pnhhdhhcadcjfckjhpmjneldiegbojfb, SHA-256 e17e1e671b597da19b89c5b2d0fa821e90e627860e756ae4947ed27c035330a8'
+hunt_id: H-0676

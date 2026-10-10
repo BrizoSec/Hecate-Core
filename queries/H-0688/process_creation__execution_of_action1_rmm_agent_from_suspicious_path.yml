@@ -1,0 +1,28 @@
+title: Execution of Action1 RMM Agent from Suspicious Path
+id: cd4c5dfb-fd59-4f58-960c-c590d34ccbc8
+status: experimental
+description: Detects the execution of the Action1 remote monitoring and management (RMM) agent binary.
+  While Action1 is legitimate software, this rule targets its specific installation path and binary name
+  which are being abused in current threat campaigns to establish persistence and unauthorized remote
+  access. Adversaries often drop this binary via phishing MSI installers.
+references:
+- https://isc.sans.edu/diary/rss/33400
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1204.002
+- attack.t1543.003
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \Action1\action1_agent.exe
+  condition: selection
+falsepositives:
+- Legitimate IT administration using Action1 RMM
+- System management tools deployed by internal MSPs
+level: high
+hunt_id: H-0688
+hecate_review:
+  verdict: keep

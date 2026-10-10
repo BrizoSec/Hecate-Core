@@ -1,0 +1,33 @@
+title: Detection of SocGholish UpdateCheck Scheduled Task Persistence via Registry Key Creation
+id: 8dc08790-e40e-4d72-9513-d0779b60acc4
+status: experimental
+description: Detects the creation of a scheduled task named 'UpdateCheck' in the Windows Registry, a persistence
+  mechanism associated with the SocGholish framework targeting election infrastructure. This rule specifically
+  looks for the registry key path indicating the task name.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1053.005
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: \Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tasks\
+  condition: selection
+falsepositives:
+- Legitimate software updates
+- System maintenance tasks
+- Enterprise management tools creating scheduled tasks
+level: medium
+hunt_id: H-0654
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, so the rule cannot be validated against specific behavioral details
+    (e.g., WScript execution, temporary directories) mentioned in the hypothesis.
+  - The rule detects registry key creation for scheduled tasks but does not include detection logic for
+    the 'obfuscated WScript execution' or 'download' activities described in the hypothesis.
+  - Without source passages, it is impossible to confirm if the specific registry path or task name 'UpdateCheck'
+    is accurate according to the threat report.

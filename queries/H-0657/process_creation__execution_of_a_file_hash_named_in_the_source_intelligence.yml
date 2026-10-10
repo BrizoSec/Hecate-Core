@@ -1,0 +1,78 @@
+title: Execution of a file hash named in the source intelligence
+id: ab4ff1fa-79ea-48b2-9d55-0b014d336646
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=250d4fa37488af9b025333fa17705573d721467b203765bc360890b4f5a90cd7
+    - SHA256=c4dc171f2513fcaf9d5ecc815a94aee4063b213ab380f80bd3ac422dee5205a7
+    - SHA256=c13cea04f598e2b0c248d603a6e31bd13aabb64d8149c1b6a77b64e0b983a86f
+    - SHA256=f5f1f8c3e7b883793800ab6ccf21b3e60bd0730f300b4595fe74a33adc17a63c
+    - SHA256=5191cf625dfc209a347f137b50aea199e82040fd5ee9086fb3e2de73c133f3cb
+    - SHA256=eddbd0ecf7195d38fefae5b9d393abfa79e6f3f94bde19308ecef130a05a42e5
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 250d4fa37488af9b025333fa17705573d721467b203765bc360890b4f5a90cd7
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    250d4fa37488af9b025333fa17705573d721467b203765bc360890b4f5a90cd7'
+- value: c4dc171f2513fcaf9d5ecc815a94aee4063b213ab380f80bd3ac422dee5205a7
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    c4dc171f2513fcaf9d5ecc815a94aee4063b213ab380f80bd3ac422dee5205a7'
+- value: c13cea04f598e2b0c248d603a6e31bd13aabb64d8149c1b6a77b64e0b983a86f
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    c13cea04f598e2b0c248d603a6e31bd13aabb64d8149c1b6a77b64e0b983a86f'
+- value: f5f1f8c3e7b883793800ab6ccf21b3e60bd0730f300b4595fe74a33adc17a63c
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    f5f1f8c3e7b883793800ab6ccf21b3e60bd0730f300b4595fe74a33adc17a63c'
+- value: 5191cf625dfc209a347f137b50aea199e82040fd5ee9086fb3e2de73c133f3cb
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    5191cf625dfc209a347f137b50aea199e82040fd5ee9086fb3e2de73c133f3cb'
+- value: eddbd0ecf7195d38fefae5b9d393abfa79e6f3f94bde19308ecef130a05a42e5
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+  evidence: 'The following hashes represent the developers build chain over seven days of development:
+    eddbd0ecf7195d38fefae5b9d393abfa79e6f3f94bde19308ecef130a05a42e5'
+hunt_id: H-0657

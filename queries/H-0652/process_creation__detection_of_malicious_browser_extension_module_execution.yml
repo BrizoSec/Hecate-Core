@@ -1,0 +1,41 @@
+title: Detection of Malicious Browser Extension Module Execution
+id: 86400e08-da21-493e-b0ec-a55f45095e14
+status: experimental
+description: Detects the execution of a known malicious JavaScript module used in cryptocurrency theft
+  campaigns. Adversaries repackaging legitimate browser extensions inject this specific file to intercept
+  localStorage, IndexedDB, and API responses for session token and wallet data exfiltration.
+references:
+- https://socket.dev/blog/chrome-firefox-crypto-data-theft
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    CommandLine|contains: vamp/axiom-fetch-intercept.js
+  condition: selection
+falsepositives:
+- Legitimate development tools or debuggers referencing local script paths
+- Automated testing frameworks executing test scripts with similar naming conventions
+level: high
+hunt_id: H-0652
+hecate_review:
+  verdict: reject
+  issues:
+  - 'The rule uses `logsource: category: process_creation` and detects the string ''vamp/axiom-fetch-intercept.js''
+    in the CommandLine. However, Passage [1] identifies this as a file name (likely within a browser extension
+    directory or web context), not a process executable. Browser extensions execute JavaScript within
+    the browser process, not as standalone Windows processes with command lines containing their internal
+    script paths.'
+  - The hypothesis and passages describe network-based exfiltration (DNS/HTTP) to specific domains (Vercel,
+    bonto.run). The rule fails to detect this core behavior, focusing instead on a non-existent process
+    creation event.
+  unverified_contradiction: The rule assumes 'vamp/axiom-fetch-intercept.js' appears in a Windows process
+    CommandLine. Passage [1] lists it as a file identifier (likely a path within an extension package
+    or web resource), and the context of browser extensions implies execution within a browser process,
+    not a standalone executable with that string in its command line.

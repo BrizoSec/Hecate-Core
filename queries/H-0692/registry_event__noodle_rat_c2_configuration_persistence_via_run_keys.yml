@@ -1,0 +1,36 @@
+title: Noodle RAT C2 Configuration Persistence via Run Keys
+id: a3fe5ca6-d6d0-4687-8767-5f1b887f8dba
+status: experimental
+description: Detects the creation of registry run keys used by Noodle RAT (ANGRYREBEL) variants to persist
+  C2 configuration or loader binaries. While the hypothesis focuses on data archiving, the provided intelligence
+  identifies specific C2 infrastructure (IPs and domain shdufysuf.com). This rule targets the persistence
+  mechanism often associated with these loaders to ensure they remain active for subsequent exfiltration
+  activities.
+references:
+- https://cyberint.com/blog/dark-web/noodle-rat-a-recipe-for-cross-platform-espionage
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1547.001
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: \Microsoft\Windows\CurrentVersion\Run
+    EventType: SetValue
+  condition: selection
+falsepositives:
+- Legitimate software installing startup entries via standard installers
+- Office applications or drivers adding auto-start entries
+- System utilities configuring scheduled tasks or services via registry
+level: medium
+hunt_id: H-0692
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses on persistence via registry run keys, which is not mentioned in the provided source
+    passages.
+  - The hypothesis specifically concerns 'archiving and encrypting collected data', but the rule detects
+    persistence mechanisms unrelated to this specific behavior.
+  - The description mentions 'domain shdufysuf.com' which does not appear in the provided source passages.

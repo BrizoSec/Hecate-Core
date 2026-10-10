@@ -1,0 +1,28 @@
+title: Detection of ClickFix Malicious LaunchAgent Deployment on macOS
+id: 9a27d237-eddf-4b55-8d80-c81ca83f33c4
+status: experimental
+description: Detects the creation of a malicious LaunchAgent plist file disguised as a legitimate Apple
+  software update component. This behavior is consistent with ClickFix social engineering attacks where
+  users are tricked into executing commands that drop persistence mechanisms to steal credentials and
+  cryptocurrency.
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1036.005
+- attack.t1070.004
+- attack.t1566.002
+logsource:
+  category: file_event
+detection:
+  selection_malicious_plist:
+    TargetFilename|endswith: /Library/LaunchAgents/com.apple.softwareupdated.plist
+  condition: selection_malicious_plist
+falsepositives:
+- Legitimate macOS system updates
+- User-installed software that mimics Apple naming conventions
+level: high
+hunt_id: H-0642
+hecate_review:
+  verdict: keep

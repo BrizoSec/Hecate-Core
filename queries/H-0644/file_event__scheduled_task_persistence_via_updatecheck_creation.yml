@@ -1,0 +1,29 @@
+title: Scheduled Task Persistence via UpdateCheck Creation
+id: 3df60bc7-5afa-4bae-9ae5-b0ac48f57aee
+status: experimental
+description: Detects the creation of a scheduled task named 'UpdateCheck' in the System32\Tasks directory.
+  This specific naming convention is associated with SocGholish post-exploitation activity, used to establish
+  persistence after initial phishing access.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \Tasks\UpdateCheck
+  condition: selection
+falsepositives:
+- Legitimate software updates using generic task names
+- System maintenance scripts
+level: medium
+hunt_id: H-0644
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, so the rule cannot be validated against specific evidence.
+  - The hypothesis mentions 'obfuscated WScript execution', but the rule only detects scheduled task creation,
+    missing a key component of the described behavior.

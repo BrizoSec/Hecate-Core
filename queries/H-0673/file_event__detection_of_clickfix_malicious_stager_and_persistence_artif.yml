@@ -1,0 +1,40 @@
+title: Detection of ClickFix Malicious Stager and Persistence Artifacts on macOS
+id: 0daf6e4b-cb2e-4617-837c-0c2d652db9a2
+status: experimental
+description: Detects the creation of specific files associated with the MacSync stealer campaign. This
+  includes the Mach-O stager binary located in /tmp, the temporary status file used during data exfiltration,
+  and the staged archive of stolen credentials. The presence of these artifacts indicates a successful
+  ClickFix social engineering attack where users were tricked into executing malicious Terminal commands.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1027
+- attack.t1036.005
+- attack.t1105
+logsource:
+  category: file_event
+detection:
+  selection_stager:
+    TargetFilename|endswith: /com.utils.Launcher
+  selection_exfil_temp:
+    TargetFilename: /tmp/.httpcode
+  selection_archive:
+    TargetFilename: /tmp/osalogging.zip
+  condition: selection_stager or selection_exfil_temp or selection_archive
+falsepositives:
+- Legitimate temporary files created by system utilities
+- User-created archives in /tmp
+- Custom scripts named com.utils.Launcher by developers
+level: high
+hecate_provenance:
+- value: com.utils.launcher
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: Code Signing ID com.utils.Launcher Ad-hoc signature bundle identifier
+hunt_id: H-0673
+hecate_review:
+  verdict: keep

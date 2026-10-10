@@ -1,0 +1,35 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 9e1e0d96-6170-41ff-9c96-0f7817ea5b01
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.menlosecurity.com/blog/from-fake-docusign-to-screenconnect-web-attack-stopped-before-payload-delivery
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - admin.rshiahub.com
+    - admin.rshiahub.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .admin.rshiahub.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: admin.rshiahub.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.menlosecurity.com/blog/from-fake-docusign-to-screenconnect-web-attack-stopped-before-payload-delivery
+  evidence: Domain admin.rshiahub[.]com ScreenConnect deployment infrastructure
+hunt_id: H-0664

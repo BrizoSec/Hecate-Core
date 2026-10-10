@@ -1,0 +1,31 @@
+title: Load of a file hash named in the source intelligence
+id: 52a05c7d-b19b-4bf9-9801-2a2ab7b8798e
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=e842dd7642c8e04b5ec20b6393848a9c904e4832930950c16664fe7800ba382e
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: e842dd7642c8e04b5ec20b6393848a9c904e4832930950c16664fe7800ba382e
+  type: sha256
+  role: library
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+  evidence: 'In the analyzed sample, the loader DLL was named WinSparkle.dll (SHA-256: e842dd7642c8e04b5ec20b6393848a9c904e4832930950c16664fe7800ba382e)'
+hunt_id: H-0659

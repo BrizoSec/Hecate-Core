@@ -1,0 +1,41 @@
+title: Casbaneiro AutoIt Loader Execution via Temp Directory with Outlook Reference
+id: 2c04a3c0-c954-469a-9416-2769177df631
+status: experimental
+description: Detects the execution of processes from the user's temporary directory containing command-line
+  arguments referencing '.Outlook', a specific indicator associated with Casbaneiro banking trojan loaders
+  targeting Latin American financial institutions.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1027
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_temp:
+    Image|endswith: .exe
+    CommandLine|contains: '%TEMP%'
+  selection_outlook:
+    CommandLine|contains: .Outlook
+  condition: selection_temp and selection_outlook
+falsepositives:
+- Legitimate software installers or updaters that extract files to %TEMP% and reference Outlook configuration
+  files
+- Administrative scripts managing Office deployments
+- User-generated scripts for email automation
+level: high
+hunt_id: H-0660
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects command-line arguments containing '.Outlook', but the source passages state that
+    '.Outlook' is stored as a *file* in %APPDATA%, not passed as a command-line argument.
+  - The hypothesis specifies 'distributed data-receiving servers' and 'IP-based geofencing' as key evasion/exfiltration
+    methods, which are completely absent from this rule's detection logic.
+  - The rule focuses on process creation in %TEMP% with an Outlook reference, whereas the report describes
+    the malware downloading files to a random directory and using specific registry keys and mutexes for
+    persistence/execution control.
+  unverified_contradiction: The rule assumes '.Outlook' appears in the CommandLine. The source passages
+    explicitly state it is stored as a file.

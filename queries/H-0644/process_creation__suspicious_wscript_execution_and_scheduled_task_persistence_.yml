@@ -1,0 +1,39 @@
+title: Suspicious WScript Execution and Scheduled Task Persistence via schtasks
+id: 81833264-d0ed-4f37-878c-5fd0d80ad80f
+status: experimental
+description: Detects the execution of obfuscated JavaScript via WScript from temporary directories, followed
+  by the creation of a scheduled task named 'UpdateCheck' using schtasks.exe. This behavior aligns with
+  post-exploitation persistence and payload delivery techniques observed in campaigns targeting election
+  infrastructure.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027.006
+- attack.t1053.005
+- attack.t1059.007
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_wscript:
+    Image|endswith: \wscript.exe
+    CommandLine|contains: .js
+  selection_schtasks:
+    Image|endswith: \schtasks.exe
+    CommandLine|contains: /tn "UpdateCheck"
+  condition: selection_wscript or selection_schtasks
+falsepositives:
+- Legitimate software updates using scheduled tasks
+- System administration scripts executing JavaScript via WScript
+- Antivirus or EDR agents creating maintenance tasks
+level: high
+hunt_id: H-0644
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, so the rule cannot be validated against specific evidence.
+  - The rule assumes specific artifacts (file name 'UpdateCheck', process 'schtasks.exe') that are not
+    supported by any provided text.
+  - Without source data, it is impossible to confirm if the detection logic matches the actual threat
+    behavior described in the hypothesis.

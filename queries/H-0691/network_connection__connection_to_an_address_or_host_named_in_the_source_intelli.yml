@@ -1,0 +1,48 @@
+title: Connection to an address or host named in the source intelligence
+id: 4cb40e62-eacd-4b81-9b59-463c79f585ae
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: indiatodays.org
+  selection_2_any:
+    DestinationHostname: officialinfo.org
+  selection_3_any:
+    DestinationHostname: theprints.org
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: indiatodays.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Payload staging domain indiatodays[.]org
+- value: officialinfo.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Payload staging domain officialinfo[.]org
+- value: theprints.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/operation-rapidrust-apt36-deploys-rustyshade-rustymove-psnatch-and
+  evidence: Payload staging domain theprints[.]org
+hunt_id: H-0691

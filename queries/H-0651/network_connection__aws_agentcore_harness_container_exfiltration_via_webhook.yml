@@ -1,0 +1,49 @@
+title: AWS AgentCore Harness Container Exfiltration via Webhook
+id: c15f7978-f6f6-476c-b102-e407a03c8915
+status: experimental
+description: Detects network connections from AWS AgentCore Harness containers to known exfiltration domains
+  (webhook.site). This behavior aligns with the threat hypothesis where adversaries use prompt injection
+  to execute arbitrary shell commands within the harness environment, reading /proc/1/mem for IAM credentials
+  and exfiltrating them via HTTP POST to external C2 infrastructure.
+references:
+- https://unit42.paloaltonetworks.com/securing-aws-agentcore-harness-credentials/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1033
+- attack.t1059.006
+- attack.t1113
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|endswith: webhook.site
+  condition: selection
+falsepositives:
+- Legitimate use of webhook services for monitoring or CI/CD notifications
+- Developer testing of agent workflows using public webhooks
+level: high
+hecate_provenance:
+- value: webhook.site
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://unit42.paloaltonetworks.com/securing-aws-agentcore-harness-credentials/
+  evidence: Figure 13 shows what landed on the attacker's side. This image shows the HTTP POST request
+    and response captured at webhook[.]site , carrying the Bearer JWT and the MCP replay URL.
+hunt_id: H-0651
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule detects network connections to webhook.site, which aligns with the exfiltration step described
+    in Passage [8]. However, it fails to detect the core behavior defined in the hypothesis: ''execute
+    arbitrary shell commands and read process memory via /proc filesystem''. The rule ignores the specific
+    indicators of compromise (IOCs) mentioned in Passages [2], [3], and [4] (reading /proc/1/mem, /proc/1/maps,
+    /proc/1/status), which are critical to the ''credential theft'' mechanism described. While not a direct
+    contradiction, the rule is significantly off-target regarding the primary threat vector (local exploitation/exfiltration
+    via webhook) vs the method of credential acquisition (reading /proc). It detects the *result* (exfil)
+    but misses the *action* (prompt injection/proc reading) specified in the hypothesis.'
+  - The description claims the rule aligns with adversaries 'reading /proc/1/mem for IAM credentials',
+    but the detection logic only checks for outbound network connections. This creates a mismatch between
+    the described behavior and the actual detection capability.

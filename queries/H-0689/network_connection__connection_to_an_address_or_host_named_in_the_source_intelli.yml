@@ -1,0 +1,234 @@
+title: Connection to an address or host named in the source intelligence
+id: 19c88119-5c0a-49dd-82e0-793664658699
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 82.33.39.74
+  selection_2_any:
+    DestinationIp: 151.225.227.193
+  selection_3_any:
+    DestinationIp: 176.253.248.175
+  selection_4_any:
+    DestinationIp: 94.9.97.142
+  selection_5_any:
+    DestinationIp: 86.132.13.219
+  selection_6_any:
+    DestinationIp: 81.96.174.54
+  selection_7_any:
+    DestinationIp: 90.215.55.70
+  selection_8_any:
+    DestinationIp: 92.40.47.84
+  selection_9_any:
+    DestinationIp: 5.230.71.51
+  selection_10_any:
+    DestinationHostname: performanceservlces.com
+  selection_11_any:
+    DestinationHostname: voewo.com
+  selection_12_any:
+    DestinationHostname: carkeysexpres.com
+  selection_13_any:
+    DestinationHostname: ingredlon.com
+  selection_14_any:
+    DestinationHostname: 360apartmentrenovation.com
+  selection_15_any:
+    DestinationHostname: abswaranty.net
+  selection_16_any:
+    DestinationHostname: aceshopequlpment.com
+  selection_17_any:
+    DestinationHostname: alllitematerial.com
+  selection_18_any:
+    DestinationHostname: ankerrpak.com
+  selection_19_any:
+    DestinationHostname: asllancorporation.com
+  selection_20_any:
+    DestinationHostname: chartered.flipbookonlinevault.com
+  selection_21_any:
+    DestinationHostname: bjssourcing.com
+  selection_22_any:
+    DestinationHostname: greenlightdlstribution.com
+  selection_23_any:
+    DestinationHostname: account-access-rc3uenqi.elitechiropracticandrehab.com
+  selection_24_any:
+    DestinationHostname: flashproxy.io
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: performanceservlces.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: voewo.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: Note, the disposable email "jeremyarcher@voewo[.]com", used to register "greenlightdlstribution[.]com",
+    is also tied to several other lookalike domains registered in August 2026.
+- value: carkeysexpres.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ingredlon.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 360apartmentrenovation.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: abswaranty.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: aceshopequlpment.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: alllitematerial.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ankerrpak.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: asllancorporation.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: chartered.flipbookonlinevault.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The decrypted redirect URL functions as a relay, bot-filtering layer, and campaign-tracking
+    mechanism.
+- value: bjssourcing.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The lookalike domain, bjssourcing[.]com was registered 15 days prior to the outreach.
+- value: greenlightdlstribution.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: TRU identified over 30 similar domains impersonating US-based distributors, manufacturers,
+    warehousing, and other companies registered in August 2026
+- value: account-access-rc3uenqi.elitechiropracticandrehab.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: After the relay and JavaScript challenge, the victim is redirected to the core device code
+    phishing server at "account-access-rc3uenqi.elitechiropracticandrehab[.]com" and is presented with
+    a Cloudfla
+- value: flashproxy.io
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The phishing kit exposes the API query parameter /api/harvester?action=geoip to look up the
+    victim's external location and activate a proxy through FlashProxy[.]io, a residential/rotating proxy
+    provid
+- value: 82.33.39.74
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:25:57Z 82.33.39[.]74 Thatto Heath, St Helens
+- value: 151.225.227.193
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:06Z 151.225.227[.]193 Enfield, Greater London
+- value: 176.253.248.175
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:20Z 176.253.248[.]175 Woodley, Stockport
+- value: 94.9.97.142
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:24Z 94.9.97[.]142 Carluke, South Lanarkshire
+- value: 86.132.13.219
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:28Z 86.132.13[.]219 Carlton-In-Lindrick, Nottinghamshire
+- value: 81.96.174.54
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:45Z 81.96.174[.]54 Flitwick, Central Bedfordshire
+- value: 90.215.55.70
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:26:52Z 90.215.55[.]70 Kilsyth, North Lanarkshire
+- value: 92.40.47.84
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:27:09Z 92.40.47[.]84 London, Greater London
+- value: 5.230.71.51
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: 17:27:10Z 5.230.71[.]51 Frankfurt Am Main, DE
+hunt_id: H-0689

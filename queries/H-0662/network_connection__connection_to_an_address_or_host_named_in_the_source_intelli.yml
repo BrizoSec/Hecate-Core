@@ -1,0 +1,160 @@
+title: Connection to an address or host named in the source intelligence
+id: 0396bc17-6e33-414c-94c8-20b6a47164b0
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.stormshield.com/news/cti-melofee-linux-implant-and-new-variants/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 92.38.169.152
+  selection_2_any:
+    DestinationIp: 185.163.2.79
+  selection_3_any:
+    DestinationIp: 45.67.230.185
+  selection_4_any:
+    DestinationIp: 180.149.44.115
+  selection_5_any:
+    DestinationIp: 185.163.2.34
+  selection_6_any:
+    DestinationIp: 38.54.110.44
+  selection_7_any:
+    DestinationIp: 130.94.91.165
+  selection_8_any:
+    DestinationIp: 103.215.216.117
+  selection_9_any:
+    DestinationIp: 89.44.198.107
+  selection_10_any:
+    DestinationIp: 103.215.216.181
+  selection_11_any:
+    DestinationHostname: windefender.net
+  selection_12_any:
+    DestinationHostname: microsoftupdates.top
+  selection_13_any:
+    DestinationHostname: amzaonaws.org
+  selection_14_any:
+    DestinationHostname: microupdate.me
+  selection_15_any:
+    DestinationHostname: microupdate.top
+  selection_16_any:
+    DestinationHostname: windowsupdates.us
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 92.38.169.152
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 185.163.2.79
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 45.67.230.185
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 180.149.44.115
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 185.163.2.34
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 38.54.110.44
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 130.94.91.165
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.215.216.117
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 89.44.198.107
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.215.216.181
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://windefender.net:443
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://windowsupdates.us:80
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: windefender.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: microsoftupdates.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: amzaonaws.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: microupdate.me
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: microupdate.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: windowsupdates.us
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0662

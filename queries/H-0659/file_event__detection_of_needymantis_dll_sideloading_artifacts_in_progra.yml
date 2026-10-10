@@ -1,0 +1,42 @@
+title: Detection of NeedyMantis DLL Sideloading Artifacts in ProgramData
+id: 1c24b233-8a50-4c5e-9829-18126b3bc25f
+status: experimental
+description: Detects the creation of specific malicious DLL files disguised as legitimate libraries within
+  non-standard subdirectories of %ProgramData%. This behavior is associated with the NeedyMantis framework
+  (Storm-3069) which uses DLL sideloading to establish persistent WebSocket C2 channels. The rule targets
+  specific file names and paths identified in threat intelligence.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/28/needymantis-unpacking-a-post-compromise-malware-family-used-in-targeted-operations/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1574.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith:
+    - \USOShared\libcurl.dll
+    - \VIM\vim64.dll
+    - \office\dbghelp.dll
+    - \broadcom\dbghelp.dll
+    - \Intel\jli.dll
+    - \modifiable\nvml.dll
+    - \ics\nvml.dll
+  condition: selection
+falsepositives:
+- Legitimate software updates or installations that may drop DLLs in user-writable directories like %ProgramData%
+- Application compatibility shims
+- Developer tools installing dependencies in non-standard locations
+level: high
+hunt_id: H-0659
+hecate_review:
+  verdict: keep
+  issues:
+  - The rule correctly identifies the specific DLL paths mentioned in the source passages as artifacts
+    of the malware's DLL sideloading technique.
+  - The description accurately links these artifacts to the NeedyMantis framework and the stated purpose
+    of establishing C2 channels.

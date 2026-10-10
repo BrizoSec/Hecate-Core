@@ -1,0 +1,119 @@
+title: Request for a URL path named in the source intelligence
+id: e0094118-7995-48ee-8405-9cd4399a3976
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /api/v1/forced-proxy
+    - /api/v1/proxies
+    - /api/v2/public/extension_helper/
+    - /set-token
+    - /twitch-conf
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://api.jeetbot.cc/api/v2/public/extension_helper/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://enhanced.jeetbot.cc/set-token
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://ext-styles.jeetbot.cc/api/v1/forced-proxy
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://ext-styles.jeetbot.cc/api/v1/proxies
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://proxy.thebeholder.deno.net/set-token
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://thebeholder-proxy.deno.dev/set-token
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://ext-styles.jeetbot.cc/api/v1/proxies
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: The proxy catalog served from ext-styles[.]jeetbot[.]cc/api/v1/proxies and ext-styles[.]jeetbot[.]cc/api/v1/forced-proxy
+    lists the proxy hosts the extension uses
+- value: enhanced.jeetbot.cc/set-token
+  type: url
+  role: unknown
+  status: historical
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: Historical collection endpoints, now decommissioned, were enhanced[.]jeetbot[.]cc/set-token
+- value: thebeholder-proxy.deno.dev/set-token
+  type: url
+  role: unknown
+  status: historical
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: thebeholder-proxy[.]deno[.]dev/set-token (historical, decommissioned; v4.x token collection)
+- value: proxy.thebeholder.deno.net/set-token
+  type: url
+  role: unknown
+  status: historical
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: proxy[.]thebeholder[.]deno[.]net/set-token (historical, decommissioned; v4.x token collection)
+- value: thebeholderbotapi.vercel.app/twitch-conf
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: The developer's linked privacy policy, hosted at thebeholderbotapi[.]vercel[.]app/twitch-conf
+- value: ext-styles.jeetbot.cc/api/v1/proxies
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: ext-styles[.]jeetbot[.]cc/api/v1/proxies (proxy configuration)
+- value: ext-styles.jeetbot.cc/api/v1/forced-proxy
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: ext-styles[.]jeetbot[.]cc/api/v1/forced-proxy (proxy configuration)
+- value: https://ext-styles.jeetbot.cc/api/v1/forced-proxy
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0676

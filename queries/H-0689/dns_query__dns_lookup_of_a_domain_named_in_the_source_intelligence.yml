@@ -1,0 +1,155 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 4514a2fc-9ec6-4953-bf14-0baff9f97f4e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - performanceservlces.com
+    - voewo.com
+    - carkeysexpres.com
+    - ingredlon.com
+    - 360apartmentrenovation.com
+    - abswaranty.net
+    - aceshopequlpment.com
+    - alllitematerial.com
+    - ankerrpak.com
+    - asllancorporation.com
+    - chartered.flipbookonlinevault.com
+    - bjssourcing.com
+    - greenlightdlstribution.com
+    - account-access-rc3uenqi.elitechiropracticandrehab.com
+    - flashproxy.io
+  selection_subdomain:
+    QueryName|endswith:
+    - .performanceservlces.com
+    - .voewo.com
+    - .carkeysexpres.com
+    - .ingredlon.com
+    - .360apartmentrenovation.com
+    - .abswaranty.net
+    - .aceshopequlpment.com
+    - .alllitematerial.com
+    - .ankerrpak.com
+    - .asllancorporation.com
+    - .bjssourcing.com
+    - .greenlightdlstribution.com
+    - .flashproxy.io
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: performanceservlces.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: voewo.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: Note, the disposable email "jeremyarcher@voewo[.]com", used to register "greenlightdlstribution[.]com",
+    is also tied to several other lookalike domains registered in August 2026.
+- value: carkeysexpres.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ingredlon.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 360apartmentrenovation.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: abswaranty.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: aceshopequlpment.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: alllitematerial.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ankerrpak.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: asllancorporation.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: chartered.flipbookonlinevault.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The decrypted redirect URL functions as a relay, bot-filtering layer, and campaign-tracking
+    mechanism.
+- value: bjssourcing.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The lookalike domain, bjssourcing[.]com was registered 15 days prior to the outreach.
+- value: greenlightdlstribution.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: TRU identified over 30 similar domains impersonating US-based distributors, manufacturers,
+    warehousing, and other companies registered in August 2026
+- value: account-access-rc3uenqi.elitechiropracticandrehab.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: After the relay and JavaScript challenge, the victim is redirected to the core device code
+    phishing server at "account-access-rc3uenqi.elitechiropracticandrehab[.]com" and is presented with
+    a Cloudfla
+- value: flashproxy.io
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+  evidence: The phishing kit exposes the API query parameter /api/harvester?action=geoip to look up the
+    victim's external location and activate a proxy through FlashProxy[.]io, a residential/rotating proxy
+    provid
+hunt_id: H-0689

@@ -1,0 +1,108 @@
+title: DNS Resolution of SEABORGIUM Infrastructure Associated with RedFlick Delivery
+id: aa7e9d0b-01a4-440d-b2e6-0315b46258c3
+status: experimental
+description: Detects DNS queries for domains identified in threat intelligence as infrastructure used
+  by the Star Blizzard (SEABORGIUM) group. These domains are associated with the delivery of decoy PDFs
+  and the CosmicPulse backdoor via the RedFlick technique, which abuses SSH PermitLocalCommand. This rule
+  targets the network communication phase of this attack chain.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith:
+    - .etia.ca
+    - .groy.cc
+    - .gliderrompercycl.com
+    - .muvb.net
+    - .divekickspolic.org
+    - .matjk.click
+    - .bpdaersa.click
+    - .stuseamandesilt.org
+    - .itechx.tel
+    - .guach.net
+  condition: selection
+falsepositives:
+- Legitimate use of obscure or newly registered domains for privacy, testing, or internal services.
+- Users accessing legitimate websites with similar naming conventions.
+level: high
+hecate_provenance:
+- value: etia.ca
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in January 2026 campaign
+- value: groy.cc
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in February 2026 campaign
+- value: gliderrompercycl.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: muvb.net
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in February 2026 campaign
+- value: divekickspolic.org
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: matjk.click
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in March 2026 campaign
+- value: bpdaersa.click
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in March 2026 campaign
+- value: stuseamandesilt.org
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: itechx.tel
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in April 2026 campaign
+- value: guach.net
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick PowerShell code installer in June 2026 campaign
+hunt_id: H-0665
+hecate_review:
+  verdict: keep

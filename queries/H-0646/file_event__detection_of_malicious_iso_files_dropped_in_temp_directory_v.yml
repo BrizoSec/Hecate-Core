@@ -1,0 +1,37 @@
+title: Detection of Malicious ISO Files Dropped in Temp Directory via GTA VI SEO Poisoning Campaign
+id: f22dca3e-5860-47f6-97db-5601188973c5
+status: experimental
+description: Detects the creation of ISO files in the user's temporary directory, a common technique used
+  by adversaries distributing malicious installers disguised as Grand Theft Auto VI games. This rule targets
+  the file drop stage of the campaign where malware families like NJRAT or Mercurial Grabber are often
+  staged for execution.
+references:
+- https://www.huntress.com/blog/fake-gta6-download-malware-analysis
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_iso:
+    TargetFilename|endswith: .iso
+  selection_temp:
+    TargetFilename|contains: \AppData\Local\Temp\
+  condition: selection_iso and selection_temp
+falsepositives:
+- Legitimate game installers downloaded via Steam or Epic Games Launcher
+- ISO files created by virtualization software (e.g., VMware, VirtualBox)
+- Software updates or disk image mounting tools
+level: high
+hunt_id: H-0646
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, so the rule cannot be validated against specific technical details
+    from the report.
+  - The rule relies on external knowledge (Huntress blog reference) not present in the provided source
+    text.
+  - The hypothesis mentions 'exfiltrate credentials' which is noted as 'not observed', but the rule does
+    not address this or lack thereof.

@@ -1,0 +1,219 @@
+title: Connection to an address or host named in the source intelligence
+id: 9ae6fbb7-de96-46ca-9296-2529e5718c14
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 103.245.231.248
+  selection_2_any:
+    DestinationIp: 2.57.241.246
+  selection_3_any:
+    DestinationIp: 89.125.209.168
+  selection_4_any:
+    DestinationIp: 103.245.231.79
+  selection_5_any:
+    DestinationIp: 45.84.59.66
+  selection_6_any:
+    DestinationIp: 103.160.59.97
+  selection_7_any:
+    DestinationHostname: etia.ca
+  selection_8_any:
+    DestinationHostname: groy.cc
+  selection_9_any:
+    DestinationHostname: gliderrompercycl.com
+  selection_10_any:
+    DestinationHostname: muvb.net
+  selection_11_any:
+    DestinationHostname: divekickspolic.org
+  selection_12_any:
+    DestinationHostname: matjk.click
+  selection_13_any:
+    DestinationHostname: bpdaersa.click
+  selection_14_any:
+    DestinationHostname: stuseamandesilt.org
+  selection_15_any:
+    DestinationHostname: itechx.tel
+  selection_16_any:
+    DestinationHostname: guach.net
+  selection_17_any:
+    DestinationHostname: ruten.observer
+  selection_18_any:
+    DestinationHostname: byveo.org
+  selection_19_any:
+    DestinationHostname: secure-dns-hub.com
+  selection_20_any:
+    DestinationHostname: qumel.link
+  selection_21_any:
+    DestinationHostname: cyrna.top
+  selection_22_any:
+    DestinationHostname: drasw.club
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: etia.ca
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in January 2026 campaign
+- value: 103.245.231.248
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in January 2026 campaign
+- value: groy.cc
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in February 2026 campaign
+- value: 2.57.241.246
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in February 2026 campaign
+- value: gliderrompercycl.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: muvb.net
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in February 2026 campaign
+- value: 89.125.209.168
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in February 2026 campaign
+- value: divekickspolic.org
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: matjk.click
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in March 2026 campaign
+- value: bpdaersa.click
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in March 2026 campaign
+- value: 103.245.231.79
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in March 2026 campaign
+- value: stuseamandesilt.org
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse backdoor download
+- value: itechx.tel
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in April 2026 campaign
+- value: 45.84.59.66
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in April 2026 campaign
+- value: guach.net
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick PowerShell code installer in June 2026 campaign
+- value: ruten.observer
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in June-July 2026 campaigns
+- value: byveo.org
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick PowerShell code installer in July 2026 campaign
+- value: secure-dns-hub.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in July 2026-current campaigns
+- value: 103.160.59.97
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in July 2026 campaign
+- value: qumel.link
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in July 2026 campaign
+- value: cyrna.top
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for RedFlick MSI installer in August 2026 campaign
+- value: drasw.club
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+  evidence: Host for CosmicPulse downloader DLL in August 2026 campaign
+hunt_id: H-0665

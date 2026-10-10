@@ -1,0 +1,68 @@
+title: Connection to an address or host named in the source intelligence
+id: e2ad1c11-1ffa-43c0-9f7f-d9fc6bc83a34
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references: []
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: com.utils.launcher
+  selection_2_any:
+    DestinationHostname: drivinguber.com
+  selection_3_any:
+    DestinationHostname: asia.newsinweb.com
+  selection_4_any:
+    DestinationHostname: usa.newsinweb.com
+  selection_5_any:
+    DestinationHostname: newsinweb.com
+  selection_6_any:
+    DestinationHostname: asia.newsinweb.com
+  selection_7_any:
+    DestinationHostname: usa.newsinweb.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: com.utils.launcher
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: Code Signing ID com.utils.Launcher Ad-hoc signature bundle identifier
+- value: drivinguber.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: C2 Domain (Primary) drivinguber.com Primary Stage 3 / Stage 6 C2 server
+- value: asia.newsinweb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: C2 Domain (Fallback) asia.newsinweb.com Fallback Asian region C2 endpoint
+- value: usa.newsinweb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: C2 Domain (Fallback) usa.newsinweb.com Fallback US region C2 endpoint
+- value: newsinweb.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.seqrite.com/blog/macsync-the-evasive-macos-stealer-exploiting-clickfix-lures/
+  evidence: C2 Root Domain newsinweb.com Fallback root domain
+hunt_id: H-0673

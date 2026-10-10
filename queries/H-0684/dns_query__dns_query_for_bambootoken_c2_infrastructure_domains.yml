@@ -1,0 +1,71 @@
+title: DNS Query for BambooToken C2 Infrastructure Domains
+id: f47883ce-d420-466f-9b0b-82c7ebf1e415
+status: experimental
+description: Detects DNS queries for domains associated with the BambooToken malware family's command
+  and control infrastructure. These domains are used by adversaries to establish covert communication
+  channels, often via MQTT protocol, after establishing an initial foothold through DLL sideloading of
+  legitimate authentication software.
+references:
+- https://www.lumen.com/blog/en-us/the-banana-stand-brokering-and-managing-infections-across-asia-using-mqtt
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1036
+- attack.t1047
+- attack.t1055
+- attack.t1113
+- attack.t1123
+- attack.t1140
+- attack.t1195.002
+- attack.t1199
+- attack.t1559.001
+- attack.t1574.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - turbo.c2iznja.com
+    - base64.c2iznja.com
+    - cache.c2iznja.com
+    - chat5188.tk
+    - icanihazip.com
+  condition: selection
+falsepositives:
+- Legitimate use of CDN or proxy services that may share subdomain patterns
+- User access to compromised or misconfigured third-party services
+level: high
+hecate_provenance:
+- value: turbo.c2iznja.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: base64.c2iznja.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: cache.c2iznja.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: chat5188.tk
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: icanihazip.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0684
+hecate_review:
+  verdict: keep

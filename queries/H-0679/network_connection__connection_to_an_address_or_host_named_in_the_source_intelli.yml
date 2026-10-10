@@ -1,0 +1,70 @@
+title: Connection to an address or host named in the source intelligence
+id: 6276b822-49b9-4658-af25-8e02dbc43148
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.group-ib.com/blog/grelosgtm/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: jqwereid.online
+  selection_2_any:
+    DestinationHostname: fountm.online
+  selection_3_any:
+    DestinationHostname: gstatcs.com
+  selection_4_80:
+    DestinationHostname: webfaset.com
+    DestinationPort: 80
+  selection_5_any:
+    DestinationHostname: bulder.online
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: jqwereid.online
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: Indicators of compromise webfaset[.]com fountm[.]online jqwereid[.]online bulder[.]online
+    gstatcs[.]com
+- value: fountm.online
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: Indicators of compromise webfaset[.]com fountm[.]online jqwereid[.]online bulder[.]online
+    gstatcs[.]com
+- value: gstatcs.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: Indicators of compromise webfaset[.]com fountm[.]online jqwereid[.]online bulder[.]online
+    gstatcs[.]com
+- value: webfaset.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: All collected cards will be sent to attackers’ server via gate hXXs://webfaset[.]com/media/logo.img.
+- value: bulder.online
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: Indicators of compromise webfaset[.]com fountm[.]online jqwereid[.]online bulder[.]online
+    gstatcs[.]com
+hunt_id: H-0679

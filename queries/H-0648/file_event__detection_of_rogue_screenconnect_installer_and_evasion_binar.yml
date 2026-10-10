@@ -1,0 +1,38 @@
+title: Detection of Rogue ScreenConnect Installer and Evasion Binaries via File Creation
+id: 98705860-f5b4-4a61-be37-17ad2ba439a7
+status: experimental
+description: Detects the creation of files associated with a rogue ScreenConnect installer disguised as
+  an Adobe update, along with defense-evasion binaries (HideCursor.exe, HideUL.exe) used to hide cursor
+  activity during the phishing lure execution. This targets the delivery phase of a Browser-in-the-Browser
+  attack leading to RMM deployment.
+references:
+- https://www.huntress.com/blog/phishing-bitb-rmm-attacks
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1566.001
+- attack.t1566.002
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_installer:
+    TargetFilename|endswith: ScreenConnect.ClientSetup.exe
+  selection_evasion_cursor:
+    TargetFilename|endswith: HideCursor.exe
+  selection_evasion_ul:
+    TargetFilename|endswith: HideUL.exe
+  selection_msi_adobe:
+    TargetFilename|contains: AdbRdBkUpsStUp.msi
+  selection_msi_patch:
+    TargetFilename|contains: patch.msi
+  condition: selection_installer or selection_evasion_cursor or selection_evasion_ul or selection_msi_adobe
+    or selection_msi_patch
+falsepositives:
+- Legitimate ScreenConnect (ConnectWise Control) installations by IT administrators
+- Adobe Creative Cloud updates or patches
+- System maintenance scripts deploying legitimate MSI packages
+level: high
+hunt_id: H-0648
+hecate_review:
+  verdict: keep

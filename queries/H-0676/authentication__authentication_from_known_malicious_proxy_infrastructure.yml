@@ -1,0 +1,66 @@
+title: Authentication from Known Malicious Proxy Infrastructure
+id: 4c6a8eb0-9c12-4144-86cd-92bc8c40a0a6
+status: experimental
+description: Detects successful authentication events originating from IP addresses associated with the
+  JeetBot malicious browser extension infrastructure. While the exfiltration mechanism involves cleartext
+  tokens in HTTP requests, the resulting unauthorized account access will manifest as authentication logs
+  from these specific C2 proxy IPs.
+references:
+- https://socket.dev/blog/malicious-twitch-browser-extension
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1550.004
+logsource:
+  category: authentication
+detection:
+  selection_ip:
+    IpAddress|all:
+    - 80.74.26.162
+    - 132.243.113.25
+    - 152.53.177.186
+  selection_status:
+    Status: '0x0'
+  condition: selection_ip and selection_status
+falsepositives:
+- Legitimate users accessing services hosted on these IPs if they are part of a CDN or proxy provider
+  used by the organization
+- Internal monitoring tools scanning these endpoints
+level: high
+hecate_provenance:
+- value: 132.243.113.25
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: ext-styles[.]jeetbot[.]cc, the token-strip proxy morphilina[.]me (and proxy[.]morphilina[.]me),
+    and the screenshot host drisnya[.]online (and img[.]drisnya[.]online) resolve to 132[.]243[.]113[.]25
+- value: 80.74.26.162
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: ext-03[.]jeetbot[.]cc, resolves to 80[.]74[.]26[.]162
+- value: 152.53.177.186
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/malicious-twitch-browser-extension
+  evidence: enhanced[.]jeetbot[.]cc, together with the control endpoints jeetbot[.]cc and api[.]jeetbot[.]cc,
+    resolves to 152[.]53[.]177[.]186
+hunt_id: H-0676
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule detects authentication events from malicious IPs, but the hypothesis specifies that adversaries
+    exfiltrate tokens via cleartext query parameters in proxied network requests. The provided passages
+    describe token theft via browser extension proxying (e.g., 'token-strip proxy', 'captures and forwards
+    users' live Twitch OAuth session tokens'), not direct authentication logs from those IPs. Authentication
+    logs would show the victim's login, not the exfiltration mechanism described.
+  - The rule relies on IP addresses which are dynamic infrastructure details mentioned in the report,
+    but the core behavior (cleartext token interception) is better detected by network traffic analysis
+    or extension hashes rather than authentication source IPs, which may not directly correlate to the
+    specific exfiltration event described.

@@ -1,0 +1,26 @@
+title: Detection of MeshCentral Agent Deployment via File Creation
+id: c6226ad6-9590-453d-837a-1d9f24e80fc9
+status: experimental
+description: Detects the creation of files associated with the deployment of MeshCentral agents, a tool
+  used by adversaries for persistent command-and-control and credential harvesting as seen in recent campaigns
+  targeting FortiGate appliances. This rule focuses on the specific file artifacts left behind during
+  the installation phase.
+references:
+- https://hunt.io/blog/thai-broadband-fortigate-sslvpn-meshcentral-intrusion
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-09'
+tags:
+- attack.t1574.006
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: /usr/local/mesh_services/meshagent/
+  condition: selection
+falsepositives:
+- Legitimate MeshCentral server installations by IT administrators
+- Automated configuration management tools deploying agent files
+level: high
+hunt_id: H-0678
+hecate_review:
+  verdict: keep

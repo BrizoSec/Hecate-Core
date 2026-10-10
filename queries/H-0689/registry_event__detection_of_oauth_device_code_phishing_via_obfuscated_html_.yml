@@ -1,0 +1,39 @@
+title: Detection of OAuth Device Code Phishing via Obfuscated HTML Payload Registry Artifacts
+id: cacd7557-2c99-462a-9a4e-7c759b68e52f
+status: experimental
+description: Detects the creation of registry keys associated with GhostCode-style device code phishing
+  campaigns. Adversaries use obfuscated HTML payloads to register unauthorized devices and harvest Primary
+  Refresh Tokens (PRT). This rule targets the specific process execution patterns observed in the campaign,
+  specifically looking for the deployment of the malicious HTML document and the subsequent Python-based
+  request generation used to interact with the OAuth endpoint.
+references:
+- https://www.esentire.com/blog/ghostcode-dissecting-a-novel-device-code-phishing-kit
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1556.006
+logsource:
+  category: registry_event
+detection:
+  selection_process_python:
+    Image|endswith: \python-requests/2.34.2
+  selection_process_office:
+    Image|endswith: \Microsoft Office/16.0 (Windows NT 10.0; Microsoft Outlook 16.0.17425; Pro
+  condition: (selection_process_python or selection_process_office)
+falsepositives:
+- Legitimate Python scripts using requests library for normal API calls
+- Standard Microsoft Outlook updates or add-ins
+- Administrative automation scripts
+level: high
+hunt_id: H-0689
+hecate_review:
+  verdict: reject
+  issues:
+  - 'The rule specifies `logsource: category: registry_event`, but the provided source passages contain
+    no information regarding registry keys, registry events, or any Windows Registry artifacts. The detections
+    described in the hypothesis and passages relate to network traffic (HTML payloads, redirect URLs,
+    API calls), domain registration, and proxy usage.'
+  unverified_contradiction: The rule claims to detect 'registry keys associated with GhostCode-style device
+    code phishing campaigns' and targets 'process execution patterns' within a registry log source. However,
+    the source passages only describe network-based indicators (domains, URLs, IPs, User-Agents) and do
+    not mention any registry activity or artifacts.

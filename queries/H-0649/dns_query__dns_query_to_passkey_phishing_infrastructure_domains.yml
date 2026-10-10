@@ -1,0 +1,123 @@
+title: DNS Query to Passkey Phishing Infrastructure Domains
+id: 9ae4c88d-50dd-45b2-ba72-4d717ef26361
+status: experimental
+description: Detects DNS queries to known domains associated with Storm-3121/Storm-3032 passkey-themed
+  AiTM phishing campaigns. These domains are used to host fake authentication portals that harvest credentials
+  and MFA tokens for Microsoft Graph API abuse.
+references:
+- https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - .setupmypasskey.com
+    - .validationsetupac.com
+    - .portalsetuphub.com
+    - .myconnectkey.com
+    - .oskeysync.com
+    - .keysyncos.com
+    - .oskeyregister.com
+    - .passkeyhelpdesk.com
+    - .oskeysetup.com
+    - add-passkey.com
+  condition: selection
+falsepositives:
+- Legitimate passkey or identity provider services using similar naming conventions
+- Internal testing environments mimicking authentication flows
+level: high
+hecate_provenance:
+- value: setupmypasskey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: validationsetupac.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Setup and verification validationsetupac[.]com, portalsetuphub[.]com
+- value: portalsetuphub.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Setup and verification validationsetupac[.]com, portalsetuphub[.]com
+- value: myconnectkey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: oskeysync.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: keysyncos.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: oskeyregister.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: passkeyhelpdesk.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+- value: oskeysetup.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: Key setup and synchronization keysyncos[.]com, oskeysync[.]com, oskeysetup[.]com, oskeyregister[.]com,
+    syncmykey[.]com, myconnectkey[.]com, oskeyconnect[.]com
+- value: add-passkey.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.microsoft.com/en-us/security/blog/2026/09/09/passkey-themed-social-engineering-leads-identity-cloud-compromise/
+  evidence: The me Domain examples, defanged Passkey passkeyhelpdesk[.]com, secure-passkey[.]com†, setupmypasskey[.]com†,
+    add-passkey[.]com†
+hunt_id: H-0649
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule focuses solely on DNS queries to phishing infrastructure domains, which only detects the
+    initial credential harvesting phase (AiTM phishing). It fails to detect or correlate with the core
+    hypothesis components: ''unauthorized MFA persistence'', ''access Microsoft Graph API'', and ''automated
+    data exfiltration''.'
+  - The rule ignores the critical indicator of compromised identity accounts accessing Microsoft Graph
+    API, which is explicitly detailed in passages [7], [8], [9], and [10] as the method for cloud reconnaissance
+    and data exfiltration.
+  - The detection logic is too narrow; it misses the actual malicious activity (Graph API abuse) described
+    in the hypothesis, relying only on the precursor phishing domains.

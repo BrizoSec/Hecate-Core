@@ -1,0 +1,29 @@
+title: Web3 Supply Chain Attack C2 via Ethereum RPC
+id: 5c4e4d63-94c2-4263-8f46-943980b22cc8
+status: experimental
+description: Detects network connections to Ethereum Remote Procedure Call (RPC) endpoints, which are
+  used by the ChainDrop worm and PolinRider campaign for dynamic Command and Control. This behavior is
+  distinct from standard HTTP/DNS traffic and indicates active exploitation of compromised developer workstations
+  or CI/CD runners.
+references:
+- https://unit42.paloaltonetworks.com/web3-cloud-supply-chain-attacks/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1071.001
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationPort|all:
+    - 8545
+    - 8546
+  condition: selection
+falsepositives:
+- Legitimate blockchain development
+- Local node testing (e.g., Ganache, Hardhat)
+- Web3.js or Ethers.js library usage for dApp interaction
+level: high
+hunt_id: H-0694
+hecate_review:
+  verdict: keep

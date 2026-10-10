@@ -1,0 +1,57 @@
+title: Request for a URL path named in the source intelligence
+id: eafd276a-2bc9-40d6-9dad-fcadfcaabf6d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.group-ib.com/blog/grelosgtm/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-09'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /bootstrap.min.css
+    - /gtm.js
+    - /media/logo.img
+    - /str.css
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://www.googletagmanager.com/gtm.js?id=GTM-5SF293J
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: In most cases attackers used a direct link to the script located on legitimate googletagmanager.com
+    domain
+- value: hXXs://webfaset.com/str.css
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: This Google Tag Manager script (Figure 2) contains malicious inject, which loads the next
+    stage script from the attacker’s website by URL hXXs://webfaset[.]com/str.css .
+- value: wss://webfaset.com:80/bootstrap.min.css
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: Injected script is responsible for detecting the checkout page using regular expression and
+    for downloading the main payload of JS sniffer using WebSocket from URL wss://webfaset[.]com:80/bootstrap.mi
+- value: hXXs://webfaset.com/media/logo.img
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.group-ib.com/blog/grelosgtm/
+  evidence: All collected cards will be sent to attackers’ server via gate hXXs://webfaset[.]com/media/logo.img.
+hunt_id: H-0679

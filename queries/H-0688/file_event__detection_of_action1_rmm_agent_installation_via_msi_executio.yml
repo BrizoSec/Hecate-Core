@@ -1,0 +1,27 @@
+title: Detection of Action1 RMM Agent Installation via MSI Execution
+id: a6904667-c18f-4e25-b9c2-34d01f011eec
+status: experimental
+description: Detects the creation of the Action1 agent executable in its expected installation directory,
+  which is a key indicator of the malicious Action1 RMM tool deployment described in SANS ISC intelligence.
+  This rule targets the file drop associated with the abuse of legitimate remote management tools.
+references:
+- https://isc.sans.edu/diary/rss/33400
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1027
+- attack.t1566.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \Action1\action1_agent.exe
+  condition: selection
+falsepositives:
+- Legitimate Action1 RMM deployments by IT administrators
+- Other software installing agents in C:\Windows\
+level: high
+hunt_id: H-0688
+hecate_review:
+  verdict: keep

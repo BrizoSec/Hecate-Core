@@ -1,0 +1,40 @@
+title: Request for a URL path named in the source intelligence
+id: 98f158b3-4445-45b8-a0ee-079ecfb23d23
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /browserthemes/resourcepack
+    - /mirror-js/mirror-js
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://github.com/mirror-js/mirror-js
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+  evidence: 1c-office-plugin.exe, 1cbroker.exe, trueconf.exe https://github[.]com/mirror-js/mirror-js
+    https://github[.]com/browserthemes/resourcepack
+- value: https://github.com/browserthemes/resourcepack
+  type: url
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securelist.com/tr/nighteagle-apt-ghostcontainer-and-tunneling/121323/
+  evidence: https://github[.]com/mirror-js/mirror-js https://github[.]com/browserthemes/resourcepack Targeted
+    attacks
+hunt_id: H-0687

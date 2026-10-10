@@ -1,0 +1,81 @@
+title: DNS Query to JungleBamboo C2 Infrastructure Domains
+id: 4af99e11-17de-44f7-95cc-97f1859a0923
+status: experimental
+description: Detects DNS queries for domains associated with the JungleBamboo threat group (UTA0560),
+  specifically those linked to GRIMWEDGE and LONGTALE campaigns. These domains are used for command and
+  control or payload delivery, often preceding exploitation of Chrome and Windows kernel vulnerabilities.
+references:
+- https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1190
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - cloud.shinewrist.net
+    - ocr.opusaccel.top
+    - photos.msbenefit.com
+    - proof.gitprogram.com
+    - xyz0102.gitprogram.com
+    - document.gitprogram.com
+  condition: selection
+falsepositives:
+- Legitimate cloud storage or photo hosting services with similar naming conventions
+- CDN domains that may share IP ranges with C2 infrastructure
+level: high
+hecate_provenance:
+- value: msbenefit.com
+  type: domain
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: gitprogram.com
+  type: domain
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: cloud.shinewrist.net
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: document.gitprogram.com
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: ocr.opusaccel.top
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: photos.msbenefit.com
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: proof.gitprogram.com
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: xyz0102.gitprogram.com
+  type: hostname
+  role: unknown
+  status: unknown
+  source: cti feed
+hunt_id: H-0650
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages list is empty, so the rule cannot be validated against specific technical indicators
+    (IPs, hashes, file names) mentioned in a report.
+  - The hypothesis mentions 'chained zero-day exploits' and 'JScript backdoors', but the rule only detects
+    DNS queries to C2 domains. While this may detect the infrastructure, it does not detect the exploitation
+    or persistence mechanisms described in the hypothesis.
+  - Without source passages, we cannot confirm if these specific domains are actually associated with
+    the described threat group or if they are false positives.

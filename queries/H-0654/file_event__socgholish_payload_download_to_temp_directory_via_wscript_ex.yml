@@ -1,0 +1,34 @@
+title: SocGholish Payload Download to Temp Directory via WScript Execution Context
+id: 970fc77d-3885-499d-a732-7a1a9a3b7000
+status: experimental
+description: Detects the creation of files in the user's temporary directory (%APPDATA%\Local\Temp) which
+  is a common location for SocGholish payloads downloaded and executed by obfuscated WScript. This behavior
+  indicates potential post-exploitation activity targeting election infrastructure.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027.006
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \AppData\Local\Temp\
+  condition: selection
+falsepositives:
+- Legitimate software installers writing temporary files
+- Browser cache or update processes
+- Application logs or temp data from standard user workflows
+level: medium
+hunt_id: H-0654
+hecate_review:
+  verdict: revise
+  issues:
+  - The source passages are empty, so the rule cannot be validated against specific evidence.
+  - The rule detects file creation in %APPDATA%\Local\Temp, but the hypothesis specifies 'temporary directories'
+    generally and mentions WScript execution context. While plausible, the lack of source text makes it
+    impossible to confirm if this specific path or detection method aligns with the reported behavior.
+  - The rule includes a claim about 'targeting election infrastructure' in the description which is not
+    supported by any source passage.

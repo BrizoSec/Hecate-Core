@@ -1,0 +1,32 @@
+title: Detection of JScript Backdoor Execution via Browser Process Spawning
+id: 732f2936-b24f-4376-9e56-5bcfb1289678
+status: experimental
+description: Detects the execution of JScript engines (cscript.exe or wscript.exe) spawned by a web browser
+  process. This behavior aligns with the hypothesis that adversaries use chained zero-day exploits in
+  Chrome to deliver malicious payloads, establishing persistent surveillance via JScript backdoors. Standard
+  executable-focused controls may miss this as it leverages legitimate system binaries for script execution.
+references:
+- https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1059.007
+- attack.t1190
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_browser:
+    ParentImage|endswith: \chrome.exe
+  selection_script:
+    Image|endswith: \cscript.exe
+    CommandLine|contains: .js
+  condition: selection_browser and selection_script
+falsepositives:
+- Legitimate developer tools or build scripts invoking JScript via Chrome extensions
+- Automated testing frameworks using browser automation libraries that spawn helper processes
+- Enterprise management software integrating with browser-based dashboards
+level: high
+hunt_id: H-0650
+hecate_review:
+  verdict: keep

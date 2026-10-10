@@ -1,0 +1,33 @@
+title: DNS Query to Casbaneiro C2 Domain gexwalltool.com
+id: 7fa29d36-0000-4009-aee5-5ff64474d029
+status: experimental
+description: Detects DNS queries for the domain 'gexwalltool.com', which is associated with the Casbaneiro
+  banking trojan campaign targeting Latin American financial institutions. This rule identifies potential
+  command and control communication or data exfiltration infrastructure usage.
+references:
+- https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith: .gexwalltool.com
+  condition: selection
+falsepositives:
+- Legitimate use of the gexwalltool.com domain by internal applications or services
+- CDN or proxy services that may resolve to similar infrastructure
+level: high
+hecate_provenance:
+- value: gexwalltool.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0660
+hecate_review:
+  verdict: keep

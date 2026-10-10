@@ -1,0 +1,64 @@
+title: DNS lookup of a domain named in the source intelligence
+id: a4bdbe5d-c82f-4c0b-b55c-27a341c127f7
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references: []
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-08'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - d.d.edsxhbba06.shop
+    - oa.muxmyee520.shop
+    - pan.qlam.cc
+    - v.n.1.xcwanmei09.shop
+    - www.qlam.cc
+  selection_subdomain:
+    QueryName|endswith:
+    - .d.d.edsxhbba06.shop
+    - .oa.muxmyee520.shop
+    - .pan.qlam.cc
+    - .v.n.1.xcwanmei09.shop
+    - .www.qlam.cc
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: d.d.edsxhbba06.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: oa.muxmyee520.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pan.qlam.cc
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: v.n.1.xcwanmei09.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: www.qlam.cc
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0672

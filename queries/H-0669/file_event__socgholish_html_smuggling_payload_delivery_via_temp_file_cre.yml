@@ -1,0 +1,25 @@
+title: SocGholish HTML Smuggling Payload Delivery via Temp File Creation
+id: 38d94952-d8d2-46dd-915b-cb709f7ac127
+status: experimental
+description: Detects the creation of executable or script files within temporary directories, a common
+  behavior for SocGholish campaigns utilizing HTML smuggling to extract and stage payloads after initial
+  access.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1027.006
+- attack.t1566.001
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: \temp\
+    TargetFilename|endswith: .exe
+  condition: selection
+falsepositives:
+- Legitimate software updates
+- Application installers
+- User-initiated downloads to temp folders
+level: high
+hunt_id: H-0669

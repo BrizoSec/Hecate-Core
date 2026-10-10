@@ -1,0 +1,27 @@
+title: Detection of Malicious Browser Extension Module Axiom Fetch Intercept
+id: efd3e0bb-48c0-4ce5-a80e-cf55c0be3bfe
+status: experimental
+description: Detects the creation or modification of a specific malicious JavaScript module used in cryptocurrency
+  trading platform attacks. This file, 'axiom-fetch-intercept.js', is part of a repackaged browser extension
+  designed to intercept localStorage and API responses to harvest session tokens and wallet data.
+references:
+- https://socket.dev/blog/chrome-firefox-crypto-data-theft
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-07'
+tags:
+- attack.t1027
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: vamp/axiom-fetch-intercept.js
+  condition: selection
+falsepositives:
+- Legitimate browser extensions with similar naming conventions
+- Development builds of internal tools using 'axiom' or 'intercept' in filenames
+level: high
+hunt_id: H-0652
+hecate_review:
+  verdict: keep

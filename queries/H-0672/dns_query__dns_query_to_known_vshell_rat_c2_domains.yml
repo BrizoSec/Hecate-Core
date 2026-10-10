@@ -1,0 +1,67 @@
+title: DNS Query to Known VShell RAT C2 Domains
+id: b2b79ad4-9d6c-4c49-b2ec-9456466083d5
+status: experimental
+description: Detects DNS queries for domains associated with the VShell RAT campaign targeting Chinese
+  researchers. These domains are used by the Go loader and SNOWLIGHT stager for command and control communication,
+  indicating potential initial access or lateral movement.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-08'
+tags:
+- attack.t1036
+- attack.t1105
+- attack.t1140
+- attack.t1204.002
+- attack.t1497.001
+- attack.t1497.003
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - d.d.edsxhbba06.shop
+    - oa.muxmyee520.shop
+    - pan.qlam.cc
+    - v.n.1.xcwanmei09.shop
+    - www.qlam.cc
+  condition: selection
+falsepositives:
+- Legitimate use of .shop domains for e-commerce or personal projects
+- DNS tunneling tools using similar domain structures
+- Adware or malware families sharing infrastructure with this campaign
+level: high
+hecate_provenance:
+- value: d.d.edsxhbba06.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: oa.muxmyee520.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pan.qlam.cc
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: v.n.1.xcwanmei09.shop
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: www.qlam.cc
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0672
+hecate_review:
+  verdict: keep

