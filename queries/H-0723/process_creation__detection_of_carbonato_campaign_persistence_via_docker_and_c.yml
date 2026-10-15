@@ -1,0 +1,37 @@
+title: Detection of Carbonato Campaign Persistence via Docker and Cron/Systemd Modification
+id: 81d28b01-01e9-43d3-b8cb-2c1d6740f3fb
+status: experimental
+description: Detects the deployment of malicious artifacts associated with the Carbonato campaign, specifically
+  the installation of a network monitor binary and modification of persistence mechanisms (cron/systemd)
+  or loot files. This behavior indicates an adversary leveraging unauthenticated Docker access to establish
+  persistent control over the host system.
+references:
+- https://www.threatdown.com/blog/carbonato/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1053.003
+- attack.t1053.006
+- attack.t1059.004
+logsource:
+  category: process_creation
+detection:
+  selection_docker_monitor:
+    CommandLine|contains: /usr/local/bin/.docker-network-monitor
+  selection_persistence_cron:
+    CommandLine|contains: rc.local
+    CommandLine|endswith: .sh
+  selection_persistence_systemd:
+    Image|endswith: /systemctl
+    CommandLine|contains: /etc/systemd/system/
+  selection_loot_files:
+    CommandLine|contains: /root/.hermes/SOUL.md
+  condition: 1 of selection_*
+falsepositives:
+- Legitimate Docker container management scripts
+- System administration tasks involving cron or systemd configuration
+- Backup or log collection tools accessing /root/.hermes/ directories
+level: high
+hunt_id: H-0723
+hecate_review:
+  verdict: keep

@@ -62,7 +62,7 @@ RULE:
 {rule_yaml}
 
 Questions:
-1. Does this rule detect AT LEAST ONE behaviour the hypothesis and the passages describe?
+1. Does this rule detect AT LEAST ONE behaviour or indicator the hypothesis and the passages describe (including execution, persistence, C2 communication, or indicator lookups)?
 2. Does it contradict a passage (a reversed parent/child order, a file the report says is only read or checked,
    a lookup the report says never happens, a process the report never names)?
 
@@ -73,7 +73,7 @@ Return JSON only:
   "quote": "the passage text the rule contradicts, copied EXACTLY from one passage, or empty"}}
 
 Use "reject" only for a contradiction you can quote. Use "revise" for a rule that could work but is weak or
-off-target. Rules are intentionally scoped to a single log source. Do not use "revise" or "reject" for a rule just because it covers only part of the hypothesis."""
+off-target. Rules are intentionally scoped to a single log source. Do not use "revise" or "reject" for a rule just because it covers only part of the hypothesis, or because it detects a specific indicator (domain, IP, hash) from the passages rather than endpoint execution."""
 
 
 def coverage_prompt(rules: List[Dict[str, str]], hypothesis: str, passages: List[str]) -> str:

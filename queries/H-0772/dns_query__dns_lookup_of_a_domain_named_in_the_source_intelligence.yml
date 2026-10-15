@@ -1,0 +1,43 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 0e3ac137-e63f-414c-9c78-715f47f6b989
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - malwarescan.xyz
+    - edge-ru-07.kryptex.network
+    - edge-ru-07.kryptex.network
+  selection_subdomain:
+    QueryName|endswith:
+    - .malwarescan.xyz
+    - .edge-ru-07.kryptex.network
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: malwarescan.xyz
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+  evidence: This server hosts the domain “ malwarescan[.]xyz ,” which was registered in February 2026.
+- value: edge-ru-07.kryptex.network
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+  evidence: which hosts edge-ru-07[.]kryptex[.]network .
+hunt_id: H-0772

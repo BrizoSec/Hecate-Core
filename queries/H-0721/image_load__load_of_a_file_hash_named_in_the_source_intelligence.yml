@@ -1,0 +1,31 @@
+title: Load of a file hash named in the source intelligence
+id: 8ac67980-dd34-4be0-b0fa-b79a1b153451
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=cd1e835f52e5f55279dcdf3857e11bc9298ea6caa88eb214ea2d40ff5d38b5f5
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: cd1e835f52e5f55279dcdf3857e11bc9298ea6caa88eb214ea2d40ff5d38b5f5
+  type: sha256
+  role: library
+  status: unknown
+  confidence: unknown
+  source: https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+  evidence: Bundled process-hiding library
+hunt_id: H-0721

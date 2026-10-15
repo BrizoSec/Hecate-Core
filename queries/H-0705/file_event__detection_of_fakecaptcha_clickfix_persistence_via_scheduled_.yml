@@ -1,0 +1,26 @@
+title: Detection of FakeCaptcha ClickFix Persistence via Scheduled Task Creation
+id: 3e114ad8-c58f-4789-96c4-109b77599379
+status: experimental
+description: Detects the creation of scheduled task definition files in the System32\Tasks directory,
+  a common persistence mechanism used by the EtherHiding campaign's ClickFix lures to establish long-term
+  access after initial PowerShell execution.
+references:
+- https://www.guidepointsecurity.com/blog/etherhiding-exposed-deep-dive/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \System32\Tasks\
+  condition: selection
+falsepositives:
+- Legitimate software installers creating scheduled tasks
+- Windows Update or system maintenance scripts
+level: medium
+hunt_id: H-0705
+hecate_review:
+  verdict: keep

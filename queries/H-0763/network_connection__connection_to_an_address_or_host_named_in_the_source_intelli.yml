@@ -1,0 +1,30 @@
+title: Connection to an address or host named in the source intelligence
+id: 5a6cf047-afab-4650-a954-d4aab5c3fa77
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/mapping-akira-ransomware-attack
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 64.227.4.134
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 64.227.4.134
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/mapping-akira-ransomware-attack
+  evidence: 64.227.4[.]134 GOST Tunnel C2
+hunt_id: H-0763

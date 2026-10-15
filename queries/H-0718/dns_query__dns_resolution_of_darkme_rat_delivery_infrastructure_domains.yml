@@ -1,0 +1,28 @@
+title: DNS Resolution of DarkMe RAT Delivery Infrastructure Domains
+id: 00136df5-e78e-4da3-b038-6540d63a49bd
+status: experimental
+description: Detects DNS queries for domains associated with the DarkMe RAT delivery infrastructure. These
+  domains are used to host disguised .pif files and MSI installers delivered via social engineering phishing
+  campaigns. Resolving these domains is a precursor to the execution of the 'Locked://' protocol handler
+  persistence mechanism.
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|re: (advancedfuturetechnology\.com|thatawful\.boutique|megchartedbk7\.com|onlineview365\.com|readonline365\.com|sharedfuturetech\.com|storageonline\.me|viewdocument\.live)
+  condition: selection
+falsepositives:
+- Legitimate use of document viewing services
+- Cloud storage providers with similar naming conventions
+- Phishing campaigns targeting other organizations using similar infrastructure
+level: high
+hunt_id: H-0718
+hecate_review:
+  verdict: keep

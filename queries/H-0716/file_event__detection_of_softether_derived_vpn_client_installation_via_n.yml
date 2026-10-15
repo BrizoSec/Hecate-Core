@@ -1,0 +1,28 @@
+title: Detection of SoftEther-derived VPN Client Installation via NeoAdapter Driver
+id: 8e617663-ba93-486c-97c0-313c02f3afc6
+status: experimental
+description: Detects the installation of the HangroVPN or similar SoftEther-derived VPN client by monitoring
+  for the creation of its specific network adapter driver file. This tool is used by DPRK entities to
+  establish resilient C2 channels that bypass standard TLS inspection due to self-signed certificates.
+  The presence of the 'NeoAdapter_VPN' driver indicates the deployment of this specific infrastructure.
+references:
+- https://blog.synapticsystems.de/north-koreas-hangro-revisited
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.002
+- attack.t1571
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: NeoAdapter_VPN.sys
+  condition: selection
+falsepositives:
+- Legitimate SoftEther VPN client installations by IT administrators
+- Other virtual network adapter drivers with similar naming conventions
+level: high
+hunt_id: H-0716
+hecate_review:
+  verdict: keep

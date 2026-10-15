@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: defaults overridden'
+id: c532ee86-0922-46fe-8e98-f52f43999851
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "defaults can be overridden by using the --models argument.".'
+references:
+- https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /defaults
+    CommandLine|contains: overridden
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0762

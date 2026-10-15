@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: schtasks /create'
+id: 936de39c-f080-40e0-8b4c-5a130fa6cff4
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "schtasks /create /f /sc onlogon /rl highest /tn ).".'
+references:
+- https://www.sentinelone.com/blog/when-environment-variables-met-steganography-inside-a-reusable-dcrat-delivery-chain/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1053.005
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \schtasks.exe
+    CommandLine|contains: /create
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0764

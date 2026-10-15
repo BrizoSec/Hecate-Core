@@ -1,0 +1,53 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 3b973f0b-d4fb-46ca-a537-c58f50c68e70
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - deadhub.org
+    - itorrents.org
+    - api.mainnet.solana.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .deadhub.org
+    - .itorrents.org
+    - .api.mainnet.solana.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: deadhub.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Делая это, загрузчик декодирует доменное имя https://deadhub[.]org
+- value: itorrents.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Вместо этого они взломали широко используемый публичный репозиторий торрент-файлов — itorrents[.]org.
+- value: api.mainnet.solana.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: кампания использует легитимный блокчейн Solana через RPC-эндпоинт api.mainnet.solana.com для
+    доставки адреса C2-сервера на второй стадии.
+hunt_id: H-0700

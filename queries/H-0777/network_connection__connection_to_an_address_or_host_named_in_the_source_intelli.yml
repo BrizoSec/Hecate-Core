@@ -1,0 +1,63 @@
+title: Connection to an address or host named in the source intelligence
+id: 03089d55-6ad8-44f1-8bea-c76fbd9fd844
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.welivesecurity.com/en/eset-research/matchboil-new-tricks-same-old-evil-intentions/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 64.95.13.210
+  selection_2_any:
+    DestinationIp: 64.95.10.223
+  selection_3_any:
+    DestinationHostname: airarticlegenerate.com
+  selection_4_any:
+    DestinationHostname: virtualdailyplanner.pro
+  selection_5_any:
+    DestinationHostname: flycloud-service.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 64.95.13.210
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/matchboil-new-tricks-same-old-evil-intentions/
+  evidence: MATCHBOIL C&C IP, VPS.
+- value: 64.95.10.223
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/matchboil-new-tricks-same-old-evil-intentions/
+  evidence: MATCHBOIL C&C IP, VPS.
+- value: airarticlegenerate.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: virtualdailyplanner.pro
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: flycloud-service.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0777

@@ -1,0 +1,51 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 711bcb8c-0b2c-4d60-843f-f2539b1d72e9
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - api.hhos.ru
+    - de34.rapidstaticserve.cc
+    - mainapi.store
+  selection_subdomain:
+    QueryName|endswith:
+    - .mainapi.store
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: api.hhos.ru
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: A paid "VIP" tier is sold for 299 roubles through api.hhos.ru and mainapi.store.
+- value: de34.rapidstaticserve.cc
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: 'Three of the HTTPS fallback proxy hostnames in the decoded configuration ( de8.staticvaultcdn.org
+    , de4.servefaststatic.work , de34.rapidstaticserve.cc ) match hostnames used by Browsec VPN''s premium '
+- value: mainapi.store
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: A paid "VIP" tier is sold for 299 roubles through api.hhos.ru and mainapi.store.
+hunt_id: H-0741

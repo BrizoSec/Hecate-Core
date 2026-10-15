@@ -1,0 +1,27 @@
+title: Persistence via Registry Run Key for Canon Configuration Reader
+id: ae920d81-233e-4170-a02e-2322e2fc6348
+status: experimental
+description: Detects the creation of a registry run key named 'Canon Configuration Reader' under HKCU\CurrentVersion\Run,
+  which is used to establish persistence by executing a malicious payload (likely COTFileReadApp.exe or
+  similar) at user logon. This aligns with the T1547.001 technique where adversaries abuse legitimate-sounding
+  names to evade detection.
+references:
+- https://www.huntress.com/blog/chatgpt-custom-gpts-clickfix-rat
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1547.001
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: \CurrentVersion\Run\
+  condition: selection
+falsepositives:
+- Legitimate software installers adding auto-start entries
+- User-configured application shortcuts
+level: high
+hunt_id: H-0740
+hecate_review:
+  verdict: keep

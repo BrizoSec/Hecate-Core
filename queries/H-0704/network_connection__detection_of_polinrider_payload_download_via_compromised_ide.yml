@@ -1,0 +1,59 @@
+title: Detection of PolinRider Payload Download via Compromised IDE Task Configuration
+id: 6b868752-63c2-40bb-b9cf-7958ec14be9a
+status: experimental
+description: 'Detects outbound network connections initiated by Visual Studio Code processes that correspond
+  to the execution of malicious tasks defined in .vscode/tasks.json. The PolinRider campaign modifies
+  these configuration files with ''runOn'': ''folderOpen'' to trigger the download and execution of obfuscated
+  JavaScript payloads from specific C2 infrastructure upon repository initialization.'
+references:
+- https://socket.dev/blog/polinrider-github-packagist
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.004
+- attack.t1059.007
+- attack.t1195.002
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp|all:
+    - 193.247.144.38
+    - 166.88.134.62
+    - 23.27.13.135
+    - 166.88.73.46
+  condition: selection
+falsepositives:
+- Legitimate updates or telemetry from Visual Studio Code extensions
+- Developer tools fetching resources from known public CDNs or package registries that may share IP ranges
+  with threat actors
+level: high
+hecate_provenance:
+- value: 166.88.134.62
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 23.27.13.135
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 166.88.73.46
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 193.247.144.38
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/polinrider-github-packagist
+  evidence: Resolved C2 IP Addresses 193[.]247[.]144[.]38
+hunt_id: H-0704
+hecate_review:
+  verdict: keep

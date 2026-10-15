@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: zsh -l (login'
+id: be07a5f4-719b-4af9-aeb8-d6df63aca600
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "zsh -l (login shell => sources ~/.zshrc/.zprofile)".'
+references:
+- https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /zsh
+    CommandLine|contains: -l (login
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0709

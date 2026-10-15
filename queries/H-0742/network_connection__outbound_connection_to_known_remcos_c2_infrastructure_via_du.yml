@@ -1,0 +1,43 @@
+title: Outbound Connection to Known Remcos C2 Infrastructure via DuckDNS
+id: 34715855-1077-475c-b681-9780facd16e5
+status: experimental
+description: Detects outbound network connections to indicators associated with a phishing campaign targeting
+  South Korean organizations. The campaign exploits CVE-2017-0199 in Excel files to execute HTA-based
+  PowerShell downloaders, which subsequently connect to the command and control server at 172.245.209.133
+  or the domain blessedongrace.duckdns.org to retrieve steganographic payloads for Remcos RAT.
+references:
+- https://asec.ahnlab.com/en/95598
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all: 172.245.209.133
+  selection_domain:
+    DestinationHostname: blessedongrace.duckdns.org
+  condition: selection_ip or selection_domain
+falsepositives:
+- Legitimate use of DuckDNS for personal projects
+- Internal network services using dynamic DNS
+- Users accessing legitimate DuckDNS-hosted resources
+level: high
+hecate_provenance:
+- value: 172.245.209.133
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: blessedongrace.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0742
+hecate_review:
+  verdict: keep

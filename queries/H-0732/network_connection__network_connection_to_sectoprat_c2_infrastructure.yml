@@ -1,0 +1,148 @@
+title: Network Connection to SectopRAT C2 Infrastructure
+id: f9a386ac-7dfa-4f57-8c4a-abaecbf8540f
+status: experimental
+description: Detects outbound network connections to known Command and Control (C2) infrastructure associated
+  with the SectopRAT threat. This rule targets specific IP addresses and domains identified in threat
+  intelligence as being used for payload delivery or command execution, helping to identify active compromise
+  before persistence is established.
+references:
+- https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all: 98.142.252.140
+  selection_hostname:
+    DestinationHostname|all:
+    - bsc-dataseed1.ninicoin.io
+    - bsc-dataseed4.ninicoin.io
+    - bsc-dataseed3.defibit.io
+    - bsc-dataseed4.defibit.io
+    - bsc-dataseed3.ninicoin.io
+    - bsc-dataseed2.ninicoin.io
+    - bsc-dataseed2.defibit.io
+    - bsc-dataseed1.defibit.io
+  condition: selection_ip or selection_hostname
+falsepositives:
+- Legitimate cryptocurrency node connections to public blockchain seed nodes
+- Misconfigured applications attempting to reach invalid DNS names
+level: high
+hecate_provenance:
+- value: bsc-dataseed1.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed4.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed3.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed4.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed3.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed2.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed2.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed1.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://98.142.252.140:15847
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed1.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed1.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed2.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed2.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed3.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed3.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed4.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed4.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 98.142.252.140
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+  evidence: In this variant, the hardcoded C2 server’s IP address is “98.142.252[.]140,” and the TCP port
+    is “15847.”
+hunt_id: H-0732
+hecate_review:
+  verdict: keep

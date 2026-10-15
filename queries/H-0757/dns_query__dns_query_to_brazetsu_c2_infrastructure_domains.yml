@@ -1,0 +1,63 @@
+title: DNS Query to BraZetsu C2 Infrastructure Domains
+id: 8c37f139-85ea-4cbf-a14c-89c2108e294b
+status: experimental
+description: Detects DNS queries for domains associated with the BraZetsu framework (Exilware group) used
+  for Command and Control via WebSocket. These domains are indicators of compromise for financial data
+  theft targeting CNAB files and digital certificates.
+references:
+- https://www.group-ib.com/blog/brazetsu-ai-enhanced-iab-marketplace-es/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1059.006
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - infect.online
+    - caixaentradas1boxshop.site
+    - caixaentradas1inboxshop.site
+    - infectonline.store
+    - installscenter.com
+  condition: selection
+falsepositives:
+- Legitimate use of CDN or hosting services that may share domain suffixes, though the specific BraZetsu
+  domains are rarely used for benign purposes.
+- Typosquatting or similar legitimate domains.
+level: high
+hecate_provenance:
+- value: infect.online
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: caixaentradas1boxshop.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: caixaentradas1inboxshop.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: infectonline.store
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: installscenter.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0757
+hecate_review:
+  verdict: keep

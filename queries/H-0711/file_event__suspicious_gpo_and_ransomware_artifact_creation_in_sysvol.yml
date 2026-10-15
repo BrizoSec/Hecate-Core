@@ -1,0 +1,29 @@
+title: Suspicious GPO and Ransomware Artifact Creation in SYSVOL
+id: afa4ff21-8cce-4816-86a9-748d1d9b872c
+status: experimental
+description: Detects the creation of specific files associated with malicious Group Policy Objects and
+  ransomware notes within the Active Directory SYSVOL directory. This targets the 'encryptionless extortion'
+  tactic where attackers abuse AD replication to deploy disruption tools without touching endpoints directly.
+references:
+- https://securelist.com/tr/payload-ransomware-via-group-policy/121335/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1566
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_gpo:
+    TargetFilename|contains: \sysvol\THECOMPANY.local\Policies\
+  selection_ransom:
+    TargetFilename|endswith: payload.jpg
+    TargetFilename|contains: \sysvol\THECOMPANY.local\
+  condition: selection_gpo or selection_ransom
+falsepositives:
+- Legitimate Group Policy backup or migration scripts
+- Domain controller maintenance activities involving SYSVOL replication
+level: high
+hunt_id: H-0711
+hecate_review:
+  verdict: keep

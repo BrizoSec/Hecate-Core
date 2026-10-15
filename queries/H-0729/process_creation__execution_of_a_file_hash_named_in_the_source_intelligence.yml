@@ -1,0 +1,52 @@
+title: Execution of a file hash named in the source intelligence
+id: 5fd06df7-b06e-4c91-ae7b-ee164fd21866
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://blackpointcyber.com/blog/remotepanel-and-boundsiphon-a-dual-payload-toolkit-for-persistent-access-and-browser-theft/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=b7a5c52cedd9cd5425a7f85b8d3b4b869b805c70c7991375a2c4ab612ff7906d
+    - SHA256=351f0d27d2f0105186446693eed5794419ad79d7e6e647fc2fe74dbffb25f9ad
+    - SHA256=a7e8c9e157d3ce37913a32aaa861b5248da4cc5288fa99a6b291524af5e3b9c6
+    - SHA256=fec29bbd8e50b6635ef683f03f6e018c9627aa6362a2f167115424e50b8c1b10
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: b7a5c52cedd9cd5425a7f85b8d3b4b869b805c70c7991375a2c4ab612ff7906d
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 351f0d27d2f0105186446693eed5794419ad79d7e6e647fc2fe74dbffb25f9ad
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: a7e8c9e157d3ce37913a32aaa861b5248da4cc5288fa99a6b291524af5e3b9c6
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fec29bbd8e50b6635ef683f03f6e018c9627aa6362a2f167115424e50b8c1b10
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0729

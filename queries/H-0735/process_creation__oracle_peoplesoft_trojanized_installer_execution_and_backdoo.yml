@@ -1,0 +1,27 @@
+title: Oracle PeopleSoft Trojanized Installer Execution and Backdoor Deployment
+id: b576ebaa-4b38-439f-8662-09b9a55d0a7b
+status: experimental
+description: Detects the execution of the trojanized installer Ple64.exe which deploys the SIDEEYE backdoor
+  and MeshAgent. This aligns with UNC6240 (ShinyHunters) TTPs for establishing persistent access on Oracle
+  PeopleSoft servers after initial web shell staging.
+references:
+- https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1059.003
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_installer:
+    Image|endswith: \Ple64.exe
+  condition: selection_installer
+falsepositives:
+- Legitimate PeopleSoft application server updates or patches
+- Authorized system administration scripts using custom installers
+level: high
+hunt_id: H-0735
+hecate_review:
+  verdict: keep

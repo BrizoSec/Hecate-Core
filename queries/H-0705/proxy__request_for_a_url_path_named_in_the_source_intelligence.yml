@@ -1,0 +1,42 @@
+title: Request for a URL path named in the source intelligence
+id: 04f24bd2-5c71-4aed-967d-f6e5589e381d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.guidepointsecurity.com/blog/etherhiding-exposed-deep-dive/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /public
+    - /public/polygon
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: gateway.tenderly.co/public/polygon
+  type: url
+  role: supporting
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: polygon.api.onfinality.io/public
+  type: url
+  role: supporting
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: polygon.rpc.subquery.network/public
+  type: url
+  role: supporting
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0705

@@ -1,0 +1,27 @@
+title: Scheduled Task Persistence via LOCALAPPDATA XML
+id: bdfae9ee-a4ab-4d76-965e-3dd8f1d47b6c
+status: experimental
+description: Detects the creation of scheduled task XML files in the LOCALAPPDATA directory, a common
+  technique for establishing persistence by adversaries who avoid standard system directories to evade
+  detection. This aligns with TASK#STOMP TTPs which use non-standard locations for malicious artifacts.
+references:
+- https://cyberpress.org/taskstomp-backdoor-steals-documents/?amp=1
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: \AppData\Local\
+  condition: selection
+falsepositives:
+- Legitimate software updates
+- Application configuration files
+- User-generated scheduled tasks
+level: medium
+hunt_id: H-0724
+hecate_review:
+  verdict: keep

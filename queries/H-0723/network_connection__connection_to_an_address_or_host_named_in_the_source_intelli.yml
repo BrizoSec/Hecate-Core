@@ -1,0 +1,56 @@
+title: Connection to an address or host named in the source intelligence
+id: b37678b0-fa37-4032-883c-9ca74fe83232
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.threatdown.com/blog/carbonato/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 213.136.79.115
+  selection_2_any:
+    DestinationIp: 190.211.124.187
+  selection_3_any:
+    DestinationIp: 45.79.183.61
+  selection_4_any:
+    DestinationIp: 213.136.83.197
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 213.136.79.115
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.threatdown.com/blog/carbonato/
+  evidence: 213[.]136[.]79[.]115 Beacon / reverse shell (Contabo, :8080 and :4444)
+- value: 190.211.124.187
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.threatdown.com/blog/carbonato/
+  evidence: 190[.]211[.]124[.]187 Reverse-tunnel sink (AS262145, Costa Rica)
+- value: 45.79.183.61
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.threatdown.com/blog/carbonato/
+  evidence: 45[.]79[.]183[.]61 C2 hub (Linode)
+- value: 213.136.83.197
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.threatdown.com/blog/carbonato/
+  evidence: 213[.]136[.]83[.]197 LLM gateway (Contabo), live
+hunt_id: H-0723

@@ -1,0 +1,38 @@
+title: CMSTPLUA COM Object Abuse for UAC Bypass and Malicious Execution
+id: 6ccb3774-319c-44e1-a283-21474b4b5f66
+status: experimental
+description: Detects the abuse of the CMSTPLUA COM object (CLSID {3E5FC7F9-9A51-4367-9063-A120244FBEC7})
+  to launch cmd.exe or powershell.exe, a technique commonly used to bypass UAC and execute obfuscated
+  payloads such as finger.exe in the context of ClickFix social engineering attacks.
+references:
+- https://blackpointcyber.com/blog/remotepanel-and-boundsiphon-a-dual-payload-toolkit-for-persistent-access-and-browser-theft/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1059.003
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_cmd:
+    Image|endswith: \cmd.exe
+  selection_powershell:
+    Image|endswith: \powershell.exe
+  selection_com:
+    CommandLine|contains: '{3E5FC7F9-9A51-4367-9063-A120244FBEC7}'
+  condition: (selection_cmd or selection_powershell) and selection_com
+falsepositives:
+- Legitimate system administration scripts using COM automation
+- Enterprise management tools invoking CMD/PowerShell via COM interfaces
+level: high
+hunt_id: H-0729
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule description claims to detect 'obfuscated payloads such as finger.exe', but the Sigma detection
+    logic does not include any filter for 'finger.exe'. It only detects CMD/PowerShell execution via a
+    specific COM CLSID.
+  - The hypothesis explicitly states that adversaries use 'obfuscated finger.exe execution'. The current
+    rule fails to detect this specific component mentioned in the hypothesis, making it incomplete relative
+    to the provided scope.

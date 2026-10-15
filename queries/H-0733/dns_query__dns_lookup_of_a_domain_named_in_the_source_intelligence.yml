@@ -1,0 +1,33 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 6a985e15-cb5e-4bd0-b24a-4f02d1550002
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://arcticwolf.com/resources/blog/psychedelic-stealer-fake-clickfix-captcha-targets-ukraine/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - uasputnik.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .uasputnik.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: uasputnik.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0733

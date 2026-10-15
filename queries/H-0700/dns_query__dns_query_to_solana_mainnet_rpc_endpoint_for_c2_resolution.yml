@@ -1,0 +1,53 @@
+title: DNS Query to Solana Mainnet RPC Endpoint for C2 Resolution
+id: 95923aab-0166-4771-9e8e-89030e1d9b58
+status: experimental
+description: Detects DNS queries for api.mainnet.solana.com, which is used by the MovieReaper campaign
+  to resolve C2 infrastructure via the Solana blockchain. This behavior bypasses traditional IP/domain
+  blocklists as the actual C2 addresses are retrieved from the blockchain state rather than hardcoded
+  in the malware binary.
+references:
+- https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1620
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith:
+    - api.mainnet.solana.com
+    - deadhub.org
+    - itorrents.org
+  condition: selection
+falsepositives:
+- Legitimate Solana blockchain interactions by wallet applications
+- Blockchain explorers or development tools querying the mainnet API
+level: high
+hecate_provenance:
+- value: deadhub.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Делая это, загрузчик декодирует доменное имя https://deadhub[.]org
+- value: itorrents.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Вместо этого они взломали широко используемый публичный репозиторий торрент-файлов — itorrents[.]org.
+- value: api.mainnet.solana.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: кампания использует легитимный блокчейн Solana через RPC-эндпоинт api.mainnet.solana.com для
+    доставки адреса C2-сервера на второй стадии.
+hunt_id: H-0700
+hecate_review:
+  verdict: keep

@@ -1,0 +1,59 @@
+title: Execution of a file hash named in the source intelligence
+id: 0ab16605-ce65-498c-915f-774f6abf41ef
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://asec.ahnlab.com/en/95469/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=6d2cd65dbd0df30404b08ff007359e54
+    - MD5=a9cce44c4d42b07f114dd2b340f0046a
+    - MD5=f86b2ece324cfd36e832a3b48cc3719b
+    - SHA1=5b26921e4f7b4dac140297b0401cf0f56e1d4852
+    - SHA256=ed7f260d4163d31add855a19652fa7c0adcc2eba4e0281f872eb7f43e0769814
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 6d2cd65dbd0df30404b08ff007359e54
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: a9cce44c4d42b07f114dd2b340f0046a
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: f86b2ece324cfd36e832a3b48cc3719b
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 5b26921e4f7b4dac140297b0401cf0f56e1d4852
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ed7f260d4163d31add855a19652fa7c0adcc2eba4e0281f872eb7f43e0769814
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0706

@@ -1,0 +1,35 @@
+title: Suspicious Scripting Parent Spawning Child Processes via Phishing Infrastructure
+id: 5bf83ec7-56f6-4f46-9e88-669546f3017f
+status: experimental
+description: Detects the execution of scripting interpreters (python.exe, wscript.exe) spawned by common
+  phishing delivery vectors or document viewers, which aligns with the PureRAT/PureLogs campaign's use
+  of phishing links to deliver payloads. This behavior is critical for identifying the initial loader
+  stage before memory-based injection techniques are employed.
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1059.003
+- attack.t1059.005
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_scripting:
+    Image|endswith: \python.exe
+  selection_wscript:
+    Image|endswith: \wscript.exe
+  selection_phishing_parent:
+    ParentImage|contains: chrome
+    CommandLine|contains: http
+  condition: (selection_scripting or selection_wscript) and selection_phishing_parent
+falsepositives:
+- Legitimate Python scripts executed by developers
+- Automated testing scripts using wscript.exe
+- Browser-based download managers launching executables
+level: medium
+hunt_id: H-0738
+hecate_review:
+  verdict: keep

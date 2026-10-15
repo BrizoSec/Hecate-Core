@@ -1,0 +1,57 @@
+title: Request for a URL path named in the source intelligence
+id: 4f83813a-c672-4e39-88cf-4ae79e807552
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /f
+    - /f'
+    - /token
+    - /widget.js
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://elxxvvx.xyz/f
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://elxxvvx.xyz/f'
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://third-party.com/token
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://third-party.com/widget.js
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: elxxvvx.xyz/f
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+  evidence: Second stage elxxvvx[.]xyz/f (remote PowerShell, fetched via irm)
+hunt_id: H-0727

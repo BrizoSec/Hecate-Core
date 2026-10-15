@@ -1,0 +1,25 @@
+title: Detection of /etc/ld.so.preload modification indicating LD_PRELOAD hijacking
+id: 1cb7a170-5750-440c-9bb0-a98298c47fb7
+status: experimental
+description: Detects file creation or modification of /etc/ld.so.preload, a mechanism used by adversaries
+  to inject malicious dynamic libraries into all subsequently executed processes. This is a key persistence
+  and evasion technique for rootkits like those used in ShellBot/XMRig campaigns.
+references:
+- https://asec.ahnlab.com/en/95808
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: /etc/ld.so.preload
+  condition: selection
+falsepositives:
+- Legitimate system updates or security patches modifying library preload configurations
+- System administration scripts managing dynamic linker settings
+level: high
+hunt_id: H-0785
+hecate_review:
+  verdict: keep

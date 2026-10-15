@@ -1,0 +1,37 @@
+title: Chrome Extension Proxy Configuration Fetch from Known Malicious Domains
+id: 2eaaa976-b0a2-4f36-8a2e-a544d205de1f
+status: experimental
+description: Detects DNS queries for domains associated with malicious Chrome extensions that dynamically
+  fetch proxy configurations to intercept user traffic. This behavior indicates a supply-chain style attack
+  where extensions communicate with remote C2-like infrastructure to update their interception rules.
+references:
+- https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1684.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: mainapi.store
+    Image|endswith: \chrome.exe
+  condition: selection
+falsepositives:
+- Legitimate proxy services using similar naming conventions
+- CDN or DNS resolution for legitimate web content hosted on mainapi.store if used by benign software
+level: high
+hecate_provenance:
+- value: mainapi.store
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: A paid "VIP" tier is sold for 299 roubles through api.hhos.ru and mainapi.store.
+hunt_id: H-0741
+hecate_review:
+  verdict: keep

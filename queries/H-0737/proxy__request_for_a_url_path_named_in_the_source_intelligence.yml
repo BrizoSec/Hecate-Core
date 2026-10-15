@@ -1,0 +1,36 @@
+title: Request for a URL path named in the source intelligence
+id: f13d6ced-2f9b-4f11-9609-e09735494390
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://asec.ahnlab.com/ko/95560/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /ins.txt
+    - /sm.json
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://2.59.133.147:31338/ins.txt
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://2.59.133.147:31338/sm.json
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0737

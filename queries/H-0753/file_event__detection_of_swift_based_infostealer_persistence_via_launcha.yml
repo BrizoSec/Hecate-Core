@@ -1,0 +1,27 @@
+title: Detection of Swift-based Infostealer Persistence via LaunchAgent and Config Modification
+id: 2a1a624c-f5a0-4e79-92cd-c017f804b104
+status: experimental
+description: Detects the creation of malicious LaunchAgents and modification of user configuration files
+  (.gitconfig, .ssh/config) associated with the Wavel cryptocurrency wallet installer threat. This behavior
+  indicates post-exploitation persistence and credential harvesting setup on macOS endpoints.
+references:
+- https://www.jamf.com/blog/pamstealer-wavel-macos-infostealer/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+detection:
+  selection_persistence:
+    TargetFilename|endswith: /Library/LaunchAgents/
+  selection_config_modification:
+    TargetFilename|contains: .ssh/config
+  condition: selection_persistence or selection_config_modification
+falsepositives:
+- Legitimate developer tools (e.g., Homebrew, npm, git) creating LaunchAgents or modifying config files
+- System updates writing to Library/LaunchAgents
+level: high
+hunt_id: H-0753
+hecate_review:
+  verdict: keep

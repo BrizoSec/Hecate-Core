@@ -1,0 +1,39 @@
+title: Connection to an address or host named in the source intelligence
+id: f31105c8-bfda-4b31-8398-716f594dafe5
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: trycloudflare.com
+  selection_2_any:
+    DestinationHostname: workers.dev
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: trycloudflare.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+  evidence: A download still takes place, but through the pasted command, outside the browser’s normal
+    download flow.
+- value: workers.dev
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0721

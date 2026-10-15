@@ -1,0 +1,35 @@
+title: DNS Query for Cloudflare Workers Infrastructure Associated with ClickFix Delivery
+id: 07a242b6-aabf-4c3c-958e-99ef28dda91b
+status: experimental
+description: Detects DNS queries for 'workers.dev', a domain associated with Cloudflare Workers infrastructure.
+  The AvisLoader campaign leverages trusted Cloudflare infrastructure to host malicious scripts delivered
+  via ClickFix social engineering, where users paste commands to execute code remotely. This rule targets
+  the DNS resolution of the hosting platform used in this specific attack chain.
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith: .workers.dev
+  condition: selection
+falsepositives:
+- Legitimate use of Cloudflare Workers for web application hosting
+- Development environments utilizing Cloudflare Workers API
+- Users accessing public applications hosted on Cloudflare Workers
+level: medium
+hecate_provenance:
+- value: workers.dev
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0721
+hecate_review:
+  verdict: keep

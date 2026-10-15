@@ -1,0 +1,46 @@
+title: Connection to WatchGuard VPN Phishing C2 Infrastructure
+id: e5963452-ca40-4e18-ae25-c7beecf5a1c6
+status: experimental
+description: Detects outbound network connections to known malicious IP addresses associated with the
+  C2 infrastructure for a sophisticated credential theft campaign impersonating WatchGuard VPN. This behavior
+  indicates potential exposure to phishing sites designed to harvest credentials via browser pop-ups,
+  distinct from legitimate software distribution.
+references:
+- https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all:
+    - 80.249.132.140
+    - 158.94.209.19
+  condition: selection_ip
+falsepositives:
+- Legitimate traffic to compromised or misconfigured servers at these IPs
+- Internal infrastructure using these specific IP ranges for non-malicious purposes
+level: high
+hecate_provenance:
+- value: 80.249.132.140
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: as of October 9 it resolves to 80.249.132[.]140 on Site BV hosting (LeaseWeb Netherlands,
+    AS60781).
+- value: 158.94.209.19
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: The credential collection endpoint, watchguard-ssl[.]online, was registered through Dynadot
+    on September 14, 2026 and resolves to 158.94.209[.]19 (Omegatech LTD, AS202412, Amsterdam).
+hunt_id: H-0786
+hecate_review:
+  verdict: keep

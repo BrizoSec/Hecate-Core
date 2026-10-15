@@ -1,0 +1,42 @@
+title: Excel Spawning HTA for PowerShell Download Execution
+id: 2e7348a2-0210-41be-8c6e-f354c2296e7d
+status: experimental
+description: Detects the exploitation of CVE-2017-0199 where an Excel process spawns an HTA file, which
+  is subsequently used to execute PowerShell commands downloading payloads from a known malicious infrastructure.
+  This behavior aligns with the initial access and execution phases of the Remcos RAT campaign targeting
+  South Korean organizations.
+references:
+- https://asec.ahnlab.com/en/95598
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_excel_to_hta:
+    ParentImage|endswith: \excel.exe
+    Image|endswith: \mshta.exe
+  selection_hta_to_powershell:
+    ParentImage|endswith: \mshta.exe
+    Image|endswith: \powershell.exe
+  selection_powershell_download:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: http://172.245.209.133
+  condition: (selection_excel_to_hta or selection_hta_to_powershell) and selection_powershell_download
+falsepositives:
+- Legitimate macro-enabled Excel files using VBA to trigger external scripts
+- IT automation tools executing PowerShell via Office applications
+- Document conversion utilities spawning helper processes
+level: high
+hecate_provenance:
+- value: 172.245.209.133
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0742
+hecate_review:
+  verdict: keep

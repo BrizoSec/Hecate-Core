@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: reg query'
+id: 48a2286e-7caf-4175-8c47-72e34aae34d5
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "reg query "HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Real-Time
+  Protection" /v DisableRealtimeMonitoring 2>&1 reg query "HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Real-Time
+  Protection"".'
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \reg.exe
+    CommandLine|contains: query
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0719

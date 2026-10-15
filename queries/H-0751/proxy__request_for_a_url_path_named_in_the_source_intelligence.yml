@@ -1,0 +1,71 @@
+title: Request for a URL path named in the source intelligence
+id: 17cbb7f5-6997-4542-b7cb-146fee0d7429
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.netskope.com/blog/100k-in-crypto-drained-by-the-underground-operation
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /new/log/048466C5/startCrypt
+    - /new/log/29A5FDA7/failed/1769331221
+    - /new/log/29A5FDA7/startLoader/1769331211
+    - /new/log/8320E1A4/success/1697499039
+    - /new/log/8320e1a4/startloader/1697499038
+    - /new/log/D9D278DD/success/1696492954
+    - /newlog.php
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://95.164.53.76/new/log/048466C5/startCrypt
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://95.164.53.76/new/log/29A5FDA7/failed/1769331221
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://95.164.53.76/new/log/29A5FDA7/startLoader/1769331211
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://95.164.53.76/new/log/8320E1A4/success/1697499039
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://95.164.53.76/new/log/8320e1a4/startloader/1697499038
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://95.164.53.76/new/log/D9D278DD/success/1696492954
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://easybooters.com/newlog.php
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0751

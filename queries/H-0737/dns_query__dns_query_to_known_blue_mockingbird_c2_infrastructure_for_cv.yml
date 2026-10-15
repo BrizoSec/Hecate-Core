@@ -1,0 +1,71 @@
+title: DNS Query to Known Blue Mockingbird C2 Infrastructure for CVE-2019-18935 Exploitation
+id: 4e760a87-b169-4902-81e2-81d967c2e8f2
+status: experimental
+description: 'Detects DNS queries for domains associated with the Blue Mockingbird campaign exploiting
+  CVE-2019-18935. While the primary indicators are IPs, the intelligence links specific URLs to these
+  IPs. This rule targets the resolution of the known C2 IP addresses if they were ever used as hostnames
+  in DNS logs (e.g., via reverse DNS lookups or misconfigured forwarders), or more likely, serves as a
+  baseline for correlating with network flow data. However, strictly adhering to dns_query fields, we
+  look for queries that might resolve these specific IPs if the environment uses internal DNS proxies
+  that log upstream queries for these known bad destinations, or if the attacker used domain fronting/CDN
+  names associated with these IPs. Given the strict constraint of dns_query having only QueryName, QueryResults,
+  and Image, and the indicators being IPs, a direct match on QueryName is impossible unless the C2 was
+  accessed via hostname. The intelligence provides URLs: http://2.59.133.147:31338/ins.txt. If the attacker
+  used a domain name that resolves to these IPs, we would catch it. Since no domain names are provided,
+  only IPs, and dns_query does not have an IpAddress field for *outbound* resolution results in standard
+  Sigma schemas (QueryResults is usually the answer set), we must look at the QueryName. If the intelligence
+  implied a domain, we would use it. Here, we have no domain. Therefore, we cannot write a valid dns_query
+  rule based *only* on the provided IPs without inventing a domain. Wait, looking closer at the prompt:
+  ''If your only indicator is a domain and this log source has no name field for it...''. Here my indicators
+  are IPs. DNS logs record queries for hostnames. If I don''t have a hostname, I can''t match QueryName.
+  Can I match QueryResults? QueryResults contains the IP addresses returned. So I can look for DNS responses
+  that return these specific malicious IPs.'
+references:
+- https://asec.ahnlab.com/ko/95560/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryResults|contains:
+    - 206.82.6.22
+    - 2.59.133.147
+    - 65.98.5.158
+  condition: selection
+falsepositives:
+- Legitimate services hosted on these IPs
+- CDN nodes
+- Cloudflare or other proxy services
+level: high
+hecate_provenance:
+- value: 206.82.6.22
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 2.59.133.147
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 65.98.5.158
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://206.82.6.22/
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0737
+hecate_review:
+  verdict: keep

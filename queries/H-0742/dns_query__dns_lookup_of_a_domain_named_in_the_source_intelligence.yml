@@ -1,0 +1,33 @@
+title: DNS lookup of a domain named in the source intelligence
+id: a409a69e-19ea-469e-aaa2-1e7256e8a74c
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://asec.ahnlab.com/en/95598
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - blessedongrace.duckdns.org
+  selection_subdomain:
+    QueryName|endswith:
+    - .blessedongrace.duckdns.org
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: blessedongrace.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0742

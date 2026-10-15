@@ -1,0 +1,135 @@
+title: Execution of a file hash named in the source intelligence
+id: 0d9fa801-9992-47ed-8bbf-9aea499fa286
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://fortiguard.fortinet.com/psirt/FG-IR-26-175
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=8015f34dc84922b03688399d7f9fe7a00361789f7e420c7e2a2cdb23e75cef84
+    - SHA256=77324ac428bde86d351fc5fc06f6d64a6bfe737dfb2743df1d4c5ac2418a5b6a
+    - SHA256=7a6cea9f5c9e2e9994d4e3c4da73f86cf5acd05ea5d312c066c9d1dafd69ee38
+    - SHA256=4000276a150a165d3c2537d1e19fb393c4de8333076a16655e28059cae82157b
+    - SHA256=703e97c64e61e41dc3aaba580d82bb2aa7b6a11b54ee6fb467ed5d5a3bffdef5
+    - SHA256=8953ec7960b09f544a880b072ad4e6cfda7a8303f486251d3478dcfdfbac23b6
+    - SHA256=d6fe51c22b91776f4c961ea58bcac5917f15d560a619d7ce726d3d51795609d3
+    - MD5=49a7156a7d043cc8f9f680579db22f86
+    - MD5=5241738a3e9988404239e12243f6d35b
+    - MD5=61af1c4bce1c2eebc8ff689ca5337791
+    - MD5=64c90a00c7fda4d5c7973ed64c25783a
+    - MD5=8eb64f25d2a8e18e05aae058629473cf
+    - MD5=ae0ea6502d3fa5f0664bceb73189eb54
+    - MD5=f90fa81a5f521d785f2b2f765e3ab897
+    - MD5=f90fa81a5f2b2f765e3ab897
+    - SHA256=4000276a150a165d3c2537d1e19fb393c4de8333076a16655e28059cae82157
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 8015f34dc84922b03688399d7f9fe7a00361789f7e420c7e2a2cdb23e75cef84
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 77324ac428bde86d351fc5fc06f6d64a6bfe737dfb2743df1d4c5ac2418a5b6a
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 7a6cea9f5c9e2e9994d4e3c4da73f86cf5acd05ea5d312c066c9d1dafd69ee38
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 4000276a150a165d3c2537d1e19fb393c4de8333076a16655e28059cae82157b
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 703e97c64e61e41dc3aaba580d82bb2aa7b6a11b54ee6fb467ed5d5a3bffdef5
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 8953ec7960b09f544a880b072ad4e6cfda7a8303f486251d3478dcfdfbac23b6
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: d6fe51c22b91776f4c961ea58bcac5917f15d560a619d7ce726d3d51795609d3
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 49a7156a7d043cc8f9f680579db22f86
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 5241738a3e9988404239e12243f6d35b
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 61af1c4bce1c2eebc8ff689ca5337791
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 64c90a00c7fda4d5c7973ed64c25783a
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 8eb64f25d2a8e18e05aae058629473cf
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ae0ea6502d3fa5f0664bceb73189eb54
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: f90fa81a5f521d785f2b2f765e3ab897
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: f90fa81a5f2b2f765e3ab897
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 4000276a150a165d3c2537d1e19fb393c4de8333076a16655e28059cae82157
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0749

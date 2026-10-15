@@ -1,0 +1,41 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 0af44218-6838-441e-a737-6bd7893ee5cc
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.netskope.com/blog/100k-in-crypto-drained-by-the-underground-operation
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - quick-neo.com
+    - easybooters.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .quick-neo.com
+    - .easybooters.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: quick-neo.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: easybooters.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0751

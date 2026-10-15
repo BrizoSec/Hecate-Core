@@ -1,0 +1,160 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 8ffe34dd-ad32-49c4-942e-65dfa8ab3a5d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - sync-account.com
+    - verification-security.com
+    - payment-confirm.com
+    - claude-ads.ai
+    - claude-advertisers.ai
+    - gemini-ads-team.com
+    - gemini-advertisers.com
+    - manusbymeta.com
+    - adeccohr-jobs.com
+    - museads.ai
+    - ferrar.careers-interview.com
+    - redbullapply.careers-appointment.com
+    - backend-production-6d75.up.railway.app
+    - api.ipify.org
+    - ipapi.co
+  selection_subdomain:
+    QueryName|endswith:
+    - .sync-account.com
+    - .verification-security.com
+    - .payment-confirm.com
+    - .claude-ads.ai
+    - .claude-advertisers.ai
+    - .gemini-ads-team.com
+    - .gemini-advertisers.com
+    - .manusbymeta.com
+    - .adeccohr-jobs.com
+    - .museads.ai
+    - .api.ipify.org
+    - .ipapi.co
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: sync-account.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: sync-account.com
+- value: verification-security.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: verification-security.com
+- value: payment-confirm.com
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: '[Refund] confirm-payments.com payment-confirm.com'
+- value: claude-ads.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: claude-ads.ai
+- value: claude-advertisers.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: claude-advertisers.ai
+- value: gemini-ads-team.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: gemini-ads-team.com
+- value: gemini-advertisers.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: gemini-advertisers.com
+- value: manusbymeta.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: manusbymeta.com
+- value: adeccohr-jobs.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: '[Recruit] adeccohr-calendly.com adeccohr-jobs.com'
+- value: museads.ai
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: By September 16, “museads.ai” was presenting a new product
+- value: ferrar.careers-interview.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: careers-interview.com ferrar.careers-interview.com
+- value: redbullapply.careers-appointment.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: redbullapply.careers-appointment.com
+- value: backend-production-6d75.up.railway.app
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: One backend makes the link concrete. backend-production-6d75.up.railway.app appeared in 73
+    archived scans across 25 page domains between May 27 and June 20.
+- value: api.ipify.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: Strong combinations include google_uid, repeated password fields, api.ipify.org, ipapi.co,
+    /api/send/ip, /api/create/user, and Socket.IO connections to unrelated Railway or Render hosts.
+- value: ipapi.co
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: Strong combinations include google_uid, repeated password fields, api.ipify.org, ipapi.co,
+    /api/send/ip, /api/create/user, and Socket.IO connections to unrelated Railway or Render hosts.
+hunt_id: H-0765

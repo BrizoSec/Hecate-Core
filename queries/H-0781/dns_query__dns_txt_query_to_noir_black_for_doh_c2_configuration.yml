@@ -1,0 +1,67 @@
+title: DNS TXT Query to noir.black for DoH C2 Configuration
+id: fa905feb-b6c4-4d05-b04c-77749cec7f0c
+status: experimental
+description: Detects DNS TXT record lookups against the domain noir.black, which is used by the Noir cryptocurrency
+  wallet drainer to resolve staging URLs via DNS-over-HTTPS. This behavior indicates an attempt to dynamically
+  fetch C2 infrastructure while evading static domain blacklists.
+references:
+- https://www.infoblox.com/blog/threat-intelligence/when-a-wallet-drainer-asks-dns-where-to-go/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1071.001
+- attack.t1071.002
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - noir.black
+    - render-984.pages.dev
+    - listchoiseopenleaderboardseptember.netlify.app
+  condition: selection
+falsepositives:
+- Legitimate DNS lookups for noir.black if it is a known benign domain (unlikely given context)
+- Typosquatting or similar domain names
+level: high
+hecate_provenance:
+- value: noir.black
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.infoblox.com/blog/threat-intelligence/when-a-wallet-drainer-asks-dns-where-to-go/
+  evidence: The loader also queries an API endpoint on noir[.]black for a “road” configuration.
+- value: render-984.pages.dev
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.infoblox.com/blog/threat-intelligence/when-a-wallet-drainer-asks-dns-where-to-go/
+  evidence: For example, render-984.pages[.]dev was one of the returned domains.
+- value: listchoiseopenleaderboardseptember.netlify.app
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.infoblox.com/blog/threat-intelligence/when-a-wallet-drainer-asks-dns-where-to-go/
+  evidence: A URL hosted on listchoiseopenleaderboardseptember[.]netlify[.]app Loaded a script called
+    k1xfns97l5w.5cgsbfh2.js
+hunt_id: H-0781
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule's detection logic includes 'render-984.pages.dev' and 'listchoiseopenleaderboardseptember.netlify.app'
+    in the DNS query selection. According to the source passages, these domains are returned as values
+    within the DNS TXT record response from noir.black (passage 2) or are subsequent download hosts (passage
+    3), not the domain being queried via DoH for configuration. The hypothesis and passage 11 specify
+    that the adversary queries 'public DoH services' (like Google Public DNS or Cloudflare endpoints mentioned
+    in passage 6/9) to resolve noir.black, not that they query these specific staging domains directly
+    via DoH for C2 config.
+  - The rule fails to specify the query type as 'TXT', which is critical to the hypothesis ('DNS-over-HTTPS
+    TXT record lookups') and the mechanism described in passage 11 ('uses DNS TXT records'). Without filtering
+    for TXT queries, this rule will generate excessive false positives from standard A/AAAA/CNAME lookups.
+  unverified_contradiction: The rule implies that render-984.pages.dev and listchoiseopenleaderboardseptember.netlify.app
+    are queried via DoH for C2 configuration. The passages state that noir.black is the domain queried
+    to get these domains, or that these domains are used for hosting scripts, not as the DoH query target
+    for infrastructure resolution.

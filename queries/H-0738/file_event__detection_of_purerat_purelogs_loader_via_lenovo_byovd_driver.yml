@@ -1,0 +1,30 @@
+title: Detection of PureRAT/PureLogs Loader via Lenovo BYOVD Driver and Suspicious File Extensions
+id: abcc12cd-1365-45ee-9c4d-bcc4bbeaf27b
+status: experimental
+description: Detects the creation of files associated with the Lenovo BootRepair.sys driver (used for
+  BYOVD) and suspicious double-extension files often used in phishing campaigns targeting Japanese and
+  Korean enterprises. This behavior aligns with the delivery mechanism of PureRAT/PureLogs payloads.
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1566.001
+- attack.t1574.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_driver:
+    TargetFilename|endswith: \BootRepair.sys
+  selection_phishing:
+    TargetFilename|contains: .docx.exe
+    Image|endswith: \cmd.exe
+  condition: selection_driver or selection_phishing
+falsepositives:
+- Legitimate Lenovo driver updates or repair tools
+- Users downloading double-extension files from untrusted sources (though rare in enterprise)
+level: high
+hunt_id: H-0738
+hecate_review:
+  verdict: keep

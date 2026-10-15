@@ -1,0 +1,26 @@
+title: Detection of CLEANGULP Backdoor Installation via MicrosoftIME.exe
+id: b4a299cb-b795-4e6d-8568-742879b07194
+status: experimental
+description: Detects the creation of the CLEANGULP backdoor binary, which masquerades as a legitimate
+  Microsoft Input Method Editor component. This file is typically dropped in the IME directory to establish
+  persistence and facilitate command execution against targeted organizations.
+references:
+- https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \Microsoft\IME\MicrosoftIME.exe
+  condition: selection
+falsepositives:
+- Legitimate Microsoft IME updates or installations
+- Custom enterprise input method deployments
+level: high
+hunt_id: H-0720
+hecate_review:
+  verdict: keep

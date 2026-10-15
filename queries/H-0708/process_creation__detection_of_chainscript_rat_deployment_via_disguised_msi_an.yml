@@ -1,0 +1,37 @@
+title: Detection of ChainScript RAT Deployment via Disguised MSI and Node.js Execution
+id: 9f1ea1a0-0651-4298-8778-b975af442ffc
+status: experimental
+description: Detects the execution chain associated with the ChainScript threat, specifically looking
+  for msiexec.exe spawning wscript.exe or node.exe, followed by node.exe executing scripts from disguised
+  Microsoft-themed paths. This targets the deployment phase of a Node.js-based RAT that uses ClickFix
+  lures.
+references:
+- https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.001
+- attack.t1059.007
+- attack.t1204.004
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_msiexec:
+    Image|endswith: \msiexec.exe
+    CommandLine|contains: .msi
+  selection_wscript_spawn:
+    ParentImage|endswith: \msiexec.exe
+    Image|endswith: \wscript.exe
+  selection_node_disguised:
+    Image|endswith: \node.exe
+    CommandLine|contains: \Libraries\
+  condition: (selection_msiexec and selection_wscript_spawn) or selection_node_disguised
+falsepositives:
+- Legitimate software installations using MSI installers
+- System maintenance scripts invoking wscript.exe
+- Node.js development environments executing local scripts from user directories
+level: high
+hunt_id: H-0708
+hecate_review:
+  verdict: keep

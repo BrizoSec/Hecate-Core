@@ -1,0 +1,28 @@
+title: Detection of ClickFix Payload Execution via VLCAssistant.exe
+id: 83590581-075e-4a1b-ac8c-bc186ee377bf
+status: experimental
+description: Detects the execution of a process named 'VLCAssistant.exe' which is known to be used in
+  the AvisLoader campaign as a legitimate-looking helper application to execute malicious commands. This
+  rule targets the file event where this specific executable is created or modified, often placed in temporary
+  directories by the initial social engineering payload.
+references:
+- https://www.varonis.com/blog/meet-avisloader-a-windows-loader-built-to-outlast-a-takedown
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1036
+- attack.t1566
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \VLCAssistant.exe
+  condition: selection
+falsepositives:
+- Legitimate VLC media player auxiliary tools or plugins
+- Other software installers using similar naming conventions for helper utilities
+level: high
+hunt_id: H-0721
+hecate_review:
+  verdict: keep

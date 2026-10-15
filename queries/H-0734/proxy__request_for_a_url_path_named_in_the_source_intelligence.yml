@@ -1,0 +1,30 @@
+title: Request for a URL path named in the source intelligence
+id: 683badf7-cd80-45c0-abbe-4e4ddee269eb
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://labs.k7computing.com/index.php/the-stealer-factory-unpacking-a-python-based-maas-infostealer-builder
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /api/api_post.php
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://pastebin.com/api/api_post.php
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/the-stealer-factory-unpacking-a-python-based-maas-infostealer-builder
+  evidence: _E[“pburl”] https://pastebin.com/api/api_post.php Secondary exfil endpoint
+hunt_id: H-0734

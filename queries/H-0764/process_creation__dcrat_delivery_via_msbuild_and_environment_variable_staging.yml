@@ -1,0 +1,35 @@
+title: DCRat Delivery via MSBuild and Environment Variable Staging
+id: 1e04606c-eda5-449e-b502-d5b11d33e378
+status: experimental
+description: Detects a sophisticated delivery chain where DCRat malware is staged in an environment variable
+  and executed via MSBuild.exe, leveraging steganographic PNG carriers hosted on Firebase. This behavior
+  indicates memory-only payload execution to evade disk-based forensics.
+references:
+- https://www.sentinelone.com/blog/when-environment-variables-met-steganography-inside-a-reusable-dcrat-delivery-chain/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1027.003
+- attack.t1053.005
+- attack.t1059.003
+- attack.t1059.005
+- attack.t1140
+- attack.t1620
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_cmdline:
+    CommandLine|contains: powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command
+      "IEX $env:INTERNAL_DB_CACHE;[Environment]::SetEnvironmentVariable('INTERNAL_DB_CACHE',$null,'User')"
+  selection_image:
+    Image|endswith: \MSBuild.exe
+  condition: selection_cmdline or selection_image
+falsepositives:
+- Legitimate PowerShell usage for environment variable management
+- Administrative scripts using MSBuild for .NET project compilation
+- DevOps pipelines invoking MSBuild.exe
+level: high
+hunt_id: H-0764
+hecate_review:
+  verdict: keep

@@ -1,0 +1,120 @@
+title: Network Communication with FamousSparrow APT Infrastructure
+id: a9202dc4-5146-4c1b-8723-05d14768a727
+status: experimental
+description: Detects network connections to IP addresses and domains associated with the FamousSparrow
+  APT group's SparroWocky backdoor infrastructure. This rule targets the C2 communication phase of the
+  attack, which occurs after the initial DLL side-loading delivery.
+references:
+- https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1090
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ips:
+    DestinationIp|cidr:
+    - 27.102.113.240/32
+    - 103.85.25.166/32
+    - 38.60.224.51/32
+    - 45.131.179.24/32
+    - 43.254.216.195/32
+    - 38.54.57.17/32
+    - 38.60.197.55/32
+    - 38.60.209.106/32
+    - 38.60.224.235/32
+    - 38.60.241.65/32
+  selection_domains:
+    DestinationHostname|endswith:
+    - .amelicen.com
+    - .credits.offices-analytics.com
+  condition: selection_ips or selection_domains
+falsepositives:
+- Legitimate traffic to hosting providers in the associated IP ranges
+- CDN nodes used by legitimate services in these regions
+level: high
+hecate_provenance:
+- value: 27.102.113.240
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.85.25.166
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 38.60.224.51
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: 45.131.179.24
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 43.254.216.195
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 38.54.57.17
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: 38.60.197.55
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: 38.60.209.106
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: 38.60.224.235
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: 38.60.241.65
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+  evidence: SparroWocky C&C server.
+- value: credits.offices-analytics.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: amelicen.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0697
+hecate_review:
+  verdict: keep

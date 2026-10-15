@@ -1,0 +1,56 @@
+title: Execution of a file hash named in the source intelligence
+id: 41910476-dc21-4dce-9054-e844930ec376
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=177652713dad3c128bd9195abf2b7603
+    - SHA1=668aa5551315ab26b67118fbb29f8e4560a1e1af
+    - SHA256=8858ea412dc306b3558885af18006c5ca24689e8875733b5e13b3c2692e603cb
+    - SHA256=cbeeb7dd5e89261cde032825fd10bb80bad2e3fbf5b91fdc9137ad463ffa8f21
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 177652713dad3c128bd9195abf2b7603
+  type: md5
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: MD5 177652713dad3c128bd9195abf2b7603
+- value: 668aa5551315ab26b67118fbb29f8e4560a1e1af
+  type: sha1
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: SHA1 668aa5551315ab26b67118fbb29f8e4560a1e1af
+- value: 8858ea412dc306b3558885af18006c5ca24689e8875733b5e13b3c2692e603cb
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: SHA256 8858ea412dc306b3558885af18006c5ca24689e8875733b5e13b3c2692e603cb
+- value: cbeeb7dd5e89261cde032825fd10bb80bad2e3fbf5b91fdc9137ad463ffa8f21
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: 'The AES key used is the SHA256 of the custom alphabet string, as follows: cbeeb7dd5e89261cde032825fd10bb80bad2e3fbf5b91fdc9137ad463ffa8f21'
+hunt_id: H-0720

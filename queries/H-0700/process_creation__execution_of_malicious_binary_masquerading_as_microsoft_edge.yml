@@ -1,0 +1,30 @@
+title: Execution of Malicious Binary Masquerading as Microsoft Edge via Telemetry Path
+id: b1b10ccf-9140-4051-ac52-32b0cfb342cd
+status: experimental
+description: Detects the execution of a file named msedge.exe located in the \Microsoft\Windows\Telemetry\
+  directory. This path is used by the MovieReaper campaign to masquerade malicious binaries as legitimate
+  Windows telemetry or browser components, bypassing visual inspection and standard whitelisting that
+  expects msedge.exe in Program Files.
+references:
+- https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1036
+- attack.t1620
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \msedge.exe
+    CommandLine|contains: \Microsoft\Windows\Telemetry\msedge.exe
+  condition: selection
+falsepositives:
+- Legitimate Microsoft Edge updates or telemetry processes running from standard installation directories
+  (e.g., C:\Program Files\)
+- Custom enterprise deployment scripts that may copy binaries to non-standard locations for testing
+level: high
+hunt_id: H-0700
+hecate_review:
+  verdict: keep

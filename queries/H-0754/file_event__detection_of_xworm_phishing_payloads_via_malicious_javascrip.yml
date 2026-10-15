@@ -1,0 +1,30 @@
+title: Detection of XWorm Phishing Payloads via Malicious JavaScript Filenames
+id: 7b4592a8-bec7-4331-a5a5-ffdb0828446b
+status: experimental
+description: Detects the creation of files with filenames commonly associated with phishing-delivered
+  JavaScript payloads used by XWorm. These filenames mimic legitimate business documents to trick users
+  into executing them, serving as the initial access vector for credential theft and lateral movement.
+references:
+- https://cyberint.com/blog/dark-web/xworm-malware-worming-its-way-from-entry-to-exploitation/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1566.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains:
+    - doc21092026.JS
+    - QPO# 48123 Rev.JS
+    - SHIPPING REQ LN 03 AWL.JS
+    - REQ2650PF064.JS
+  condition: selection
+falsepositives:
+- Legitimate business documents with similar naming conventions in shared drives or downloads folders
+- Automated report generation scripts that may use generic invoice or request naming patterns
+level: high
+hunt_id: H-0754
+hecate_review:
+  verdict: keep

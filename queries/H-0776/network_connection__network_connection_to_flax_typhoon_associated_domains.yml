@@ -1,0 +1,79 @@
+title: Network Connection to Flax Typhoon Associated Domains
+id: bd4a3261-dce4-4a07-b064-76d38cdc2fd3
+status: experimental
+description: Detects outbound network connections to domains associated with the Flax Typhoon threat group,
+  which are used for network enumeration and command-and-control infrastructure. This behavior is a precursor
+  to credential-based attacks against Microsoft Exchange servers.
+references:
+- https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1110.003
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|contains:
+    - 98aicai.com
+    - youtubecard.com
+    - c0cc.cc
+    - 98aicode.com
+    - outlook3650.com
+    - linkedinns.net
+  condition: selection
+falsepositives:
+- Legitimate email or social media services with similar naming conventions
+- CDN or proxy services that may resolve to these domains if compromised or misconfigured
+level: high
+hecate_provenance:
+- value: 98aicai.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Meanwhile, five of the seized domains, 98aicai[.]com, 98aicode[.]com, outlook3650[.]com, youtubecard[.]com,
+    and linkedinns[.]net, delivered the FishHub malware as recently as March, and infected about
+- value: youtubecard.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Meanwhile, five of the seized domains, 98aicai[.]com, 98aicode[.]com, outlook3650[.]com, youtubecard[.]com,
+    and linkedinns[.]net, delivered the FishHub malware as recently as March, and infected about
+- value: c0cc.cc
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Integrity Tech accessed Microscan through one of the seized domains, c0cc[.]cc.
+- value: 98aicode.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Meanwhile, five of the seized domains, 98aicai[.]com, 98aicode[.]com, outlook3650[.]com, youtubecard[.]com,
+    and linkedinns[.]net, delivered the FishHub malware as recently as March, and infected about
+- value: outlook3650.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Meanwhile, five of the seized domains, 98aicai[.]com, 98aicode[.]com, outlook3650[.]com, youtubecard[.]com,
+    and linkedinns[.]net, delivered the FishHub malware as recently as March, and infected about
+- value: linkedinns.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.theregister.com/security/2026/10/08/us-disrupts-chinese-hacking-tools-as-7-govts-warn-of-prc-spies-stealing-sensitive-data-worldwide/5302107
+  evidence: Meanwhile, five of the seized domains, 98aicai[.]com, 98aicode[.]com, outlook3650[.]com, youtubecard[.]com,
+    and linkedinns[.]net, delivered the FishHub malware as recently as March, and infected about
+hunt_id: H-0776
+hecate_review:
+  verdict: keep

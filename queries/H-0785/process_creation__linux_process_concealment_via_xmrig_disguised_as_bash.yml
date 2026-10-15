@@ -1,0 +1,28 @@
+title: Linux Process Concealment via XMRig Disguised as Bash
+id: a5b2a1df-e587-4520-9ff7-b4d0057e14d2
+status: experimental
+description: Detects the execution of XMRig cryptominer processes disguised as legitimate bash shells
+  by matching command line arguments containing '-bash' while the actual image name indicates a miner
+  or unusual binary. This targets the XHide technique used to evade detection on Linux SSH servers.
+references:
+- https://asec.ahnlab.com/en/95808
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1036
+- attack.t1059.004
+logsource:
+  category: process_creation
+detection:
+  selection_xmrig:
+    Image|contains: xmrig
+  selection_disguise:
+    CommandLine|contains: -bash
+  condition: selection_xmrig and selection_disguise
+falsepositives:
+- Legitimate debugging or testing scripts that might reference bash in arguments
+- Custom monitoring tools using non-standard process names
+level: high
+hunt_id: H-0785
+hecate_review:
+  verdict: keep

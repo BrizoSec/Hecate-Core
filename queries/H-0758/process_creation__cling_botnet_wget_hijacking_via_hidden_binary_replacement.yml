@@ -1,0 +1,27 @@
+title: Cling Botnet wget Hijacking via Hidden Binary Replacement
+id: af28b393-3233-42e2-ae38-5e8648fa4243
+status: experimental
+description: Detects the execution of wget binaries with hidden file extensions (.r or .p) which is a
+  known persistence and download mechanism for the Cling botnet on Linux IoT devices. This behavior indicates
+  an adversary replacing legitimate system utilities to maintain access or download further payloads.
+references:
+- https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+logsource:
+  category: process_creation
+detection:
+  selection_wget_r:
+    CommandLine|contains: /wget.r
+  selection_wget_p:
+    CommandLine|contains: /wget.p
+  condition: selection_wget_r or selection_wget_p
+falsepositives:
+- Legitimate scripts using custom wget wrappers
+- Custom build processes for embedded systems
+level: high
+hunt_id: H-0758
+hecate_review:
+  verdict: keep

@@ -1,0 +1,49 @@
+title: Execution of msiexec via Run Dialog with Malicious Payload URL
+id: d2a0388f-1cca-4e16-9e87-f5c6bd6a63ba
+status: experimental
+description: Detects the execution of msiexec.exe triggered by a user pasting a command into the Windows
+  Run dialog (parented by explorer.exe) to download and install a payload from a known malicious domain
+  or IP associated with the Psychedelic infostealer campaign. This behavior is indicative of a ClickFix
+  social engineering attack.
+references:
+- https://arcticwolf.com/resources/blog/psychedelic-stealer-fake-clickfix-captcha-targets-ukraine/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1053.005
+- attack.t1059.001
+- attack.t1204.004
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_msiexec:
+    Image|endswith: \msiexec.exe
+    CommandLine|contains: /i
+  selection_parent:
+    ParentImage|endswith: \explorer.exe
+  selection_indicator:
+    CommandLine|contains:
+    - 107.175.82.242
+    - 193.178.159.128
+  condition: selection_msiexec and selection_parent and (selection_indicator)
+falsepositives:
+- Legitimate software installation via Run dialog
+- System maintenance scripts invoking msiexec
+level: high
+hecate_provenance:
+- value: 193.178.159.128
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 107.175.82.242
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0733
+hecate_review:
+  verdict: keep

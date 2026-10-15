@@ -1,0 +1,120 @@
+title: Connection to an address or host named in the source intelligence
+id: a12dc292-c191-4fe5-9468-51724c43a815
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 112.78.151.90
+  selection_2_any:
+    DestinationIp: 78.109.78.211
+  selection_3_any:
+    DestinationIp: 83.194.172.248
+  selection_4_any:
+    DestinationIp: 103.160.185.100
+  selection_5_any:
+    DestinationIp: 109.146.93.39
+  selection_6_any:
+    DestinationIp: 115.138.247.83
+  selection_7_any:
+    DestinationIp: 116.106.179.94
+  selection_8_any:
+    DestinationIp: 137.103.56.107
+  selection_9_any:
+    DestinationIp: 138.94.168.132
+  selection_10_any:
+    DestinationIp: 154.119.213.63
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 112.78.151.90
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 78.109.78.211
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 83.194.172.248
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 103.160.185.100
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 109.146.93.39
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 115.138.247.83
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 116.106.179.94
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 137.103.56.107
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 138.94.168.132
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+- value: 154.119.213.63
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://securitylabs.datadoghq.com/articles/beyond-valid-credentials-how-exposed-aws-keys-are-tested-for-amazon-bedrock-access
+  evidence: We have provided a list of IP addresses that we have observed attempting this validation pattern
+    since August 31, 2026.
+hunt_id: H-0762

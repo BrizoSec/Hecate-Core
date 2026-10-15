@@ -1,0 +1,54 @@
+title: DNS lookup of a domain named in the source intelligence
+id: a4c77a19-17c9-423f-9368-39ed6511e496
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - xmr.kryptex.network
+    - imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+    - xmr.kryptex.network
+  selection_subdomain:
+    QueryName|endswith:
+    - .imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+    - .xmr.kryptex.network
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: xmr.kryptex.network
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: followed by miner network connections being established on port 8029 to an XMR pool ( 51.195.127[.]124:8029
+    , xmr.kryptex[.]network ).
+- value: http://imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: Across several other incidents, we observed cbssvcX64.exe spawn a series of commands to drop
+    several files in either the %TEMP% or ../AppData/Local/Temp folder from hxxp://imagefiles-backup.oss-ap-sou
+- value: imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: The text describes 'Staged Taskgmr.ps1, edge.exe, msedge.exe, config.json and WinRing0x64.sys
+    on Alibaba Cloud Object Storage (imagefiles-backup.oss-ap-southeast-7.aliyuncs[.]com)'.
+hunt_id: H-0778

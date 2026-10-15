@@ -1,0 +1,56 @@
+title: DNS lookup of a domain named in the source intelligence
+id: b29d52ea-897b-44f3-8e95-e28ba3a884ce
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - moonlighthathel.org
+    - ukankingwithea.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .moonlighthathel.org
+    - .ukankingwithea.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: https://moonlighthathel.org
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: associated with malicious domains including hxxps://moonlighthathel[.]org and hxxps://ukankingwithea[.]com.
+- value: https://ukankingwithea.com
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: associated with malicious domains including hxxps://moonlighthathel[.]org and hxxps://ukankingwithea[.]com.
+- value: moonlighthathel.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: 'targeting the specific malicious FQDNs: moonlighthathel.org and ukankingwithea.com.'
+- value: ukankingwithea.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: 'targeting the specific malicious FQDNs: moonlighthathel.org and ukankingwithea.com.'
+hunt_id: H-0780

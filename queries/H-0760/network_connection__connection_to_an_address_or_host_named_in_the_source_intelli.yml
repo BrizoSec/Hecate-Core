@@ -1,0 +1,31 @@
+title: Connection to an address or host named in the source intelligence
+id: b922a7cb-cbe1-4f10-9cb0-015ed712cfa5
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog.polyswarm.io/lunex-uses-byovd-to-disable-security-monitoring-and-deploy-persistent-stealer?
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: uasputnik.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: uasputnik.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://blog.polyswarm.io/lunex-uses-byovd-to-disable-security-monitoring-and-deploy-persistent-stealer?
+  evidence: The Lunex campaign documented by Ontinue begins with a Ukrainian-language fake CAPTCHA page
+    hosted on uasputnik[.]com.
+hunt_id: H-0760

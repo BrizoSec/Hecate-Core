@@ -1,0 +1,27 @@
+title: Execution of Disguised System Apps from Firmware Partition
+id: 446d5fae-f958-4061-83a0-0a9fa688f8e3
+status: experimental
+description: Detects the execution of processes with package names resembling Android system components
+  (e.g., com.android.sys.*) originating from the /system/app/ directory. This behavior is indicative of
+  a firmware compromise where malicious code preinstalled in the device's read-only partition executes
+  with elevated platform-signed privileges to bypass standard user consent and security controls.
+references:
+- https://www.bitdefender.com/en-us/blog/labs/midnight-mimosa-malware
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1036
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|contains: /system/app/
+    CommandLine|contains: com.android.sys.
+  condition: selection
+falsepositives:
+- Legitimate Android system updates or OEM-specific firmware components that may reside in /system/app/
+  and use similar naming conventions for internal services.
+level: high
+hunt_id: H-0783
+hecate_review:
+  verdict: keep

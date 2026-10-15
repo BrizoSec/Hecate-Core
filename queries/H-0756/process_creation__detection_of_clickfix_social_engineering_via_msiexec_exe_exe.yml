@@ -1,0 +1,30 @@
+title: Detection of ClickFix Social Engineering via msiexec.exe Execution
+id: 451fd64b-05c1-4155-98e2-22ea0246ef35
+status: experimental
+description: Detects the execution of msiexec.exe with arguments typical of the 'ClickFix' social engineering
+  technique, where victims are tricked into manually running MSI installers to download and execute malicious
+  payloads like Psychedelic Stealer. This behavior bypasses standard script-based detection by leveraging
+  signed Microsoft binaries.
+references:
+- https://connect.securonix.com/threat-research-intelligence-62/the-psychedelic-stealer-when-the-captcha-is-the-installer-582
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1059.001
+- attack.t1204.004
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \msiexec.exe
+    CommandLine|contains: /i
+  condition: selection
+falsepositives:
+- Legitimate software installation via Group Policy or SCCM
+- User-initiated MSI installations from trusted sources
+- Automated deployment tools executing MSI packages
+level: high
+hunt_id: H-0756
+hecate_review:
+  verdict: keep

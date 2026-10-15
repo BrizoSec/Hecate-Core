@@ -1,0 +1,76 @@
+title: Connection to an address or host named in the source intelligence
+id: 8cbe20da-4336-4a6d-99cf-f1afdc9f043c
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 208.64.33.90
+  selection_2_any:
+    DestinationIp: 193.23.118.155
+  selection_3_any:
+    DestinationIp: 208.94.246.53
+  selection_4_any:
+    DestinationHostname: deadhub.org
+  selection_5_any:
+    DestinationHostname: itorrents.org
+  selection_6_any:
+    DestinationHostname: api.mainnet.solana.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: deadhub.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Делая это, загрузчик декодирует доменное имя https://deadhub[.]org
+- value: 208.64.33.90
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: 'C2 для второй стадии: 208.64.33[.]90'
+- value: itorrents.org
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: Вместо этого они взломали широко используемый публичный репозиторий торрент-файлов — itorrents[.]org.
+- value: 193.23.118.155
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: и, если соединение с ним не удалось, использует IP-адрес http://193.23.118[.]155 в качестве
+    резервного
+- value: api.mainnet.solana.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://securelist.ru/moviereaper-malware-torrent-odyssey-solana/117109
+  evidence: кампания использует легитимный блокчейн Solana через RPC-эндпоинт api.mainnet.solana.com для
+    доставки адреса C2-сервера на второй стадии.
+- value: 208.94.246.53
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0700

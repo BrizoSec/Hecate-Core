@@ -1,0 +1,45 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 53ddbbf7-b92f-4455-b45c-1f5fbfa8065e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - shivlpf.shop
+    - eth.llamarpc.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .shivlpf.shop
+    - .eth.llamarpc.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: shivlpf.shop
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Packet analysis revealed an initial "check-in" POST request with an access token pointing
+    to the host shivlpf[.]shop over port 6473.
+- value: eth.llamarpc.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Dynamic analysis within the Binary Defense malware lab revealed that recent samples of RemusStealer
+    will attempt to reach out to eth[.]llamarpc[.]com, which is associated with Ethereum.
+hunt_id: H-0748

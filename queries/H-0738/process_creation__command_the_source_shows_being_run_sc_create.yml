@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: sc create'
+id: 41b0b638-1a80-4e57-8aaf-b82873e64630
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "sc create moimoi binPath= C:\Users\Public\moimoi.sys type=
+  kernel".'
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1543.003
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \sc.exe
+    CommandLine|contains: create
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0738

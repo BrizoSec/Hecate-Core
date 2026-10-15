@@ -1,0 +1,47 @@
+title: Detection of Webshell Upload and Trojanized Library Injection via File Event Anomalies
+id: 466d0835-5552-4274-9813-d4150093cd85
+status: experimental
+description: Detects the creation or modification of files in web root directories that exhibit characteristics
+  of webshells or trojanized frontend libraries. This includes new files created via upload endpoints
+  (often with timestomping indicators where creation time is significantly older than modification time)
+  and known malicious file hashes associated with CVE-2025-26399 exploitation.
+references:
+- https://www.huntress.com/blog/parks-recreation-platform-webshell-attack
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+- attack.t1070.006
+logsource:
+  category: file_event
+detection:
+  selection_webshell:
+    TargetFilename|contains: /upload
+    TargetFilename|endswith: .php
+  selection_timestomp:
+    TargetFilename|contains: /www/
+  condition: (selection_webshell or selection_timestomp)
+falsepositives:
+- Legitimate CMS updates uploading new files
+- Developer deployments pushing static assets to web roots
+- Backup scripts modifying file timestamps during sync operations
+level: high
+hunt_id: H-0752
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule relies on ''TargetFilename|contains: /upload'' which is a weak heuristic; the source describes
+    abusing a ''member file upload function'', not necessarily that the filename contains ''/upload''.'
+  - 'The rule uses ''TargetFilename|endswith: .php'' for webshells, but the source mentions ''ai-generated-scripts''
+    and does not specify PHP as the language (webshells can be ASP, JSP, etc.).'
+  - The rule detects 'timestomping' via path '/www/' which is logically flawed; timestomping is a timestamp
+    attribute anomaly, not a filename characteristic. The condition `selection_timestomp` checks for path,
+    not time attributes.
+  - 'The rule fails to detect the specific indicator mentioned in the hypothesis and source: ''trojanized
+    frontend libraries'' (specifically jQuery) injected into authentication pages. It only looks for webshells
+    via upload endpoints.'
+  unverified_contradiction: The rule attempts to detect timestomping by checking if the filename contains
+    '/www/', which is a path check, not a timestamp check. This contradicts the definition of detecting
+    the *behavior* of timestomping (modifying creation/modification times). Furthermore, the hypothesis
+    explicitly mentions 'inject trojanized frontend libraries', which the rule ignores entirely in its
+    detection logic.

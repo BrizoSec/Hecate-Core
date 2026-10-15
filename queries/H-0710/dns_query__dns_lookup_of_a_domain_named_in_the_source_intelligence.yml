@@ -1,0 +1,51 @@
+title: DNS lookup of a domain named in the source intelligence
+id: b030349b-65fd-4b0e-9bb4-e4abfb5ebeb6
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - httptls.org
+    - txtcdn.net
+  selection_subdomain:
+    QueryName|endswith:
+    - .httptls.org
+    - .txtcdn.net
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: http://txtcdn.net
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: The script periodically queried DNS TXT records associated with `sslvalidcert.com`, which
+    was later changed to `http[:]//txtcdn[.]net` after a few days, to retrieve encoded data.
+- value: httptls.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: For C2 discovery, the payload used DNS-over-HTTPS to query TXT records associated with “httptls.org”
+    through Google DNS.
+- value: txtcdn.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0710

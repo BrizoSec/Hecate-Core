@@ -1,0 +1,58 @@
+title: Detection of Trojanized Terraform Provider C2 Communication
+id: d2fb7aae-f9ce-42bf-a41a-7d0843404755
+status: experimental
+description: Detects network connections to known lookalike HashiCorp domains and malicious infrastructure
+  used by the TraderTraitor group to deliver trojanized Terraform providers. This behavior indicates a
+  supply-chain attack targeting Web3 developers, where legitimate-looking tooling is compromised to download
+  persistent backdoors.
+references:
+- https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1071.001
+- attack.t1105
+logsource:
+  category: network_connection
+detection:
+  selection_domains:
+    DestinationHostname|contains:
+    - hashicorp-terraform.io
+    - arusupport-region1-webhook.online
+    - supportaru.serveftp.com
+  selection_malicious:
+    DestinationHostname|contains:
+    - arusupport-region1-webhook.online
+    - hashicorp-terraform.io
+    - supportaru.serveftp.com
+  condition: selection_domains or selection_malicious
+falsepositives:
+- Legitimate Terraform provider updates from official HashiCorp domains
+- Internal proxying of legitimate web traffic
+level: high
+hecate_provenance:
+- value: supportaru.serveftp.com
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://supportaru.serveftp[.]com/statics/cache/v11/ FLATROOF download URL
+- value: arusupport-region1-webhook.online
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://arusupport-region1-webhook[.]online/statics/cache/v11/abicfjej FLATROOF C2 server
+- value: hashicorp-terraform.io
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: The download URL uses the lookalike domain hashicorp-terraform[.]io and a path resembling
+    a legitimate Terraform plugin metrics endpoint.
+hunt_id: H-0775
+hecate_review:
+  verdict: keep

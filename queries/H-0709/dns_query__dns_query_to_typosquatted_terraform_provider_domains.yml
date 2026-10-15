@@ -1,0 +1,28 @@
+title: DNS Query to Typosquatted Terraform Provider Domains
+id: 44355bcf-2b3a-4963-a11c-4fe1c258df25
+status: experimental
+description: Detects DNS lookups for known typosquatted domains used by the TraderTraitor group to deliver
+  malicious Terraform providers. These domains mimic official HashiCorp registries to trick developers
+  into downloading backdoors (FLATROOF/ROOFDECK) during 'terraform init' operations.
+references:
+- https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1070.004
+- attack.t1195.002
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - youaws.io
+    - hashicorp-terraform.io
+  condition: selection
+falsepositives:
+- Legitimate DNS resolution of similarly named domains
+- Internal corporate domains mimicking external patterns
+level: high
+hunt_id: H-0709
+hecate_review:
+  verdict: keep

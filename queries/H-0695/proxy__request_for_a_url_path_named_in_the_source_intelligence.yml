@@ -1,0 +1,78 @@
+title: Request for a URL path named in the source intelligence
+id: 4e7d45f1-0869-4b8e-b163-12ce43cbee26
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.group-ib.com/blog/heavygram-handala-hack-telegram-c2/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-10'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /Exclude/Telegram.exe
+    - /RuntimeSSH_17.zip
+    - /RuntimeSSH_def7.zip
+    - /downloads/pictory/Pictory_premium_ver9.0.4.exe
+    - /jttrepijgdb/Artificial%20intelligence.pptx
+    - /jttrepijgdb/efg_d4.zip
+    - /micbucket/Temp/0412.mp4
+    - /myvideo.mp4
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://ams1.vultrobjects.com/micbucket/Temp/0412.mp4
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://sgp1.vultrobjects.com/jttrepijgdb/Artificial%20intelligence.pptx
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://sgp1.vultrobjects.com/jttrepijgdb/efg_d4.zip
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://ppt1.sgp1.vultrobjects.com/myvideo.mp4
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://ppt1.sgp1.vultrobjects.com/RuntimeSSH_def7.zip
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://sgp1.vultrobjects.com/downloads/pictory/Pictory_premium_ver9.0.4.exe
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://ppt1.sgp1.vultrobjects.com/RuntimeSSH_17.zip
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://micbucket.ams1.vultrobjects.com/Exclude/Telegram.exe
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0695

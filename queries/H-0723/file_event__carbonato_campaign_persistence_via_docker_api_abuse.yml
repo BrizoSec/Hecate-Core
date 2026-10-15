@@ -1,0 +1,31 @@
+title: Carbonato Campaign Persistence via Docker API Abuse
+id: 9c5ff413-7856-41bd-8dd7-29d30b4f6658
+status: experimental
+description: Detects file system modifications associated with the Carbonato campaign, specifically the
+  deployment of privileged containers and establishment of persistence mechanisms. This rule targets the
+  creation of the malicious network monitor binary, exfiltration artifacts (SOUL.md), and configuration
+  files (.env) in sensitive or hidden directories, which indicate an attacker has gained host-level access
+  via the Docker API.
+references:
+- https://www.threatdown.com/blog/carbonato/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1053.003
+- attack.t1053.006
+logsource:
+  category: file_event
+detection:
+  selection_malware_binary:
+    TargetFilename|endswith: /usr/local/bin/.docker-network-monitor
+  selection_exfil_artifacts:
+    TargetFilename|endswith: SOUL.md
+  condition: 1 of selection_*
+falsepositives:
+- Legitimate Docker container builds writing configuration files
+- System administration scripts modifying cron jobs
+- Development environments creating .env files for local testing
+level: high
+hunt_id: H-0723
+hecate_review:
+  verdict: keep

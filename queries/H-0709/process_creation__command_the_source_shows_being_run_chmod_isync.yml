@@ -1,0 +1,21 @@
+title: 'Command the source shows being run: chmod iSync'
+id: c98c083b-a188-4810-9b7c-75d02b95d2c0
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "chmod +x on iSync (GatekeeperBypass)".'
+references:
+- https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: /chmod
+    CommandLine|contains: iSync
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0709

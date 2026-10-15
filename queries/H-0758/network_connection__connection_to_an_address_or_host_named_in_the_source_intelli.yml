@@ -1,0 +1,214 @@
+title: Connection to an address or host named in the source intelligence
+id: b6ee83f8-dc4d-42c1-807a-33f68ca040e7
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_800:
+    DestinationIp: 120.193.219.210
+    DestinationPort: 800
+  selection_2_800:
+    DestinationIp: 58.211.144.243
+    DestinationPort: 800
+  selection_3_800:
+    DestinationIp: 118.45.196.225
+    DestinationPort: 800
+  selection_4_3478:
+    DestinationIp: 145.249.115.184
+    DestinationPort: 3478
+  selection_5_1337:
+    DestinationIp: 121.32.243.81
+    DestinationPort: 1337
+  selection_6_3478:
+    DestinationIp: 83.211.9.232
+    DestinationPort: 3478
+  selection_7_19302:
+    DestinationIp: 74.125.250.129
+    DestinationPort: 19302
+  selection_8_3478:
+    DestinationIp: 216.93.246.18
+    DestinationPort: 3478
+  selection_9_3478:
+    DestinationIp: 85.17.88.164
+    DestinationPort: 3478
+  selection_10_3478:
+    DestinationIp: 77.72.169.213
+    DestinationPort: 3478
+  selection_11_3478:
+    DestinationIp: 77.72.169.211
+    DestinationPort: 3478
+  selection_12_3478:
+    DestinationIp: 5.39.72.109
+    DestinationPort: 3478
+  selection_13_3478:
+    DestinationIp: 81.187.30.115
+    DestinationPort: 3478
+  selection_14_3478:
+    DestinationIp: 212.227.67.34
+    DestinationPort: 3478
+  selection_15_3478:
+    DestinationIp: 212.227.67.33
+    DestinationPort: 3478
+  selection_16_3478:
+    DestinationIp: 207.38.82.134
+    DestinationPort: 3478
+  selection_17_3478:
+    DestinationIp: 212.53.40.43
+    DestinationPort: 3478
+  selection_18_any:
+    DestinationHostname: stun.l.google.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 120.193.219.210
+  type: ipv4
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: hxxp://120.193.219[.]210:800/mipsel (loader host)
+- value: 58.211.144.243
+  type: ipv4
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: hxxp://58.211.144[.]243:800/mipsel (loader host)
+- value: 118.45.196.225
+  type: ipv4
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: hxxp://118.45.196[.]225:800/mipsel (loader host)
+- value: 145.249.115.184
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 145.249.115.184:3478'
+- value: 121.32.243.81
+  type: ipv4
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'Figure 15: Bot instructed to scan and exploit to expand the botnet, uses 121[.]32.243.81:1337
+    to load the sample on exploited hosts'
+- value: 83.211.9.232
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 83.211.9.232:3478'
+- value: 74.125.250.129
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): 74.125.250.129:19302'
+- value: 216.93.246.18
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 216.93.246.18:3478'
+- value: 85.17.88.164
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 85.17.88.164:3478'
+- value: 77.72.169.213
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 77.72.169.213:3478'
+- value: 77.72.169.211
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 77.72.169.211:3478'
+- value: 5.39.72.109
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 5.39.72.109:3478'
+- value: 81.187.30.115
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 81.187.30.115:3478'
+- value: 212.227.67.34
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 212.227.67.34:3478'
+- value: 212.227.67.33
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 212.227.67.33:3478'
+- value: 207.38.82.134
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 207.38.82.134:3478'
+- value: 212.53.40.43
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: 'The sample periodically sends a STUN Binding Request to a list of 13 STUN servers (every
+    ~5 seconds): ... 212.53.40.43:3478'
+- value: stun.l.google.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.nozominetworks.com/blog/a-stunning-disguise-cling-malware-masquerades-as-google-
+  evidence: Some servers in the list, like stun.l.google.com, are long-running and widely used, while
+    others are less recognizable and warrant additional scrutiny.
+hunt_id: H-0758

@@ -1,0 +1,27 @@
+title: Detection of WatchGuard VPN Installer Download via Browser
+id: 6a3614e4-fafe-429a-9dd1-a5b591353530
+status: experimental
+description: Detects the creation of a file named WG-MVPN-SSL_*.exe, which is a legitimate WatchGuard
+  installer often abused in SEO-poisoned phishing campaigns to harvest credentials. This rule targets
+  the endpoint artifact resulting from the browser downloading the payload from the official CDN.
+references:
+- https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1036
+- attack.t1566
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \WG-MVPN-SSL_*.exe
+  condition: selection
+falsepositives:
+- Legitimate WatchGuard VPN client updates installed by IT administrators
+- Users manually downloading the official installer from cdn.watchguard.com
+level: medium
+hunt_id: H-0786
+hecate_review:
+  verdict: keep

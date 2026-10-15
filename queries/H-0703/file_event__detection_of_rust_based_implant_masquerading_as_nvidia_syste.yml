@@ -1,0 +1,28 @@
+title: Detection of Rust-based Implant Masquerading as NVIDIA System Runtime
+id: bd736571-9d7f-46be-8db9-1dd2d649e400
+status: experimental
+description: Detects the creation of a file named nvidia-sysruntime.exe, which is an indicator of the
+  LabubaRAT deployment phase where a Rust-based implant is masquerading as a legitimate NVIDIA system
+  component. This behavior aligns with the hypothesis of adversaries using renamed MSBuild (BuildCoordinator.exe)
+  to proxy-execute scripts for deploying this specific payload.
+references:
+- https://blackpointcyber.com/blog/threat-snapshot-labubarat/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \nvidia-sysruntime.exe
+  condition: selection
+falsepositives:
+- Legitimate NVIDIA driver installations or updates may create files with similar naming conventions in
+  system directories.
+- Other software vendors using 'nvidia' branding for unrelated hardware components.
+level: high
+hunt_id: H-0703
+hecate_review:
+  verdict: keep

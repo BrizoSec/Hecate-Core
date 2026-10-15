@@ -1,0 +1,85 @@
+title: Request for a URL path named in the source intelligence
+id: 14d2ac18-e8fd-4ec9-ac33-0c2f053af985
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /Complete_Unboxing_And_Damage_Inspection.mp4/views/PqsTVwXyZatii
+    - /Complete_Unboxing_And_Damage_Inspection.mp4/views/iOpLkJhGfDsAtp
+    - /Complete_Unboxing_And_Damage_Inspection.mp4/views/mxqvcznplrtei
+    - /Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/xlqpmvcznaert
+    - /Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/xlqpmzncvaret
+    - /Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/zxczcczlkcjaslda
+    - /create.php.
+    - /download.php/Complete_Unboxing_And_Damage_Inspection
+    - /download.php/Package_Condition_Recordingmp4
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://shareddocumentdrivehub.com/Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/xlqpmvcznaert
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://sharedocumentsystem.com/Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/xlqpmzncvaret
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://customersrespondedpositively.com/Complete_Unboxing_And_Damage_Inspection.mp4/views/PqsTVwXyZatii
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://globaldocumentsharingcenter.com/Full_Unboxing_Process_Inspection_Record_333_2026.docx/views/zxczcczlkcjaslda
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://documentcloudlink.com/Complete_Unboxing_And_Damage_Inspection.mp4/views/mxqvcznplrtei
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://drive.careernetwork.co.nz/download.php/Complete_Unboxing_And_Damage_Inspection?f=6d90494c1119bb8cc67a85a9ac9aeac
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://drbox.august-brokers.co.nz/download.php/Package_Condition_Recordingmp4?f=5331793d7c89907eeff77081d021d10d
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://customerreviewproduct.com/Complete_Unboxing_And_Damage_Inspection.mp4/views/iOpLkJhGfDsAtp
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://shareddocumentdrivehub.com/create.php.
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0738

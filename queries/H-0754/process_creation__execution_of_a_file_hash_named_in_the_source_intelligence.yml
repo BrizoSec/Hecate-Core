@@ -1,0 +1,129 @@
+title: Execution of a file hash named in the source intelligence
+id: d5122fb1-738b-4cb0-8a09-0d198c5a5279
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://cyberint.com/blog/dark-web/xworm-malware-worming-its-way-from-entry-to-exploitation/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=ce02802067934e0eb072f69bf6427bf6
+    - MD5=a06eb79f0ebe4a6999bcc71a2227d8e3
+    - MD5=3a17c971d67659cfb590bd97f131039c
+    - MD5=7c2b5d3b7535da03eeecb3dacafef353
+    - MD5=c99ed89d7e53d4296aad646b7b19ac96
+    - MD5=fb6e940e3e6ed598a9953950bc4819f7
+    - SHA1=2af9f0e9421d3ffcbe4923eea87720c760ca41cd
+    - SHA1=5e6cb6842c63b751a04e14a4a4f9602d5c7bf337
+    - SHA1=94b07e3f93813ec17fed88f5a2aba44b22962e5d
+    - SHA1=965e01a5974dec5f60461c48550f2b7c314c7cee
+    - SHA256=5f63fe34d77b1eff07a9eef9d7ca1df2537aa90cb1d3fc2e215086d2397313c5
+    - SHA256=0718eaa1978c571ddfc9a8c53fdc77eb3b32688831aa3971bd316ca944daacda
+    - SHA256=91dff3071d68678e4c1f67675f785372244e9c5952d7a8a100a476323d9d4627
+    - SHA256=3575a22ba626d0103e8fa5cda194e972e8ec0aa29aa9e9eceb4c48819963bad6
+    - SHA256=3e3f0f03a52304570aaf18d4536e8be8a3577e68a198edc53e5877283c18ea5d
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: ce02802067934e0eb072f69bf6427bf6
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: a06eb79f0ebe4a6999bcc71a2227d8e3
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 3a17c971d67659cfb590bd97f131039c
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 7c2b5d3b7535da03eeecb3dacafef353
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: c99ed89d7e53d4296aad646b7b19ac96
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fb6e940e3e6ed598a9953950bc4819f7
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 2af9f0e9421d3ffcbe4923eea87720c760ca41cd
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 5e6cb6842c63b751a04e14a4a4f9602d5c7bf337
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 94b07e3f93813ec17fed88f5a2aba44b22962e5d
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 965e01a5974dec5f60461c48550f2b7c314c7cee
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 5f63fe34d77b1eff07a9eef9d7ca1df2537aa90cb1d3fc2e215086d2397313c5
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 0718eaa1978c571ddfc9a8c53fdc77eb3b32688831aa3971bd316ca944daacda
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 91dff3071d68678e4c1f67675f785372244e9c5952d7a8a100a476323d9d4627
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 3575a22ba626d0103e8fa5cda194e972e8ec0aa29aa9e9eceb4c48819963bad6
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 3e3f0f03a52304570aaf18d4536e8be8a3577e68a198edc53e5877283c18ea5d
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0754

@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: powershell -c (Get-MpComputerStatus).AMProductVersion'
+id: 11f98d29-7f94-41a4-8723-5e1ffa45efe4
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell -c "(Get-MpComputerStatus).AMProductVersion" powershell
+  -c "(Get-MpComputerStatus).AMProductVersion" echo test123".'
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: -c (Get-MpComputerStatus).AMProductVersion
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0719

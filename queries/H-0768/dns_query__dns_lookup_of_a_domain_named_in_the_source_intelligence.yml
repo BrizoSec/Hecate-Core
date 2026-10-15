@@ -1,0 +1,52 @@
+title: DNS lookup of a domain named in the source intelligence
+id: d5676780-8ad4-4386-b5b9-6066439eb7ec
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://socket.dev/blog/firefox-crypto-wallet-stealers
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - icy-star-f45c.workers.dev
+    - fondationanimalaidrelief.workers.dev
+    - silent-wind-get.icy-star-f45c.workers.dev
+  selection_subdomain:
+    QueryName|endswith:
+    - .icy-star-f45c.workers.dev
+    - .fondationanimalaidrelief.workers.dev
+    - .silent-wind-get.icy-star-f45c.workers.dev
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: Fifteen of the extensions contact icy-star-f45c[.]workers[.]dev
+- value: fondationanimalaidrelief.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: the broken variant uses fondationanimalaidrelief[.]workers[.]dev but retains the same frontend
+    and campaign marker.
+- value: silent-wind-get.icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: 'The request format is: <https://silent-wind-get.icy-star-f45c>[.]workers[.]dev/?w=<raw-secret>&s=EQOx7EIPZSNi&k=login&a=<import-or-ui>&t=<unix-ms>'
+hunt_id: H-0768

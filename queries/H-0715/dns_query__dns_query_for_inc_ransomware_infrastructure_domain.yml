@@ -1,0 +1,40 @@
+title: DNS Query for INC Ransomware Infrastructure Domain
+id: 5bb361e6-ce64-49ac-bf3f-d64865ef8e6e
+status: experimental
+description: Detects DNS queries to the domain 'throughoutes.net', which is associated with the INC ransomware
+  group's infrastructure used in campaigns involving Impacket atexec.py and BYOVD tactics. This rule targets
+  the initial C2 or payload delivery phase of the attack.
+references:
+- https://www.huntress.com/blog/two-inc-ransom-notes
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1021.001
+- attack.t1027
+- attack.t1053.005
+- attack.t1059.001
+- attack.t1059.006
+- attack.t1219
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: throughoutes.net
+  condition: selection
+falsepositives:
+- Legitimate use of compromised or shared hosting services
+- Misconfigured internal DNS forwarding to external resolvers
+level: high
+hecate_provenance:
+- value: throughoutes.net
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/two-inc-ransom-notes
+  evidence: This PowerShell script was heavily obfuscated and communicated with the domain throughoutes[.]net
+    .
+hunt_id: H-0715
+hecate_review:
+  verdict: keep

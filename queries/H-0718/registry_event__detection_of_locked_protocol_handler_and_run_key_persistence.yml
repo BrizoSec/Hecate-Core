@@ -1,0 +1,30 @@
+title: Detection of Locked Protocol Handler and Run Key Persistence for DarkMe RAT
+id: 7f28a3c9-98d0-40fa-989a-c9640120aa2b
+status: experimental
+description: Detects the creation or modification of a custom 'Locked://' protocol handler in HKCU\Software\Classes
+  and the corresponding persistence entry in the CurrentVersion\Run registry key. This behavior is associated
+  with the DarkMe RAT variant that abuses VB6 components and process hollowing to maintain access via
+  social engineering delivered .pif files.
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1547.001
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection_protocol:
+    TargetObject|contains: HKCU\Software\Classes\Locked
+  selection_runkey:
+    TargetObject|endswith: \CurrentVersion\Run\
+  condition: selection_protocol or selection_runkey
+falsepositives:
+- Legitimate software installing custom URI handlers
+- Administrative scripts configuring system protocols
+- Installers for document viewers or collaboration tools registering URL schemes
+level: high
+hunt_id: H-0718
+hecate_review:
+  verdict: keep

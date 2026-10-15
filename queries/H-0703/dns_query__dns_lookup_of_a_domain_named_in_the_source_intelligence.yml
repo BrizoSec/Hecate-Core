@@ -1,0 +1,33 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 53329174-47b0-4a8e-be36-c7a41d0d6d73
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://blackpointcyber.com/blog/threat-snapshot-labubarat/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - pipicka.xyz
+  selection_subdomain:
+    QueryName|endswith:
+    - .pipicka.xyz
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: pipicka.xyz
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0703

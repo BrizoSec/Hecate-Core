@@ -1,0 +1,54 @@
+title: Network Connection to RemusStealer C2 Infrastructure
+id: a141b4ea-f006-45e4-9c69-8331e86a878a
+status: experimental
+description: Detects network connections to known indicators associated with RemusStealer command and
+  control infrastructure, specifically Ethereum RPC endpoints used for stealthy C2 communication.
+references:
+- https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1071.002
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|contains:
+    - eth.llamarpc.com
+    - shivlpf.shop
+    DestinationIp|contains: 144.91.74.47
+    Image|endswith: \msedge.exe
+  condition: selection
+falsepositives:
+- Legitimate Ethereum wallet interactions via browser extensions
+- Users accessing decentralized finance (DeFi) applications
+level: high
+hecate_provenance:
+- value: shivlpf.shop
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Packet analysis revealed an initial "check-in" POST request with an access token pointing
+    to the host shivlpf[.]shop over port 6473.
+- value: eth.llamarpc.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Dynamic analysis within the Binary Defense malware lab revealed that recent samples of RemusStealer
+    will attempt to reach out to eth[.]llamarpc[.]com, which is associated with Ethereum.
+- value: 144.91.74.47
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: After this, an outbound connection was established to IP address 144.91.74[.]47 over port
+    6473, followed by a POST request.
+hunt_id: H-0748
+hecate_review:
+  verdict: keep

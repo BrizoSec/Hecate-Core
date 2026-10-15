@@ -1,0 +1,59 @@
+title: DNS Query to Lookalike HashiCorp Domain for Terraform Supply Chain Attack
+id: d202a19f-0ea2-436b-8986-2af0857c6814
+status: experimental
+description: Detects DNS queries to the specific lookalike domain 'diagnose.hashicorp-terraform.io' used
+  by the TraderTraitor group to host trojanized Terraform providers and loaders. This behavior indicates
+  a targeted supply-chain attack against Web3 developers impersonating legitimate HashiCorp infrastructure.
+references:
+- https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1071.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+    - diagnose.hashicorp-terraform.io
+    - delay.servehttp.com
+    - supportaru.serveftp.com
+  condition: selection
+falsepositives:
+- Legitimate internal DNS forwarding or misconfigured resolvers
+- Users manually typing similar domains by mistake
+level: high
+hecate_provenance:
+- value: delay.servehttp.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: delay.servehttp[.]com ROOFDECK C2 server
+- value: diagnose.hashicorp-terraform.io
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://diagnose.hashicorp-terraform[.]io/plugins/grpc/v6/schema/metrics/333afe63-c5a2-43f0-b046-7cbaa7797e8a
+    Bash script download URL
+- value: supportaru.serveftp.com
+  type: hostname
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://supportaru.serveftp[.]com/statics/cache/v11/ FLATROOF download URL
+- value: hashicorp-terraform.io
+  type: domain
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: The download URL uses the lookalike domain hashicorp-terraform[.]io and a path resembling
+    a legitimate Terraform plugin metrics endpoint.
+hunt_id: H-0775
+hecate_review:
+  verdict: keep

@@ -1,0 +1,22 @@
+title: 'Command the source shows being run: net rate:'
+id: 83e617fa-f3e3-41d3-ab2b-20411489d288
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "net rate: pairs that shifted toward benign minus pairs that
+  shifted toward malicious,".'
+references:
+- https://blog.talosintelligence.com/ignore-all-instructions-and-read-this-blog-the-state-of-ai-analysis-evasion-in-malware/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: \net.exe
+    CommandLine|contains: 'rate:'
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: low
+hunt_id: H-0696

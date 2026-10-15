@@ -1,0 +1,41 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 9be4ad34-7213-4d7f-b865-d5cd295087c5
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://blog.gdatasoftware.com/2026/09/38490-opensupdater-evades-with-recompiled-7zip-sfx
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - codeonicinc.com
+    - setupsoftwarecenter.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .codeonicinc.com
+    - .setupsoftwarecenter.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: codeonicinc.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: setupsoftwarecenter.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0726

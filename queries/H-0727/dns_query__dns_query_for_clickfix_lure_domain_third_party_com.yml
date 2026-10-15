@@ -1,0 +1,35 @@
+title: DNS Query for ClickFix Lure Domain third-party.com
+id: 6bfa8ee4-354f-41d0-a6b1-6eb9a2591396
+status: experimental
+description: Detects DNS queries for the domain third-party.com, which is identified in threat intelligence
+  as serving a ClickFix lure to Windows users. This behavior is associated with social engineering attacks
+  (T1204) where users are tricked into executing malicious PowerShell commands via the Run dialog.
+references:
+- https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1566
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: third-party.com
+  condition: selection
+falsepositives:
+- Legitimate use of third-party services or CDNs
+- Internal domain resolution for corporate infrastructure
+level: medium
+hecate_provenance:
+- value: third-party.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.manifold.security/blog/third-party-com-placeholder-clickfix
+  evidence: Because this is a live attack page still targeting Windows users, we are publishing the finding
+    as a caution rather than sitting on it.
+hunt_id: H-0727
+hecate_review:
+  verdict: keep

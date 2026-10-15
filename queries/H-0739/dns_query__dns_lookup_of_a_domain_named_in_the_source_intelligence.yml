@@ -1,0 +1,54 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 69b2a169-b33c-48d4-967c-2270bbe39cc7
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.cleafy.com/cleafy-labs/from-blackcat-to-panda-workshop-inside-the-evolving-c2-panel-behind-rathat
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: dns_query
+detection:
+  selection_exact:
+    QueryName:
+    - admin.chunhuating.best
+    - admin.xiongmaocs.pics
+    - admin.rathat.live
+    - admin.chunhuating.best
+    - admin.xiongmaocs.pics
+    - admin.rathat.live
+  selection_subdomain:
+    QueryName|endswith:
+    - .admin.chunhuating.best
+    - .admin.xiongmaocs.pics
+    - .admin.rathat.live
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: admin.chunhuating.best
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.cleafy.com/cleafy-labs/from-blackcat-to-panda-workshop-inside-the-evolving-c2-panel-behind-rathat
+  evidence: Domain admin.chunhuating[.]best Sep 2026 C2 (Panda V6)
+- value: admin.xiongmaocs.pics
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.cleafy.com/cleafy-labs/from-blackcat-to-panda-workshop-inside-the-evolving-c2-panel-behind-rathat
+  evidence: Domain admin.xiongmaocs[.]pics Aug 2026 C2 (Panda V5)
+- value: admin.rathat.live
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.cleafy.com/cleafy-labs/from-blackcat-to-panda-workshop-inside-the-evolving-c2-panel-behind-rathat
+  evidence: Domain admin.rathat[.]live Dec 2025 / Feb 2026 C2 (Fisher)
+hunt_id: H-0739

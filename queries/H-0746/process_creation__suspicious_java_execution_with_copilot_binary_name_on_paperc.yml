@@ -1,0 +1,44 @@
+title: Suspicious Java Execution with Copilot Binary Name on PaperCut Server
+id: 510ab401-81fb-49ea-a5a0-f43b6fdbb3da
+status: experimental
+description: Detects the execution of java.exe or javaw.exe using a command line containing 'jakarta.java',
+  'stage2_javax.java', or 'mscopilot.exe'. This targets the in-memory Java loader TTP used to establish
+  persistence and deliver C2 implants on PaperCut MF servers, bypassing standard AV by leveraging legitimate
+  binaries with suspicious names.
+references:
+- https://www.esentire.com/blog/papercut-mf-zero-day-intrusion-java-loader-web-shell-and-adaptixc2-via-cve-2026-82078-and-cve-2026-81578
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1190
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \\java.exe
+    CommandLine|contains: jakarta.java
+  selection2:
+    Image|endswith: \\java.exe
+    CommandLine|contains: stage2_javax.java
+  selection3:
+    Image|endswith: \\javaw.exe
+    CommandLine|contains: jakarta.java
+  selection4:
+    Image|endswith: \\javaw.exe
+    CommandLine|contains: stage2_javax.java
+  selection5:
+    Image|endswith: \\mscopilot.exe
+    CommandLine|contains: jakarta.java
+  selection6:
+    Image|endswith: \\mscopilot.exe
+    CommandLine|contains: stage2_javax.java
+  condition: 1 of selection*
+falsepositives:
+- Legitimate Java applications using Jakarta EE libraries with similar naming conventions in command line
+  arguments
+- Custom internal scripts named 'jakarta' or 'mscopilot' used by developers
+level: high
+hunt_id: H-0746
+hecate_review:
+  verdict: keep

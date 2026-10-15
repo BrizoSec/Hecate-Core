@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: powershell -ep bypass'
+id: acfd5e1a-fcbb-49b0-b5a5-17f5f6adfcb7
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell -NoProfile -ep bypass -c "$ExecutionContext.SessionState.LanguageMode"
+  powershell.exe -NoProfile -ep bypass -c "$ExecutionContext.SessionState.LanguageMode" dir".'
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: -ep bypass
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0719

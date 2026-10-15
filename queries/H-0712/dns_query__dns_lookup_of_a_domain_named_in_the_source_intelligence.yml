@@ -1,0 +1,71 @@
+title: DNS lookup of a domain named in the source intelligence
+id: c3524cd3-42d3-417d-9c4c-1c7d4758b955
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - claude.ai.download-app.us
+    - claude.ai
+    - chatgpt.com
+    - grok.com
+  selection_subdomain:
+    QueryName|endswith:
+    - .claude.ai
+    - .chatgpt.com
+    - .grok.com
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: download-app.us
+  type: domain
+  role: staging
+  status: historical
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: WHOIS records and the Validin intelligence platform linked the registration email of download-app[.]us
+    to ten domains dating back to December 2025
+- value: claude.ai.download-app.us
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: starting at claude.ai.download-app[.]us and proceeding to downloading-api.it[.]com/html/claude/win
+- value: claude.ai
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: The landing page was a fraudulent download page hosted directly on the legitimate claude.ai
+    domain
+- value: chatgpt.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: Public conversations hosted on chatgpt.com and grok.com can be indexed and rank highly for
+    troubleshooting keywords
+- value: grok.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: Public conversations hosted on chatgpt.com and grok.com can be indexed and rank highly for
+    troubleshooting keywords
+hunt_id: H-0712

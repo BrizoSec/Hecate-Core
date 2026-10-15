@@ -1,0 +1,51 @@
+title: Connection to an address or host named in the source intelligence
+id: 918b08ad-6754-4ac9-a73a-5e29f56da81e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 144.91.74.47
+  selection_2_any:
+    DestinationHostname: shivlpf.shop
+  selection_3_any:
+    DestinationHostname: eth.llamarpc.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: shivlpf.shop
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Packet analysis revealed an initial "check-in" POST request with an access token pointing
+    to the host shivlpf[.]shop over port 6473.
+- value: eth.llamarpc.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: Dynamic analysis within the Binary Defense malware lab revealed that recent samples of RemusStealer
+    will attempt to reach out to eth[.]llamarpc[.]com, which is associated with Ethereum.
+- value: 144.91.74.47
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://binarydefense.com/resources/blog/remusstealer-etherhiding-in-hidden-windows
+  evidence: After this, an outbound connection was established to IP address 144.91.74[.]47 over port
+    6473, followed by a POST request.
+hunt_id: H-0748

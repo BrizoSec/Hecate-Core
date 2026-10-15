@@ -1,0 +1,27 @@
+title: Malicious GPO Enforcement via Legal Notice Caption Modification
+id: 80bf9262-7325-4947-a08c-58acb2bd91a4
+status: experimental
+description: Detects the modification of the legalnoticecaption registry key to a specific ransom note
+  value ('Welcome to Payload!'). This indicates an adversary is using Group Policy to enforce a custom
+  login screen message, consistent with the 'encryptionless extortion' tactic described in the hypothesis.
+references:
+- https://securelist.com/tr/payload-ransomware-via-group-policy/121335/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1112
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\legalnoticecaption
+    Details: Welcome to Payload!
+  condition: selection
+falsepositives:
+- Legitimate security compliance policies enforcing legal notices
+- Automated configuration management tools applying standard GPOs
+level: high
+hunt_id: H-0711
+hecate_review:
+  verdict: keep

@@ -1,0 +1,33 @@
+title: Execution of a file hash named in the source intelligence
+id: cfbe892d-3e71-4ec4-ae14-7ad46950e152
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://www.greynoise.io/blog/swarming-against-citrix-0-day-exploitation
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=6f5a2a452a7901323abd21879c6cecccb47c06aeeaccb1b467212f3b11e4b1e7
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 6f5a2a452a7901323abd21879c6cecccb47c06aeeaccb1b467212f3b11e4b1e7
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.greynoise.io/blog/swarming-against-citrix-0-day-exploitation
+  evidence: The MCA attempted to set both the Set User ID (setuid) and Set Group ID (setgid) bits on /bin/sh
+    to obtain a root shell and install a password-protected webshell that accepts communication by the
+    cook
+hunt_id: H-0745

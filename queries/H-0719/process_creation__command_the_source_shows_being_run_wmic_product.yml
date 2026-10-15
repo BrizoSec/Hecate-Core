@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: wmic product'
+id: f87c833c-0f3b-405a-9d78-447b53d4c7dd
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "wmic product where "name like \''%security%\'' or name like
+  \''%antivirus%\'' or name like".'
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \wmic.exe
+    CommandLine|contains: product
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0719

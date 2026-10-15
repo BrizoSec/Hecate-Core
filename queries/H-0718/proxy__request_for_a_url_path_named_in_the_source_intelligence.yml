@@ -1,0 +1,36 @@
+title: Request for a URL path named in the source intelligence
+id: 7359da97-aebc-4121-a48b-0f244a895181
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /propi.msi
+    - /view/image.png
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://onlineview365.com/propi.msi
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://readonline365.com/view/image.png
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0718

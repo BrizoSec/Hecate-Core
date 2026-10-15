@@ -1,0 +1,36 @@
+title: Connection to an address or host named in the source intelligence
+id: 3433eeab-0e61-4e26-b85a-7c39c8ee4b33
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://cyberpress.org/remcontrol-trojan-steals-banking-pins/?amp=1
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: vpn.doneplay.site
+  selection_2_any:
+    DestinationHostname: tvtap-hd.app
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: vpn.doneplay.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: tvtap-hd.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0725

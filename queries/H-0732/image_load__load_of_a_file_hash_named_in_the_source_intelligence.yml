@@ -1,0 +1,39 @@
+title: Load of a file hash named in the source intelligence
+id: a95650ae-01a7-4abb-9f24-2f3a73326f0c
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=37fcbcb21d16866784050682c58424c91d3a736f6fd599271fa6e53cf5ca8a92
+    - SHA256=48d3ecbb9e0b6babe6e53e2082a076bad07ef61ccd98dcc8b9e4f390b937788b
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 37fcbcb21d16866784050682c58424c91d3a736f6fd599271fa6e53cf5ca8a92
+  type: sha256
+  role: library
+  status: active
+  confidence: unknown
+  source: https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+  evidence: sdkcra.dll 37FCBCB21D16866784050682C58424C91D3A736F6FD599271FA6E53CF5CA8A92
+- value: 48d3ecbb9e0b6babe6e53e2082a076bad07ef61ccd98dcc8b9e4f390b937788b
+  type: sha256
+  role: library
+  status: active
+  confidence: unknown
+  source: https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+  evidence: FrameworkBase.dll 48D3ECBB9E0B6BABE6E53E2082A076BAD07EF61CCD98DCC8B9E4F390B937788B
+hunt_id: H-0732

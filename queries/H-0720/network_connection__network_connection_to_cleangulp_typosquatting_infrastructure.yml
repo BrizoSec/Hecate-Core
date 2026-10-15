@@ -1,0 +1,127 @@
+title: Network Connection to CLEANGULP Typosquatting Infrastructure
+id: 77663fed-963a-4455-897f-c2dfb1f7548b
+status: experimental
+description: Detects outbound network connections to domains identified in threat intelligence as part
+  of the UTA0565 campaign delivering CLEANGULP backdoor via typosquatting. These domains impersonate legitimate
+  entities to host exploit chains targeting Google Chrome and Windows.
+references:
+- https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.001
+- attack.t1566.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|contains:
+    - halal-navi.net
+    - outsourcingwise.net
+    - halaltak.net
+    - personclouds.com
+    - americanprgoress.top
+    - thecovnresation.net
+    - thecovnresation.com
+    - outsourcingwise.com
+    - halal-navi.com
+    - halalketak.net
+    - borneobulletins.top
+  condition: selection
+falsepositives:
+- Legitimate users visiting compromised or typosquatted domains that happen to share similar naming conventions
+  with popular services
+- CDN providers or hosting platforms that may host multiple unrelated sites on the same infrastructure
+level: high
+hecate_provenance:
+- value: halal-navi.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: outsourcingwise.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: halaltak.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: personclouds.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: americanprgoress.top
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: The spoofed site americanprgoress[.]top appears to be a typosquat impersonating the Center
+    for American Progress, which was still live at the time of analysis.
+- value: thecovnresation.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: thecovnresation.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: This instance of CLEANGULP uses a single hardcoded command-and-control (C2) domain thecovnresation[.]com.
+- value: outsourcingwise.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: halal-navi.com
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: halalketak.net
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+- value: borneobulletins.top
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+  evidence: These domains span spoofed media organizations, halal restaurant search websites, and corporate
+    training organizations, potentially offering additional insight into UTA0565’s targeting.
+hunt_id: H-0720
+hecate_review:
+  verdict: keep

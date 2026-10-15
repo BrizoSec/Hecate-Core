@@ -1,0 +1,71 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 31ee487d-7e4c-4b1a-aa4d-4c27d0ce832a
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - watchguard-ssl.online
+    - software.watchguard.com
+    - www.watchguard-vpn.net
+  selection_subdomain:
+    QueryName|endswith:
+    - .watchguard-ssl.online
+    - .software.watchguard.com
+    - .www.watchguard-vpn.net
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: watchguard-vpn.net
+  type: domain
+  role: c2
+  status: historical
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: As of October 13, the domain was offline.
+- value: watchguard-ssl.online
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: The user's typed input is wrapped in JSON and posted to watchguard-ssl[.]online, tagged to
+    indicate whether this is the first or second attempt.
+- value: www.watchguard-vpn.net
+  type: hostname
+  role: target
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: On October 7, Huntress Managed Defender flagged suspicious activity that stemmed back to activity
+    from a user account at a managed service provider. Further investigation into the incident revealed
+    th
+- value: https://www.watchguard-vpn.net/
+  type: url
+  role: target
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: The click went through Bing's standard bing.com/ck/a result redirect, with the destination
+    encoded in the u= parameter ( aHR0cHM6Ly93d3cud2F0Y2hndWFyZC12cG4ubmV0Lw decodes to hxxps://www.watchguard-vp
+- value: software.watchguard.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: Finally, defenders should publish (and bookmark) official VPN-client download links, including
+    software.watchguard.com, in client documentation.
+hunt_id: H-0786

@@ -1,0 +1,41 @@
+title: DNS Query to PoeLLM Campaign C2 Infrastructure
+id: 17ff98dc-65ae-4f6f-bc9e-485b39494fc5
+status: experimental
+description: Detects DNS queries for the specific hostname edge-ru-07.kryptex.network associated with
+  the PoeLLM campaign's cryptocurrency mining botnet command and control infrastructure.
+references:
+- https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1571
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName:
+    - edge-ru-07.kryptex.network
+    - malwarescan.xyz
+  condition: selection
+falsepositives:
+- Legitimate use of Kryptex antivirus or security software
+- Internal DNS forwarding to external resolvers
+level: high
+hecate_provenance:
+- value: malwarescan.xyz
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+  evidence: This server hosts the domain “ malwarescan[.]xyz ,” which was registered in February 2026.
+- value: edge-ru-07.kryptex.network
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware
+  evidence: which hosts edge-ru-07[.]kryptex[.]network .
+hunt_id: H-0772
+hecate_review:
+  verdict: keep

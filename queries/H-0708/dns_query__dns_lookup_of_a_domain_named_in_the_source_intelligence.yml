@@ -1,0 +1,73 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 9bb5cd6a-bfae-4816-8267-b1f39538055d
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - api-configuard.com
+    - shift-api-control.com
+    - bedotiq.net
+    - giperon.net
+    - kerosand.net
+    - moweros.net
+  selection_subdomain:
+    QueryName|endswith:
+    - .api-configuard.com
+    - .shift-api-control.com
+    - .bedotiq.net
+    - .giperon.net
+    - .kerosand.net
+    - .moweros.net
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: api-configuard.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: shift-api-control.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bedotiq.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: giperon.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: kerosand.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: moweros.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0708

@@ -1,0 +1,56 @@
+title: DNS Query to Malicious Cloudflare Workers C2 Infrastructure
+id: 9ac85f78-2c91-48b0-9f9d-5167061cf14b
+status: experimental
+description: Detects DNS resolutions for known malicious Cloudflare Workers endpoints used by compromised
+  Firefox extensions to exfiltrate cryptocurrency private keys and recovery phrases. This behavior indicates
+  active credential theft campaigns targeting wallet users.
+references:
+- https://socket.dev/blog/firefox-crypto-wallet-stealers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+- attack.t1113
+- attack.t1176.001
+- attack.t1552.004
+- attack.t1566
+- attack.t1684.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - icy-star-f45c.workers.dev
+    - fondationanimalaidrelief.workers.dev
+    - silent-wind-get.icy-star-f45c.workers.dev
+  condition: selection
+falsepositives:
+- Legitimate use of Cloudflare Workers for web applications
+- Users accessing unrelated services hosted on the same infrastructure
+level: high
+hecate_provenance:
+- value: icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: Fifteen of the extensions contact icy-star-f45c[.]workers[.]dev
+- value: fondationanimalaidrelief.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: the broken variant uses fondationanimalaidrelief[.]workers[.]dev but retains the same frontend
+    and campaign marker.
+- value: silent-wind-get.icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: 'The request format is: <https://silent-wind-get.icy-star-f45c>[.]workers[.]dev/?w=<raw-secret>&s=EQOx7EIPZSNi&k=login&a=<import-or-ui>&t=<unix-ms>'
+hunt_id: H-0768
+hecate_review:
+  verdict: keep

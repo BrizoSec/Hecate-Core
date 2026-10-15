@@ -1,0 +1,26 @@
+title: Suspicious npm preinstall hook execution via node.js
+id: da71acf3-fb82-4da1-beac-b352b64e087a
+status: experimental
+description: Detects the execution of malicious JavaScript files during npm package installation, specifically
+  targeting 'setup.mjs' which is known to be used in supply chain attacks like TensorLake to execute obfuscated
+  credential-stealing payloads.
+references:
+- https://socket.dev/blog/tensorlake-compromise
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1027
+- attack.t1059.001
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: setup.mjs
+  condition: selection
+falsepositives:
+- Legitimate npm packages using custom setup scripts
+- Development environments running local package installations
+level: high
+hunt_id: H-0767
+hecate_review:
+  verdict: keep

@@ -1,0 +1,141 @@
+title: Connection to an address or host named in the source intelligence
+id: 7f37aa16-1013-4e2f-a5c0-a981a9176409
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: gateway001kir.com
+  selection_2_any:
+    DestinationHostname: sslgateway001.com
+  selection_3_any:
+    DestinationHostname: waygatterol002.com
+  selection_4_any:
+    DestinationHostname: perrine90-deltajohnsons.com
+  selection_5_any:
+    DestinationHostname: kadmecnp-643laolmd.com
+  selection_6_any:
+    DestinationHostname: lermontov-656idlop.com
+  selection_7_any:
+    DestinationHostname: lotus-vista-additions-joshua.trycloudflare.com
+  selection_8_any:
+    DestinationHostname: lotus-vista-additions-joshua.trycloudflare.com
+  selection_9_any:
+    DestinationHostname: dns1.southafricanorth.cloudapp.azure.com
+  selection_10_any:
+    DestinationHostname: update.norwayeast.cloudapp.azure.com
+  selection_11_any:
+    DestinationHostname: allres.southafricanorth.cloudapp.azure.com
+  selection_12_any:
+    DestinationHostname: synctimes.australiaeast.cloudapp.azure.com
+  selection_13_any:
+    DestinationHostname: opencode-setup-al.com
+  selection_14_any:
+    DestinationHostname: luxmaxing.southafricanorth.cloudapp.azure.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: gateway001kir.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]gateway001kir[.]com
+- value: sslgateway001.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]sslgateway001[.]com
+- value: waygatterol002.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]waygatterol002[.]com
+- value: perrine90-deltajohnsons.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]perrine90-deltajohnsons[.]com
+- value: kadmecnp-643laolmd.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]kadmecnp-643laolmd[.]com
+- value: lermontov-656idlop.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]lermontov-656idlop[.]com
+- value: lotus-vista-additions-joshua.trycloudflare.com
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/from-guest-complaints-to-malware-blockchain-abuse-targets-hotels
+  evidence: is associated with the following C2 addresses, which have been updated over time via multiple
+    different transactions. hxxps[://]lotus-vista-additions-joshua[.]trycloudflare[.]com
+- value: dns1.southafricanorth.cloudapp.azure.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: update.norwayeast.cloudapp.azure.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: allres.southafricanorth.cloudapp.azure.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: synctimes.australiaeast.cloudapp.azure.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: opencode-setup-al.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: luxmaxing.southafricanorth.cloudapp.azure.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0773

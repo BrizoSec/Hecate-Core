@@ -1,0 +1,25 @@
+title: Detection of NetScaler Webshell Deployment via .deb File Creation
+id: 30331552-e258-439d-8d25-7d9b2884bc4e
+status: experimental
+description: Detects the creation of .deb package files in custom NetScaler directories, which is a specific
+  artifact associated with the deployment chain for CVE-2026-88772 DTLS overflow exploitation and subsequent
+  RC4-encrypted PHP webshell installation.
+references:
+- https://unit42.paloaltonetworks.com/ja/netscaler-zero-days-exploited/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1190
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|contains: /var/nslog/
+  condition: selection
+falsepositives:
+- Legitimate NetScaler firmware updates or patch installations
+- Administrative maintenance scripts deploying system packages
+level: high
+hunt_id: H-0782
+hecate_review:
+  verdict: keep

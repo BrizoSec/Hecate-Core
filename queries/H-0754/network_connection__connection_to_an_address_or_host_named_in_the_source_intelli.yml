@@ -1,0 +1,181 @@
+title: Connection to an address or host named in the source intelligence
+id: 95fd7d14-1ef7-40ef-a20a-0ea41510139e
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://cyberint.com/blog/dark-web/xworm-malware-worming-its-way-from-entry-to-exploitation/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 62.60.226.185
+  selection_2_any:
+    DestinationIp: 188.212.158.34
+  selection_3_any:
+    DestinationIp: 94.154.32.41
+  selection_4_any:
+    DestinationIp: 89.106.83.35
+  selection_5_any:
+    DestinationIp: 77.110.114.115
+  selection_6_any:
+    DestinationIp: 138.124.62.81
+  selection_7_any:
+    DestinationIp: 155.103.69.55
+  selection_8_any:
+    DestinationIp: 207.189.14.71
+  selection_9_any:
+    DestinationIp: 103.131.131.96
+  selection_10_any:
+    DestinationIp: 84.38.129.15
+  selection_11_any:
+    DestinationHostname: 09090clami09090930032.duckdns.org
+  selection_12_any:
+    DestinationHostname: loganwolverin2042.webredirect.org
+  selection_13_any:
+    DestinationHostname: medellin202156.duckdns.org
+  selection_14_any:
+    DestinationHostname: faithbiglovered.opik.net
+  selection_15_any:
+    DestinationHostname: xw.jukt.top
+  selection_16_any:
+    DestinationHostname: xw.fexd.top
+  selection_17_any:
+    DestinationHostname: xw.cizt.top
+  selection_18_any:
+    DestinationHostname: xw.bidz.top
+  selection_19_any:
+    DestinationHostname: xw.vyqt.top
+  selection_20_any:
+    DestinationHostname: xw.vqxt.top
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 62.60.226.185
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 188.212.158.34
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 94.154.32.41
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 89.106.83.35
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 77.110.114.115
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 138.124.62.81
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 155.103.69.55
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 207.189.14.71
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.131.131.96
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 84.38.129.15
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 09090clami09090930032.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: loganwolverin2042.webredirect.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: medellin202156.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: faithbiglovered.opik.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.jukt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.fexd.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.cizt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.bidz.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.vyqt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.vqxt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0754

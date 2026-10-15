@@ -1,0 +1,35 @@
+title: DNS Query to Known Malicious C2 Domain and IP for Remcos RAT Campaign
+id: 4f9fb7b2-8da6-4532-a74e-6257245999c5
+status: experimental
+description: Detects DNS queries for the domain 'blessedongrace.duckdns.org' or the IP address '172.245.209.133',
+  which are indicators of a phishing campaign exploiting CVE-2017-0199 to deploy Remcos RAT via HTA-based
+  PowerShell downloaders.
+references:
+- https://asec.ahnlab.com/en/95598
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1059.001
+- attack.t1113
+- attack.t1684
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains: blessedongrace.duckdns.org
+  condition: selection
+falsepositives:
+- Legitimate use of DuckDNS for personal hosting
+- Internal DNS resolution for misconfigured internal domains
+level: high
+hecate_provenance:
+- value: blessedongrace.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0742
+hecate_review:
+  verdict: keep

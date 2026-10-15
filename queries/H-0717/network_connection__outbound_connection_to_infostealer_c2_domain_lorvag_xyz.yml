@@ -1,0 +1,37 @@
+title: Outbound Connection to Infostealer C2 Domain lorvag.xyz
+id: f8658bfd-bf91-4202-ac24-2dec2aa30a18
+status: experimental
+description: Detects outbound network connections to the domain www.lorvag.xyz, identified in threat intelligence
+  as a command and control infrastructure for infostealer malware families such as Remus, Vidar, LummaC2,
+  and ACRStealer. These threats often utilize DLL side-loading of legitimate Python libraries (python37.dll/python36.dll)
+  or RenPy exploitation to execute on endpoints.
+references:
+- https://asec.ahnlab.com/en/95519/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1036
+- attack.t1059.006
+- attack.t1574.001
+- attack.t1684.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|contains: www.lorvag.xyz
+  condition: selection
+falsepositives:
+- Legitimate software updates or telemetry for cracked Python/RenPy distributions
+- User-initiated downloads from untrusted sources
+level: high
+hecate_provenance:
+- value: www.lorvag.xyz
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0717
+hecate_review:
+  verdict: keep

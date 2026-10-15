@@ -1,0 +1,92 @@
+title: Execution of a file hash named in the source intelligence
+id: 47eb9a8e-07ac-4fbc-98b0-07c073e8045b
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=94b50ace73cc03790678c73b867be129
+    - MD5=be860a15b7e5d44b0b3d67f598238fad
+    - MD5=c024189e1e7fa0ae6d24353367e8b98d
+    - MD5=ed276b2312f641b00f87fa18e85c48eb
+    - MD5=f1d2fdb7f3b699da69a050c5352a33c2
+    - SHA1=608c34e10713278fbe80b7cb5dedb0555cff1559
+    - SHA1=d2a98fe01257d897a0dc5994392cbde9089fadf9
+    - SHA256=39368a9465aca3286e4436650b7a33b39a9294a81f3e681e056c9da0550e27c4
+    - SHA256=9839448acc050331b5713882a25b863b47993a0f2859b4820563e34c72f5b679
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 94b50ace73cc03790678c73b867be129
+  type: md5
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: 94B50ACE73CC03790678C73B867BE129 atsg.wav Trojan ( 0001140e1 )
+- value: be860a15b7e5d44b0b3d67f598238fad
+  type: md5
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: BE860A15B7E5D44B0B3D67F598238FAD mav.wav Trojan ( 0001140e1 )
+- value: c024189e1e7fa0ae6d24353367e8b98d
+  type: md5
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: C024189E1E7FA0AE6D24353367E8B98D tmav.wav Trojan ( 0001140e1 )
+- value: ed276b2312f641b00f87fa18e85c48eb
+  type: md5
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: ED276B2312F641B00F87FA18E85C48EB Realtek HD Audio.wav Trojan ( 0001140e1 )
+- value: f1d2fdb7f3b699da69a050c5352a33c2
+  type: md5
+  role: executable
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: F1D2FDB7F3B699DA69A050C5352A33C2 upgrade.exe Trojan ( 0001140e1 )
+- value: 608c34e10713278fbe80b7cb5dedb0555cff1559
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: d2a98fe01257d897a0dc5994392cbde9089fadf9
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 39368a9465aca3286e4436650b7a33b39a9294a81f3e681e056c9da0550e27c4
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 9839448acc050331b5713882a25b863b47993a0f2859b4820563e34c72f5b679
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0710

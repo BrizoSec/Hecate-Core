@@ -1,0 +1,56 @@
+title: Browser Process Connecting to Railway/Render C2 Infrastructure via WebSocket
+id: 2b205bce-26a8-4031-af52-e10a64cb0f00
+status: experimental
+description: Detects browser processes (Chrome, Edge, Firefox) establishing outbound WebSocket connections
+  to known malicious infrastructure domains associated with the Browser-in-the-Browser phishing campaign.
+  This behavior indicates active credential relay and MFA bypass attempts.
+references:
+- https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_browser:
+    Image|endswith: .exe
+    CommandLine|contains: wss://
+  selection_c2_domain:
+    CommandLine|contains:
+    - backend-production-6d75.up.railway.app
+    - ferrar.careers-interview.com
+    - redbullapply.careers-appointment.com
+  condition: selection_browser and selection_c2_domain
+falsepositives:
+- Legitimate WebSocket connections to cloud development platforms like Railway or Render for application
+  debugging or deployment
+- Browser extensions connecting to legitimate backend services
+level: high
+hecate_provenance:
+- value: ferrar.careers-interview.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: careers-interview.com ferrar.careers-interview.com
+- value: redbullapply.careers-appointment.com
+  type: hostname
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: redbullapply.careers-appointment.com
+- value: backend-production-6d75.up.railway.app
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.island.io/blog/behind-the-connect-button-the-fake-ai-ads-campaign
+  evidence: One backend makes the link concrete. backend-production-6d75.up.railway.app appeared in 73
+    archived scans across 25 page domains between May 27 and June 20.
+hunt_id: H-0765
+hecate_review:
+  verdict: keep

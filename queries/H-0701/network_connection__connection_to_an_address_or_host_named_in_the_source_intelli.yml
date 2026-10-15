@@ -1,0 +1,148 @@
+title: Connection to an address or host named in the source intelligence
+id: ca80a34f-6397-4b4d-8e76-c64e56ae60ab
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationHostname: t-mobile.biktpw.top
+  selection_2_any:
+    DestinationHostname: t-mobile.cugbjl.top
+  selection_3_any:
+    DestinationHostname: t-mobile.cymfjd.top
+  selection_4_any:
+    DestinationHostname: t-mobile.gdikxv.top
+  selection_5_any:
+    DestinationHostname: t-mobile.hdzcnb.top
+  selection_6_any:
+    DestinationHostname: t-mobile.koxetp.top
+  selection_7_any:
+    DestinationHostname: t-mobile.nxdcfp.top
+  selection_8_any:
+    DestinationHostname: t-mobile.pkrbai.top
+  selection_9_any:
+    DestinationHostname: t-mobile.qfrhkt.top
+  selection_10_any:
+    DestinationHostname: t-mobile.qscizj.top
+  selection_11_any:
+    DestinationHostname: t-mobile.tmfncb.top
+  selection_12_any:
+    DestinationHostname: t-mobile.vmnqsu.top
+  selection_13_any:
+    DestinationHostname: t-mobile.biktpw.top
+  selection_14_any:
+    DestinationHostname: t-mobile.cugbjl.top
+  selection_15_any:
+    DestinationHostname: t-mobile.cymfjd.top
+  selection_16_any:
+    DestinationHostname: t-mobile.gdikxv.top
+  selection_17_any:
+    DestinationHostname: t-mobile.hdzcnb.top
+  selection_18_any:
+    DestinationHostname: t-mobile.koxetp.top
+  selection_19_any:
+    DestinationHostname: t-mobile.nxdcfp.top
+  selection_20_any:
+    DestinationHostname: t-mobile.pkrbai.top
+  selection_21_any:
+    DestinationHostname: t-mobile.qfrhkt.top
+  selection_22_any:
+    DestinationHostname: t-mobile.qscizj.top
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: t-mobile.biktpw.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.biktpw[.]top'
+- value: t-mobile.cugbjl.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.cugbjl[.]top'
+- value: t-mobile.cymfjd.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.cymfjd[.]top'
+- value: t-mobile.gdikxv.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.gdikxv[.]top'
+- value: t-mobile.hdzcnb.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.hdzcnb[.]top'
+- value: t-mobile.koxetp.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.koxetp[.]top'
+- value: t-mobile.nxdcfp.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.nxdcfp[.]top'
+- value: t-mobile.pkrbai.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.pkrbai[.]top'
+- value: t-mobile.qfrhkt.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.qfrhkt[.]top'
+- value: t-mobile.qscizj.top
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.qscizj[.]top'
+- value: t-mobile.tmfncb.top
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.tmfncb[.]top'
+- value: t-mobile.vmnqsu.top
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.malwarebytes.com/blog/threat-intel/2026/09/t-mobile-rewards-points-expiry-texts-are-a-phishing-scam
+  evidence: 'Example domains showing the pattern used by the campaign: t-mobile.vmnqsu[.]top'
+hunt_id: H-0701

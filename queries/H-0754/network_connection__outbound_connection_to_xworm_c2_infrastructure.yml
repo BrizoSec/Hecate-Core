@@ -1,0 +1,99 @@
+title: Outbound Connection to XWorm C2 Infrastructure
+id: aaf81857-5840-486e-98c4-2d7c2cce11f0
+status: experimental
+description: Detects outbound network connections to known Command and Control (C2) infrastructure associated
+  with the XWorm malware family. This behavior aligns with the hunt hypothesis regarding adversaries establishing
+  persistent remote access via phishing-delivered payloads. The rule targets specific IPv4 addresses identified
+  in threat intelligence as C2 nodes.
+references:
+- https://cyberint.com/blog/dark-web/xworm-malware-worming-its-way-from-entry-to-exploitation/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1566.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|all:
+    - 62.60.226.185
+    - 188.212.158.34
+    - 94.154.32.41
+    - 89.106.83.35
+    - 77.110.114.115
+    - 138.124.62.81
+    - 155.103.69.55
+    - 207.189.14.71
+    - 103.131.131.96
+    - 84.38.129.15
+  condition: selection
+falsepositives:
+- Legitimate traffic to compromised or misconfigured servers
+- CDN nodes sharing IP ranges with C2 infrastructure
+- Cloud provider infrastructure used by legitimate services
+level: high
+hecate_provenance:
+- value: 62.60.226.185
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 188.212.158.34
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 94.154.32.41
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 89.106.83.35
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 77.110.114.115
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 138.124.62.81
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 155.103.69.55
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 207.189.14.71
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.131.131.96
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 84.38.129.15
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0754
+hecate_review:
+  verdict: keep

@@ -1,0 +1,29 @@
+title: DNS Queries to Steganographic Payload Hosting Domains for Cryptomining Infection Chain
+id: 7334cdf4-735d-445b-8f39-14aec4c54cf4
+status: experimental
+description: Detects DNS queries to domains hosting steganographic payloads (PNG and WAV files) used in
+  a fileless infection chain. Adversaries use these domains to deliver encoded scripts that are extracted
+  via PowerShell reflection to load .NET cryptominers in memory while suppressing security telemetry.
+references:
+- https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1071.002
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - frames-1zm.pages.dev
+    - publicwavlib.pages.dev
+  condition: selection
+falsepositives:
+- Legitimate use of Cloudflare Pages for web hosting or static site deployment
+- Users accessing public audio libraries or image repositories hosted on these domains
+- Automated scripts downloading media assets from legitimate CDNs
+level: high
+hunt_id: H-0710
+hecate_review:
+  verdict: keep

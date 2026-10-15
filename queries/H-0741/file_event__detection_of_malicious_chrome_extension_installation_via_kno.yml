@@ -1,0 +1,27 @@
+title: Detection of Malicious Chrome Extension Installation via Known Hash
+id: 7ca7a88e-72e8-473a-b647-8701ceffb710
+status: experimental
+description: Detects the creation of files associated with known malicious Chrome extensions masquerading
+  as VPN tools. These extensions dynamically fetch proxy configurations to intercept user traffic. This
+  rule targets the persistence mechanism on disk where the extension code is unpacked.
+references:
+- https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1027
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: \Google\Chrome\User Data\Default\Extensions\
+  condition: selection
+falsepositives:
+- Legitimate Chrome extensions installed by users or via enterprise policy
+- Chrome updates creating new extension folders
+level: high
+hunt_id: H-0741
+hecate_review:
+  verdict: keep

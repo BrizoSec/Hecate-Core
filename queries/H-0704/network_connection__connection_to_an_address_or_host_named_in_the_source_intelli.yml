@@ -1,0 +1,53 @@
+title: Connection to an address or host named in the source intelligence
+id: 74ecb7d0-f947-4140-9c46-ad8d327d0830
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://socket.dev/blog/polinrider-github-packagist
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: network_connection
+detection:
+  selection_1_any:
+    DestinationIp: 166.88.134.62
+  selection_2_any:
+    DestinationIp: 23.27.13.135
+  selection_3_any:
+    DestinationIp: 166.88.73.46
+  selection_4_any:
+    DestinationIp: 193.247.144.38
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 166.88.134.62
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 23.27.13.135
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 166.88.73.46
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 193.247.144.38
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/polinrider-github-packagist
+  evidence: Resolved C2 IP Addresses 193[.]247[.]144[.]38
+hunt_id: H-0704

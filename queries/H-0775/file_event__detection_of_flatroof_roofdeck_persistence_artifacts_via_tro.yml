@@ -1,0 +1,29 @@
+title: Detection of FLATROOF/ROOFDECK Persistence Artifacts via Trojanized Terraform Provider
+id: 40c22788-0442-493d-b555-a148f7eebd26
+status: experimental
+description: Detects the creation of specific file artifacts associated with the FLATROOF/ROOFDECK backdoor
+  campaign. These files are dropped by trojanized Terraform providers to establish persistence on macOS
+  (imagent) and Windows (PowerShell config.exe) systems, targeting Web3 developers.
+references:
+- https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1105
+logsource:
+  category: file_event
+detection:
+  selection_macos:
+    TargetFilename|contains: Library/Services/imagent
+  selection_windows:
+    TargetFilename|contains: AppData/Local/Microsoft/Windows/PowerShell/config.exe
+  condition: selection_macos or selection_windows
+falsepositives:
+- Legitimate system services named 'imagent' (rare)
+- Custom PowerShell configuration scripts placed in non-standard locations
+level: high
+hunt_id: H-0775
+hecate_review:
+  verdict: keep

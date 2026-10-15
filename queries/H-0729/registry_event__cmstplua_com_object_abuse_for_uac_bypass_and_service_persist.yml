@@ -1,0 +1,27 @@
+title: CMSTPLUA COM Object Abuse for UAC Bypass and Service Persistence
+id: 908c68be-d74a-404c-ab35-d832232b3617
+status: experimental
+description: Detects the creation of the CMSTPLUA COM object (CLSID {3E5FC7F9-9A51-4367-9063-A120244FBEC7})
+  via registry access, which is a known technique for privilege escalation and executing arbitrary commands.
+  This behavior is often associated with ClickFix social engineering attacks used to deploy persistent
+  backdoors like RemotePanel by masquerading as legitimate Windows services.
+references:
+- https://blackpointcyber.com/blog/remotepanel-and-boundsiphon-a-dual-payload-toolkit-for-persistent-access-and-browser-theft/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1543.003
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: '{3E5FC7F9-9A51-4367-9063-A120244FBEC7}'
+  condition: selection
+falsepositives:
+- Legitimate software installation or configuration tools that interact with CMSTPLUA
+- System administration scripts managing telephony or connection settings
+level: high
+hunt_id: H-0729
+hecate_review:
+  verdict: keep

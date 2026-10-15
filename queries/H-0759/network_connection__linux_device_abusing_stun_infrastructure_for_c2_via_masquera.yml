@@ -1,0 +1,61 @@
+title: Linux Device Abusing STUN Infrastructure for C2 via Masqueraded Init Process
+id: 83c21568-4b71-46c8-9704-13c021cfdc9d
+status: experimental
+description: Detects UDP traffic on port 3478 (STUN) to known ClingSTUN campaign infrastructure or from
+  processes masquerading as 'init' (PID 1 children). This behavior is indicative of the ClingSTUN malware
+  using public STUN servers for NAT traversal to establish persistent Command and Control channels while
+  evading detection by hiding its process name.
+references:
+- https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1190
+logsource:
+  category: network_connection
+detection:
+  selection_ip:
+    DestinationIp|contains:
+    - 124.163.212.119
+    - 222.223.152.97
+    - 118.145.196.225
+    DestinationPort: 3478
+    Protocol: udp
+  selection_port:
+    DestinationPort: 3478
+    Protocol: udp
+  condition: selection_ip or selection_port
+falsepositives:
+- Legitimate VoIP/WebRTC applications using STUN servers
+- IoT devices performing NAT traversal for legitimate services
+level: high
+hecate_provenance:
+- value: 124.163.212.119
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 222.223.152.97
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 118.145.196.225
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0759
+hecate_review:
+  verdict: revise
+  issues:
+  - 'The rule description claims to detect processes masquerading as ''init'' (PID 1 children), but the
+    Sigma rule logic (`logsource: network_connection`) only detects network traffic (IPs and ports). It
+    lacks any endpoint/process detection logic (e.g., `image` or `parent_image` fields) to identify the
+    masquerading process.'
+  - The hypothesis explicitly mentions 'init process masquerading' as a key behavior. The rule fails to
+    detect this specific indicator, relying solely on network indicators which are less specific to the
+    'masquerading' aspect of the hypothesis.

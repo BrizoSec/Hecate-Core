@@ -1,0 +1,46 @@
+title: Request for a URL path named in the source intelligence
+id: f234b64c-0fe1-4355-84c8-a1b3e21c0c27
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /SoftwareCenter/Files/MUVPN_SSL/12_11_5/WG-MVPN-SSL_12_11_5.exe
+    - /index.php
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://watchguard-vpn.net/index.php
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: watchguard-vpn.net/index.php
+  type: url
+  role: staging
+  status: historical
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: 'When targets click through the site, they are sent to the download page at watchguard-vpn[.]net/index.php,
+    which poses as a ''WatchGuard Support Page'' and gives several options for downloading the VPN '
+- value: https://cdn.watchguard.com/SoftwareCenter/Files/MUVPN_SSL/12_11_5/WG-MVPN-SSL_12_11_5.exe
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/fake-watchguard-vpn-credential-phishing
+  evidence: const DOWNLOAD_FILE = 'https://cdn.watchguard.com/SoftwareCenter/Files/MUVPN_SSL/12_11_5/WG-MVPN-SSL_12_11_5.exe';
+    This is WatchGuard's official CDN.
+hunt_id: H-0786

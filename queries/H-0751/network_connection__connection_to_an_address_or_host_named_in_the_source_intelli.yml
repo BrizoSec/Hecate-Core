@@ -1,0 +1,45 @@
+title: Connection to an address or host named in the source intelligence
+id: 834f073a-1f00-4022-8610-f15e0f1b341c
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.netskope.com/blog/100k-in-crypto-drained-by-the-underground-operation
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 95.164.53.76
+  selection_2_any:
+    DestinationHostname: quick-neo.com
+  selection_3_any:
+    DestinationHostname: easybooters.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 95.164.53.76
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: quick-neo.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: easybooters.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0751

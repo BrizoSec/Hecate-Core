@@ -1,0 +1,61 @@
+title: Firefox Extension Process Executing with Known Malicious Hash
+id: 8c0693fb-f99f-42bc-80af-82fbc6a97a5e
+status: experimental
+description: Detects the execution of a process associated with a malicious Firefox browser extension
+  masquerading as a cryptocurrency wallet. The rule identifies processes where the file hash matches known
+  indicators of compromise for extensions stealing private keys and recovery phrases.
+references:
+- https://socket.dev/blog/firefox-crypto-wallet-stealers
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1036
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|contains:
+    - icy-star-f45c.workers.dev
+    - fondationanimalaidrelief.workers.dev
+    - silent-wind-get.icy-star-f45c.workers.dev
+  condition: selection
+falsepositives:
+- Legitimate network traffic logs or debugging tools displaying the domain
+- Users manually typing the domain in a console for testing
+level: high
+hecate_provenance:
+- value: icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: Fifteen of the extensions contact icy-star-f45c[.]workers[.]dev
+- value: fondationanimalaidrelief.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: the broken variant uses fondationanimalaidrelief[.]workers[.]dev but retains the same frontend
+    and campaign marker.
+- value: silent-wind-get.icy-star-f45c.workers.dev
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: 'The request format is: <https://silent-wind-get.icy-star-f45c>[.]workers[.]dev/?w=<raw-secret>&s=EQOx7EIPZSNi&k=login&a=<import-or-ui>&t=<unix-ms>'
+hunt_id: H-0768
+hecate_review:
+  verdict: reject
+  issues:
+  - 'The rule uses `logsource: category: process_creation` but attempts to detect network domains via
+    `Image|contains`. The `Image` field in process creation logs contains the executable file path (e.g.,
+    `C:\Program Files\Mozilla Firefox\firefox.exe`), not network destinations. Domains like `icy-star-f45c.workers.dev`
+    will never appear in the `Image` field of a process creation event.'
+  - The rule contradicts the nature of the indicator. The passages describe these domains as C2 endpoints
+    contacted by the extension code, not as part of the executable image path.
+  unverified_contradiction: The rule attempts to match network domains against the process image path,
+    which is technically impossible and contradicts the definition of the `Image` field in process creation
+    logs.

@@ -1551,6 +1551,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             *(str(g.get("text", "")) for g in input_data.detection_guidance),
             *(str(r.get("evidence", "")) for r in input_data.indicator_records),
         ]
+        if input_data.indicators:
+            for kind, vals in input_data.indicators.items():
+                if vals:
+                    texts.append(f"Indicators ({kind}): {', '.join(str(v) for v in vals)}")
         if input_data.threat_intel:
             from hecate_agent.core.source_evidence import chunk_text
             texts.extend(chunk_text(input_data.threat_intel, size=300, overlap=50))
@@ -1978,8 +1982,11 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 payload = self._parse_json_response(text)
             except ValueError as exc:
                 return str(exc)
-            if not isinstance(payload.get("rules"), list) or not payload["rules"]:
-                return "response must contain a non-empty 'rules' array"
+            if not isinstance(payload.get("rules"), list):
+                return "response must contain a 'rules' array"
+            if not payload["rules"]:
+                # Model explicitly determined no valid rule can be drafted without hallucinating
+                return None
 
             problems = []
             for raw in payload["rules"]:
@@ -2004,11 +2011,12 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                                     + "\n".join(f"- {i}" for i in review.issues)
                                 )
                                 continue
-                            elif review.verdict == "reject" and review.verified:
-                                problems.append(
-                                    f"The rule matches legitimate verified behavior: {review.contradiction} "
-                                    f"(source: '{review.quote[:160]}'). Please write a different rule or adjust it."
-                                )
+                            elif review.verdict == "reject":
+                                msg = f"The rule was rejected by review: {review.contradiction or '; '.join(review.issues)}"
+                                if review.quote:
+                                    msg += f" (source: '{review.quote[:160]}')"
+                                msg += f". Fix these issues, or return {{\"rules\": []}} if {logsource} is not supported by the evidence."
+                                problems.append(msg)
                                 continue
                         except Exception as exc:
                             logger.warning("rule review failed during generation: %s", exc)
@@ -2016,7 +2024,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
             if problems:
                 return "Your generated rules failed validation. Fix these errors:\n" + "\n".join(f"- {p}" for p in problems)
-            return f"No valid rule was generated for the requested log source category '{logsource}'."
+            return f"No valid rule was generated for the requested log source category '{logsource}'. If this category is unsupported, return {{\"rules\": []}}."
 
         try:
             # Low temperature: detection logic is not a place for invention.
@@ -2451,11 +2459,12 @@ RULES OF THE TASK:
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
-12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If you cannot write a precise rule for the specific behavior described in the hypothesis without hallucinating, do not write a rule.
+12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If the hypothesis and intelligence do not contain observable behaviors for {logsource}, return an empty rules array: {{"rules": []}}.
 13. PREVENT TTP CONFLATION: If the hypothesis or intelligence mentions multiple distinct behaviors (e.g., Scheduled Tasks AND Registry Run Keys), ensure your rule focuses ONLY on the behavior that matches the current log source category. Do not mix the names, titles, or logic of distinct TTPs into a single rule.
 14. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
 15. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
-Return exactly this JSON shape, with a single entry in "rules":
+16. NO EXTERNAL THREAT-ACTOR KNOWLEDGE: Do NOT use or extrapolate from pre-trained knowledge about named threat groups, campaigns, or malware families (e.g., "SocGholish", "APT28"). You must strictly restrict detection logic to behaviors, mechanisms, and indicators explicitly given in the HUNT HYPOTHESIS, INDICATORS, and SOURCE PASSAGES. If a behavior, domain, IP, or file artifact is not explicitly stated in the prompt, assume it does not exist.
+Return JSON with a single entry in "rules", or an empty list if this log source category has no supporting evidence in the hypothesis or intelligence:
 {{
   "rules": [
     {{
@@ -2472,7 +2481,9 @@ Return exactly this JSON shape, with a single entry in "rules":
       "level": "medium"
     }}
   ]
-}}"""
+}}
+If no behavior or indicator matches {logsource}, return:
+{{"rules": []}}"""
 
     @staticmethod
     def _render_telemetry_examples(input_data: SigmaGenerationInput) -> str:

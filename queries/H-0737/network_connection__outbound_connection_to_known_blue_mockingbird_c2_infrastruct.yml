@@ -1,0 +1,68 @@
+title: Outbound Connection to Known Blue Mockingbird C2 Infrastructure
+id: d9d192b0-92d3-463f-8298-8bed68c24eee
+status: experimental
+description: Detects outbound network connections from w3wp.exe processes to IP addresses and ports associated
+  with Blue Mockingbird campaigns exploiting CVE-2019-18935. This behavior indicates potential command
+  and control communication for a memory-resident web shell.
+references:
+- https://asec.ahnlab.com/ko/95560/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1071.001
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|contains:
+    - 206.82.6.22
+    - 2.59.133.147
+    - 65.98.5.158
+    DestinationPort: 80
+  condition: selection
+falsepositives:
+- Legitimate web traffic to public IP ranges
+- CDN or proxy services using similar IP blocks
+level: high
+hecate_provenance:
+- value: 206.82.6.22
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 2.59.133.147
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 65.98.5.158
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://206.82.6.22/
+  type: url
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0737
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule restricts detection to DestinationPort 80, but the source passages explicitly state that
+    the scanner component communicates with C2 on port 31337 (Passage [24], [25]) and the webshell infrastructure
+    uses port 31338 (Passage [3]). By hardcoding port 80, the rule fails to detect the full scope of the
+    described C2 activity.
+  - The rule title mentions 'Blue Mockingbird', but the specific campaign details in the passages describe
+    a Rust-based scanner and Godzilla webshell. While Blue Mockingbird is mentioned as an attribution
+    tag in Passage [4], the specific IPs listed are associated with the current campaign's infrastructure,
+    not necessarily exclusively Blue Mockingbird's historical C2. However, the primary issue is the port
+    restriction.
+  unverified_contradiction: 'The rule specifies DestinationPort: 80, but the passages indicate other ports
+    are used for C2.'

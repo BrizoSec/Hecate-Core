@@ -1,0 +1,39 @@
+title: Request for a URL path named in the source intelligence
+id: ab7e76ed-eba1-4d04-a9d9-d67e1b4676db
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /html/claude/win
+    - /share
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: claude.ai/share
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: one used claude.ai/share to impersonate installation instructions from Apple Support to deliver
+    the MacSync stealer
+- value: downloading-api.it.com/html/claude/win
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://nsfocusglobal.com/ai-security-incident-case-trusted-ai-platforms-become-a-new-channel-for-malware-distribution/
+  evidence: starting at claude.ai.download-app[.]us and proceeding to downloading-api.it[.]com/html/claude/win
+hunt_id: H-0712

@@ -1,0 +1,42 @@
+title: Linux Server Communication with Known ShellBot/XMRig C2 Infrastructure
+id: 4e7fb395-e7e0-49a7-b231-bb9066355d61
+status: experimental
+description: Detects outbound network connections to IP addresses associated with ShellBot DDoS botnet
+  and XMRig cryptominer command and control infrastructure. This behavior indicates potential compromise
+  of Linux SSH servers where adversaries have deployed malicious payloads using LD_PRELOAD rootkits for
+  persistence and process concealment.
+references:
+- https://asec.ahnlab.com/en/95808
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1496
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp|all:
+    - 177.22.88.133
+    - 103.157.217.38
+  condition: selection
+falsepositives:
+- Legitimate traffic to hosting providers or CDNs that may share IP ranges with malicious actors
+- Misconfigured internal services resolving to external IPs
+- Compromised legitimate servers acting as proxies
+level: high
+hecate_provenance:
+- value: 177.22.88.133
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.157.217.38
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0785
+hecate_review:
+  verdict: keep

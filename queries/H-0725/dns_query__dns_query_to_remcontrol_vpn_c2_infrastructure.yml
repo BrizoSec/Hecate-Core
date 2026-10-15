@@ -1,0 +1,41 @@
+title: DNS Query to RemControl VPN C2 Infrastructure
+id: 7058bc9a-dfc6-477c-906d-6369a8379721
+status: experimental
+description: Detects DNS queries for domains associated with the RemControl trojan's local VPN service
+  used to evade Play Protect and facilitate credential theft. The malware utilizes these domains for command
+  and control or configuration retrieval.
+references:
+- https://cyberpress.org/remcontrol-trojan-steals-banking-pins/?amp=1
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1113
+- attack.t1564.001
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|contains:
+    - vpn.doneplay.site
+    - tvtap-hd.app
+  condition: selection
+falsepositives:
+- Legitimate VPN services using similar naming conventions
+- CDN or proxy services that may resolve to similar infrastructure
+level: high
+hecate_provenance:
+- value: vpn.doneplay.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: tvtap-hd.app
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0725
+hecate_review:
+  verdict: keep

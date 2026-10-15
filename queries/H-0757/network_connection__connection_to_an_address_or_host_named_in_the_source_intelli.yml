@@ -1,0 +1,69 @@
+title: Connection to an address or host named in the source intelligence
+id: 5097c1f7-fe95-4767-89b3-b0fb62667b48
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.group-ib.com/blog/brazetsu-ai-enhanced-iab-marketplace-es/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationHostname: infect.online
+  selection_2_any:
+    DestinationHostname: caixaentradas1boxshop.site
+  selection_3_any:
+    DestinationHostname: caixaentradas1inboxshop.site
+  selection_4_any:
+    DestinationHostname: infectonline.store
+  selection_5_any:
+    DestinationHostname: installscenter.com
+  selection_6_any:
+    DestinationHostname: c2.installscenter.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: infect.online
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: caixaentradas1boxshop.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: caixaentradas1inboxshop.site
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: infectonline.store
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: installscenter.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: c2.installscenter.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0757

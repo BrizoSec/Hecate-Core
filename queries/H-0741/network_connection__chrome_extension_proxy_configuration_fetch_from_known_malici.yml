@@ -1,0 +1,50 @@
+title: Chrome Extension Proxy Configuration Fetch from Known Malicious Domains
+id: 5a1871ee-a3f8-4d87-9d2e-e3d61cacff24
+status: experimental
+description: Detects outbound HTTPS connections from the Chrome browser process to domains associated
+  with malicious Chrome extensions that dynamically fetch proxy configurations for traffic interception.
+  This behavior aligns with supply-chain attacks where extensions route user traffic through centralized
+  proxy farms.
+references:
+- https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1684.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_chrome:
+    Image|endswith: \chrome.exe
+  selection_domains:
+    DestinationHostname|contains:
+    - de34.rapidstaticserve.cc
+    - api.hhos.ru
+  condition: selection_chrome and selection_domains
+falsepositives:
+- Legitimate proxy services used by enterprise users
+- VPN clients configured to use these domains (if any exist legitimately)
+- CDN or API calls that might share subdomains if not fully qualified
+level: high
+hecate_provenance:
+- value: api.hhos.ru
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: A paid "VIP" tier is sold for 299 roubles through api.hhos.ru and mainapi.store.
+- value: de34.rapidstaticserve.cc
+  type: hostname
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://riskyplugins.com/threat-library/russian-vpn-proxy-farm?utm_source=gemini
+  evidence: 'Three of the HTTPS fallback proxy hostnames in the decoded configuration ( de8.staticvaultcdn.org
+    , de4.servefaststatic.work , de34.rapidstaticserve.cc ) match hostnames used by Browsec VPN''s premium '
+hunt_id: H-0741
+hecate_review:
+  verdict: keep

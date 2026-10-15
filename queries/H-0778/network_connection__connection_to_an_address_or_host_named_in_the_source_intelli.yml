@@ -1,0 +1,120 @@
+title: Connection to an address or host named in the source intelligence
+id: 3006361a-8a60-4345-8d05-64d574287212
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 177.4.12.11
+  selection_2_any:
+    DestinationIp: 38.60.252.110
+  selection_3_any:
+    DestinationIp: 185.220.236.49
+  selection_4_any:
+    DestinationIp: 104.234.26.10
+  selection_5_any:
+    DestinationIp: 123.202.208.37
+  selection_6_8029:
+    DestinationIp: 51.195.127.124
+    DestinationPort: 8029
+  selection_7_any:
+    DestinationIp: 107.191.47.199
+  selection_8_any:
+    DestinationIp: 51.195.127.124:8029
+  selection_9_8029:
+    DestinationHostname: xmr.kryptex.network
+    DestinationPort: 8029
+  selection_10_any:
+    DestinationHostname: imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+  selection_11_any:
+    DestinationHostname: xmr.kryptex.network
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: xmr.kryptex.network
+  type: hostname
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: followed by miner network connections being established on port 8029 to an XMR pool ( 51.195.127[.]124:8029
+    , xmr.kryptex[.]network ).
+- value: 177.4.12.11
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: Indicators of Compromise (IOCs) Item Description 177.4.12[.]11
+- value: 38.60.252.110
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 185.220.236.49
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 104.234.26.10
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 123.202.208.37
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: Across several other incidents, we observed cbssvcX64.exe spawn a series of commands to drop
+    several files in either the %TEMP% or ../AppData/Local/Temp folder from hxxp://imagefiles-backup.oss-ap-sou
+- value: 51.195.127.124
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: followed by miner network connections being established on port 8029 to an XMR pool ( 51.195.127[.]124:8029
+    , xmr.kryptex[.]network ).
+- value: 107.191.47.199
+  type: ipv4
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: imagefiles-backup.oss-ap-southeast-7.aliyuncs.com
+  type: domain
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+  evidence: The text describes 'Staged Taskgmr.ps1, edge.exe, msedge.exe, config.json and WinRing0x64.sys
+    on Alibaba Cloud Object Storage (imagefiles-backup.oss-ap-southeast-7.aliyuncs[.]com)'.
+- value: 51.195.127.124:8029
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0778

@@ -1,0 +1,37 @@
+title: DNS Query to Known Hangro VPN Infrastructure IPs via PTR Records
+id: a0dc6026-c67c-4bdd-a18b-59a090f4b568
+status: experimental
+description: Detects DNS queries for reverse lookup (PTR) records of IP addresses associated with the
+  Hangro VPN infrastructure. While the primary C2 channel uses direct IP connections, initial reconnaissance
+  or misconfiguration may trigger PTR lookups for these specific North Korean and Chinese IP ranges. This
+  behavior helps identify hosts interacting with this specific threat actor's network even when forward
+  DNS indicators are not present.
+references:
+- https://blog.synapticsystems.de/north-koreas-hangro-revisited
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.002
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|re: ^(?:175\.45\.(?:176|177|178)\.|188\.43\.136\.)
+  condition: selection
+falsepositives:
+- Legitimate network administration or troubleshooting of known ISP ranges
+- Automated DNS resolution services caching reverse lookups
+- Security tools performing passive DNS analysis on observed traffic
+level: medium
+hunt_id: H-0716
+hecate_review:
+  verdict: reject
+  issues:
+  - The rule detects DNS PTR queries, but the source passages explicitly state that the primary communication
+    channel uses direct IP connections (port 6006) and does not mention or imply the use of DNS lookups
+    for C2. The hypothesis describes a VPN client maintaining channels, which typically relies on direct
+    socket connections rather than DNS resolution for the C2 traffic itself.
+  unverified_contradiction: The rule assumes DNS queries are a relevant detection vector for the described
+    behavior, but the report details a certificate-bound VPN deployment using direct IP addresses and
+    specific ports, with no mention of DNS being used for the command-and-control or mail relay channels.

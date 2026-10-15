@@ -1,0 +1,63 @@
+title: Outbound Connection to LabubaRAT C2 Infrastructure via Renamed MSBuild
+id: 0d4b792f-1c98-443a-b007-daa72dfde017
+status: experimental
+description: Detects outbound network connections initiated by a process named BuildCoordinator.exe (a
+  renamed MSBuild binary used for proxy execution) connecting to known LabubaRAT command and control IP
+  addresses. This behavior indicates the deployment phase of the Rust-based implant masquerading as nvidia-sysruntime.exe,
+  leveraging trusted developer utilities to bypass security controls.
+references:
+- https://blackpointcyber.com/blog/threat-snapshot-labubarat/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1041
+- attack.t1090
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    Image|contains: BuildCoordinator.exe
+    DestinationIp|all:
+    - 168.222.254.204
+    - 191.44.109.130
+    - 87.120.108.18
+  condition: selection
+falsepositives:
+- Legitimate build tools renamed or misconfigured in development environments
+- Internal monitoring or security scanners using similar process names
+level: high
+hecate_provenance:
+- value: 168.222.254.204
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 191.44.109.130
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 87.120.108.18
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0703
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule focuses on network connections (C2), but the hypothesis and source passages primarily describe
+    the *deployment* phase involving process execution (renamed MSBuild proxying PowerShell/JavaScript)
+    to deploy an implant. While C2 is mentioned in the context of the RAT's capabilities, the specific
+    technique described in the hypothesis is 'proxy-execute', which is a host-based behavior not captured
+    by a network-only rule.
+  - The rule assumes specific C2 IPs are known and static, whereas the source passage [3] states the malware
+    features 'configurable enrollment fields' and uses an 'internal ZM_ configuration namespace', implying
+    dynamic or configurable infrastructure rather than fixed IPs listed in a detection rule.
+  - The hypothesis specifies the use of PowerShell and JavaScript scripts for proxy execution. The rule
+    does not detect this specific execution chain (e.g., via Sysmon Event ID 1/4688 with specific command
+    line arguments), making it weak against the core behavioral claim.

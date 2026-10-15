@@ -1,0 +1,24 @@
+title: 'Command the source shows being run: rundll32 /sta'
+id: f41053b0-f2ce-4160-a4ae-ef78bab6a21e
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "rundll32 /sta {CFDC57BA-1705-45AF-BA10-EFC3D592982B}` Loading
+  Gist... *Figure 8: The* ***filetext.txt*** *Registry template for import*".'
+references:
+- https://www.huntress.com/blog/darkme-rat-abandons-exploits
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1218.011
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \rundll32.exe
+    CommandLine|contains: /sta
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0718

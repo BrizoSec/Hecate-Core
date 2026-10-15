@@ -1,0 +1,56 @@
+title: WordPress Compromise Exfiltration to Known Kapibala Infrastructure
+id: aeae83e2-f21e-4328-8de2-5a76bf06babb
+status: experimental
+description: Detects network connections to IP addresses and domains associated with the 'Kapibala' threat
+  actor's exfiltration infrastructure. This behavior indicates a successful compromise of WordPress installations
+  where sensitive government records are being stolen via custom collector scripts.
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.002
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|all:
+    - 104.225.153.141
+    - 74.48.66.73
+    - 172.245.247.21
+    DestinationHostname|contains: p3.981666.xyz
+  condition: selection
+falsepositives:
+- Legitimate CDN or hosting services sharing IP ranges
+- Internal monitoring tools connecting to external endpoints
+level: high
+hecate_provenance:
+- value: 104.225.153.141
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 74.48.66.73
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 172.245.247.21
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: p3.981666.xyz
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0719
+hecate_review:
+  verdict: keep

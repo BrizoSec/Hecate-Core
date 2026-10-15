@@ -1,0 +1,35 @@
+title: Outbound Connection to Known PaperCut MF C2 Infrastructure
+id: 8543c0af-553f-4814-9e30-2c2b574cba2a
+status: experimental
+description: Detects outbound network connections to the specific IP address (156.227.0.13) identified
+  in threat intelligence as a Command and Control (C2) server for the PaperCut MF exploitation campaign.
+  This rule targets the post-exploitation phase where adversaries establish persistence and deliver implants
+  via trojanized binaries or in-memory Java loaders.
+references:
+- https://www.esentire.com/blog/papercut-mf-zero-day-intrusion-java-loader-web-shell-and-adaptixc2-via-cve-2026-82078-and-cve-2026-81578
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp: 156.227.0.13
+  condition: selection
+falsepositives:
+- Legitimate traffic to Alibaba Cloud services (ASN 149440) if the organization uses Alibaba Cloud for
+  hosting or CDN.
+- Internal monitoring tools scanning this IP.
+level: high
+hecate_provenance:
+- value: 156.227.0.13
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0746
+hecate_review:
+  verdict: keep

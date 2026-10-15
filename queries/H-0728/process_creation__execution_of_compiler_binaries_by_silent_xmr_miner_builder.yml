@@ -1,0 +1,33 @@
+title: Execution of Compiler Binaries by Silent XMR Miner Builder
+id: eb593595-68f2-48ec-81c8-f968fe161a64
+status: experimental
+description: Detects the execution of multiple compiler binaries (csc.exe, gcc.exe, tcc.exe) spawned by
+  an unsigned parent process named 'Silent XMR Miner Builder.exe'. This behavior indicates on-endpoint
+  compilation of cryptominers to evade pre-execution signature detection.
+references:
+- https://www.huntress.com/blog/threat-actor-compiles-cryptominer
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1059.001
+- attack.t1059.007
+- attack.t1190
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentImage|endswith: \Silent XMR Miner Builder.exe
+  selection_child:
+    Image|endswith:
+    - \csc.exe
+    - \gcc.exe
+    - \tcc.exe
+  condition: selection_parent and selection_child
+falsepositives:
+- Legitimate software development environments compiling code locally
+- Build servers executing compilation tasks
+level: high
+hunt_id: H-0728
+hecate_review:
+  verdict: keep

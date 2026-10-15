@@ -1,0 +1,30 @@
+title: Android Wireless Debugging ADB Pairing via /data/local/tmp
+id: 22479d47-99c6-4dd5-9d8b-2c8647f0f179
+status: experimental
+description: Detects the execution of processes interacting with the Android wireless debugging interface
+  located at /data/local/tmp. This behavior is indicative of an adversary leveraging ADB pairing to gain
+  shell access (UID 2000) and deploy persistent services, bypassing standard application sandbox controls.
+references:
+- https://www.cleafy.com/cleafy-labs/from-blackcat-to-panda-workshop-inside-the-evolving-c2-panel-behind-rathat
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1027
+- attack.t1068
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: /data/local/tmp
+  condition: selection
+falsepositives:
+- Legitimate Android development tools (e.g., adb, fastboot) used by developers
+- System maintenance scripts accessing debug interfaces
+level: high
+hunt_id: H-0739
+hecate_review:
+  verdict: keep
+  issues:
+  - The rule is valid as it detects a specific technical behavior described in the source material.
+  - Passage [1] confirms that the adversary copies a binary into /data/local/tmp and launches it, which
+    aligns with the rule's detection of process creation involving this path.

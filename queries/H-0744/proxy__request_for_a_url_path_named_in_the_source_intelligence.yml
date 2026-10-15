@@ -1,0 +1,60 @@
+title: Request for a URL path named in the source intelligence
+id: 8ba9514e-dc8f-4a89-8a46-69b1cbcc0309
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.levelblue.com/blogs/spiderlabs-blog/citrix-netscaler-cve-2026-88771-observed-exploitation-artifacts-and-hunt-indicators
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /lula
+    - /main.py
+    - /update_c08937.pl
+    - /update_result_3567cs.tgz
+    - /xd7h/x
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://64.94.85.67:443/update_c08937.pl
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://64.94.85.67:443/update_result_3567cs.tgz
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.levelblue.com/blogs/spiderlabs-blog/citrix-netscaler-cve-2026-88771-observed-exploitation-artifacts-and-hunt-indicators
+  evidence: Configuration exfiltration endpoint
+- value: http://62.133.62.80:80/xd7h/x
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.levelblue.com/blogs/spiderlabs-blog/citrix-netscaler-cve-2026-88771-observed-exploitation-artifacts-and-hunt-indicators
+  evidence: Payload download URL
+- value: http://23.27.143.20:9000/main.py
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://31.56.197.72:9090/lula
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.levelblue.com/blogs/spiderlabs-blog/citrix-netscaler-cve-2026-88771-observed-exploitation-artifacts-and-hunt-indicators
+  evidence: Payload download URL
+hunt_id: H-0744

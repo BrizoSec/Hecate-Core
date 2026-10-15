@@ -1,0 +1,33 @@
+title: Network Connection to Known 2CLoader C2 Infrastructure
+id: f0f363f5-f84a-479e-a49b-5b902c629b67
+status: experimental
+description: Detects outbound network connections to the specific IP address associated with 2CLoader
+  infrastructure, which is used by loaders executing Vidar and Remus information stealers. This rule targets
+  the command-and-control or payload delivery phase of the attack chain.
+references:
+- https://www.zscaler.com/blogs/security-research/2cloader-new-malware-loader-delivering-vidar-and-remus
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1573
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|contains: 62.60.226.185
+  condition: selection
+falsepositives:
+- Legitimate traffic to shared hosting providers
+- CDN nodes sharing IP ranges with malicious actors
+level: high
+hecate_provenance:
+- value: 62.60.226.185
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0747
+hecate_review:
+  verdict: keep

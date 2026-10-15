@@ -1,0 +1,43 @@
+title: Network Communication to Known Malicious Infrastructure for SFX Payload Delivery
+id: 6111449d-12d9-485a-95fb-7d502bac5ed4
+status: experimental
+description: Detects network connections to domains associated with recompiled open-source decompression
+  stubs (7zip SFX or NSIS) used to deliver encrypted payloads and establish C2 communications. This behavior
+  indicates the use of valid code-signed installers to evade static analysis while delivering malicious
+  artifacts.
+references:
+- https://blog.gdatasoftware.com/2026/09/38490-opensupdater-evades-with-recompiled-7zip-sfx
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|contains:
+    - codeonicinc.com
+    - setupsoftwarecenter.com
+    Image|endswith: .exe
+  condition: selection
+falsepositives:
+- Legitimate software update mechanisms using self-extracting archives
+- Software distribution platforms hosting legitimate installers
+level: high
+hecate_provenance:
+- value: codeonicinc.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: setupsoftwarecenter.com
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0726
+hecate_review:
+  verdict: keep

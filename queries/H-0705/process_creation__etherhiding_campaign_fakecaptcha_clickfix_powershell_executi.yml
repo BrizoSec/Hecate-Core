@@ -1,0 +1,40 @@
+title: EtherHiding Campaign FakeCaptcha ClickFix PowerShell Execution
+id: a7b8750a-bfd4-4bc8-b82d-4d7769a41b4e
+status: experimental
+description: Detects the execution of PowerShell via ClickFix lures associated with the EtherHiding campaign.
+  Adversaries use FakeCaptcha pop-ups on compromised websites to trick users into running a script that
+  establishes persistence and resolves blockchain-based C2. This rule targets the specific obfuscated
+  PowerShell command line pattern used by the ClickFix dropper.
+references:
+- https://www.guidepointsecurity.com/blog/etherhiding-exposed-deep-dive/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.003
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: $a='1i1e1x2i1r1m1'
+  condition: selection
+falsepositives:
+- Legitimate administrative scripts using obfuscation
+- Security tools performing automated testing or remediation
+level: high
+hunt_id: H-0705
+hecate_review:
+  verdict: revise
+  issues:
+  - The rule specifies a hardcoded obfuscated string '$a='1i1e1x2i1r1m1'' in the CommandLine detection.
+    The provided source passages describe the campaign's use of blockchain C2, FakeCaptcha lures, and
+    persistence via scheduled tasks/registry keys, but they do not mention or verify this specific PowerShell
+    obfuscation pattern. Including unverified, specific technical details not present in the source text
+    makes the rule potentially inaccurate or hallucinated relative to the provided evidence.
+  - The hypothesis mentions 'PowerShell execution', but the passages only explicitly confirm persistence
+    via 'scheduled tasks and registry keys' and general 'malware' deployment. While PowerShell is a common
+    vector for such actions, the specific claim of PowerShell execution in the rule title and description
+    is not directly substantiated by the provided text snippets, which focus on the blockchain C2 mechanism
+    and FakeCaptcha delivery.

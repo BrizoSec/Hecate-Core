@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: sc query'
+id: a0dc8e97-9f72-4600-aefa-eb44117ee87d
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "sc query Spooler 2>&1 sc query Spooler 2>& 1 findstr /i "DB_PASSWORD
+  DB_USER".'
+references:
+- https://www.greynoise.io/blog/open-season-on-kapibala-attacker-steals-government-records-wordpress-exploitation
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \sc.exe
+    CommandLine|contains: query
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0719

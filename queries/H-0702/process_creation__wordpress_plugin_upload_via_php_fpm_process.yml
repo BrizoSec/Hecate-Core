@@ -1,0 +1,35 @@
+title: WordPress Plugin Upload via PHP-FPM Process
+id: 16ea22b1-0557-49b1-8d2b-7a4106b0e334
+status: experimental
+description: Detects the execution of WordPress core files with command-line arguments indicating a plugin
+  upload action, which is a common technique for installing backdoors like ClickFix or other web shells
+  after initial compromise via supply chain attacks.
+references:
+- http://sansec.io/research/brevo-supply-chain-attack
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.007
+- attack.t1204.004
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: /wp-admin/update.php?action=upload-plugin
+  condition: selection
+falsepositives:
+- Legitimate WordPress plugin installations by administrators
+- Automated deployment scripts using WP-CLI or similar tools
+level: high
+hunt_id: H-0702
+hecate_review:
+  verdict: reject
+  issues:
+  - The rule detects WordPress plugin uploads via PHP-FPM process creation, but the source passages describe
+    a supply chain attack where malicious JavaScript was injected into CDN-hosted SDK assets (cdn.brevo.com)
+    and served to visitors. The attack vector was client-side script injection, not server-side plugin
+    upload via command line arguments.
+  unverified_contradiction: The rule describes a mechanism (plugin upload via PHP-FPM with specific command
+    line args) that is not mentioned in the source passages. The passages explicitly state the malware
+    was delivered by injecting malicious code into JavaScript assets and widgets served via CDN, targeting
+    visitors' browsers, not by uploading plugins through wp-admin.

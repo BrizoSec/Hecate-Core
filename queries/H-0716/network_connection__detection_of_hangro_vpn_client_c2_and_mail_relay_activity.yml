@@ -1,0 +1,32 @@
+title: Detection of Hangro VPN Client C2 and Mail Relay Activity
+id: bb7169f4-a035-4957-8cd2-caf906d7385b
+status: experimental
+description: Detects network connections associated with the Hangro VPN client, a SoftEther-derived tool
+  used by DPRK entities for resilient command-and-control and mail relay channels. This rule targets the
+  specific destination IP ranges and ports known to be associated with this infrastructure, which often
+  utilize self-signed certificates to evade standard TLS inspection.
+references:
+- https://blog.synapticsystems.de/north-koreas-hangro-revisited
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1071.002
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|cidr:
+    - 175.45.176.0/24
+    - 188.43.136.0/24
+  selection_port:
+    DestinationPort: 6006
+  condition: selection_ip and selection_port
+falsepositives:
+- Legitimate business communications using non-standard ports
+- VPN services utilizing similar IP ranges
+- Mail relay infrastructure for enterprise email gateways
+level: high
+hunt_id: H-0716
+hecate_review:
+  verdict: keep

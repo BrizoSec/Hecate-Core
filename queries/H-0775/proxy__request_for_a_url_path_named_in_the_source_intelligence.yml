@@ -1,0 +1,47 @@
+title: Request for a URL path named in the source intelligence
+id: 82a97e70-72ae-472e-9ed3-9cae3355af95
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /plugins/grpc/v6/schema/metrics/333afe63-c5a2-43f0-b046-7cbaa7797e8a
+    - /statics/cache/v11/
+    - /statics/cache/v11/abicfjej
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://arusupport-region1-webhook.online/statics/cache/v11/abicfjej
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: '"main_base_url": "hxxps://arusupport-region1-webhook[.]online/statics/cache/v11/abicfjej",'
+- value: https://diagnose.hashicorp-terraform.io/plugins/grpc/v6/schema/metrics/333afe63-c5a2-43f0-b046-7cbaa7797e8a
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://diagnose.hashicorp-terraform[.]io/plugins/grpc/v6/schema/metrics/333afe63-c5a2-43f0-b046-7cbaa7797e8a
+    Bash script download URL
+- value: https://supportaru.serveftp.com/statics/cache/v11/
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://www.zscaler.com/blogs/security-research/suspected-tradertraitor-group-uses-trojanized-terraform-provider-deliver
+  evidence: hxxps://supportaru.serveftp[.]com/statics/cache/v11/ FLATROOF download URL
+hunt_id: H-0775

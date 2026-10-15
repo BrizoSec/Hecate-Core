@@ -1,0 +1,136 @@
+title: Kimsuky GitPower C2 and Exfiltration via GitHub
+id: 833e5827-1b1c-4105-8e8f-f38b05ed20e9
+status: experimental
+description: Detects network connections to known Kimsuky GitPower infrastructure IPs and domains used
+  for C2 and payload distribution. This behavior is associated with PowerShell-based malware targeting
+  Ukrainian policy experts, where adversaries mask malicious traffic as legitimate development activity
+  by communicating with GitHub-related hosts.
+references:
+- https://www.genians.co.kr/en/blog/threat_intelligence/operation-gitpower
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1566
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all:
+    - 111.92.246.145
+    - 103.153.65.67
+    - 195.250.24.113
+    - 85.155.224.59
+  selection_domain:
+    DestinationHostname|all:
+    - dofamini.com.ua
+    - pokijhgcfsdfghnj.mywebcommunity.org
+    - minecrafter.mygamesonline.org
+    - bwer5t6kl.getenjoyment.net
+    - cmieqf7yjs.sportsontheweb.net
+    - p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+    - mf3goke.getenjoyment.net
+    - argentinese.medianewsonline.com
+    - ezms1ez.mygamesonline.org
+    - fo27axr8z.getenjoyment.net
+    - gstcg9g.mywebcommunity.org
+  condition: selection_ip or selection_domain
+falsepositives:
+- Legitimate software updates from compromised or spoofed domains
+- Users accessing legitimate GitHub repositories via proxy
+- CDN traffic that may resolve to similar IP ranges
+level: high
+hecate_provenance:
+- value: 111.92.246.145
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.153.65.67
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 195.250.24.113
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 85.155.224.59
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: dofamini.com.ua
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pokijhgcfsdfghnj.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: minecrafter.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bwer5t6kl.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: cmieqf7yjs.sportsontheweb.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: mf3goke.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: argentinese.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ezms1ez.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fo27axr8z.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: gstcg9g.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0784
+hecate_review:
+  verdict: keep

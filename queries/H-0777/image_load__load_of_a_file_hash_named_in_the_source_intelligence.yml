@@ -1,0 +1,33 @@
+title: Load of a file hash named in the source intelligence
+id: d048ebf0-a590-4ba7-963a-959849ce40f3
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a loaded library whose hash the source published. Hashes of archives,
+  documents, network content and in-memory payloads are excluded: no process image carries them.'
+references:
+- https://www.welivesecurity.com/en/eset-research/matchboil-new-tricks-same-old-evil-intentions/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - SHA1=f886b615cb9e23ead2718ff2a61155acfb04ce9e
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: f886b615cb9e23ead2718ff2a61155acfb04ce9e
+  type: sha1
+  role: library
+  status: active
+  confidence: unknown
+  source: https://www.welivesecurity.com/en/eset-research/matchboil-new-tricks-same-old-evil-intentions/
+  evidence: 'In some of these samples (for example SHA‑1: F886B615CB9E23EAD2718FF2A61155ACFB04CE9E), the
+    logic used for C&C communication, and for persisting and retrieving the payload from the HTML code,
+    is locat'
+hunt_id: H-0777

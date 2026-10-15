@@ -1,0 +1,31 @@
+title: FamousSparrow SparroWocky DLL Side-loading via MUI File Search
+id: fa3989f2-2d59-42f1-9ba6-6b3cdf723996
+status: experimental
+description: Detects the file system activity associated with the FamousSparrow APT group's SparroWocky
+  backdoor. The malware employs a Trident loader technique that abuses DLL side-loading (T1574.001) by
+  searching for legitimate localization files (.mui) in C:\Windows\System32\en-US\. This behavior is distinct
+  from normal system operation as it involves scanning this specific directory structure, likely to identify
+  a target DLL to replace or load maliciously.
+references:
+- https://www.welivesecurity.com/en/eset-research/beware-sparrowock-backdoor-bites-commands-catch/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1027
+- attack.t1070.004
+- attack.t1574.001
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: C:\Windows\System32\en-US\
+  condition: selection
+falsepositives:
+- Legitimate software updates or localization packs
+- Application installers accessing system resources
+- Antivirus or EDR scanning of system directories
+level: high
+hunt_id: H-0697
+hecate_review:
+  verdict: keep

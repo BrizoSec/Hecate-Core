@@ -1,0 +1,29 @@
+title: Detection of CLEANGULP Backdoor Execution via MicrosoftIME.exe
+id: 4f18b505-ea6e-4909-8301-4c9302ae77b5
+status: experimental
+description: Detects the execution of the CLEANGULP backdoor binary named MicrosoftIME.exe, which is deployed
+  by UTA0565 using chained zero-day exploits. This process typically resides in \Microsoft\IME\ and serves
+  as the foothold for subsequent persistence and command execution.
+references:
+- https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1068
+- attack.t1204.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_microsoftime:
+    Image|endswith: \Microsoft\IME\MicrosoftIME.exe
+  condition: selection_microsoftime
+falsepositives:
+- Legitimate Microsoft IME components (though typically located in System32 or Program Files, not \Microsoft\IME\)
+- Custom enterprise input method software installed to non-standard paths
+level: high
+hunt_id: H-0720
+hecate_review:
+  verdict: keep

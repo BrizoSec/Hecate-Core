@@ -11,6 +11,7 @@ Thumbs.db
 .claude/
 
 # Sensitive data
+.env
 *.env
 # Backups and variants (sed -i.bak, editor copies) hold the same secrets.
 .env.*

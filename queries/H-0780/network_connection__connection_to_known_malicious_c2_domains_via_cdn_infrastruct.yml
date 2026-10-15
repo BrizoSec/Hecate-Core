@@ -1,0 +1,57 @@
+title: Connection to Known Malicious C2 Domains via CDN Infrastructure
+id: 55922292-691b-47c4-b0a9-14cdc4d2c2be
+status: experimental
+description: Detects outbound connections to specific domains identified as malicious Command and Control
+  (C2) infrastructure hosted on shared CDNs. This behavior aligns with the .conf26 incident where adversaries
+  used trusted CDN nodes to host malicious content, evading IP-based reputation blocks by blending with
+  legitimate traffic.
+references:
+- https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1071.001
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationHostname|contains:
+    - moonlighthathel.org
+    - ukankingwithea.com
+  condition: selection
+falsepositives:
+- Legitimate users accessing compromised or typosquatted domains
+- CDN caching artifacts resolving to the same hostname in some network configurations
+level: high
+hecate_provenance:
+- value: https://moonlighthathel.org
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: associated with malicious domains including hxxps://moonlighthathel[.]org and hxxps://ukankingwithea[.]com.
+- value: https://ukankingwithea.com
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: associated with malicious domains including hxxps://moonlighthathel[.]org and hxxps://ukankingwithea[.]com.
+- value: moonlighthathel.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: 'targeting the specific malicious FQDNs: moonlighthathel.org and ukankingwithea.com.'
+- value: ukankingwithea.com
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.splunk.com/en_us/blog/security/conf26-agentic-soc-scalpel.html
+  evidence: 'targeting the specific malicious FQDNs: moonlighthathel.org and ukankingwithea.com.'
+hunt_id: H-0780
+hecate_review:
+  verdict: keep

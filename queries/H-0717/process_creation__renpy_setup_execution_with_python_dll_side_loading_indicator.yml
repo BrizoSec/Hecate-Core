@@ -1,0 +1,27 @@
+title: RenPy Setup Execution with Python DLL Side-Loading Indicators
+id: 71cce043-aadb-4671-9b53-16e44fbb5a39
+status: experimental
+description: Detects the execution of setup.exe (common in RenPy-based installers) which may be used to
+  load malicious python37.dll or python36.dll from non-standard directories for DLL side-loading attacks.
+  This behavior is associated with infostealer distribution disguised as cracked software.
+references:
+- https://asec.ahnlab.com/en/95519/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1036
+- attack.t1059.006
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \setup.exe
+  condition: selection
+falsepositives:
+- Legitimate RenPy game installations
+- Software installers using Python-based setup scripts
+level: medium
+hunt_id: H-0717
+hecate_review:
+  verdict: keep

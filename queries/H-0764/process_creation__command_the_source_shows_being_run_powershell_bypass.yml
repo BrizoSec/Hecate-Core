@@ -1,0 +1,25 @@
+title: 'Command the source shows being run: powershell Bypass'
+id: 4aeaa1b8-403d-4b0b-ae79-8caaeb406496
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "powershell -ExecutionPolicy Bypass -NoProfile -WindowStyle
+  Hidden -Command "IEX $env:INTERNAL_DB_CACHE;[Environment]::SetEnvironmentVariable(''INTERNAL_DB_CACHE'',$null,''User'')"
+  This command does two".'
+references:
+- https://www.sentinelone.com/blog/when-environment-variables-met-steganography-inside-a-reusable-dcrat-delivery-chain/
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \powershell.exe
+    CommandLine|contains: Bypass
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0764

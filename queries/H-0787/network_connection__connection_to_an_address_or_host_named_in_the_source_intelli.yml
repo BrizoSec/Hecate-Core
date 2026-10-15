@@ -1,0 +1,47 @@
+title: Connection to an address or host named in the source intelligence
+id: c19c7090-8ce6-46ff-8e27-beac79e17c10
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://cofense.com/blog/rsvp-to-disaster-how-one-click-installs-a-rat
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 104.21.73.121
+  selection_2_any:
+    DestinationIp: 172.67.162.73
+  selection_3_any:
+    DestinationHostname: theinvitationestateco.vu
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: theinvitationestateco.vu
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 104.21.73.121
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/rsvp-to-disaster-how-one-click-installs-a-rat
+  evidence: 'Stage 2 – Observed Payload URL(s): Payload IP(s): 104.21.73.121'
+- value: 172.67.162.73
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://cofense.com/blog/rsvp-to-disaster-how-one-click-installs-a-rat
+  evidence: 'Stage 2 – Observed Payload URL(s): Payload IP(s): 172.67.162.73'
+hunt_id: H-0787

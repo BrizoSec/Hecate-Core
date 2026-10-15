@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: wscript \Microsoft\Windows\Caches\FontCacheSync.vbs'
+id: 670d7760-93d3-4506-999c-cc328d59fba6
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "wscript %LOCALAPPDATA%\Microsoft\Windows\Caches\FontCacheSync.vbs`
+  Startup folder `%LOCALAPPDATA%\Microsoft\Windows\Caches\FontCacheSync.vbs` Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\R".'
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \wscript.exe
+    CommandLine|contains: \Microsoft\Windows\Caches\FontCacheSync.vbs
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0738

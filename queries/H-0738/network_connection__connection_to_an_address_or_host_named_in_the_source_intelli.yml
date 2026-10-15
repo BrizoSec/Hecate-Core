@@ -1,0 +1,259 @@
+title: Connection to an address or host named in the source intelligence
+id: 9c7bcfb2-211a-4b2d-afc6-4aafacb57796
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_any:
+    DestinationIp: 103.153.74.201
+  selection_2_any:
+    DestinationIp: 103.179.188.236
+  selection_3_any:
+    DestinationIp: 103.82.26.183
+  selection_4_any:
+    DestinationIp: 103.179.189.169
+  selection_5_any:
+    DestinationIp: 103.82.20.17
+  selection_6_any:
+    DestinationIp: 103.179.188.216
+  selection_7_any:
+    DestinationIp: 103.179.188.9
+  selection_8_any:
+    DestinationIp: 103.82.20.60
+  selection_9_any:
+    DestinationIp: 103.153.75.131
+  selection_10_any:
+    DestinationHostname: baoquocgiavn.com
+  selection_11_any:
+    DestinationHostname: bayareakajabe.com
+  selection_12_any:
+    DestinationHostname: bartonaussies.com
+  selection_13_any:
+    DestinationHostname: tirakian.com
+  selection_14_any:
+    DestinationHostname: shareddocumentdrivehub.com
+  selection_15_any:
+    DestinationHostname: sharedocumentsystem.com
+  selection_16_any:
+    DestinationHostname: customerreviewproduct.com
+  selection_17_any:
+    DestinationHostname: customersrespondedpositively.com
+  selection_18_any:
+    DestinationHostname: globaldocumentsharingcenter.com
+  selection_19_any:
+    DestinationHostname: documentcloudlink.com
+  selection_20_any:
+    DestinationHostname: drive.careernetwork.co.nz
+  selection_21_any:
+    DestinationHostname: logs.uvexio.com
+  selection_22_any:
+    DestinationHostname: tea.vexexo.com
+  selection_23_any:
+    DestinationHostname: trump2.1368.lol
+  selection_24_any:
+    DestinationHostname: cloudflare.carriernetworks.top
+  selection_25_any:
+    DestinationHostname: pure26.myftp.org
+  selection_26_any:
+    DestinationHostname: api0709.azuravenue.com
+  selection_27_any:
+    DestinationHostname: api0714.babilkuruyemis.com
+  selection_28_any:
+    DestinationHostname: api0727.banvanchuyen.com
+  selection_29_any:
+    DestinationHostname: api0728.baoholaodongbaoanh.com
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: 103.153.74.201
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.179.188.236
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.82.26.183
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.179.189.169
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.82.20.17
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.179.188.216
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.179.188.9
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.82.20.60
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 103.153.75.131
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://cloudflare.carriernetworks.top/?sharingcenterDelivery_Unboxing_Verification.MP4
+  type: url
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: baoquocgiavn.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bayareakajabe.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bartonaussies.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: tirakian.com
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: shareddocumentdrivehub.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: sharedocumentsystem.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: customerreviewproduct.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: customersrespondedpositively.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: globaldocumentsharingcenter.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: documentcloudlink.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: drive.careernetwork.co.nz
+  type: hostname
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: logs.uvexio.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: tea.vexexo.com
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: trump2.1368.lol
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: cloudflare.carriernetworks.top
+  type: hostname
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pure26.myftp.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: api0709.azuravenue.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: api0714.babilkuruyemis.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: api0727.banvanchuyen.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: api0728.baoholaodongbaoanh.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0738

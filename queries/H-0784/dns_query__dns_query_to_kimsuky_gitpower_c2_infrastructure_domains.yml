@@ -1,0 +1,106 @@
+title: DNS Query to Kimsuky GitPower C2 Infrastructure Domains
+id: 769a1b36-aeea-4741-8496-33e3854ded2b
+status: experimental
+description: Detects DNS queries for specific hostnames associated with the Kimsuky 'GitPower' campaign
+  targeting Ukrainian policy experts. These domains are used for hosting malicious payloads or C2 infrastructure,
+  often disguised as legitimate gaming or news sites. This rule hunts for the full domain indicators provided
+  in the intelligence to identify potential initial access or command and control activity.
+references:
+- https://www.genians.co.kr/en/blog/threat_intelligence/operation-gitpower
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1566
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_domains:
+    QueryName|contains:
+    - pokijhgcfsdfghnj.mywebcommunity.org
+    - minecrafter.mygamesonline.org
+    - bwer5t6kl.getenjoyment.net
+    - cmieqf7yjs.sportsontheweb.net
+    - p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+    - mf3goke.getenjoyment.net
+    - argentinese.medianewsonline.com
+    - ezms1ez.mygamesonline.org
+    - fo27axr8z.getenjoyment.net
+    - gstcg9g.mywebcommunity.org
+    - dofamini.com.ua
+  condition: selection_domains
+falsepositives:
+- Legitimate traffic to gaming communities, sports news aggregators, or general web hosting services that
+  may share similar domain structures.
+- Users accessing legitimate content on these domains if they are compromised but not currently flagged.
+level: high
+hecate_provenance:
+- value: dofamini.com.ua
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pokijhgcfsdfghnj.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: minecrafter.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bwer5t6kl.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: cmieqf7yjs.sportsontheweb.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: mf3goke.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: argentinese.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ezms1ez.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fo27axr8z.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: gstcg9g.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0784
+hecate_review:
+  verdict: keep

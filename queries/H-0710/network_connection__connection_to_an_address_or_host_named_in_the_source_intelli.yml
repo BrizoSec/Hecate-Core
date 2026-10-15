@@ -1,0 +1,57 @@
+title: Connection to an address or host named in the source intelligence
+id: b4d5556d-f9f6-408f-b8e4-5c12837cc664
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches an outbound connection to a current address or host the source published,
+  on the ports the source ties to it where it names them. Indicators the source marks historical are excluded.
+references:
+- https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_1_8443:
+    DestinationIp: 104.21.2.193
+    DestinationPort: 8443
+  selection_2_any:
+    DestinationHostname: httptls.org
+  selection_3_any:
+    DestinationHostname: txtcdn.net
+  condition: 1 of selection_*
+falsepositives:
+- Shared hosting or CDN addresses reused by unrelated sites
+level: high
+hecate_provenance:
+- value: http://txtcdn.net
+  type: url
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: The script periodically queried DNS TXT records associated with `sslvalidcert.com`, which
+    was later changed to `http[:]//txtcdn[.]net` after a few days, to retrieve encoded data.
+- value: httptls.org
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: For C2 discovery, the payload used DNS-over-HTTPS to query TXT records associated with “httptls.org”
+    through Google DNS.
+- value: 104.21.2.193
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://labs.k7computing.com/index.php/from-registry-stored-powershell-to-in-memory-cryptocurrency-mining-a-multi-stage-infection-chain/
+  evidence: C2 Connection 104[.]21[.]2[.]193:8443
+- value: txtcdn.net
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0710

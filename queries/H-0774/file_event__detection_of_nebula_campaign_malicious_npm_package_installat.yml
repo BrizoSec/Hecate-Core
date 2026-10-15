@@ -1,0 +1,27 @@
+title: Detection of Nebula Campaign Malicious npm Package Installation Artifacts
+id: ee64965d-aeb1-46f7-844a-454cf3a7890d
+status: experimental
+description: Detects the creation of files associated with malicious npm packages ('api-nebula' or 'llm-nebula')
+  identified in the NEBULA campaign. These packages are used to deliver obfuscated preinstall hooks that
+  deploy a syscall-based Windows RAT masquerading as conhost.exe.
+references:
+- https://cdn.cloudsek.com/cloudsek-blog-pdfs/cloudsek-neb-qhe.pdf
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1027
+- attack.t1036
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|contains: /llm-nebula/
+  condition: selection
+falsepositives:
+- Legitimate npm packages with similar naming conventions
+- Development environments using local or internal package registries
+level: high
+hunt_id: H-0774
+hecate_review:
+  verdict: keep

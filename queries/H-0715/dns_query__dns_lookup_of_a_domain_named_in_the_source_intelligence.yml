@@ -1,0 +1,35 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 4fff9daf-1c20-4961-b83c-f9171a151188
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.huntress.com/blog/two-inc-ransom-notes
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-12'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - throughoutes.net
+  selection_subdomain:
+    QueryName|endswith:
+    - .throughoutes.net
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: throughoutes.net
+  type: domain
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/two-inc-ransom-notes
+  evidence: This PowerShell script was heavily obfuscated and communicated with the domain throughoutes[.]net
+    .
+hunt_id: H-0715

@@ -1,0 +1,27 @@
+title: Detection of Python Infostealer Persistence via Registry Run Keys
+id: 93aa5dce-3e72-4f57-ba0e-d82ad9f5d99b
+status: experimental
+description: Detects the creation of Registry Run keys, a common persistence mechanism used by infostealers
+  to execute upon user login. This rule specifically targets the persistence phase of the 'The Stealer
+  Factory' toolchain, which auto-installs dependencies and establishes persistence through HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run.
+references:
+- https://labs.k7computing.com/index.php/the-stealer-factory-unpacking-a-python-based-maas-infostealer-builder
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1547.001
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: Software\Microsoft\Windows\CurrentVersion\Run
+  condition: selection
+falsepositives:
+- Legitimate software installers adding update or helper utilities to startup
+- User-added shortcuts for convenience
+- IDEs or development tools (e.g., VS Code, PyCharm) adding themselves to startup
+level: medium
+hunt_id: H-0734
+hecate_review:
+  verdict: keep

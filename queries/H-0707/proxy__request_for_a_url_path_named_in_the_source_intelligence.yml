@@ -1,0 +1,78 @@
+title: Request for a URL path named in the source intelligence
+id: d2eb5d6c-6da9-4438-83fd-c8703710b57a
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://opensourcemalware.com/blog/introducing-weaselbiscuit
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-11'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /24c12c4b66a29747764f
+    - /24c25d5f5fcbb0992a4f
+    - /33e8d008c334b060adad
+    - /37c0a0c68bf7a94ed731
+    - /641d37178a880b1e8b8f
+    - /933a731a5e97f4b45249
+    - /ddae72efbb6714fae922
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: https://api.npoint.io/24c12c4b66a29747764f
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: Hard-coded by id79-client; returned HTTP 404 when retrieved
+- value: https://api.npoint.io/24c25d5f5fcbb0992a4f
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: 'loader.js retrieves JSON from: https://api.npoint.io/24c25d5f5fcbb0992a4f'
+- value: https://api.npoint.io/33e8d008c334b060adad
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: Npoint resolver https://api.npoint.io/33e8d008c334b060adad (identifier 79)
+- value: https://api.npoint.io/37c0a0c68bf7a94ed731
+  type: url
+  role: download
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: 'The second stage obtains the C2 configuration from: https://api.npoint.io/37c0a0c68bf7a94ed731'
+- value: https://api.npoint.io/641d37178a880b1e8b8f
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: Npoint resolver https://api.npoint.io/641d37178a880b1e8b8f (identifier 10)
+- value: https://api.npoint.io/933a731a5e97f4b45249
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: Npoint resolver https://api.npoint.io/933a731a5e97f4b45249 (identifier 95)
+- value: https://api.npoint.io/ddae72efbb6714fae922
+  type: url
+  role: staging
+  status: active
+  confidence: unknown
+  source: https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  evidence: Npoint resolver https://api.npoint.io/ddae72efbb6714fae922 (identifier 12)
+hunt_id: H-0707

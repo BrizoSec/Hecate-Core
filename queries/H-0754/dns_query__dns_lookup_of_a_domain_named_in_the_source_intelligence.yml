@@ -1,0 +1,105 @@
+title: DNS lookup of a domain named in the source intelligence
+id: b175addd-dc7f-4a09-8328-d78ec52c9005
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://cyberint.com/blog/dark-web/xworm-malware-worming-its-way-from-entry-to-exploitation/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - 09090clami09090930032.duckdns.org
+    - loganwolverin2042.webredirect.org
+    - medellin202156.duckdns.org
+    - faithbiglovered.opik.net
+    - xw.jukt.top
+    - xw.fexd.top
+    - xw.cizt.top
+    - xw.bidz.top
+    - xw.vyqt.top
+    - xw.vqxt.top
+  selection_subdomain:
+    QueryName|endswith:
+    - .09090clami09090930032.duckdns.org
+    - .loganwolverin2042.webredirect.org
+    - .medellin202156.duckdns.org
+    - .faithbiglovered.opik.net
+    - .xw.jukt.top
+    - .xw.fexd.top
+    - .xw.cizt.top
+    - .xw.bidz.top
+    - .xw.vyqt.top
+    - .xw.vqxt.top
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: 09090clami09090930032.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: loganwolverin2042.webredirect.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: medellin202156.duckdns.org
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: faithbiglovered.opik.net
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.jukt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.fexd.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.cizt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.bidz.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.vyqt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: xw.vqxt.top
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0754

@@ -1,0 +1,42 @@
+title: Outbound Connection to Psychedelic Infostealer C2 Infrastructure
+id: 8aee840d-8a56-4bae-940f-4fed99d2b019
+status: experimental
+description: Detects outbound network connections from a host to known indicators of compromise associated
+  with the 'Psychedelic' infostealer campaign. This behavior indicates that a user has likely executed
+  the malicious MSI installer via the Run dialog (ClickFix attack), which subsequently establishes communication
+  with the command and control infrastructure to download further payloads or exfiltrate data.
+references:
+- https://arcticwolf.com/resources/blog/psychedelic-stealer-fake-clickfix-captcha-targets-ukraine/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1190
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|all:
+    - 193.178.159.128
+    - 107.175.82.242
+  condition: selection
+falsepositives:
+- Legitimate traffic to hosting providers or CDNs that may share IP ranges with malicious actors
+- Internal monitoring or security scanning tools targeting these IPs
+level: high
+hecate_provenance:
+- value: 193.178.159.128
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 107.175.82.242
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0733
+hecate_review:
+  verdict: keep

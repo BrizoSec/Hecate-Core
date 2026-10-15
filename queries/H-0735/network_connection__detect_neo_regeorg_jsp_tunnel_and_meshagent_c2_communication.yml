@@ -1,0 +1,78 @@
+title: Detect Neo-reGeorg JSP Tunnel and MeshAgent C2 Communication
+id: 8596a963-6595-444b-b019-360e92e81653
+status: experimental
+description: Detects outbound network connections to known C2 infrastructure associated with the deployment
+  of Neo-reGeorg JSP tunnels and MeshAgent agents. This behavior indicates active command and control
+  communication following a web shell staging event on Oracle PeopleSoft servers.
+references:
+- https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-13'
+tags:
+- attack.t1071.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_c2_domains:
+    DestinationHostname|contains:
+    - winmanage-me.network
+    - enroll.azuredevice.cloud
+  selection_c2_ips:
+    DestinationIp|all:
+    - 104.219.234.138
+    - 162.219.30.165
+    - 5.199.162.157
+  selection_meshagent:
+    DestinationHostname|contains:
+    - enroll.azuredevice.cloud
+    - winmanage-me.network
+  condition: 1 of selection_*
+falsepositives:
+- Legitimate Azure AD device enrollment traffic
+- Corporate proxy or DNS resolution for winmanage-me.network if used internally
+- Cloud infrastructure IP ranges belonging to legitimate SaaS providers
+level: high
+hecate_provenance:
+- value: 104.219.234.138
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+  evidence: In September 2026 intrusions, UNC6240 continued to use IT-themed infrastructure associated
+    with MeshAgent ( winmanage-me.network on 104.219.234.138 ) for secondary staging and management.
+- value: 162.219.30.165
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+  evidence: Stage 3 is the SIDEEYE C++ backdoor that communicates with its command-and-control (C2) server
+    ( 162[.]219[.]30[.]165 )
+- value: winmanage-me.network
+  type: domain
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+  evidence: In September 2026 intrusions, UNC6240 continued to use IT-themed infrastructure associated
+    with MeshAgent ( winmanage-me.network on 104.219.234.138 ) for secondary staging and management.
+- value: enroll.azuredevice.cloud
+  type: hostname
+  role: c2
+  status: historical
+  confidence: unknown
+  source: https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+  evidence: In earlier May and July 2026 intrusions, the actor ... routing outbound connections to Microsoft-masquerading
+    domains including ... enroll.azuredevice.cloud .
+- value: 5.199.162.157
+  type: ipv4
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+  evidence: 5.199.162.157 IPv4 Attack controller, scanner, and HTTP callback receiver
+hunt_id: H-0735
+hecate_review:
+  verdict: keep

@@ -1,0 +1,38 @@
+title: Detection of Impacket atexec.py Lateral Movement via Scheduled Task Creation
+id: 72c18e85-31dc-4702-848b-0a53b6fb821e
+status: experimental
+description: Detects network connections associated with the execution of Impacket's atexec.py script,
+  which is used by the INC ransomware group to create randomized scheduled tasks for lateral movement
+  and persistence. This rule targets the specific C2 infrastructure or SMB traffic patterns observed in
+  this campaign.
+references:
+- https://www.huntress.com/blog/two-inc-ransom-notes
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1021.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_ip:
+    DestinationIp|all: 213.111.185.108
+  condition: selection_ip
+falsepositives:
+- Legitimate administrative tools using Impacket suite
+- Known internal infrastructure IPs if 213.111.185.108 is whitelisted in specific contexts (unlikely given
+  it's a public IP)
+- Users connecting to known legitimate services hosted on this IP
+level: high
+hecate_provenance:
+- value: 213.111.185.108
+  type: ipv4
+  role: c2
+  status: active
+  confidence: unknown
+  source: https://www.huntress.com/blog/two-inc-ransom-notes
+  evidence: Finally, the AnyDesk remote desktop application, with a command-and-control (C2) IP address
+    of 213.111.185[.]108 , was observed being installed on one of the endpoints.
+hunt_id: H-0715
+hecate_review:
+  verdict: keep

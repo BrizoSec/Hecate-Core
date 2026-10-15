@@ -1,0 +1,41 @@
+title: Detection of Malicious JavaScript Injection in WordPress Plugin Directories
+id: 7240e5a7-fd24-4db8-9b8f-88a5653af912
+status: experimental
+description: Detects the creation or modification of JavaScript files within WordPress plugin directories
+  that contain references to known malicious CDN infrastructure (sendibt1.com). This behavior indicates
+  a supply chain compromise where legitimate SDK assets are rewritten to inject malicious loaders, consistent
+  with the Brevo attack vector.
+references:
+- http://sansec.io/research/brevo-supply-chain-attack
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.007
+- attack.t1195.002
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: .js
+    Image|contains: /wp-content/plugins/
+  condition: selection
+falsepositives:
+- Legitimate WordPress plugin updates or installations
+- Developer activity modifying plugin assets during development
+- Automated build processes updating frontend dependencies
+level: high
+hunt_id: H-0702
+hecate_review:
+  verdict: reject
+  unverified_contradiction: The rule detects file events in WordPress plugin directories (`/wp-content/plugins/`),
+    but the source passages explicitly state that the malware was delivered by injecting malicious code
+    into Brevo's CDN-hosted JavaScript assets (e.g., `sdk-loader.js`, `brevo-conversations.js`) and served
+    via CDNs like `cdn.brevo.com` or `cdn2.sendibt1.com`. The attack vector involved modifying CDN files,
+    not creating or modifying files within the WordPress plugin directories on the victim's server. Passage
+    [1] notes a backdoor was 'likely' recovered but doesn't describe it as being created via file events
+    in plugin dirs during the injection phase described in the hypothesis (injection into SDK assets).
+    More critically, the rule's detection logic targets local file system changes in `/wp-content/plugins/`,
+    whereas the primary behavior described is network-based delivery and execution of malicious scripts
+    loaded from external CDN domains. The passages do not support that the *detection* should be based
+    on file creation/modification in plugin directories for this specific injection mechanism; rather,
+    they describe dynamic content rewriting on the CDN side.

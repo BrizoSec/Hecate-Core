@@ -1,0 +1,33 @@
+title: Scheduled Task Persistence via Local AppData XML and TLS Bypass Compilation
+id: eb1b46e6-4ada-4db4-a648-9a8535b84972
+status: experimental
+description: Detects the creation of scheduled tasks using XML files located in LOCALAPPDATA, a common
+  persistence technique for backdoors like TASK#STOMP. It also detects csc.exe compiling C# code, which
+  is used to bypass TLS certificate validation for C2 communication. This combination indicates an adversary
+  establishing persistent remote access and preparing to exfiltrate data while evading standard TLS monitoring.
+references:
+- https://cyberpress.org/taskstomp-backdoor-steals-documents/?amp=1
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1027.003
+- attack.t1053.005
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_schtasks:
+    Image|endswith: \schtasks.exe
+    CommandLine|contains: /create
+  selection_csc:
+    Image|endswith: \csc.exe
+  condition: selection_schtasks or selection_csc
+falsepositives:
+- Legitimate system administration using schtasks
+- Software development activities using csc.exe
+- Automated build scripts compiling C# code
+level: high
+hunt_id: H-0724
+hecate_review:
+  verdict: keep

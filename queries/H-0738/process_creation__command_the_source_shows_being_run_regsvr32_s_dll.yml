@@ -1,0 +1,23 @@
+title: 'Command the source shows being run: regsvr32 /s \<dll\>'
+id: 9004a054-cd61-4586-84c4-e3290ac4b1f6
+status: experimental
+description: 'Deterministic rule built from a command quoted in the primary source, with no model involvement.
+  The source shows this command being run: "regsvr32 /s \<dll\>` ##### Type 2-2: AMSI/ETW Bypass + Python
+  Interpreter + Donut".'
+references:
+- https://blog-en.itochuci.co.jp/entry/2026/09/25/090000
+author: hecate (auto-generated from commands quoted in the source - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \regsvr32.exe
+    CommandLine|contains: /s \<dll\>
+  condition: selection
+falsepositives:
+- Administrators or software running the same command for legitimate reasons
+level: medium
+hunt_id: H-0738

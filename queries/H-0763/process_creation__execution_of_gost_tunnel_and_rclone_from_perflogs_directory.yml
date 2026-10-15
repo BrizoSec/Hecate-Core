@@ -1,0 +1,33 @@
+title: Execution of GOST Tunnel and Rclone from PerfLogs directory
+id: dbf1b135-28d5-4f03-93b0-91bb61ef3717
+status: experimental
+description: Detects the execution of known GOST tunneling tools masquerading as svchost.exe and Rclone
+  for data exfiltration, specifically when located in or spawned from the C:\PerfLogs\temp directory.
+  This behavior is associated with the Akira ransomware group's C2 and exfiltration infrastructure.
+references:
+- https://www.huntress.com/blog/mapping-akira-ransomware-attack
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-14'
+tags:
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_gost:
+    Image|endswith: \win.exe
+    CommandLine|contains: C:\PerfLogs\temp
+  selection_rclone:
+    Image|endswith: \RClone.exe
+    CommandLine|contains: C:\PerfLogs\temp
+  selection_svchost_malware:
+    Image|endswith: \svchost.exe
+    CommandLine|contains: C:\PerfLogs\temp
+  condition: 1 of selection_*
+falsepositives:
+- Legitimate system maintenance tools
+- Administrative scripts using standard Windows binaries in PerfLogs
+level: high
+hunt_id: H-0763
+hecate_review:
+  verdict: keep

@@ -1,0 +1,57 @@
+title: DNS lookup of a domain named in the source intelligence
+id: ee0b42c1-6b61-419d-aba8-5ba63b455220
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://asec.ahnlab.com/ko/95750/
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - alertxen.store
+    - bigsundoc.online
+    - ddncsoso.com
+    - hessattorneys.co.za
+  selection_subdomain:
+    QueryName|endswith:
+    - .alertxen.store
+    - .bigsundoc.online
+    - .ddncsoso.com
+    - .hessattorneys.co.za
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: alertxen.store
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bigsundoc.online
+  type: domain
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ddncsoso.com
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: hessattorneys.co.za
+  type: domain
+  role: delivery
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0766

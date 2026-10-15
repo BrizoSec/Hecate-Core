@@ -1,0 +1,71 @@
+title: Execution of a file hash named in the source intelligence
+id: c022c200-adf7-402d-a185-509094a3d10d
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://socket.dev/blog/firefox-crypto-wallet-stealers
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-14'
+tags: []
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Hashes|contains:
+    - SHA256=eb134bbf73046800c8177383754cf754b8776ec30cf5cc8a13655d259e49a4bf
+    - SHA256=2f9270269e631bc4fd634d741afcfc3df8f54e43e40b16f38660fe8ce6c26f51
+    - SHA256=225f5d6c5d70a7e7f3abf62ea0dda1cf8bf8e70565f7db748b0d8fa602da939b
+    - SHA256=6b53369fb868efb92b60af40fbd5906fa3d3d8785a7878b4af6e4efd333a4de8
+    - SHA256=8906dd85b0991fac14e5973b3f3f61d93ef1101504cb5867a004c762ee184ef7
+    - SHA256=9fea0ee3c81047f5e50eeb3a2ab2a7cd70357f3e49944b7079ab3e90c9ea0e8b
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: eb134bbf73046800c8177383754cf754b8776ec30cf5cc8a13655d259e49a4bf
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: 'Shared compact frontend SHA-256: eb134bbf73046800c8177383754cf754b8776ec30cf5cc8a13655d259e49a4bf'
+- value: 2f9270269e631bc4fd634d741afcfc3df8f54e43e40b16f38660fe8ce6c26f51
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: view-focus-bright@webtools.co , version 6.12.2 — 2f9270269e631bc4fd634d741afcfc3df8f54e43e40b16f38660fe8ce6c26f51
+- value: 225f5d6c5d70a7e7f3abf62ea0dda1cf8bf8e70565f7db748b0d8fa602da939b
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: quick-track-nest@tabtools.co , version 8.1.18 — 225f5d6c5d70a7e7f3abf62ea0dda1cf8bf8e70565f7db748b0d8fa602da939b
+- value: 6b53369fb868efb92b60af40fbd5906fa3d3d8785a7878b4af6e4efd333a4de8
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: vibe-kit-tool@fasttools.co , version 9.21.9 — 6b53369fb868efb92b60af40fbd5906fa3d3d8785a7878b4af6e4efd333a4de8
+- value: 8906dd85b0991fac14e5973b3f3f61d93ef1101504cb5867a004c762ee184ef7
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: edge-hub-snap@protools.net , version 4.12.24 — 8906dd85b0991fac14e5973b3f3f61d93ef1101504cb5867a004c762ee184ef7
+- value: 9fea0ee3c81047f5e50eeb3a2ab2a7cd70357f3e49944b7079ab3e90c9ea0e8b
+  type: sha256
+  role: unknown
+  status: active
+  confidence: unknown
+  source: https://socket.dev/blog/firefox-crypto-wallet-stealers
+  evidence: core-hub-peak@neattools.example , version 8.24.21 — 9fea0ee3c81047f5e50eeb3a2ab2a7cd70357f3e49944b7079ab3e90c9ea0e8b
+hunt_id: H-0768

@@ -1,0 +1,31 @@
+title: Outbound WebSocket Connection from Node.js to Non-Standard Ports
+id: 05d4b288-2837-46a5-bc6c-1df3777b676b
+status: experimental
+description: Detects outbound WebSocket connections (typically on non-standard ports) initiated by node.exe.
+  This behavior is consistent with a Node.js-based RAT establishing Command and Control channels, potentially
+  resolving infrastructure dynamically via blockchain smart contracts as described in the ChainScript
+  threat profile.
+references:
+- https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-11'
+tags:
+- attack.t1059.007
+- attack.t1102
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection_node:
+    Image|endswith: \node.exe
+  selection_ws_port:
+    DestinationPort|contains: '384'
+  condition: selection_node and selection_ws_port
+falsepositives:
+- Legitimate Node.js applications connecting to development APIs or internal services on non-standard
+  ports
+- Node-based build tools or package managers performing updates
+level: medium
+hunt_id: H-0708
+hecate_review:
+  verdict: keep

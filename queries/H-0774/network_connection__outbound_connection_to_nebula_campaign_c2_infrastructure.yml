@@ -1,0 +1,37 @@
+title: Outbound Connection to Nebula Campaign C2 Infrastructure
+id: d7135e50-0db3-48c6-a9f8-6a7bda795fe8
+status: experimental
+description: Detects outbound network connections to the specific IP address associated with the NEBULA
+  campaign's command and control infrastructure. This hunt targets the final stage of the supply chain
+  attack where the deployed syscall-based RAT establishes communication with the attacker-controlled server.
+references:
+- https://cdn.cloudsek.com/cloudsek-blog-pdfs/cloudsek-neb-qhe.pdf
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1027
+- attack.t1036
+- attack.t1195.002
+- attack.t1497.001
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp: 65.87.7.132
+  condition: selection
+falsepositives:
+- Legitimate traffic to cloud provider infrastructure
+- CDN or DNS resolution services using shared IP ranges
+- Internal monitoring tools probing external endpoints
+level: high
+hecate_provenance:
+- value: 65.87.7.132
+  type: ipv4
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0774
+hecate_review:
+  verdict: keep

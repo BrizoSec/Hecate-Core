@@ -1,0 +1,142 @@
+title: DNS Query to SectopRAT C2 Infrastructure and Seed Nodes
+id: 057e0b5f-4f47-400e-803e-2264b51bf4bf
+status: experimental
+description: Detects DNS queries for known Command and Control (C2) servers and blockchain seed nodes
+  associated with the SectopRAT threat actor. These domains are used for initial communication, payload
+  delivery, or infrastructure resolution.
+references:
+- https://www.fortinet.com/blog/threat-research/uncovering-a-sectoprat-variant-embedded-in-legitimate-software
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-12'
+tags:
+- attack.t1027
+- attack.t1053.005
+- attack.t1059.003
+- attack.t1113
+- attack.t1140
+- attack.t1195.002
+- attack.t1496
+- attack.t1566
+- attack.t1571
+- attack.t1573
+- attack.t1620
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - bsc-dataseed1.ninicoin.io
+    - bsc-dataseed4.ninicoin.io
+    - bsc-dataseed3.defibit.io
+    - bsc-dataseed4.defibit.io
+    - bsc-dataseed3.ninicoin.io
+    - bsc-dataseed2.ninicoin.io
+    - bsc-dataseed2.defibit.io
+    - bsc-dataseed1.defibit.io
+  condition: selection
+falsepositives:
+- Legitimate blockchain node resolution
+- Cryptocurrency wallet software updates
+- Users accessing decentralized finance (DeFi) platforms
+level: high
+hecate_provenance:
+- value: bsc-dataseed1.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed4.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed3.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed4.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed3.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed2.ninicoin.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed2.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bsc-dataseed1.defibit.io
+  type: hostname
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed1.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed1.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed2.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed2.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed3.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed3.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed4.defibit.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: https://bsc-dataseed4.ninicoin.io/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0732
+hecate_review:
+  verdict: keep

@@ -1,0 +1,62 @@
+title: Request for a URL path named in the source intelligence
+id: 3afa9971-cbee-42e3-b7a0-82773d380e0f
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a proxy or web request for a current URL path the source published. URL
+  paths appear only in proxy and web logs, not in endpoint file or process events.
+references:
+- https://www.huntress.com/blog/screenconnect-power-bi
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-uri|contains:
+    - /Bin/ScreenConnect.ClientSetup.msi
+    - /E/
+    - /S/
+    - /S/main.html
+  condition: selection
+falsepositives:
+- Other sites serving a file at the same path
+level: high
+hecate_provenance:
+- value: http://burnsworth.site/S/main.html
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://check.vykyn.click/E/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://dailylifeproject.site/S/
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://essaywritingservice.site/S/main.html
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://onthegotree.site/Bin/ScreenConnect.ClientSetup.msi?e=Access&y=Guest
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: http://openpediatrics.site/S/main.html
+  type: url
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0771

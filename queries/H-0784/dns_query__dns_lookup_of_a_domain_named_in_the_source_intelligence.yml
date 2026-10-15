@@ -1,0 +1,103 @@
+title: DNS lookup of a domain named in the source intelligence
+id: 9d8b4205-8056-478c-a2b3-22862aecd4b5
+status: experimental
+description: Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a DNS query for a current domain or host the source published, or a subdomain
+  of a published domain. Indicators the source marks historical are excluded.
+references:
+- https://www.genians.co.kr/en/blog/threat_intelligence/operation-gitpower
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-15'
+tags: []
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection_exact:
+    QueryName:
+    - dofamini.com.ua
+    - pokijhgcfsdfghnj.mywebcommunity.org
+    - minecrafter.mygamesonline.org
+    - bwer5t6kl.getenjoyment.net
+    - cmieqf7yjs.sportsontheweb.net
+    - p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+    - mf3goke.getenjoyment.net
+    - argentinese.medianewsonline.com
+    - ezms1ez.mygamesonline.org
+    - fo27axr8z.getenjoyment.net
+    - gstcg9g.mywebcommunity.org
+  selection_subdomain:
+    QueryName|endswith:
+    - .dofamini.com.ua
+  condition: 1 of selection_*
+falsepositives:
+- Security tooling or analysts resolving the indicators themselves
+level: high
+hecate_provenance:
+- value: dofamini.com.ua
+  type: domain
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: pokijhgcfsdfghnj.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: minecrafter.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: bwer5t6kl.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: cmieqf7yjs.sportsontheweb.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: p1o2i3u4y5t6r7e8w9q0.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: mf3goke.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: argentinese.medianewsonline.com
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: ezms1ez.mygamesonline.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: fo27axr8z.getenjoyment.net
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: gstcg9g.mywebcommunity.org
+  type: hostname
+  role: c2
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0784

@@ -1,0 +1,73 @@
+title: Execution of a file hash named in the source intelligence
+id: a5423ce0-fbf4-455e-8b5b-8f8c4434009c
+status: experimental
+description: 'Deterministic IOC rule built from the indicators the source intelligence published, with
+  no model involvement. Matches a process whose image hash is an executable the source published. Hashes
+  of archives, documents, network content and in-memory payloads are excluded: no process image carries
+  them.'
+references:
+- https://asec.ahnlab.com/en/95598
+author: hecate (auto-generated from source indicators - requires analyst review)
+date: '2026-10-13'
+tags: []
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Hashes|contains:
+    - MD5=623bc9114d118592170599585e5cf60e
+    - MD5=5055c7b0ae1f6f77b16eb744a76cc453
+    - MD5=db9ff235eae552276b12622ae9105f1c
+    - SHA1=4b02959636f06c0aa79b63d9c6e43bb191e56e63
+    - SHA1=f0e45e139ddddfb654f645c935e8e84f7812ae2b
+    - SHA256=4e816325a4d8ca11aea96fa9f0118200acee2cfb8b4e94e1f06b8d336c1dac3d
+    - SHA256=08d96f4f4e6bd0e23f5374936d2afe823cb5f3d7e6a1b064308038becfdcf25d
+  condition: selection
+falsepositives:
+- None expected for exact hashes; confirm the sensor records the listed algorithms
+level: high
+hecate_provenance:
+- value: 623bc9114d118592170599585e5cf60e
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 5055c7b0ae1f6f77b16eb744a76cc453
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: db9ff235eae552276b12622ae9105f1c
+  type: md5
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 4b02959636f06c0aa79b63d9c6e43bb191e56e63
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: f0e45e139ddddfb654f645c935e8e84f7812ae2b
+  type: sha1
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 4e816325a4d8ca11aea96fa9f0118200acee2cfb8b4e94e1f06b8d336c1dac3d
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+- value: 08d96f4f4e6bd0e23f5374936d2afe823cb5f3d7e6a1b064308038becfdcf25d
+  type: sha256
+  role: unknown
+  status: unknown
+  confidence: unknown
+  source: cti
+hunt_id: H-0742
