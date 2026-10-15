@@ -1,0 +1,26 @@
+title: Scheduled Task Persistence via schtasks.exe Creation
+id: a1f72d49-313e-4521-ada1-8bdbdfbad67f
+status: experimental
+description: Detects the creation of scheduled task files in the System32\Tasks directory, which is a
+  common persistence mechanism (T1053.005) used by adversaries to establish long-term access. This behavior
+  is often associated with initial access profiling or lateral movement preparation.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1053.005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection:
+    TargetFilename|endswith: \C:\Windows\System32\Tasks\
+  condition: selection
+falsepositives:
+- Legitimate software installers creating scheduled tasks
+- System maintenance scripts
+- Group Policy updates
+level: medium
+hunt_id: H-0653
+hecate_review:
+  verdict: keep

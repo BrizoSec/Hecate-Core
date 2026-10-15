@@ -166,17 +166,18 @@ def expand_ttps(threat_intel: str) -> str:
 
 
 def query_censys_ip(ip: str) -> str:
-    url = f"https://search.censys.io/api/v2/hosts/{ip}"
+    url = f"https://api.platform.censys.io/v3/global/asset/host/{ip}"
     headers = {
-        "Accept": "application/json",
+        "Accept": "application/vnd.censys.api.v3.host.v1+json",
         "Authorization": f"Bearer {_setting('CENSYS_API_TOKEN')}"
     }
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 200:
-            data = resp.json().get("result", {})
+            result = resp.json().get("result", {})
+            data = result.get("resource", result)
             services = data.get("services", [])
-            ports = [str(s.get("port")) for s in services]
+            ports = [str(s.get("port")) for s in services if s.get("port")]
             
             # Extract software
             software_list = []
@@ -205,7 +206,7 @@ def query_censys_ip(ip: str) -> str:
 def query_threatfox(indicator: str) -> str:
     url = "https://threatfox-api.abuse.ch/api/v1/"
     headers = {
-        "API-KEY": _setting("ABUSECH_API_KEY"),
+        "Auth-Key": _setting("ABUSECH_API_KEY"),
         "Content-Type": "application/json"
     }
     payload = {

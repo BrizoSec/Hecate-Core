@@ -1,0 +1,38 @@
+title: DNS Query to Suspicious Election Infrastructure Support Domains
+id: 0bb172de-b00a-4cad-a134-b217918ae3b5
+status: experimental
+description: Detects DNS queries for domains associated with the hunt hypothesis regarding election infrastructure
+  targeting. These domains are likely used for initial access or profiling activities.
+references: []
+author: hecate (auto-generated draft - requires analyst review)
+date: '2026-10-15'
+tags:
+- attack.t1047
+- attack.t1684.001
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|contains:
+    - wa-elections-support.com
+    - secure-voter-wa.org
+  condition: selection
+falsepositives:
+- Legitimate election-related administrative traffic
+- Internal DNS resolution for partner organizations
+level: high
+hecate_provenance:
+- value: wa-elections-support.com
+  type: domain
+  role: unknown
+  status: unknown
+  source: cti feed
+- value: secure-voter-wa.org
+  type: domain
+  role: unknown
+  status: unknown
+  source: cti feed
+hunt_id: H-0653
+hecate_review:
+  verdict: keep
