@@ -126,3 +126,9 @@ automation/loop.log
 .pending_queries/
 logs/
 cti_queue/
+
+# Operational content (kept in dedicated workspace repo: BrizoSec/Hecate-Content)
+hunts/
+queries/
+research/
+*.sqlite
