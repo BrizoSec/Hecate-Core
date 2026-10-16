@@ -1,0 +1,145 @@
+schema: hecate-gold/1
+case_id: socgholish-election-targeting
+title: SocGholish Campaign Targeting Washington State Election Infrastructure
+reviewed: '2026-10-15'
+reviewed_from: hunts/2026/Q4/H-0670.md
+source:
+  primary: Threat Intelligence Report
+  cti: "Title: SocGholish Campaign Targeting Washington State Election Infrastructure\n\
+    Source: Threat Intelligence Report\n\nDescription:\nA targeted phishing campaign\
+    \ has been observed directing malware at election officials and political organizations\
+    \ in Washington state ahead of the November elections. The campaign utilizes electorally\
+    \ themed phishing emails containing malicious zip attachments or links to look-alike\
+    \ domains impersonating the Washington Secretary of State's office.\n\nUpon execution,\
+    \ the payload delivers the SocGholish (FakeUpdates) framework. The malware uses\
+    \ JavaScript embedded in compromised websites or delivered via HTML smuggling\
+    \ to profile the victim's system. It executes obfuscated WScript commands to download\
+    \ a secondary payload. The primary goal appears to be establishing initial access\
+    \ into networks that house voter registration databases and electronic pollbook\
+    \ management systems.\n\nIndicators suggest the threat actors are also conducting\
+    \ reconnaissance for potential DDoS attacks against election websites, looking\
+    \ to overwhelm them on election day to erode public confidence. The malware achieves\
+    \ persistence by creating scheduled tasks named \"UpdateCheck\" and modifies registry\
+    \ run keys.\n\nKey Indicators:\n- Suspicious domains: wa-elections-support.com,\
+    \ secure-voter-wa.org\n- WScript executing obfuscated JavaScript from %APPDATA%\\\
+    Local\\Temp\n- Scheduled task creation: schtasks /create /sc minute /mo 15 /tn\
+    \ \"UpdateCheck\"\n- Malicious IPs observed in C2 traffic: 198.51.100.45, 203.0.113.88\n"
+platform:
+  expected:
+  - Windows
+  forbidden:
+  - Linux
+  - macOS
+  - Containers
+  - ESXi
+  - IaaS
+  - Network Devices
+techniques:
+  observed:
+  - id: T1566.001
+    evidence: electorally themed phishing emails containing malicious zip attachments
+  - id: T1059.007
+    evidence: executes obfuscated WScript commands to download a secondary payload; WScript executing obfuscated JavaScript
+  - id: T1053.005
+    evidence: Scheduled task creation schtasks /create /sc minute /mo 15 /tn UpdateCheck
+  - id: T1112
+    evidence: modifies registry run keys
+  - id: T1027.006
+    evidence: delivered via HTML smuggling to profile the victim's system
+  - id: T1105
+    evidence: executes obfuscated WScript commands to download a secondary payload
+  acceptable:
+  - T1566
+  - T1059
+  - T1053
+  - T1027
+  - T1036
+  - T1071.001
+  - T1204.002
+  - T1047
+  forbidden:
+  - id: T1486
+    reason: No ransomware encryption described
+  - id: T1496
+    reason: No cryptomining described
+  - id: T1003
+    reason: No credential dumping described
+  - id: T1021
+    reason: No lateral movement described
+  - id: T1059.004
+    reason: Linux/Unix shell not used
+claims:
+  required:
+  - id: election-target
+    pattern: (?i)Washington.*election|election.*Washington
+  - id: updatecheck-task
+    pattern: (?i)UpdateCheck
+  - id: socgholish
+    pattern: (?i)SocGholish|FakeUpdates
+  - id: temp-dir
+    pattern: (?i)%APPDATA%\\Local\\Temp|temp directory|temporary director
+  forbidden:
+  - id: ransom-claimed
+    pattern: (?i)\b(ransom|encrypted files|decryptor)\b
+    reason: SocGholish initial access and reconnaissance, not ransomware
+indicators:
+- value: wa-elections-support.com
+  type: domain
+  role: phishing-or-c2-domain
+  status: active
+  expect:
+  - dns_query.QueryName
+- value: secure-voter-wa.org
+  type: domain
+  role: phishing-or-c2-domain
+  status: active
+  expect:
+  - dns_query.QueryName
+- value: 198.51.100.45
+  type: ipv4
+  role: c2-ip
+  status: active
+  expect:
+  - network_connection.DestinationIp
+- value: 203.0.113.88
+  type: ipv4
+  role: c2-ip
+  status: active
+  expect:
+  - network_connection.DestinationIp
+- value: UpdateCheck
+  type: string
+  role: scheduled-task-name
+  status: active
+  expect:
+  - file_event.TargetFilename
+detections:
+- id: scheduled-task-creation
+  description: Detection of schtasks creating the UpdateCheck persistence task
+  any_of:
+  - category: process_creation
+    require:
+    - field: CommandLine
+      value: (?i)UpdateCheck
+  - category: file_event
+    require:
+    - field: TargetFilename
+      value: (?i)UpdateCheck
+- id: wscript-temp-execution
+  description: Execution of WScript running script from Temp directory
+  any_of:
+  - category: process_creation
+    require:
+    - field: Image
+      value: (?i)wscript\.exe|cscript\.exe
+- id: malicious-c2-connection
+  description: Network connection or DNS query to SocGholish C2 infrastructure
+  any_of:
+  - category: network_connection
+    require:
+    - field: DestinationIp
+      value: ^(198\.51\.100\.45|203\.0\.113\.88)$
+  - category: dns_query
+    require:
+    - field: QueryName
+      value: (?i)wa-elections-support\.com|secure-voter-wa\.org

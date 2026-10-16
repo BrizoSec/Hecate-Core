@@ -22,6 +22,8 @@ def _observed(text: str) -> Dict[str, str]:
         ("It verifies a ten-second sleep timer before continuing.", "T1497.003"),
         ("The stager XOR-decodes the payload with key 0x99.", "T1140"),
         ("It downloads 4.65 MB of data from the server.", "T1105"),
+        ("It executes obfuscated WScript commands to download a secondary payload.", "T1105"),
+        ("WScript executing obfuscated JavaScript from temporary storage.", "T1059.005"),
         ("A Chinese-language executable disguised as a resume was sent to researchers.", "T1204.002"),
         ("The executable launches cmd.exe, which opens Word.", "T1059.003"),
         ("It connects over a raw TCP channel to the operator.", "T1095"),

@@ -160,6 +160,15 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
         "exfiltrates data over dns",
         "exfiltrates data via dns",
     ),
+    "T1105": (
+        "download",
+        "downloads",
+        "downloaded",
+        "downloading",
+        "downloader",
+        "ingress tool transfer",
+    ),
+    "T1059.005": ("vbs", "vbscript", "wscript", "cscript"),
 }
 
 
@@ -235,6 +244,77 @@ def _name_matches(text: str) -> Iterable[Tuple[str, str, int]]:
             yield str(tech["id"]), str(tech.get("name", "")), len(tokens)
 
 
+class _SemanticTechniqueMatcher:
+    """TF-IDF semantic retriever across MITRE ATT&CK STIX descriptions."""
+
+    def __init__(self) -> None:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        self.techs: List[Tuple[str, str]] = []
+        docs: List[str] = []
+        for tech in _all_techniques():
+            tactics = set(tech.get("tactic_shortnames") or [])
+            if tactics and tactics <= _EXCLUDED_TACTICS:
+                continue
+            name = str(tech.get("name", ""))
+            if name_is_everyday_word(name):
+                continue
+            tid = str(tech["id"])
+            desc = str(tech.get("description", ""))
+            phrases = " ".join(_REPORT_WORDING.get(tid, ()))
+            doc = f"{name} {name} {name} {phrases} {phrases}. {desc}"
+            self.techs.append((tid, name))
+            docs.append(doc)
+
+        if not docs:
+            self.vectorizer = None
+            self.matrix = None
+            return
+
+        self.vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=25000)
+        self.matrix = self.vectorizer.fit_transform(docs)
+
+    def match(self, text: str, threshold: float = 0.08) -> Iterable[Tuple[str, str, int]]:
+        if not self.vectorizer or self.matrix is None:
+            return
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        units = [u.strip() for u in re.split(r"(?<=[.!?])\s+|\n[-*]\s+|\n\n+", text) if len(u.strip()) > 15]
+        if not units:
+            return
+        unit_vecs = self.vectorizer.transform(units)
+        sims = cosine_similarity(unit_vecs, self.matrix)
+        scored: Dict[str, Tuple[int, str]] = {}
+        for row in sims:
+            for idx in row.argsort()[::-1][:3]:
+                score = float(row[idx])
+                if score >= threshold:
+                    tid, name = self.techs[idx]
+                    int_score = int(score * 100)
+                    if tid not in scored or scored[tid][0] < int_score:
+                        scored[tid] = (int_score, name)
+        for tid, (score, name) in scored.items():
+            yield tid, name, score
+
+
+_SEMANTIC_MATCHER: Optional[_SemanticTechniqueMatcher] = None
+
+
+def _semantic_matches(text: str) -> Iterable[Tuple[str, str, int]]:
+    """Techniques identified by semantic TF-IDF similarity against ATT&CK STIX data."""
+    global _SEMANTIC_MATCHER
+    try:
+        from hecate_agent.core.attack_matrix import is_using_stix
+
+        if not is_using_stix():
+            return []
+        if _SEMANTIC_MATCHER is None:
+            _SEMANTIC_MATCHER = _SemanticTechniqueMatcher()
+        return _SEMANTIC_MATCHER.match(text)
+    except Exception:
+        return []
+
+
 def candidate_techniques(text: str, limit: int = 8) -> List[Tuple[str, str]]:
     """(ID, name) for techniques the text describes, strongest evidence first.
 
@@ -245,7 +325,7 @@ def candidate_techniques(text: str, limit: int = 8) -> List[Tuple[str, str]]:
         return []
     scored: Dict[str, Tuple[int, str]] = {}
     try:
-        for tid, name, score in [*_wording_matches(text), *_name_matches(text)]:
+        for tid, name, score in [*_wording_matches(text), *_semantic_matches(text), *_name_matches(text)]:
             if tid not in scored or scored[tid][0] < score:
                 scored[tid] = (score, name)
     except Exception:

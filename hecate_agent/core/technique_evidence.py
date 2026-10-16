@@ -45,7 +45,7 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
      r"\bdisguised as\b|\bmasquerad\w+ as\b|\bposing as\b|\bfake (resume|invoice|document|installer|update)\b"),
     ("T1059.003", "Windows command shell", r"\bcmd\.exe\b|\bcommand prompt\b|\bwindows command shell\b"),
     ("T1059.001", "PowerShell", r"\bpowershell(\.exe)?\b"),
-    ("T1059.005", "Visual Basic", r"\bvbscript\b|\b[wc]script\.exe\b|\bvisual basic\b"),
+    ("T1059.005", "Visual Basic", r"\bvbscript\b|\b[wc]script(\.exe)?\b|\bvisual basic\b"),
     ("T1059.004", "Unix shell",
      r"\b(ba|z)?sh -c\b|/bin/(ba|z)?sh\b|\b(bash|shell) script\b|\bbash \.?[\w.-]+\b|\b(curl|wget)\b.{0,200}?\|\s*(ba|z)?sh\b"),
     ("T1059.002", "AppleScript", r"\bosascript\b|\bapplescript\b"),
@@ -60,10 +60,10 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
      r"\bsleep[- ]?(timer|checks?|evasion|verification)\b|\btiming (checks?|verification)\b"
      r"|\btime[- ]based (checks?|evasion)\b|\bdelay(ed)? execution\b|\bbeepsleep\b"),
     ("T1105", "downloads a further stage",
-     r"\bdownload(s|ed|ing)? (\d[\d.,]*\s?(kb|mb|gb|bytes)|the (payload|stager|next stage|second stage|decoy)"
-     r"|a (payload|stager|second[- ]stage|decoy|real)|additional (payloads?|tools?|modules?))"
-     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b|\b(curl|wget)\b.{0,300}?\s-o\s?\S"
-     r"|\b(fetch|retriev)(es|ed)? (the|a) (payload|stager|next stage|second[- ]stage)\b"),
+     r"\b(download|fetch|retriev|pull|drop|stag)\w*\b.{0,35}?\b(payload|stager|implant|malware|binary|executable|backdoor|stage|tool)s?\b"
+     r"|\bdownload(s|ed|ing)?\s+\d[\d.,]*\s*(kb|mb|gb|bytes)\b"
+     r"|\bdownload(s|ed|ing)? the [\w-]+ (malware|payload|executable|binary)\b"
+     r"|\b(curl|wget)\b.{0,300}?\s-o\s?\S"),
     ("T1140", "decodes or decrypts a payload",
      r"\bxor[- ]?(decod\w*|decrypt\w*)\b|\bxor(s|ed)? (it|the|with)\b"
      r"|\bdecod(es|ed|ing) (it|the (payload|config\w*|data|shellcode))\b"

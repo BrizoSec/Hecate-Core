@@ -403,7 +403,7 @@ class StixProvider(AttackDataProvider):
             index[attack_id] = TechniqueInfo(
                 id=attack_id,
                 name=tech.get("name", ""),
-                description=tech.get("description", "")[:500],
+                description=tech.get("description", ""),
                 platforms=tech.get("x_mitre_platforms", []),
                 data_sources=data_sources if data_sources else [],
                 tactic_shortnames=tactic_shortnames,

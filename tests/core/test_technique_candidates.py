@@ -35,6 +35,8 @@ _TECHNIQUES: Dict[str, TechniqueInfo] = {
         _t("T1571", "Non-Standard Port", "command-and-control"),
         _t("T1546.005", "Trap", "persistence"),
         _t("T1048.003", "Exfiltration Over Unencrypted Non-C2 Protocol", "exfiltration"),
+        _t("T1105", "Ingress Tool Transfer", "command-and-control"),
+        _t("T1059.005", "Visual Basic", "execution"),
     ]
 }
 
@@ -166,3 +168,20 @@ def test_dns_exfiltration_is_proposed() -> None:
 def test_format_candidates() -> None:
     assert format_candidates([]) is None
     assert format_candidates([("T1036", "Masquerading")]) == "  T1036: Masquerading"
+
+
+def test_tool_transfer_and_wscript_are_proposed() -> None:
+    assert "T1105" in _ids("It executes commands to download a secondary payload.")
+    assert "T1059.005" in _ids("The loader executes WScript commands from the temporary folder.")
+
+
+def test_semantic_candidate_matching_with_stix() -> None:
+    attack_matrix.reset_provider(None)
+    try:
+        from hecate_agent.core.attack_matrix import is_using_stix
+        if not is_using_stix():
+            pytest.skip("STIX data not installed")
+        cands = [tid for tid, _ in candidate_techniques("The malware uses JavaScript embedded in compromised websites to profile the victim's system.")]
+        assert "T1059.007" in cands or "T1027.006" in cands
+    finally:
+        attack_matrix.reset_provider(_FakeMatrix())
