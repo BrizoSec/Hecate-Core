@@ -801,6 +801,16 @@ class TestIndicatorGrounding:
         detection = {"selection": {"QueryName|contains": "anything"}, "condition": "selection"}
         assert _partial_indicator_problem(detection, {}, "dns_query") is None
 
+    def test_port_number_in_network_connection_is_not_treated_as_fragment(self):
+        supplied = {"url": ["http://38.207.178.192:50813/EasyConnectUpdata_Log.txt"]}
+        detection = {"selection": {"DestinationPort": "50813"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, supplied, "network_connection") is None
+
+    def test_decomposed_url_components_hostname_and_path_pass(self):
+        supplied = {"url": ["http://38.207.178.192:50813/EasyConnectUpdata_Log.txt"]}
+        detection = {"selection": {"TargetFilename|endswith": "EasyConnectUpdata_Log.txt"}, "condition": "selection"}
+        assert _partial_indicator_problem(detection, supplied, "file_event") is None
+
 
 @pytest.mark.unit
 class TestPlatformConsistentLogsources:

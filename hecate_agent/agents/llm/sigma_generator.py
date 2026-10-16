@@ -879,12 +879,31 @@ def _partial_indicator_problem(detection: Dict[str, Any], supplied: Dict[str, Li
         return None
     complete = set(matchable)
 
+    from urllib.parse import urlsplit
+
+    for item in list(matchable):
+        if "://" in item:
+            try:
+                parsed = urlsplit(item)
+                if parsed.hostname:
+                    complete.add(parsed.hostname.lower())
+                if parsed.port:
+                    complete.add(str(parsed.port))
+                if parsed.path and len(parsed.path) >= 4:
+                    complete.add(parsed.path.lower())
+                    complete.add(parsed.path.lstrip("/").lower())
+            except Exception:
+                pass
+
     for value in _detection_values(detection):
         cleaned = value.strip()
         lowered = cleaned.lower()
         # Short values are ordinary rule vocabulary ("exe", "tmp") and collide
         # with indicator substrings by accident.
         if len(lowered) < 4 or lowered in complete:
+            continue
+        # Port numbers in network connections are not indicator fragments.
+        if category == "network_connection" and cleaned.isdigit() and len(cleaned) <= 5:
             continue
         for indicator in matchable:
             if lowered != indicator and lowered in indicator:

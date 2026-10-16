@@ -583,7 +583,7 @@ def _get_stage_color(stage: str) -> str:
     return _STAGE_COLORS.get(stage.lower(), "white")
 
 #: An event's message may wrap onto this many lines before it is cut.
-_LINES_PER_EVENT = 2
+_LINES_PER_EVENT = 1
 
 
 def _recent_events(events: List[TrailEvent], rows: int, width: int) -> List[Tuple[TrailEvent, str]]:
@@ -639,7 +639,7 @@ def _build_summary_table(
     usage_note: str, has_stages: bool, stage_line: str = "", narrow: bool = False
 ) -> Table:
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
+    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if narrow:
         _narrow_usage_rows(
@@ -657,9 +657,9 @@ def _build_summary_table(
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
         table.add_row("LLM", llm_summary)
         table.add_row("Speed", speed_text)
-        table.add_row("Tavily", f"{search_count} searches")
+        table.add_row("Tavily", f"{search_count} searches" if search_count.isdigit() else search_count)
         table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Integrations", _credential_summary(workspace))
+        table.add_row("Services", _credential_summary(workspace))
     else:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no usage recorded"
         _usage_rows(
@@ -681,13 +681,13 @@ def _narrow_usage_rows(
     table.add_row("Tokens", tokens)
     table.add_row("Speed", speed)
     table.add_row("Model", model)
-    table.add_row("Tavily", f"{searches} searches" if searches.isdigit() else f"searches {searches}")
+    table.add_row("Tavily", f"{searches} searches" if searches.isdigit() else searches)
     first, _, second = by_stage.partition("\n")
     table.add_row("By stage", first)
     if second:
         table.add_row("", second)
     table.add_row("Latency", latency)
-    table.add_row("Integrations", _credential_summary(workspace))
+    table.add_row("Services", _credential_summary(workspace))
 
 
 #: Rows of the usage panel in a side column, with its border.
@@ -771,6 +771,8 @@ def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> st
             if searches:
                 return searches.group(1)
             break
+        if current.stage == "research":
+            return "in progress..."
     return "pending"
 
 
@@ -796,15 +798,19 @@ def _live_usage_panel(
     if failed:
         call_text += f" · {failed} failed"
     duration_ms = live.get("duration_ms", 0)
-    if duration_ms > 0:
+    if duration_ms > 0 and live["llm_calls"] > 0:
         tps = (live["input_tokens"] + live["output_tokens"]) / (duration_ms / 1000)
-        speed_text = f"{tps:.1f} tok/s ({duration_ms / 1000:.1f}s inference)"
+        avg_latency = duration_ms / live["llm_calls"] / 1000
+        speed_text = f"{tps:.1f} tok/s · {avg_latency:.1f}s/call"
+        last_end = live.get("last_end")
+        last_end_str = f" (last reply at {datetime.fromtimestamp(last_end):%H:%M:%S})" if last_end else ""
+        latency_text = f"avg {avg_latency:.1f}s{last_end_str}"
+    elif duration_ms > 0:
+        tps = (live["input_tokens"] + live["output_tokens"]) / (duration_ms / 1000)
+        speed_text = f"{tps:.1f} tok/s"
+        latency_text = "in progress"
     else:
         speed_text = "unknown"
-    if duration_ms > 0 and live["llm_calls"] > 0:
-        avg_latency = duration_ms / live["llm_calls"] / 1000
-        latency_text = f"{avg_latency:.1f}s per call (last reply at {datetime.fromtimestamp(live['last_end']):%H:%M:%S})"
-    else:
         latency_text = "no replies yet"
         
     models = ", ".join(live["models"]) or "not reported yet"
@@ -813,6 +819,17 @@ def _live_usage_panel(
     ended_calls = live.get("ended_calls", [])
     stage_counts = {}  # type: ignore
     cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
+    _STAGE_NORM = {
+        "guidance": "source",
+        "intake": "source",
+        "route": "source",
+        "source_evidence": "source",
+        "research_new": "research",
+        "hypothesis_generator": "hypothesis",
+        "hypothesis_generation": "hypothesis",
+        "sigma_generator": "sigma",
+        "sigma_generation": "sigma",
+    }
     for call in ended_calls:
         call_ts = call.get("ts", 0.0)
         active_stage = "unknown"
@@ -822,7 +839,7 @@ def _live_usage_panel(
                 active_stage = event.stage
             elif ev_time and ev_time.timestamp() > call_ts:
                 break
-        clean_stage = active_stage.removesuffix("_generation").removesuffix("_evidence")
+        clean_stage = _STAGE_NORM.get(active_stage, active_stage.removesuffix("_generation").removesuffix("_evidence"))
         stage_counts[clean_stage] = stage_counts.get(clean_stage, 0) + 1
         
     if stage_counts:
@@ -831,7 +848,7 @@ def _live_usage_panel(
         live_stage_line = "no usage recorded yet"
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
+    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if narrow:
         _narrow_usage_rows(
@@ -848,9 +865,9 @@ def _live_usage_panel(
     elif compact:
         table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
         table.add_row("Speed", speed_text)
-        table.add_row("Tavily", f"{search_count} searches")
+        table.add_row("Tavily", f"{search_count} searches" if search_count.isdigit() else search_count)
         table.add_row("Model", models)
-        table.add_row("Integrations", _credential_summary(workspace))
+        table.add_row("Services", _credential_summary(workspace))
     else:
         _usage_rows(
             table,
@@ -1272,7 +1289,11 @@ def _render_dashboard(
         border_style="bright_magenta",
         box=box.ROUNDED,
     )
-    layout["middle"].split_row(Layout(name="stages", ratio=1), Layout(name="operations", ratio=2))
+    layout["middle"].split_row(
+        Layout(name="stages", ratio=1),
+        Layout(Text(" "), name="gutter", size=1),
+        Layout(name="operations", ratio=2),
+    )
     # The stage list is short and its column was half empty, so the service
     # panel sits under it when there is room and the stream gets the whole
     # right-hand column.

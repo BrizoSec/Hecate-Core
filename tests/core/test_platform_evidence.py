@@ -24,7 +24,7 @@ def test_the_specimens_windows_chain_is_evidence() -> None:
     evidence = platform_evidence([VSHELL])
     assert evidence.supported == ["Windows"]
     markers = [m["marker"] for m in evidence.markers["Windows"]]
-    assert {"cmd.exe", "kernel32", "activeds.dll", "%temp%"} <= set(markers)
+    assert {"cmd.exe", "kernel32", "activeds.dll", "%temp%", "docx"} <= set(markers)
 
 
 def test_another_actors_linux_chain_is_not_this_specimen() -> None:

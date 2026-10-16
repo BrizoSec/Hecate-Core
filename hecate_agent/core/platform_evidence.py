@@ -29,6 +29,7 @@ _MARKERS: Dict[str, Tuple[str, ...]] = {
         r"%(temp|appdata|programdata|userprofile)%", r"\b[a-z]:\\\\?(windows|users|programdata)\b", r"\bwinword\b",
         r"\bwindows (defender|registry|service|event log)\b", r"\bwin(32|64) api\b", r"\bPE32\b", r"\.lnk\b", r"\.msi\b",
         r"\bwscript\b", r"\bcscript\b", r"\bschtasks\b", r"\bregistry run keys?\b",
+        r"\bdocx?\b",
     ),
     "Linux": (
         r"\bELF\b", r"/proc/", r"/dev/shm\b", r"\bsystemd\b", r"\bcrontab\b", r"/etc/(passwd|shadow|ld\.so)",
