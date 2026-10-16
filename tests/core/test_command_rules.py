@@ -99,3 +99,29 @@ def test_a_flag_is_not_joined_to_a_path_whose_variable_was_stripped() -> None:
     text = 'The loader then ran mkdir -p "$HOME/Library/Caches/com.apple.trustd" on the Mac.'
     (command,) = observed_commands(text, ["macOS"])
     assert command.argument == "/Library/Caches/com.apple.trustd"
+
+
+def test_schtasks_task_creation_generates_process_and_file_rules() -> None:
+    text = 'Scheduled task creation: schtasks /create /sc minute /mo 15 /tn "UpdateCheck"'
+    (cmd,) = observed_commands(text, ["Windows"])
+    assert cmd.program == "schtasks"
+    assert cmd.argument == "UpdateCheck"
+    candidates = command_candidates(text, ["Windows"])
+    assert len(candidates) == 2
+    proc = next(c for c in candidates if c["category"] == "process_creation")
+    assert proc["detection"]["selection"] == {
+        "Image|endswith": "\\schtasks.exe",
+        "CommandLine|contains": "UpdateCheck",
+    }
+    file_evt = next(c for c in candidates if c["category"] == "file_event")
+    assert file_evt["detection"]["selection"] == {
+        "TargetFilename|contains": "\\Tasks\\UpdateCheck",
+    }
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    input_data = SigmaGenerationInput(hypothesis="x", platforms=["Windows"], hunt_id="H-0002", observed_commands=candidates)
+    built = agent._command_rules(input_data)
+    assert len(built) == 2
+    assert all(problem is None for _, problem in built)
+    categories = {rule.logsource_category for rule, _ in built if rule}
+    assert categories == {"process_creation", "file_event"}
+

@@ -572,7 +572,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         if input_data.research:
             parts.append(input_data.research.adversary_tradecraft_summary or "")
             parts.extend(input_data.research.adversary_tradecraft_findings or [])
-        candidates = candidate_techniques("\n".join(parts))
+        candidates = candidate_techniques("\n".join(parts), limit=16)
         # Logged so a reviewer can tell "the model was never shown the right
         # technique" from "it was shown it and chose something else".
         logger.info(

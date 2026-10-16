@@ -77,8 +77,19 @@ def _program_re(programs: Sequence[str]) -> re.Pattern:
     return re.compile(rf"(?:(?<=\s)|^|(?<=[(`'\"]))(?:[\w./\\-]*[/\\])?(?P<prog>{names})(?:\.exe)?(?=\s)", re.IGNORECASE)
 
 
-def _distinctive(tokens: List[str]) -> Optional[str]:
+def _distinctive(tokens: List[str], program: str = "") -> Optional[str]:
     """The first argument that says what the command does: not a flag, placeholder or bare number."""
+    if program == "schtasks":
+        for i, tok in enumerate(tokens):
+            if tok.lower() in ("/tn", "-tn") and i + 1 < len(tokens):
+                name = tokens[i + 1].strip("\"'`,").rstrip(";)")
+                if name and not _PLACEHOLDER_RE.search(name) and len(name) >= 3:
+                    return name
+        for i, tok in enumerate(tokens):
+            if tok.lower() in ("/tr", "-tr") and i + 1 < len(tokens):
+                target = tokens[i + 1].strip("\"'`,").rstrip(";)")
+                if target and not _PLACEHOLDER_RE.search(target) and len(target) >= 3:
+                    return target
     flag = ""
     for token in tokens:
         token = token.strip("\"'`,").rstrip(";)")
@@ -102,14 +113,25 @@ def _distinctive(tokens: List[str]) -> Optional[str]:
 def _command_sentences(text: str) -> List[str]:
     """Sentences with the text's own spacing: page extraction breaks lines inside commands, and
     the technique joiner's punctuation tidy-up turns "bash .UlaccK" into "bash.UlaccK"."""
-    joined = re.sub(r"\s+", " ", " ".join(refang(text or "").splitlines()))
-    return [s.strip() for s in _SENTENCE_RE.split(joined) if s.strip()]
+    lines = []
+    for line in refang(text or "").splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        if trimmed.startswith(("-", "*", "•")) or trimmed.startswith("#"):
+            lines.append(". " + trimmed.lstrip("-*•# \t"))
+        else:
+            lines.append(trimmed)
+    joined = re.sub(r"\s+", " ", " ".join(lines))
+    return [s.strip(" .") for s in _SENTENCE_RE.split(joined) if s.strip(" .")]
 
 
-def _command_shaped(program: str, written: str, tokens: List[str]) -> bool:
+def _command_shaped(program: str, written: str, tokens: List[str], platform: str = "unix") -> bool:
     """Whether a program name starts a command rather than a sentence about the program."""
-    if written != written.lower() or not tokens:
-        return False  # commands are quoted as typed; "Bash script" is prose
+    if not tokens:
+        return False
+    if platform == "unix" and written != written.lower():
+        return False  # on Unix, commands are quoted as typed; "Bash script" is prose
     first = tokens[0].strip("\"'`,").rstrip(".;:!?)")
     if first.lower() in _PROSE_WORDS:
         return False
@@ -132,6 +154,8 @@ def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10)
             continue
         for platform, catalog in catalogs:
             for match in _program_re(list(catalog)).finditer(sentence):
+                if platform == "windows" and match.group(0).startswith("/"):
+                    continue
                 program = match.group("prog").lower()
                 rest = sentence[match.end() :].split()
                 tokens: List[str] = []
@@ -139,9 +163,9 @@ def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10)
                     if _STOP_RE.search(token):
                         break
                     tokens.append(token)
-                if not _command_shaped(program, match.group("prog"), tokens):
+                if not _command_shaped(program, match.group("prog"), tokens, platform):
                     continue
-                argument = _distinctive(tokens)
+                argument = _distinctive(tokens, program)
                 if not argument or (program, argument.lower()) in seen:
                     continue
                 seen.add((program, argument.lower()))
@@ -190,4 +214,19 @@ def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[st
                 "passage": cmd.passage,
             }
         )
+        if cmd.program == "schtasks" and "/create" in cmd.command.lower() and cmd.argument and not cmd.argument.startswith("/"):
+            out.append(
+                {
+                    "category": "file_event",
+                    "title": f"Scheduled task created on disk: {cmd.argument}"[:100],
+                    "detection": {
+                        "selection": {"TargetFilename|contains": f"\\Tasks\\{cmd.argument}"},
+                        "condition": "selection",
+                    },
+                    "level": cmd.level,
+                    "command": cmd.command,
+                    "behaviour": f"scheduled task file {cmd.argument}",
+                    "passage": cmd.passage,
+                }
+            )
     return out

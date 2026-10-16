@@ -315,7 +315,7 @@ def _semantic_matches(text: str) -> Iterable[Tuple[str, str, int]]:
         return []
 
 
-def candidate_techniques(text: str, limit: int = 8) -> List[Tuple[str, str]]:
+def candidate_techniques(text: str, limit: int = 16) -> List[Tuple[str, str]]:
     """(ID, name) for techniques the text describes, strongest evidence first.
 
     Returns an empty list when the ATT&CK data cannot be read: no candidates

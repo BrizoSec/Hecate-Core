@@ -1632,17 +1632,25 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         """
         results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
         for candidate in input_data.observed_commands:
+            cat = str(candidate.get("category", "process_creation"))
+            title = str(candidate.get("title", ""))
+            if not title.startswith(("Command", "File", "Scheduled")):
+                title = f"Command the source shows being run: {title}" if cat == "process_creation" else f"File created by command: {title}"
+            preamble = (
+                "Deterministic rule built from a command quoted in the primary source, with no model involvement. "
+                if cat == "process_creation"
+                else "Deterministic rule built for artifact written by a command quoted in the primary source, with no model involvement. "
+            )
             results.append(
                 self._ioc_rule(
                     input_data,
-                    category="process_creation",
-                    label="observed command",
-                    title=f"Command the source shows being run: {candidate.get('title', '')}"[:120],
+                    category=cat,
+                    label="observed command" if cat == "process_creation" else "written file",
+                    title=title[:120],
                     description=f'The source shows this command being run: "{candidate.get("command", "")}".',
                     detection=dict(candidate.get("detection") or {}),
-                    falsepositives="Administrators or software running the same command for legitimate reasons",
-                    preamble="Deterministic rule built from a command quoted in the primary source, "
-                    "with no model involvement. ",
+                    falsepositives="Administrators or software running the same command or creating the task for legitimate reasons",
+                    preamble=preamble,
                     level=str(candidate.get("level", "medium")),
                     author="hecate (auto-generated from commands quoted in the source - requires analyst review)",
                     behaviour=str(candidate.get("behaviour") or candidate.get("title", "")),
@@ -2401,6 +2409,14 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         techniques = ", ".join(self._relevant_techniques_for_prompt(input_data.techniques, logsource)) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
+        covered = [str(c.get("title", "")) for c in input_data.observed_commands if c.get("category", "process_creation") == logsource]
+        already_covered = ""
+        if covered:
+            already_covered = (
+                f"\nNOTE: Deterministic rules already cover these specific actions for {logsource}: "
+                f"{', '.join(covered)}. Do NOT duplicate them. Focus on other distinct behaviors, "
+                f"scripting hosts (e.g. wscript, cscript), or process relationships described in the intelligence and hypothesis.\n"
+            )
 
         return f"""You are a detection engineer drafting one Sigma rule for a threat hunt.
 
@@ -2417,7 +2433,7 @@ INDICATORS FROM THE SOURCE INTELLIGENCE:
 {indicator_block}
 
 {literal_block}
-{self._render_guidance(input_data)}{self._render_telemetry_examples(input_data)}
+{self._render_guidance(input_data)}{self._render_telemetry_examples(input_data)}{already_covered}
 Write EXACTLY ONE rule, for this Sigma log source category and no other:
     {logsource}
 
