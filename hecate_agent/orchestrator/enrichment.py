@@ -106,6 +106,48 @@ def query_vt_domain(domain: str) -> str:
         return f"Error querying VT: {e}"
 
 
+def query_greynoise_ip(ip: str) -> str:
+    key = _setting("GREYNOISE_API_KEY")
+    if not key:
+        return "GREYNOISE_API_KEY not configured."
+    headers = {"key": key, "Accept": "application/json"}
+    try:
+        # Try context endpoint first (v2 for full details), fallback to community v3
+        url = f"https://api.greynoise.io/v2/noise/context/{ip}"
+        resp = httpx.get(url, headers=headers, timeout=10.0)
+        if resp.status_code == 404:
+            return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
+        elif resp.status_code in (401, 403):
+            # Fallback to community endpoint for free-tier community keys
+            comm_url = f"https://api.greynoise.io/v3/community/{ip}"
+            resp = httpx.get(comm_url, headers=headers, timeout=10.0)
+            if resp.status_code == 404:
+                return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
+            elif resp.status_code != 200:
+                return f"GreyNoise Auth/API Error: {resp.status_code}"
+        elif resp.status_code != 200:
+            return f"GreyNoise API Error: {resp.status_code}"
+
+        data = resp.json()
+        noise = data.get("noise", data.get("seen", False))
+        riot = data.get("riot", False)
+        classification = data.get("classification", "unknown")
+        actor = data.get("actor") or data.get("name") or "Unknown"
+        tags = data.get("tags") or []
+        tag_str = f" | Tags: {', '.join(tags[:3])}" if tags else ""
+
+        if riot:
+            return f"RIOT: Benign Enterprise Service ({actor}) | Class: {classification}{tag_str}"
+        elif noise:
+            return f"Mass Internet Scanner ({classification}) | Actor: {actor}{tag_str}"
+        elif classification and classification != "unknown":
+            return f"Observed ({classification}) | Actor: {actor}{tag_str}"
+        return "Not observed as scanner noise (Targeted or Inactive)."
+    except Exception as e:
+        return f"Error querying GreyNoise: {e}"
+
+
+
 
 def query_shodan_ip(ip: str) -> str:
     url = f"https://api.shodan.io/shodan/host/{ip}?key={_setting('SHODAN_API_KEY')}"
@@ -282,7 +324,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
         
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, Shodan, Censys, Abuse.ch & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, Shodan, Censys, Abuse.ch & MISP)"]
     
     from concurrent.futures import ThreadPoolExecutor
     
@@ -294,11 +336,20 @@ def generate_enrichment_summary(threat_intel: str) -> str:
 
     def process_ip(ip: str) -> str:
         vt_res = query_vt_ip(ip)
+        gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
         censys_res = query_censys_ip(ip)
         misp_res = query_misp_indicator(ip)
         threatfox_res = query_threatfox(ip)
-        return f"- **IP {ip}**:\n  - *VirusTotal:* {vt_res}\n  - *Shodan:* {shodan_res}\n  - *Censys:* {censys_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+        return (
+            f"- **IP {ip}**:\n"
+            f"  - *VirusTotal:* {vt_res}\n"
+            f"  - *GreyNoise:* {gn_res}\n"
+            f"  - *Shodan:* {shodan_res}\n"
+            f"  - *Censys:* {censys_res}\n"
+            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
+            f"  - *Internal MISP:* {misp_res}"
+        )
 
     def process_domain(d: str) -> str:
         vt_res = query_vt_domain(d)

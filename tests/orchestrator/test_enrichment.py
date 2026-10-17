@@ -35,6 +35,15 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             return mock_vt
         if "shodan" in url:
             return mock_shodan
+        if "greynoise" in url:
+            mock_gn = MagicMock(status_code=200)
+            mock_gn.json.return_value = {
+                "noise": False,
+                "riot": True,
+                "classification": "benign",
+                "name": "Google Public DNS"
+            }
+            return mock_gn
         if "censys" in url:
             mock_censys = MagicMock()
             mock_censys.status_code = 404
@@ -52,11 +61,12 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     mock_get.side_effect = get_side_effect
     mock_post.side_effect = post_side_effect
     
-    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and domain c2.evil.xyz"
+    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz"
     summary = generate_enrichment_summary(text)
     
     assert "🛡️ Automated Threat Enrichment" in summary
     assert "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in summary
+    assert "IP 8.8.8.8" in summary
     assert "Domain c2.evil.xyz" in summary
     assert "Malicious hits: 5" in summary
     assert "Mirai" in summary
@@ -83,5 +93,26 @@ def test_query_vt_domain(monkeypatch):
         res = query_vt_domain("bad-domain.top")
         assert "Malicious hits: 8" in res
         assert "NameCheap" in res
+
+def test_query_greynoise_ip(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_greynoise_ip
+    monkeypatch.delenv("GREYNOISE_API_KEY", raising=False)
+    assert query_greynoise_ip("8.8.8.8") == "GREYNOISE_API_KEY not configured."
+
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "noise": True,
+            "riot": False,
+            "classification": "malicious",
+            "actor": "Mirai",
+            "tags": ["Mirai", "Telnet Bruteforce"]
+        }
+        mock_get.return_value = mock_resp
+        monkeypatch.setenv("GREYNOISE_API_KEY", "gn-test-key")
+        res = query_greynoise_ip("1.2.3.4")
+        assert "Mass Internet Scanner (malicious)" in res
+        assert "Mirai" in res
+
 
 

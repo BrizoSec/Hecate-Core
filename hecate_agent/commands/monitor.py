@@ -690,7 +690,7 @@ def _narrow_usage_rows(
 #: Rows of the LLM panel in a side column, with its border.
 _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
-_INTEGRATIONS_PANEL_HEIGHT = 11
+_INTEGRATIONS_PANEL_HEIGHT = 12
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -896,6 +896,7 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("OTX", ("OTX_API_KEY",)),
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("GreyNoise", ("GREYNOISE_API_KEY",)),
         ("Shodan", ("SHODAN_API_KEY",)),
         ("Censys", ("CENSYS_API_TOKEN",)),
         ("ThreatFox", ("ABUSECH_API_KEY",)),
@@ -946,6 +947,7 @@ def _integrations_panel(
         ("OTX", ("OTX_API_KEY",)),
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("GreyNoise", ("GREYNOISE_API_KEY",)),
         ("Shodan", ("SHODAN_API_KEY",)),
         ("Censys", ("CENSYS_API_TOKEN",)),
         ("ThreatFox", ("ABUSECH_API_KEY",)),
@@ -1070,6 +1072,18 @@ def _integrations_panel(
                         if nums:
                             ioc_count = max(ioc_count, sum(nums))
                 metric = f"{ioc_count} checked" if ioc_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "GreyNoise":
+            if is_set:
+                detail = "noise" if narrow else "noise filter"
+                ip_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
+                    if m:
+                        ip_count = max(ip_count, int(m.group(1)))
+                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
