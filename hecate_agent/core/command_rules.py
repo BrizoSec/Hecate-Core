@@ -31,6 +31,8 @@ _UNIX: Dict[str, str] = {
     "defaults": "low", "base64": "low", "openssl": "low", "nohup": "low", "ioreg": "low", "system_profiler": "low",
     "sudo": "low", "pkill": "low", "killall": "low", "ditto": "low", "hdiutil": "low", "bash": "medium",
     "sh": "medium", "zsh": "medium", "python3": "low", "perl": "low", "nc": "medium", "socat": "medium",
+    "nsenter": "high", "bpftool": "high", "kubectl": "medium", "crictl": "medium", "docker": "medium",
+    "podman": "medium", "nerdctl": "medium", "runc": "high", "insmod": "high", "modprobe": "medium", "rmmod": "medium",
 }  # fmt: skip
 _WINDOWS: Dict[str, str] = {
     "powershell": "medium", "pwsh": "medium", "cmd": "low", "rundll32": "medium", "regsvr32": "medium",
@@ -46,7 +48,8 @@ _VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
 #: Programs whose first argument is a plain-word subcommand ("launchctl bootstrap").
 _SUBCOMMANDS = frozenset(
     {"launchctl", "systemctl", "defaults", "dscl", "net", "sc", "reg", "schtasks", "wmic", "bcdedit", "vssadmin",
-     "wevtutil", "crontab", "spctl", "codesign", "hdiutil", "openssl"}
+     "wevtutil", "crontab", "spctl", "codesign", "hdiutil", "openssl", "bpftool", "kubectl", "crictl", "docker",
+     "podman", "nerdctl", "nsenter"}
 )  # fmt: skip
 #: Words that follow a program name in prose ("cmd.exe and then Word", "Bash script that").
 _PROSE_WORDS = frozenset(
@@ -79,6 +82,16 @@ def _program_re(programs: Sequence[str]) -> re.Pattern:
 
 def _distinctive(tokens: List[str], program: str = "") -> Optional[str]:
     """The first argument that says what the command does: not a flag, placeholder or bare number."""
+    if program in ("bpftool", "kubectl", "crictl", "docker", "podman", "nerdctl"):
+        clean = [t.strip("\"'`,);") for t in tokens if t and not _PLACEHOLDER_RE.search(t)]
+        if len(clean) >= 2 and not clean[0].startswith("-") and not clean[1].startswith("-"):
+            return f"{clean[0]} {clean[1]}"
+    if program == "nsenter":
+        for tok in tokens:
+            cleaned_tok = tok.strip("\"'`,);")
+            if cleaned_tok.startswith(("/", "\\")) or "sh" in cleaned_tok:
+                return cleaned_tok
+        return "--target"
     if program == "schtasks":
         for i, tok in enumerate(tokens):
             if tok.lower() in ("/tn", "-tn") and i + 1 < len(tokens):
@@ -118,8 +131,13 @@ def _command_sentences(text: str) -> List[str]:
         trimmed = line.strip()
         if not trimmed:
             continue
-        if trimmed.startswith(("-", "*", "•")) or trimmed.startswith("#"):
-            lines.append(". " + trimmed.lstrip("-*•# \t"))
+        if (
+            trimmed.startswith(("-", "*", "•"))
+            or trimmed.startswith("#")
+            or trimmed.startswith("```")
+            or trimmed.endswith("```")
+        ):
+            lines.append(". " + trimmed.strip("-*•# `\t") + " .")
         else:
             lines.append(trimmed)
     joined = re.sub(r"\s+", " ", " ".join(lines))
@@ -138,19 +156,28 @@ def _command_shaped(program: str, written: str, tokens: List[str], platform: str
     return bool(_ARGUMENT_SHAPE_RE.search(first)) or (program in _SUBCOMMANDS and first.isalpha() and first.islower())
 
 
-def observed_commands(text: str, platforms: Sequence[str] = (), limit: int = 10) -> List[ObservedCommand]:
+def observed_commands(
+    text: str,
+    platforms: Sequence[str] = (),
+    limit: int = 10,
+    primary_actor: Optional[str] = None,
+) -> List[ObservedCommand]:
     """Commands of known programs in the observed sentences of ``text``, one per program and argument."""
     wanted = {p.lower() for p in platforms}
     catalogs: List[Tuple[str, Dict[str, str]]] = []
-    if not wanted or wanted & {"macos", "linux"}:
+    if not wanted or wanted & {"macos", "linux", "containers"}:
         catalogs.append(("unix", _UNIX))
     if not wanted or "windows" in wanted:
         catalogs.append(("windows", _WINDOWS))
     found: List[ObservedCommand] = []
     seen: set = set()
     actor_material = actor_material_report(text)
+    if not primary_actor:
+        from hecate_agent.core.technique_evidence import extract_primary_actor
+
+        primary_actor = extract_primary_actor(text)
     for sentence in _command_sentences(text):
-        if sentence_status(sentence, actor_material) != "observed":
+        if sentence_status(sentence, actor_material, primary_actor=primary_actor) != "observed":
             continue
         for platform, catalog in catalogs:
             for match in _program_re(list(catalog)).finditer(sentence):
@@ -195,10 +222,10 @@ def _own_text(cmd: ObservedCommand) -> str:
     return f"{cmd.program} {cmd.argument}"
 
 
-def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[str, Any]]:
+def command_candidates(text: str, platforms: Sequence[str] = (), primary_actor: Optional[str] = None) -> List[Dict[str, Any]]:
     """Sigma candidates (category, title, detection, level, command, passage) for the observed commands."""
     out: List[Dict[str, Any]] = []
-    for cmd in observed_commands(text, platforms):
+    for cmd in observed_commands(text, platforms, primary_actor=primary_actor):
         image = f"/{cmd.program}" if cmd.platform == "unix" else f"\\{cmd.program.removesuffix('.exe')}.exe"
         out.append(
             {
@@ -214,7 +241,12 @@ def command_candidates(text: str, platforms: Sequence[str] = ()) -> List[Dict[st
                 "passage": cmd.passage,
             }
         )
-        if cmd.program == "schtasks" and "/create" in cmd.command.lower() and cmd.argument and not cmd.argument.startswith("/"):
+        if (
+            cmd.program == "schtasks"
+            and "/create" in cmd.command.lower()
+            and cmd.argument
+            and not cmd.argument.startswith("/")
+        ):
             out.append(
                 {
                     "category": "file_event",

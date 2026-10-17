@@ -71,8 +71,7 @@ _LOGSOURCE_FIELDS = {
     # EventCode: a rule pinned to Security 4625 stops matching the moment the
     # hunt is scoped to Linux or a SaaS identity provider.
     "authentication": (
-        "TargetUserName, SubjectUserName, LogonType, AuthenticationPackageName, "
-        "WorkstationName, IpAddress, Status, SubStatus"
+        "TargetUserName, SubjectUserName, LogonType, AuthenticationPackageName, WorkstationName, IpAddress, Status, SubStatus"
     ),
 }
 
@@ -106,9 +105,19 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1083": {"file_event", "process_creation"},
     "T1070": {"file_event"},
     "T1574": {"image_load", "file_event"},
-    "T1547": {"registry_event"},
+    "T1547": {"registry_event", "process_creation", "file_event"},
     "T1543": {"registry_event", "process_creation"},
     "T1112": {"registry_event"},
+    "T1611": {"process_creation"},
+    "T1562": {"process_creation", "file_event"},
+    "T1003": {"process_creation", "file_event"},
+    "T1218": {"process_creation"},
+    "T1567": {"process_creation", "network_connection"},
+    "T1564": {"process_creation", "file_event"},
+    "T1573": {"network_connection"},
+    "T1104": {"network_connection", "process_creation"},
+    "T1485": {"process_creation", "file_event"},
+    "T1546": {"process_creation", "file_event", "registry_event"},
     # Credential access and account abuse. These are observable in
     # authentication telemetry and essentially nowhere else -- mapping them to
     # nothing is what forced them into process_creation.
@@ -833,7 +842,7 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                 if base == "targetobject" and "/" in text and "\\" not in text:
                     return f"{field} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
-                    return f"{field} holds a port number, but the detection matches " f"on {text!r}"
+                    return f"{field} holds a port number, but the detection matches on {text!r}"
                 if base in _FILENAME_FIELDS and _SWITCH_RE.search(text):
                     return (
                         f"{field} holds a file path, but the detection matches on {text!r}, "
@@ -915,8 +924,7 @@ def _partial_indicator_problem(detection: Dict[str, Any], supplied: Dict[str, Li
     return None
 
 
-def _self_defeating_filter_problem(detection: Dict[str, Any], 
-    hypothesis: str) -> Optional[str]:
+def _self_defeating_filter_problem(detection: Dict[str, Any], hypothesis: str) -> Optional[str]:
     """Reject an exclusion that removes the hunt's own stated attack path.
 
     Also rejects an empty filter block: `filter: {}` referenced by a condition
@@ -1495,9 +1503,11 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # short, a failure costs one rule instead of all six, and the field
         # guidance can be narrowed to the category actually being written.
         from concurrent.futures import ThreadPoolExecutor
-        
+
         with ThreadPoolExecutor(max_workers=min(len(logsources) or 1, 6)) as executor:
-            futures = {executor.submit(self._generate_for_logsource, input_data, logsource): logsource for logsource in logsources}
+            futures = {
+                executor.submit(self._generate_for_logsource, input_data, logsource): logsource for logsource in logsources
+            }
             for future in futures:
                 rule, problems = future.result()
                 rejected.extend(problems)
@@ -1576,8 +1586,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     texts.append(f"Indicators ({kind}): {', '.join(str(v) for v in vals)}")
         if input_data.threat_intel:
             from hecate_agent.core.source_evidence import chunk_text
+
             texts.extend(chunk_text(input_data.threat_intel, size=300, overlap=50))
-            
+
         for text in texts:
             if not text or text == "cti":
                 continue
@@ -1654,7 +1665,11 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             cat = str(candidate.get("category", "process_creation"))
             title = str(candidate.get("title", ""))
             if not title.startswith(("Command", "File", "Scheduled")):
-                title = f"Command the source shows being run: {title}" if cat == "process_creation" else f"File created by command: {title}"
+                title = (
+                    f"Command the source shows being run: {title}"
+                    if cat == "process_creation"
+                    else f"File created by command: {title}"
+                )
             preamble = (
                 "Deterministic rule built from a command quoted in the primary source, with no model involvement. "
                 if cat == "process_creation"
@@ -1703,7 +1718,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     category="file_event",
                     label="written file",
                     title=f"File the source says the malware writes: {name}"[:120],
-                    description=f'The source reports the malware writing this file ({literal.get("role", "")}): '
+                    description=f"The source reports the malware writing this file ({literal.get('role', '')}): "
                     f'"{literal.get("evidence", "")}".'
                     + (
                         ' The report elided part of the name; "*" stands for the missing characters.'
@@ -2042,7 +2057,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                                 msg = f"The rule was rejected by review: {review.contradiction or '; '.join(review.issues)}"
                                 if review.quote:
                                     msg += f" (source: '{review.quote[:160]}')"
-                                msg += f". Fix these issues, or return {{\"rules\": []}} if {logsource} is not supported by the evidence."
+                                msg += f'. Fix these issues, or return {{"rules": []}} if {logsource} is not supported by the evidence.'
                                 problems.append(msg)
                                 continue
                         except Exception as exc:
@@ -2428,7 +2443,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         techniques = ", ".join(self._relevant_techniques_for_prompt(input_data.techniques, logsource)) or "(none supplied)"
         platforms = ", ".join(input_data.platforms) or "(unspecified)"
         fields = _LOGSOURCE_FIELDS.get(logsource, "(use the standard Sigma fields for this category)")
-        covered = [str(c.get("title", "")) for c in input_data.observed_commands if c.get("category", "process_creation") == logsource]
+        covered = [
+            str(c.get("title", "")) for c in input_data.observed_commands if c.get("category", "process_creation") == logsource
+        ]
         already_covered = ""
         if covered:
             already_covered = (
@@ -2437,6 +2454,13 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 f"scripting hosts (e.g. wscript, cscript), or process relationships described in the intelligence and hypothesis.\n"
             )
 
+        threat_intel_block = ""
+        if input_data.threat_intel:
+            intel_text = input_data.threat_intel.strip()
+            if len(intel_text) > 2000:
+                intel_text = intel_text[:2000].rsplit("\n", 1)[0] + "\n..."
+            threat_intel_block = f"\nSOURCE INTELLIGENCE SUMMARY / TRADECRAFT:\n{intel_text}\n"
+
         return f"""You are a detection engineer drafting one Sigma rule for a threat hunt.
 
 HUNT HYPOTHESIS:
@@ -2444,7 +2468,7 @@ HUNT HYPOTHESIS:
 
 JUSTIFICATION:
 {input_data.justification or "(none supplied)"}
-
+{threat_intel_block}
 ATT&CK TECHNIQUES: {techniques}
 PLATFORMS: {platforms}
 
@@ -2494,7 +2518,7 @@ RULES OF THE TASK:
    invented stand-ins of your own -- "bad_command", "malicious.exe",
    "evil.com" or anything under example.com. Every value you emit must be an
    indicator from above, or a real path, process or registry key.
-12. STRICT HYPOTHESIS ALIGNMENT: Your detection logic MUST directly hunt for the specific behavior described in the HUNT HYPOTHESIS. Do not invent or substitute unrelated TTPs (e.g. if the hypothesis is "forged integrity checks", do not write a rule for "DLL sideloading" just to fulfill the behavioral requirement). If the hypothesis and intelligence do not contain observable behaviors for {logsource}, return an empty rules array: {{"rules": []}}.
+12. HYPOTHESIS AND ATTACK CHAIN ALIGNMENT: Your detection logic MUST hunt for the specific behaviors described in the HUNT HYPOTHESIS, ATT&CK TECHNIQUES, or the broader attack lifecycle in the SOURCE INTELLIGENCE (e.g. initial access, container breakouts, defense evasion, privilege escalation, execution, lateral movement, or exfiltration). Do not invent unrelated TTPs not present in the intelligence or techniques list. If neither the hypothesis, techniques, nor intelligence contain observable behaviors for {logsource}, return an empty rules array: {{"rules": []}}.
 13. PREVENT TTP CONFLATION: If the hypothesis or intelligence mentions multiple distinct behaviors (e.g., Scheduled Tasks AND Registry Run Keys), ensure your rule focuses ONLY on the behavior that matches the current log source category. Do not mix the names, titles, or logic of distinct TTPs into a single rule.
 14. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
 15. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.

@@ -151,6 +151,11 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1112", "registry modification", r"\bmodif(y|ies|ied) (the )?registry\b"),
     ("T1543.003", "Windows service created", r"\b(creates?|install\w*) (a )?(new )?(windows )?service\b|\bsc(\.exe)? create\b"),
     ("T1003.001", "LSASS access", r"\blsass\b"),
+    ("T1611", "container breakout", r"\bcontainer (escape|breakout)\b|\bescape(s|d|ing)? to (the )?host\b|\bnsenter\b"),
+    ("T1562.001", "disable or modify tools", r"\bblind(s|ed|ing)? (host-based monitoring|auditd|edr|telemetry)\b|\bkernel tracepoints?\b|\bbpftool\b|\bebpf (rootkit|bytecode|program)\b|\bsuppress(es|ed|ing)? (telemetry|monitoring|events?)\b"),
+    ("T1567.002", "exfiltration to cloud storage", r"\bexfiltrat\w+ (to|directly to) (cloud storage|aws s3|s3 bucket)\b|\bs3://|\brclone(\.exe)?\b|\bsvchost_sync(\.exe)?\b"),
+    ("T1021.006", "Windows Remote Management", r"\bwinrm\b|\bwsmprovhost(\.exe)?\b|\bremote management over (tcp|http)\b"),
+    ("T1550.001", "Application Access Token", r"\boauth (app|application|token|consent)\b|\bconsent grant\b|\btoken theft\b"),
 )  # fmt: skip
 
 _COMPILED = tuple((tid, label, re.compile(pattern)) for tid, label, pattern in _CATALOG)
@@ -247,13 +252,32 @@ _WINDOW_OVER = 450
 _WINDOW = 200
 
 
-def sentence_status(sentence: str, actor_material: bool = False) -> str:
+def extract_primary_actor(text: str) -> Optional[str]:
+    """Actor name the report attributes activity to, e.g. UNC-3882, APT29, UAT-8302."""
+    match = re.search(
+        r"(?:^|\n)\s*(?:>\s*)?(?:\*\*)?(?:Adversary/Attribution|Threat Actor|Actor|Adversary|Attribution)\s*(?:\*\*)?:\s*([^\n\r(]+)",
+        text or "",
+        re.IGNORECASE,
+    )
+    if match:
+        val = match.group(1).strip()
+        if val and val.lower() not in ("none", "unknown", "unattributed", "n/a"):
+            return val
+    return None
+
+
+def sentence_status(sentence: str, actor_material: bool = False, primary_actor: Optional[str] = None) -> str:
     """Whether a passage reports observed use, a tool capability, a negation, or another actor's tradecraft.
 
     ``actor_material``: the report was written from the actor's own files (:func:`actor_material_report`).
     """
     lowered = sentence.lower()
-    if _CONTEXT_RE.search(lowered) or attacker_side(lowered, actor_material):
+    ctx_match = _CONTEXT_RE.search(lowered)
+    if ctx_match:
+        matched_str = ctx_match.group(0).lower()
+        if not (primary_actor and matched_str == primary_actor.lower()):
+            return "context"
+    if attacker_side(lowered, actor_material):
         return "context"
     if _NEGATED_RE.search(lowered):
         return "negated"
@@ -287,7 +311,13 @@ def attacker_side(lowered: str, actor_material: bool = False) -> bool:
     return bool(_ATTACKER_SIDE_RE.search(lowered)) or (actor_material and bool(_TOOL_FILE_RE.search(lowered)))
 
 
-def passage_status(sentence: str, start: int, end: int, actor_material: bool = False) -> Tuple[str, str]:
+def passage_status(
+    sentence: str,
+    start: int,
+    end: int,
+    actor_material: bool = False,
+    primary_actor: Optional[str] = None,
+) -> Tuple[str, str]:
     """(status, passage) for a match at ``start``..``end`` of ``sentence``: the sentence, or a window of a run-on one.
 
     A quoted block has no sentence of its own, so in a run-on segment it takes
@@ -295,9 +325,9 @@ def passage_status(sentence: str, start: int, end: int, actor_material: bool = F
     own host: cd /d C:\\Users\\Public\\xmrig ..." is the operator's command line.
     """
     if len(sentence) <= _WINDOW_OVER:
-        return sentence_status(sentence, actor_material), sentence
+        return sentence_status(sentence, actor_material, primary_actor=primary_actor), sentence
     passage = sentence[max(0, start - _WINDOW) : min(len(sentence), end + _WINDOW)]
-    status = sentence_status(passage, actor_material)
+    status = sentence_status(passage, actor_material, primary_actor=primary_actor)
     if status == "observed":
         lead = sentence[max(0, start - _LEAD_IN) : start].lower()
         colon = lead.rfind(": ")
@@ -311,7 +341,7 @@ def _clip(text: str, limit: int = 300) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
+def map_behaviours(texts: Iterable[Tuple[str, str]], primary_actor: Optional[str] = None) -> List[TechniqueEvidence]:
     """Techniques the described behaviour supports, one entry each, with a passage.
 
     ``texts`` is ``(source label, text)`` pairs, most authoritative first. An
@@ -321,6 +351,11 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
     found: Dict[str, TechniqueEvidence] = {}
     texts = list(texts)
     actor_material = any(actor_material_report(text) for _, text in texts)
+    if not primary_actor:
+        for _, text in texts:
+            primary_actor = extract_primary_actor(text)
+            if primary_actor:
+                break
     for source, text in texts:
         for sentence in sentences(text):
             lowered = sentence.lower()
@@ -328,7 +363,9 @@ def map_behaviours(texts: Iterable[Tuple[str, str]]) -> List[TechniqueEvidence]:
                 match = pattern.search(lowered)
                 if not match:
                     continue
-                status, passage = passage_status(sentence, match.start(), match.end(), actor_material)
+                status, passage = passage_status(
+                    sentence, match.start(), match.end(), actor_material, primary_actor=primary_actor
+                )
                 if status in ("context", "negated"):
                     continue
                 current = found.get(tid)
