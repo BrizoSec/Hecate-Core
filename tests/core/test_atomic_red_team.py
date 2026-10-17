@@ -58,12 +58,24 @@ class TestAtomicRedTeam:
         assert "cmd1 \\| cmd2" in md
         assert "Event 1 \\| Event 2" in md
 
-    def test_get_atomic_tests_dynamic_attack_lookup(self):
-        # T1110 is not in ATOMIC_TESTS_MAP, but is in the real ATT&CK matrix
+    def test_get_atomic_tests_dynamic_attack_lookup(self, monkeypatch):
+        # Mock get_technique to isolate unit test from external STIX dependency on CI
+        monkeypatch.setattr(
+            "hecate_agent.core.attack_matrix.get_technique",
+            lambda tid: {
+                "name": "Brute Force",
+                "platforms": ["Linux", "Windows"],
+                "data_sources": ["Logon Session: Logon Session Creation"],
+            }
+            if "T1110" in tid
+            else None,
+        )
         tests = get_atomic_tests("T1110")
         assert len(tests) >= 1
         assert "Brute Force" in tests[0]["name"]
         assert "Procedural" in tests[0]["test_id"]
+        assert "Linux/Windows" in tests[0]["command"]
+        assert "Logon Session" in tests[0]["telemetry"]
 
     def test_get_atomic_tests_workspace_custom_tests(self, tmp_path):
         import json
