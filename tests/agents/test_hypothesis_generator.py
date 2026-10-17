@@ -715,3 +715,27 @@ class TestHypothesisQualityRubric:
         assert "verdict" in result.data.rubric_score
         assert "total" in result.data.rubric_score
 
+    def test_score_hypothesis_rubric_rejects_placeholders_and_schema_echo(self):
+        # Even if strings are populated, if they are schema instructions or placeholders,
+        # they must not be credited as substantive evidence/criteria.
+        output = HypothesisGenerationOutput(
+            hypothesis="Test hypothesis",
+            justification="[Review CTI and populate]",
+            mitre_techniques=[],
+            data_sources=["[TBD]"],
+            expected_observables=["<a specific artifact from the intel>"],
+            known_false_positives=["N/A"],
+            time_range_suggestion="7 days",
+            behavior="string (specific anomalous execution in logs)",
+            is_threat_report=True,
+            falsification_criteria="string (what negative finding or absence falsifies this hypothesis)",
+            expected_benign="none",
+            expected_malicious="null",
+        )
+        scores = score_hypothesis_rubric(output)
+        # Specificity, testability, and falsifiability must drop to 1
+        assert scores["specificity"] == 1
+        assert scores["testability"] == 1
+        assert scores["falsifiability"] == 1
+        assert scores["verdict"] in ("CONDITIONAL", "NO-GO")
+

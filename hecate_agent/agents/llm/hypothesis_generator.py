@@ -96,42 +96,73 @@ class HypothesisGenerationOutput:
     rubric_score: Dict[str, Any] = field(default_factory=dict)
 
 
+def _is_substantive(val: Any) -> bool:
+    """Return True if val is substantive, not empty, placeholder, or schema template echo."""
+    if not val:
+        return False
+    if isinstance(val, str):
+        t = val.strip().lower()
+        if not t or t in ("none", "n/a", "tbd", "unknown", "[tbd]", "[none]", "null", "[review cti and populate]"):
+            return False
+        if t.startswith("<") and t.endswith(">"):
+            return False
+        if t.startswith("[") and t.endswith("]"):
+            return False
+        if t.startswith("string ("):
+            return False
+        return len(t) >= 3
+    if isinstance(val, (list, tuple, set)):
+        return any(_is_substantive(item) for item in val)
+    return True
+
+
 def score_hypothesis_rubric(output: HypothesisGenerationOutput) -> Dict[str, Any]:
     """Score hypothesis quality according to the 5-dimension rubric.
 
     Dimensions scored 1-3: Specificity, Testability, Falsifiability, Relevance, Pyramid Level.
     Threshold: >= 10 total with no dimension scoring 1 yields 'GO'.
     """
+    has_behavior = _is_substantive(output.behavior)
+    has_evidence = _is_substantive(output.evidence)
+    has_observables = _is_substantive(output.expected_observables)
+    has_data_sources = _is_substantive(output.data_sources)
+    has_falsification = _is_substantive(output.falsification_criteria)
+    has_benign = _is_substantive(output.expected_benign)
+    has_malicious = _is_substantive(output.expected_malicious)
+    has_false_positives = _is_substantive(output.known_false_positives)
+    has_techniques = _is_substantive(output.mitre_techniques)
+    has_justification = _is_substantive(output.justification)
+
     # 1. Specificity:
     spec = 1
-    if output.behavior and (output.evidence or len(output.expected_observables) > 0):
+    if has_behavior and (has_evidence or has_observables):
         spec = 3
-    elif output.behavior or len(output.mitre_techniques) > 0:
+    elif has_behavior or has_techniques:
         spec = 2
 
     # 2. Testability:
     test = 1
-    if output.data_sources and (output.expected_observables or output.evidence):
+    if has_data_sources and (has_observables or has_evidence):
         test = 3
-    elif output.data_sources or output.expected_observables:
+    elif has_data_sources or has_observables:
         test = 2
 
     # 3. Falsifiability:
     fals = 1
-    if output.falsification_criteria or (output.expected_benign and output.expected_malicious):
+    if has_falsification or (has_benign and has_malicious):
         fals = 3
-    elif output.known_false_positives or output.expected_benign:
+    elif has_false_positives or has_benign:
         fals = 2
 
     # 4. Relevance:
     rel = 1
-    if output.is_threat_report and (output.mitre_techniques or output.justification):
+    if output.is_threat_report and (has_techniques or has_justification):
         rel = 3
     elif output.is_threat_report:
         rel = 2
 
     # 5. Pyramid Level:
-    pyr = 3 if output.mitre_techniques else (1 if output.is_indicator_only else 2)
+    pyr = 3 if has_techniques else (1 if output.is_indicator_only else 2)
 
     total = spec + test + fals + rel + pyr
     scores: Dict[str, Any] = {

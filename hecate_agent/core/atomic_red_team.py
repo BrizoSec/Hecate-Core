@@ -5,9 +5,10 @@ test commands, and expected telemetry signatures to enable purple-team
 validation of threat hunting hypotheses and detection rules.
 """
 
-from __future__ import annotations
-
-from typing import Dict, List
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional
 
 # Curated catalog of Atomic Red Team tests for prominent enterprise techniques
 ATOMIC_TESTS_MAP: Dict[str, List[Dict[str, str]]] = {
@@ -170,19 +171,118 @@ ATOMIC_TESTS_MAP: Dict[str, List[Dict[str, str]]] = {
 }
 
 
-def get_atomic_tests(technique_id: str) -> List[Dict[str, str]]:
+def load_custom_atomic_tests(
+    workspace: Optional[Path] = None,
+) -> Dict[str, List[Dict[str, str]]]:
+    """Load custom Atomic Red Team test mappings from workspace or user configuration.
+
+    Allows operators to supply custom or organization-specific atomic tests in:
+    1. HECATE_ATOMIC_TESTS environment variable (file path)
+    2. workspace / "knowledge" / "atomic_tests.yaml" or ".json"
+    3. ~/.hecate/atomic_tests.yaml or ".json"
+    """
+    candidates: List[Path] = []
+    env_path = os.environ.get("HECATE_ATOMIC_TESTS")
+    if env_path:
+        candidates.append(Path(env_path))
+
+    if workspace:
+        candidates.append(workspace / "knowledge" / "atomic_tests.yaml")
+        candidates.append(workspace / "knowledge" / "atomic_tests.json")
+    else:
+        cwd = Path.cwd()
+        candidates.append(cwd / "knowledge" / "atomic_tests.yaml")
+        candidates.append(cwd / "knowledge" / "atomic_tests.json")
+
+    home = Path.home() / ".hecate"
+    candidates.append(home / "atomic_tests.yaml")
+    candidates.append(home / "atomic_tests.json")
+
+    for path in candidates:
+        if path.is_file():
+            try:
+                text = path.read_text(encoding="utf-8")
+                if path.suffix.lower() in (".yaml", ".yml"):
+                    try:
+                        import yaml
+
+                        data = yaml.safe_load(text)
+                    except ImportError:
+                        continue
+                else:
+                    data = json.loads(text)
+
+                if isinstance(data, dict):
+                    normalized: Dict[str, List[Dict[str, str]]] = {}
+                    for tid, tests in data.items():
+                        if isinstance(tests, list):
+                            clean_tests = []
+                            for t in tests:
+                                if isinstance(t, dict) and "name" in t and "command" in t:
+                                    clean_tests.append(
+                                        {
+                                            "name": str(t.get("name", "")),
+                                            "test_id": str(t.get("test_id", f"ART {tid}")),
+                                            "command": str(t.get("command", "")),
+                                            "telemetry": str(t.get("telemetry", "Sensor logs")),
+                                        }
+                                    )
+                            if clean_tests:
+                                normalized[str(tid).strip()] = clean_tests
+                    if normalized:
+                        return normalized
+            except Exception:
+                continue
+    return {}
+
+
+def get_atomic_tests(
+    technique_id: str, workspace: Optional[Path] = None
+) -> List[Dict[str, str]]:
     """Return matching Atomic Red Team test descriptors for an ATT&CK technique.
 
-    Looks up specific sub-technique (e.g. 'T1003.001') then base technique (e.g. 'T1003').
-    If unmapped, returns a structured procedural emulation template.
+    Looks up:
+    1. Workspace or user custom atomic test definitions
+    2. Curated sub-technique then base technique in ATOMIC_TESTS_MAP
+    3. Real ATT&CK matrix technique metadata (dynamic emulation procedure)
+    4. Procedural generic fallback template
     """
     tid = technique_id.strip()
+    custom = load_custom_atomic_tests(workspace)
+    if tid in custom:
+        return custom[tid]
+
+    base_tid = tid.split(".")[0]
+    if base_tid in custom:
+        return custom[base_tid]
+
     if tid in ATOMIC_TESTS_MAP:
         return ATOMIC_TESTS_MAP[tid]
 
-    base_tid = tid.split(".")[0]
     if base_tid in ATOMIC_TESTS_MAP:
         return ATOMIC_TESTS_MAP[base_tid]
+
+    # Dynamic lookup against MITRE ATT&CK Matrix metadata
+    try:
+        from hecate_agent.core.attack_matrix import get_technique
+
+        meta = get_technique(tid) or get_technique(base_tid)
+        if meta and meta.get("name"):
+            name = meta["name"]
+            platforms = meta.get("platforms") or []
+            data_sources = meta.get("data_sources") or []
+            pf_str = "/".join(platforms[:3]) if platforms else "test host"
+            ds_str = ", ".join(data_sources[:3]) if data_sources else "sensor and audit event logs"
+            return [
+                {
+                    "name": f"Procedural Emulation for {name}",
+                    "test_id": f"ART {tid} (Procedural)",
+                    "command": f"# Execute controlled simulation of {name} ({tid}) in {pf_str}",
+                    "telemetry": f"Verify sensor capture in: {ds_str}",
+                }
+            ]
+    except Exception:
+        pass
 
     return [
         {
@@ -194,7 +294,9 @@ def get_atomic_tests(technique_id: str) -> List[Dict[str, str]]:
     ]
 
 
-def format_atomic_tests_markdown(techniques: List[str]) -> str:
+def format_atomic_tests_markdown(
+    techniques: List[str], workspace: Optional[Path] = None
+) -> str:
     """Format matching Atomic Red Team tests as markdown for hunt briefs."""
     if not techniques:
         return ""
@@ -210,7 +312,7 @@ def format_atomic_tests_markdown(techniques: List[str]) -> str:
 
     seen_tests = set()
     for tid in techniques:
-        tests = get_atomic_tests(tid)
+        tests = get_atomic_tests(tid, workspace=workspace)
         for t in tests:
             test_key = (tid, t["test_id"])
             if test_key in seen_tests:

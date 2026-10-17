@@ -57,3 +57,35 @@ class TestAtomicRedTeam:
         assert "`T9999`" in md
         assert "cmd1 \\| cmd2" in md
         assert "Event 1 \\| Event 2" in md
+
+    def test_get_atomic_tests_dynamic_attack_lookup(self):
+        # T1110 is not in ATOMIC_TESTS_MAP, but is in the real ATT&CK matrix
+        tests = get_atomic_tests("T1110")
+        assert len(tests) >= 1
+        assert "Brute Force" in tests[0]["name"]
+        assert "Procedural" in tests[0]["test_id"]
+
+    def test_get_atomic_tests_workspace_custom_tests(self, tmp_path):
+        import json
+
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        custom_file = knowledge / "atomic_tests.json"
+        custom_file.write_text(
+            json.dumps(
+                {
+                    "T9998": [
+                        {
+                            "name": "Custom In-House Test",
+                            "test_id": "ORG-T9998-01",
+                            "command": "custom_tool.exe --run",
+                            "telemetry": "Custom EDR log",
+                        }
+                    ]
+                }
+            )
+        )
+        tests = get_atomic_tests("T9998", workspace=tmp_path)
+        assert len(tests) == 1
+        assert tests[0]["name"] == "Custom In-House Test"
+        assert tests[0]["test_id"] == "ORG-T9998-01"
