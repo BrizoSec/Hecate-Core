@@ -403,12 +403,16 @@ def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
         "completed_cycles": 0,
     }
     latest_val = {}
+    latest_with_llm = {}
     for line in lines:
         try:
             val = json.loads(line)
             if isinstance(val, dict) and isinstance(val.get("stages"), list):
                 aggregate["completed_cycles"] += 1
                 latest_val = val
+                has_llm = any(isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in val["stages"])
+                if has_llm:
+                    latest_with_llm = val
                 for stage in val["stages"]:
                     if isinstance(stage, dict):
                         aggregate["llm_calls"] += int(stage.get("llm_calls") or 0)
@@ -417,6 +421,12 @@ def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
                         aggregate["estimated_cost_usd"] += float(stage.get("estimated_cost_usd") or 0.0)
         except (json.JSONDecodeError, TypeError, ValueError):
             continue
+    if latest_with_llm and not any(isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in latest_val.get("stages", [])):
+        latest_val = dict(latest_val)
+        latest_val["stages"] = latest_with_llm.get("stages", [])
+        latest_val["models"] = latest_with_llm.get("models", [])
+        latest_val["hunt_id"] = latest_with_llm.get("hunt_id")
+        latest_val["research_id"] = latest_with_llm.get("research_id")
     latest_val["aggregate"] = aggregate
     return latest_val
 
@@ -734,7 +744,7 @@ def _usage_panel(
     now: Optional[datetime] = None,
     narrow: bool = False,
 ) -> Panel:
-    if active and current and live:
+    if (active or (live and live.get("in_flight", 0) > 0)) and current and live:
         # The running cycle's own calls, not the totals of the last one to finish.
         return _live_usage_panel(live, current, events, compact, workspace, now or datetime.now(), narrow)
     

@@ -1,5 +1,6 @@
 """The pipeline monitor: what it reports about a cycle, from the Runner's trail lines."""
 
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -365,5 +366,26 @@ def test_header_panel_does_not_abruptly_truncate_or_wrap() -> None:
     header_text = m.console.export_text().splitlines()[1]
     assert "vendor-published" in header_text
     assert "HECATE" in header_text and "MONITOR" in header_text
+
+
+def test_latest_metrics_preserves_llm_stages_across_zero_call_cycles(tmp_path: Path) -> None:
+    metrics_file = tmp_path / "stage_metrics.jsonl"
+    cycle1 = {
+        "cycle_id": "c1",
+        "hunt_id": "H-0001",
+        "stages": [{"stage": "research", "llm_calls": 3, "input_tokens": 1000, "output_tokens": 200, "duration_ms": 15000, "models": ["test-model"]}],
+    }
+    # Cycle 2 is a quota check with no LLM calls
+    cycle2 = {
+        "cycle_id": "c2",
+        "hunt_id": None,
+        "stages": [{"stage": "cti_intake", "llm_calls": None}],
+    }
+    metrics_file.write_text(json.dumps(cycle1) + "\n" + json.dumps(cycle2) + "\n")
+    latest = m._latest_metrics(metrics_file)
+    assert latest["hunt_id"] == "H-0001"
+    assert len(latest["stages"]) == 1
+    assert latest["stages"][0]["llm_calls"] == 3
+
 
 
