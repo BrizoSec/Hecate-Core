@@ -284,3 +284,22 @@ def extract_indicators(threat_intel: str) -> Dict[str, List[str]]:
     from hecate_agent.orchestrator.enrichment import extract_indicators as _extract
     return _extract(threat_intel)
 
+
+def query_malwarebazaar(file_hash: str) -> str:
+    """Query Abuse.ch MalwareBazaar for file hash metadata, family signature, and YARA rules."""
+    from hecate_agent.orchestrator.enrichment import query_malwarebazaar as _q
+    return _q(file_hash)
+
+
+def query_abuseipdb_ip(ip: str) -> str:
+    """Query AbuseIPDB for IP reputation, reports, ISP, and abuse confidence score."""
+    from hecate_agent.orchestrator.enrichment import query_abuseipdb_ip as _q
+    return _q(ip)
+
+
+def query_rdap_domain(domain: str) -> str:
+    """Query public RDAP registry for domain registration age and registrar."""
+    from hecate_agent.orchestrator.enrichment import query_rdap_domain as _q
+    return _q(domain)
+
+

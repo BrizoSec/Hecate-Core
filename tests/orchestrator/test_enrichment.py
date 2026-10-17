@@ -25,6 +25,40 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     mock_tf.status_code = 200
     mock_tf.json.return_value = {"query_status": "ok", "data": [{"threat_type": "botnet", "malware_printable": "Mirai", "tags": ["IoT"]}]}
     
+    mock_mb = MagicMock()
+    mock_mb.status_code = 200
+    mock_mb.json.return_value = {
+        "query_status": "ok",
+        "data": [{
+            "signature": "Mirai",
+            "file_type": "elf",
+            "delivery_method": "exploit",
+            "yara_rules": [{"rule_name": "Mirai_Botnet"}],
+        }]
+    }
+
+    mock_abuseipdb = MagicMock()
+    mock_abuseipdb.status_code = 200
+    mock_abuseipdb.json.return_value = {
+        "data": {
+            "abuseConfidenceScore": 95,
+            "totalReports": 34,
+            "isp": "DigitalOcean, LLC",
+            "usageType": "Data Center/Web Hosting/Transit",
+            "countryCode": "US"
+        }
+    }
+
+    mock_rdap = MagicMock()
+    mock_rdap.status_code = 200
+    mock_rdap.json.return_value = {
+        "events": [{"eventAction": "registration", "eventDate": "2024-01-15T00:00:00Z"}],
+        "entities": [{
+            "roles": ["registrar"],
+            "vcardArray": ["vcard", [["fn", {}, "text", "Namecheap Inc."]]]
+        }]
+    }
+
     mock_misp = MagicMock()
     mock_misp.status_code = 200
     mock_misp.json.return_value = {"response": [{"Event": {"info": "Test Event"}}]}
@@ -44,6 +78,10 @@ def test_generate_enrichment_summary(mock_post, mock_get):
                 "name": "Google Public DNS"
             }
             return mock_gn
+        if "abuseipdb" in url:
+            return mock_abuseipdb
+        if "rdap.org" in url:
+            return mock_rdap
         if "censys" in url:
             mock_censys = MagicMock()
             mock_censys.status_code = 404
@@ -54,6 +92,8 @@ def test_generate_enrichment_summary(mock_post, mock_get):
         url = args[0]
         if "threatfox" in url:
             return mock_tf
+        if "mb-api.abuse.ch" in url:
+            return mock_mb
         if "misp" in url:
             return mock_misp
         return MagicMock(status_code=404)
@@ -61,8 +101,10 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     mock_get.side_effect = get_side_effect
     mock_post.side_effect = post_side_effect
     
-    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz"
-    summary = generate_enrichment_summary(text)
+    with patch("hecate_agent.orchestrator.enrichment._setting") as mock_set:
+        mock_set.side_effect = lambda k, d="": "test-key" if "KEY" in k or "TOKEN" in k else d
+        text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz"
+        summary = generate_enrichment_summary(text)
     
     assert "🛡️ Automated Threat Enrichment" in summary
     assert "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in summary
@@ -70,10 +112,16 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     assert "Domain c2.evil.xyz" in summary
     assert "Malicious hits: 5" in summary
     assert "Mirai" in summary
+    assert "MalwareBazaar" in summary
+    assert "AbuseIPDB" in summary
+    assert "RDAP" in summary
+    assert "Namecheap Inc." in summary
+
 
 def test_query_vt_hash_no_api_key(monkeypatch):
     monkeypatch.delenv("VT_API_KEY", raising=False)
     assert query_vt_hash("hash") == "Not found or error."
+
 
 def test_query_vt_domain(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_vt_domain
@@ -93,6 +141,7 @@ def test_query_vt_domain(monkeypatch):
         res = query_vt_domain("bad-domain.top")
         assert "Malicious hits: 8" in res
         assert "NameCheap" in res
+
 
 def test_query_greynoise_ip(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_greynoise_ip
@@ -138,6 +187,94 @@ def test_query_greynoise_ip(monkeypatch):
         mock_get.return_value = mock_resp_404
         res_404 = query_greynoise_ip("8.8.8.8")
         assert "No mass-internet scanning observed" in res_404
+
+
+def test_query_malwarebazaar(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_malwarebazaar
+    monkeypatch.delenv("ABUSECH_API_KEY", raising=False)
+    assert query_malwarebazaar("hash123") == "ABUSECH_API_KEY not configured."
+
+    monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        # Success with YARA
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "query_status": "ok",
+            "data": [{
+                "signature": "CobaltStrike",
+                "file_type": "exe",
+                "delivery_method": "phishing",
+                "yara_rules": [{"rule_name": "Cobalt_Strike_Beacon"}]
+            }]
+        }
+        mock_post.return_value = mock_resp
+        res = query_malwarebazaar("hash123")
+        assert "Family: CobaltStrike" in res
+        assert "Type: exe" in res
+        assert "Delivery: phishing" in res
+        assert "YARA: Cobalt_Strike_Beacon" in res
+
+        # Not found
+        mock_resp_404 = MagicMock(status_code=200)
+        mock_resp_404.json.return_value = {"query_status": "hash_not_found"}
+        mock_post.return_value = mock_resp_404
+        res_404 = query_malwarebazaar("hash999")
+        assert "No sample found on MalwareBazaar." in res_404
+
+
+def test_query_abuseipdb_ip(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_abuseipdb_ip
+    monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
+    assert query_abuseipdb_ip("1.2.3.4") == "ABUSEIPDB_API_KEY not configured."
+
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", "abuseipdb-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "data": {
+                "abuseConfidenceScore": 100,
+                "totalReports": 52,
+                "isp": "OVH SAS",
+                "usageType": "Data Center/Web Hosting/Transit",
+                "countryCode": "FR"
+            }
+        }
+        mock_get.return_value = mock_resp
+        res = query_abuseipdb_ip("51.254.10.1")
+        assert "Score: 100% (Reports: 52)" in res
+        assert "ISP: OVH SAS" in res
+        assert "Country: FR" in res
+
+        # Rate limit
+        mock_resp_429 = MagicMock(status_code=429)
+        mock_get.return_value = mock_resp_429
+        assert "rate limit exceeded" in query_abuseipdb_ip("51.254.10.1")
+
+
+def test_query_rdap_domain():
+    from hecate_agent.orchestrator.enrichment import query_rdap_domain
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "events": [
+                {"eventAction": "registration", "eventDate": "2020-05-10T12:00:00Z"},
+                {"eventAction": "expiration", "eventDate": "2028-05-10T12:00:00Z"}
+            ],
+            "entities": [{
+                "roles": ["registrar"],
+                "vcardArray": ["vcard", [["fn", {}, "text", "GoDaddy.com, LLC"]]]
+            }]
+        }
+        mock_get.return_value = mock_resp
+        res = query_rdap_domain("subdomain.evil-target.com")
+        assert "Registered: 2020-05-10" in res
+        assert "GoDaddy.com, LLC" in res
+
+        # Not found
+        mock_resp_404 = MagicMock(status_code=404)
+        mock_get.return_value = mock_resp_404
+        assert "Domain not found on RDAP." in query_rdap_domain("unknown-domain.xyz")
+
 
 
 

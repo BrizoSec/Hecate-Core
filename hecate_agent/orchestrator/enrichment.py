@@ -2,6 +2,7 @@ import os
 import re
 import httpx
 import logging
+from datetime import datetime, timezone
 from typing import List, Dict
 
 
@@ -104,6 +105,91 @@ def query_vt_domain(domain: str) -> str:
         return f"HTTP {resp.status_code}"
     except Exception as e:
         return f"Error querying VT: {e}"
+
+
+def _get_apex_domain(domain: str) -> str:
+    """Extract registrable apex domain (e.g. c2.evil.com -> evil.com)."""
+    parts = domain.lower().strip(".").split(".")
+    if len(parts) <= 2:
+        return domain
+    two_part_tlds = {"co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp"}
+    last_two = f"{parts[-2]}.{parts[-1]}"
+    if last_two in two_part_tlds and len(parts) > 2:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+def _format_rdap_date(date_str: str) -> str:
+    """Format an RDAP ISO-8601 date string and compute age / NRD classification."""
+    if not date_str:
+        return "Unknown"
+    try:
+        clean = re.sub(r"Z$", "+00:00", str(date_str).strip())
+        dt = datetime.fromisoformat(clean)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        days = (now - dt).days
+        iso_day = date_str[:10]
+        if days < 0:
+            return iso_day
+        if days < 60:
+            return f"{iso_day} ({days} days old - RECENT/NRD)"
+        elif days < 365:
+            months = max(1, days // 30)
+            return f"{iso_day} ({months} months old)"
+        else:
+            years = max(1, days // 365)
+            return f"{iso_day} ({years} years old)"
+    except Exception:
+        return date_str[:10] if len(date_str) >= 10 else date_str
+
+
+def query_rdap_domain(domain: str) -> str:
+    """Query public RDAP service for domain registration age and registrar."""
+    target_domain = _get_apex_domain(domain)
+    url = f"https://rdap.org/domain/{target_domain}"
+    headers = {"Accept": "application/rdap+json, application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, follow_redirects=True, timeout=10.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            reg_date_raw = ""
+            for ev in data.get("events", []):
+                if ev.get("eventAction") in ("registration", "created"):
+                    reg_date_raw = ev.get("eventDate", "")
+                    break
+
+            registrar = ""
+            for ent in data.get("entities", []):
+                roles = ent.get("roles", [])
+                if "registrar" in roles:
+                    vcard = ent.get("vcardArray")
+                    if vcard and len(vcard) > 1 and isinstance(vcard[1], list):
+                        for prop in vcard[1]:
+                            if isinstance(prop, list) and len(prop) > 3 and prop[0] == "fn":
+                                registrar = str(prop[3])
+                                break
+                    if not registrar and ent.get("handle"):
+                        registrar = str(ent.get("handle"))
+                    if registrar:
+                        break
+
+            parts = []
+            if reg_date_raw:
+                age_formatted = _format_rdap_date(reg_date_raw)
+                parts.append(f"Registered: {age_formatted}")
+            if registrar:
+                parts.append(f"Registrar: {registrar}")
+
+            if parts:
+                return " | ".join(parts)
+            return "Domain active (no creation date recorded in RDAP)."
+        elif resp.status_code == 404:
+            return "Domain not found on RDAP."
+        return f"RDAP error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying RDAP: {e}"
 
 
 def query_greynoise_ip(ip: str) -> str:
@@ -297,6 +383,45 @@ def query_censys_ip(ip: str) -> str:
 
 
 
+def query_abuseipdb_ip(ip: str) -> str:
+    """Query AbuseIPDB for IP abuse confidence score, reports, ISP, and usage type."""
+    key = _setting("ABUSEIPDB_API_KEY")
+    if not key:
+        return "ABUSEIPDB_API_KEY not configured."
+    url = "https://api.abuseipdb.com/api/v2/check"
+    headers = {
+        "Key": key,
+        "Accept": "application/json",
+    }
+    params = {
+        "ipAddress": ip,
+        "maxAgeInDays": 90,
+    }
+    try:
+        resp = httpx.get(url, headers=headers, params=params, timeout=10.0)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            score = data.get("abuseConfidenceScore", 0)
+            reports = data.get("totalReports", 0)
+            isp = data.get("isp") or "Unknown"
+            usage = data.get("usageType") or "Unknown"
+            country = data.get("countryCode")
+
+            parts = [f"Score: {score}% (Reports: {reports})", f"ISP: {isp}", f"Usage: {usage}"]
+            if country:
+                parts.append(f"Country: {country}")
+            return " | ".join(parts)
+        elif resp.status_code in (401, 403):
+            return "AbuseIPDB Auth Error (check ABUSEIPDB_API_KEY)."
+        elif resp.status_code == 429:
+            return "AbuseIPDB rate limit exceeded."
+        elif resp.status_code in (404, 422):
+            return "No data on AbuseIPDB."
+        return f"AbuseIPDB error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying AbuseIPDB: {e}"
+
+
 def query_threatfox(indicator: str) -> str:
     url = "https://threatfox-api.abuse.ch/api/v1/"
     headers = {
@@ -330,32 +455,86 @@ def query_threatfox(indicator: str) -> str:
     except Exception as e:
         return f"Error querying ThreatFox: {e}"
 
+
+def query_malwarebazaar(file_hash: str) -> str:
+    """Query Abuse.ch MalwareBazaar for sample metadata, file type, signature, and YARA rules."""
+    key = _setting("ABUSECH_API_KEY")
+    if not key:
+        return "ABUSECH_API_KEY not configured."
+    url = "https://mb-api.abuse.ch/api/v1/"
+    headers = {"Auth-Key": key}
+    data = {"query": "get_info", "hash": file_hash}
+    try:
+        resp = httpx.post(url, headers=headers, data=data, timeout=10.0)
+        if resp.status_code == 200:
+            payload = resp.json()
+            status = payload.get("query_status")
+            if status == "ok" and payload.get("data"):
+                item = payload["data"][0]
+                sig = item.get("signature") or "Unknown"
+                ftype = item.get("file_type") or "Unknown"
+                delivery = item.get("delivery_method")
+                raw_yara = item.get("yara_rules") or []
+                yara_rules = [
+                    y.get("rule_name") for y in raw_yara
+                    if isinstance(y, dict) and y.get("rule_name")
+                ]
+                tags = item.get("tags") or []
+
+                parts = [f"Family: {sig}", f"Type: {ftype}"]
+                if delivery:
+                    parts.append(f"Delivery: {delivery}")
+                if yara_rules:
+                    parts.append(f"YARA: {', '.join(yara_rules[:3])}")
+                elif tags:
+                    parts.append(f"Tags: {', '.join(tags[:3])}")
+                return " | ".join(parts)
+            elif status == "hash_not_found":
+                return "No sample found on MalwareBazaar."
+            else:
+                return f"MalwareBazaar: {status}"
+        elif resp.status_code in (401, 403):
+            return "MalwareBazaar Auth Error (check ABUSECH_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying MalwareBazaar: {e}"
+
+
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Extracts indicators and queries VT, returning a markdown summary."""
     indicators = extract_indicators(threat_intel)
     if not any(indicators.values()):
         return ""
         
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, Shodan, Censys, Abuse.ch & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP & MISP)"]
     
     from concurrent.futures import ThreadPoolExecutor
     
     def process_hash(h: str) -> str:
         res = query_vt_hash(h)
-        misp_res = query_misp_indicator(h)
+        mb_res = query_malwarebazaar(h)
         threatfox_res = query_threatfox(h)
-        return f"- **Hash {h}**:\n  - *VirusTotal:* {res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+        misp_res = query_misp_indicator(h)
+        return (
+            f"- **Hash {h}**:\n"
+            f"  - *VirusTotal:* {res}\n"
+            f"  - *Abuse.ch (MalwareBazaar):* {mb_res}\n"
+            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
+            f"  - *Internal MISP:* {misp_res}"
+        )
 
     def process_ip(ip: str) -> str:
         vt_res = query_vt_ip(ip)
+        abuseipdb_res = query_abuseipdb_ip(ip)
         gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
         censys_res = query_censys_ip(ip)
-        misp_res = query_misp_indicator(ip)
         threatfox_res = query_threatfox(ip)
+        misp_res = query_misp_indicator(ip)
         return (
             f"- **IP {ip}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
+            f"  - *AbuseIPDB:* {abuseipdb_res}\n"
             f"  - *GreyNoise:* {gn_res}\n"
             f"  - *Shodan:* {shodan_res}\n"
             f"  - *Censys:* {censys_res}\n"
@@ -365,9 +544,16 @@ def generate_enrichment_summary(threat_intel: str) -> str:
 
     def process_domain(d: str) -> str:
         vt_res = query_vt_domain(d)
-        misp_res = query_misp_indicator(d)
+        rdap_res = query_rdap_domain(d)
         threatfox_res = query_threatfox(d)
-        return f"- **Domain {d}**:\n  - *VirusTotal:* {vt_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+        misp_res = query_misp_indicator(d)
+        return (
+            f"- **Domain {d}**:\n"
+            f"  - *VirusTotal:* {vt_res}\n"
+            f"  - *RDAP (Domain Age & Registrar):* {rdap_res}\n"
+            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
+            f"  - *Internal MISP:* {misp_res}"
+        )
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         hash_futures = {executor.submit(process_hash, h): h for h in indicators["hashes"][:5]}
