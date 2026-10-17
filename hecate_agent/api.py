@@ -271,9 +271,16 @@ def link_research_to_hunt(
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Enrich indicators found in threat intelligence using external OSINT sources.
     
-    Extracts hashes and IPs from the threat_intel text, concurrently queries
-    configured OSINT platforms (VirusTotal, Shodan, ThreatFox, MISP, etc.),
+    Extracts hashes, IPs, and domains from the threat_intel text, concurrently queries
+    configured OSINT platforms (VirusTotal, Shodan, Censys, ThreatFox, MISP, etc.),
     and returns a formatted markdown summary of the findings.
     """
     from hecate_agent.orchestrator.enrichment import generate_enrichment_summary as _enrich
     return _enrich(threat_intel)
+
+
+def extract_indicators(threat_intel: str) -> Dict[str, List[str]]:
+    """Extract observable indicators (IPs, hashes, domains) from text."""
+    from hecate_agent.orchestrator.enrichment import extract_indicators as _extract
+    return _extract(threat_intel)
+

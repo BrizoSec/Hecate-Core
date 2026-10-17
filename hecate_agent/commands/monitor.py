@@ -690,7 +690,7 @@ def _narrow_usage_rows(
 #: Rows of the LLM panel in a side column, with its border.
 _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
-_INTEGRATIONS_PANEL_HEIGHT = 8
+_INTEGRATIONS_PANEL_HEIGHT = 11
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -896,6 +896,9 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("OTX", ("OTX_API_KEY",)),
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("Shodan", ("SHODAN_API_KEY",)),
+        ("Censys", ("CENSYS_API_TOKEN",)),
+        ("ThreatFox", ("ABUSECH_API_KEY",)),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -943,6 +946,9 @@ def _integrations_panel(
         ("OTX", ("OTX_API_KEY",)),
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("Shodan", ("SHODAN_API_KEY",)),
+        ("Censys", ("CENSYS_API_TOKEN",)),
+        ("ThreatFox", ("ABUSECH_API_KEY",)),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -1049,6 +1055,9 @@ def _integrations_panel(
                 detail = "enrichment"
                 ioc_count = 0
                 for e in cycle_events:
+                    m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
+                    if m_obs:
+                        ioc_count = max(ioc_count, int(m_obs.group(1)))
                     m = re.search(r"(\d+)\s+indicator\(s\)", e.message)
                     if m:
                         ioc_count = max(ioc_count, int(m.group(1)))
@@ -1060,7 +1069,52 @@ def _integrations_panel(
                         nums = [int(n) for n in re.findall(r"\b(\d+)\b", m_intake.group(1))]
                         if nums:
                             ioc_count = max(ioc_count, sum(nums))
-                metric = f"{ioc_count} checked" if ioc_count > 0 else "0 checked"
+                metric = f"{ioc_count} checked" if ioc_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Shodan":
+            if is_set:
+                detail = "recon"
+                ip_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
+                    if m:
+                        ip_count = max(ip_count, int(m.group(1)))
+                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Censys":
+            if is_set:
+                detail = "surface" if narrow else "attack surface"
+                ip_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
+                    if m:
+                        ip_count = max(ip_count, int(m.group(1)))
+                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "ThreatFox":
+            if is_set:
+                detail = "abuse.ch"
+                tf_count = 0
+                for e in cycle_events:
+                    if e.stage == "enrichment":
+                        m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
+                        if m_obs:
+                            tf_count = int(m_obs.group(1))
+                            break
+                    m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
+                    if m_obs:
+                        tf_count = max(tf_count, int(m_obs.group(1)))
+                    elif tf_count == 0:
+                        m_ind = re.search(r"(\d+)\s+indicator\(s\)", e.message, re.IGNORECASE)
+                        if m_ind:
+                            tf_count = max(tf_count, int(m_ind.group(1)))
+                metric = f"{tf_count} queries" if tf_count > 0 else "ready"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1075,7 +1129,7 @@ def _integrations_panel(
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     if narrow:
-        table.add_column("label", style="dim", width=6, no_wrap=True)
+        table.add_column("label", style="dim", width=9, no_wrap=True)
         table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
         table.add_column("metric", justify="right", width=10, no_wrap=True)
         for label, is_set, detail, metric in services_data:
@@ -1087,20 +1141,12 @@ def _integrations_panel(
                 m_style = "dim"
             table.add_row(label, st, Text(metric, style=m_style))
     else:
-        table = Table(box=None, show_header=False, expand=True, padding=(0, 0))
-        table.add_column("col1", ratio=1, no_wrap=True)
-        table.add_column("col2", ratio=1, no_wrap=True)
-        pairs = [
-            (services_data[0], services_data[1]),
-            (services_data[2], services_data[3]),
-            (services_data[4], services_data[5]),
-        ]
         def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
             st = "ON" if is_on else "OFF"
             col = "bold bright_green" if is_on else "dim yellow"
             m_col = "bright_cyan" if is_on and met != "--" else "dim"
             return Text.assemble(
-                (f"{lbl:6}", "dim"),
+                (f"{lbl:<9}", "dim"),
                 (" ", "default"),
                 (st, col),
                 (" · ", "dim"),
@@ -1108,8 +1154,18 @@ def _integrations_panel(
                 (" ", "default"),
                 (f"{met:>9}", m_col),
             )
+        table = Table(box=None, show_header=False, expand=True, padding=(0, 0))
+        table.add_column("col1", ratio=1, no_wrap=True)
+        table.add_column("col2", ratio=1, no_wrap=True)
+        pairs = [
+            (services_data[i], services_data[i + 1] if i + 1 < len(services_data) else None)
+            for i in range(0, len(services_data), 2)
+        ]
         for d1, d2 in pairs:
-            table.add_row(format_item(*d1), format_item(*d2))
+            if d2:
+                table.add_row(format_item(*d1), format_item(*d2))
+            else:
+                table.add_row(format_item(*d1), Text(""))
 
     return Panel(table, title="[bold bright_cyan]INTEGRATIONS[/]", border_style="bright_magenta", box=box.ROUNDED)
 

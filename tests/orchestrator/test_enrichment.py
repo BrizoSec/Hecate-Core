@@ -4,9 +4,11 @@ from hecate_agent.orchestrator.enrichment import extract_indicators, generate_en
 
 
 def test_extract_indicators():
-    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc. A domain is evil.com."
+    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc. A domain is evil.shop. Also benign github.com."
     inds = extract_indicators(text)
     assert "35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in inds["hashes"]
+    assert "evil.shop" in inds["domains"]
+    assert "github.com" not in inds["domains"]
 
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 @patch("hecate_agent.orchestrator.enrichment.httpx.post")
@@ -50,15 +52,36 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     mock_get.side_effect = get_side_effect
     mock_post.side_effect = post_side_effect
     
-    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc"
+    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and domain c2.evil.xyz"
     summary = generate_enrichment_summary(text)
     
     assert "🛡️ Automated Threat Enrichment" in summary
     assert "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in summary
+    assert "Domain c2.evil.xyz" in summary
     assert "Malicious hits: 5" in summary
     assert "Mirai" in summary
 
 def test_query_vt_hash_no_api_key(monkeypatch):
     monkeypatch.delenv("VT_API_KEY", raising=False)
     assert query_vt_hash("hash") == "Not found or error."
+
+def test_query_vt_domain(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_vt_domain
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "data": {
+                "attributes": {
+                    "last_analysis_stats": {"malicious": 8},
+                    "registrar": "NameCheap",
+                    "categories": {"Forcepoint": "malicious"}
+                }
+            }
+        }
+        mock_get.return_value = mock_resp
+        monkeypatch.setenv("VT_API_KEY", "test-key")
+        res = query_vt_domain("bad-domain.top")
+        assert "Malicious hits: 8" in res
+        assert "NameCheap" in res
+
 

@@ -25,14 +25,35 @@ logger = logging.getLogger(__name__)
 
 def extract_indicators(text: str) -> Dict[str, List[str]]:
     """Extract IPs, Domains, and Hashes from text using regex."""
+    tlds = (
+        r"com|org|net|io|ru|cn|info|biz|shop|top|xyz|site|online|club|vip|"
+        r"live|app|dev|me|cc|co|pro|pw|win|work|cloud|space|link|click"
+    )
+    domain_re = rf'\b[a-zA-Z0-9.-]+\.(?:{tlds})\b'
     indicators = {
         "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', text))),
         "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', text))),
-        # Simple domain regex for common TLDs
-        "domains": list(set(re.findall(r'\b[a-zA-Z0-9.-]+\.(?:com|org|net|io|ru|cn|info|biz)\b', text)))
+        "domains": list(set(re.findall(domain_re, text, re.IGNORECASE)))
     }
-    # Filter out common false positives
-    indicators["ips"] = [ip for ip in indicators["ips"] if not ip.startswith(("127.", "10.", "192.168.", "172.16."))]
+    # Filter out common false positives and private IPs
+    indicators["ips"] = [
+        ip for ip in indicators["ips"]
+        if not ip.startswith((
+            "127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+            "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+            "172.28.", "172.29.", "172.30.", "172.31.", "0.0.0.0", "255.255.255.255"
+        ))
+    ]
+    benign_domains = {
+        "github.com", "schemas.microsoft.com", "microsoft.com", "google.com",
+        "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
+        "raw.githubusercontent.com", "api.github.com", "docs.microsoft.com",
+        "learn.microsoft.com", "localhost"
+    }
+    indicators["domains"] = [
+        d.lower() for d in indicators["domains"]
+        if d.lower() not in benign_domains and not d.endswith(".local")
+    ]
     return indicators
 
 def query_vt_hash(file_hash: str) -> str:
@@ -62,6 +83,25 @@ def query_vt_ip(ip: str) -> str:
             owner = data.get("as_owner", "Unknown")
             return f"Malicious hits: {malicious} | ASN: {asn} | Owner: {owner}"
         return "Not found or error."
+    except Exception as e:
+        return f"Error querying VT: {e}"
+
+def query_vt_domain(domain: str) -> str:
+    url = f"https://www.virustotal.com/api/v3/domains/{domain}"
+    headers = {"x-apikey": _setting("VT_API_KEY")}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10.0)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {}).get("attributes", {})
+            malicious = data.get("last_analysis_stats", {}).get("malicious", 0)
+            registrar = data.get("registrar", "Unknown")
+            categories = data.get("categories", {})
+            cat_sample = list(categories.values())[:2]
+            cat_str = f" | Category: {', '.join(cat_sample)}" if cat_sample else ""
+            return f"Malicious hits: {malicious} | Registrar: {registrar}{cat_str}"
+        elif resp.status_code == 404:
+            return "Domain not found on VirusTotal."
+        return f"HTTP {resp.status_code}"
     except Exception as e:
         return f"Error querying VT: {e}"
 
@@ -260,10 +300,17 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         threatfox_res = query_threatfox(ip)
         return f"- **IP {ip}**:\n  - *VirusTotal:* {vt_res}\n  - *Shodan:* {shodan_res}\n  - *Censys:* {censys_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
 
+    def process_domain(d: str) -> str:
+        vt_res = query_vt_domain(d)
+        misp_res = query_misp_indicator(d)
+        threatfox_res = query_threatfox(d)
+        return f"- **Domain {d}**:\n  - *VirusTotal:* {vt_res}\n  - *Abuse.ch (ThreatFox):* {threatfox_res}\n  - *Internal MISP:* {misp_res}"
+
     with ThreadPoolExecutor(max_workers=10) as executor:
         hash_futures = {executor.submit(process_hash, h): h for h in indicators["hashes"][:5]}
         ip_futures = {executor.submit(process_ip, ip): ip for ip in indicators["ips"][:5]}
-        
+        domain_futures = {executor.submit(process_domain, d): d for d in indicators["domains"][:5]}
+
         # To maintain order
         hash_results = {future: future.result() for future in hash_futures}
         for h in indicators["hashes"][:5]:
@@ -271,15 +318,20 @@ def generate_enrichment_summary(threat_intel: str) -> str:
                 if hash_futures[future] == h:
                     summary.append(result)
                     break
-                    
+
         ip_results = {future: future.result() for future in ip_futures}
         for ip in indicators["ips"][:5]:
             for future, result in ip_results.items():
                 if ip_futures[future] == ip:
                     summary.append(result)
                     break
-        
-    # Exclude domains to keep it fast, or add domain endpoint if needed
+
+        domain_results = {future: future.result() for future in domain_futures}
+        for d in indicators["domains"][:5]:
+            for future, result in domain_results.items():
+                if domain_futures[future] == d:
+                    summary.append(result)
+                    break
     
     final_output = ""
     if len(summary) > 1:

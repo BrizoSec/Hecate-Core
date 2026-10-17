@@ -259,12 +259,16 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     monkeypatch.setenv("OTX_API_KEY", "otx-test")
     monkeypatch.setenv("MISP_API_KEY", "misp-test")
     monkeypatch.setenv("VT_API_KEY", "vt-test")
+    monkeypatch.setenv("SHODAN_API_KEY", "shodan-test")
+    monkeypatch.setenv("CENSYS_API_TOKEN", "censys-test")
+    monkeypatch.setenv("ABUSECH_API_KEY", "abusech-test")
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("HECATE_RUNNER_SLACK_WEBHOOK_URL", raising=False)
 
     events = _events(
         "intake: otx: \"Pulse report\" (indicators: IPv4 1, FileHash-SHA256 7)",
         "route: narrative",
+        "enrichment: 3 observable(s) (1 ip, 0 hash, 2 domain) checked via VT, Shodan, Censys, ThreatFox",
         "research: R-0001 done in 30s; grounding: independent research, 2 web search(es);",
         "sigma: done in 100s: 3 rule(s) kept",
         "provenance: 14 indicator(s) across 3 rule(s)",
@@ -287,6 +291,9 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "OTX" in text and "1 pulse" in text
     assert "MISP" in text and "0 events" in text
     assert "VT" in text and "14 checked" in text
+    assert "Shodan" in text and "1 queries" in text
+    assert "Censys" in text and "1 queries" in text
+    assert "ThreatFox" in text and "3 queries" in text
     assert "Slack" in text and "--" in text
 
 
@@ -296,6 +303,9 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
     monkeypatch.setenv("OTX_API_KEY", "otx-test")
     monkeypatch.setenv("MISP_API_KEY", "misp-test")
     monkeypatch.setenv("VT_API_KEY", "vt-test")
+    monkeypatch.setenv("SHODAN_API_KEY", "shodan-test")
+    monkeypatch.setenv("CENSYS_API_TOKEN", "censys-test")
+    monkeypatch.setenv("ABUSECH_API_KEY", "abusech-test")
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
 
     events = _events(
@@ -303,20 +313,24 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         "done: draft_created -> H-0002 in 120s",
     )
     live = {"llm_calls": 8, "in_flight": 0}
-    c = Console(width=70, record=True, force_terminal=False)
-    panel = m._integrations_panel(
-        workspace=tmp_path,
-        narrow=False,
-        events=events,
-        live=live,
-        current=events[-1],
-    )
-    c.print(panel)
-    text = c.export_text()
+    for width in (70, 120):
+        c = Console(width=width, record=True, force_terminal=False)
+        panel = m._integrations_panel(
+            workspace=tmp_path,
+            narrow=False,
+            events=events,
+            live=live,
+            current=events[-1],
+        )
+        c.print(panel)
+        text = c.export_text()
 
-    assert "8 calls" in text
-    assert "1 event" in text
-    assert "1 sent" in text
+        assert "8 calls" in text
+        assert "1 event" in text
+        assert "1 sent" in text
+        assert "Shodan" in text
+        assert "ThreatFox" in text
+
 
 
 def test_format_cycle_outcome_handles_parking_and_duration() -> None:
