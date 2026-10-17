@@ -296,6 +296,9 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "Shodan" in text and "1 queries" in text
     assert "Censys" in text and "1 queries" in text
     assert "ThreatFox" in text and "3 queries" in text
+    assert "AbuseIPDB" in text and "--" in text
+    assert "MalBazaar" in text and "ready" in text
+    assert "RDAP" in text and "2 queries" in text
     assert "Slack" in text and "--" in text
 
 
@@ -334,6 +337,8 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "GreyNoise" in text
         assert "Shodan" in text
         assert "ThreatFox" in text
+        assert "MalBazaar" in text
+        assert "RDAP" in text
 
 
 

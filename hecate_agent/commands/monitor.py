@@ -897,9 +897,11 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
         ("GreyNoise", ("GREYNOISE_API_KEY",)),
+        ("AbuseIPDB", ("ABUSEIPDB_API_KEY",)),
         ("Shodan", ("SHODAN_API_KEY",)),
         ("Censys", ("CENSYS_API_TOKEN",)),
         ("ThreatFox", ("ABUSECH_API_KEY",)),
+        ("MalBazaar", ("ABUSECH_API_KEY",)),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -948,9 +950,12 @@ def _integrations_panel(
         ("MISP", ("MISP_API_KEY",)),
         ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
         ("GreyNoise", ("GREYNOISE_API_KEY",)),
+        ("AbuseIPDB", ("ABUSEIPDB_API_KEY",)),
         ("Shodan", ("SHODAN_API_KEY",)),
         ("Censys", ("CENSYS_API_TOKEN",)),
         ("ThreatFox", ("ABUSECH_API_KEY",)),
+        ("MalBazaar", ("ABUSECH_API_KEY",)),
+        ("RDAP", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -976,7 +981,7 @@ def _integrations_panel(
 
     services_data = []
     for label, names in checks:
-        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
+        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names) or (label == "RDAP")
         if label == "LLM":
             if is_set:
                 provider_name = os.environ.get("HECATE_LLM_PROVIDER")
@@ -1087,6 +1092,18 @@ def _integrations_panel(
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
+        elif label == "AbuseIPDB":
+            if is_set:
+                detail = "ip abuse"
+                ip_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
+                    if m:
+                        ip_count = max(ip_count, int(m.group(1)))
+                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "Shodan":
             if is_set:
                 detail = "recon"
@@ -1132,6 +1149,27 @@ def _integrations_panel(
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
+        elif label == "MalBazaar":
+            if is_set:
+                detail = "malware"
+                hash_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
+                    if m:
+                        hash_count = max(hash_count, int(m.group(1)))
+                metric = f"{hash_count} queries" if hash_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "RDAP":
+            detail = "whois/age"
+            dom_count = 0
+            for e in cycle_events:
+                m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)
+                if m:
+                    dom_count = max(dom_count, int(m.group(1)))
+            metric = f"{dom_count} queries" if dom_count > 0 else "ready"
+            services_data.append((label, True, detail, metric))
         elif label == "Slack":
             if is_set:
                 detail = "alerts"
