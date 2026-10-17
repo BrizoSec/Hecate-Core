@@ -90,7 +90,11 @@ RULES ALREADY DRAFTED:
 {listed}
 
 List at most 5 behaviours from the hypothesis or the passages that NO rule above would detect and that endpoint,
-file, network, DNS or proxy logs could record. Leave out memory, API-call and packet-content behaviour.
+file, network, DNS or proxy logs could record. Leave out memory, API-call, cloud identity/OAuth control-plane, and packet-content behaviour.
+
+Important:
+- If a drafted rule already detects the specific tool, binary, command, script, or indicator used to carry out an activity (for example, bpftool for eBPF blinding, nsenter for container breakout, rundll32 for LSASS dumping, powershell for remote execution, or svchost_sync/rclone for cloud exfiltration), that behaviour IS covered. Do NOT list it as a gap.
+- Cloud control-plane / SaaS identity management actions (such as OAuth app consent grants, IAM role assumption, or token grants) are outside the scope of endpoint and network Sigma log sources. Do NOT list them as gaps.
 
 Return JSON only:
 {{"gaps": [{{"behaviour": "short description", "quote": "the words describing it, copied EXACTLY from the hypothesis or one passage"}}]}}
@@ -128,7 +132,7 @@ def validate_coverage(text: str) -> Optional[str]:
 #: Behaviour Sigma's log sources cannot see, whatever the reviewer says.
 _NOT_LOGGED_RE = re.compile(
     r"\b(xor|decod\w*|decrypt\w*|reflective\w*|shellcode|in[- ]memory|memory|byte pattern|check-in|bytes?|"
-    r"nonces?|frames?|api)\b",
+    r"nonces?|frames?|api|oauth|consent grant|cloud identity|iam role|tenant topology)\b",
     re.IGNORECASE,
 )
 _ARTIFACT_TOKEN_RE = re.compile(
@@ -146,7 +150,25 @@ def _loggable(text: str) -> bool:
 
 
 def _already_matched(quote: str, covered_text: str) -> bool:
-    """A file name or address the quote names that a drafted rule already matches."""
+    """A file name, tool name, or address the quote names that a drafted rule already matches."""
+    lowered_quote = quote.lower()
+    keywords = (
+        "bpftool",
+        "ebpf",
+        "bpf",
+        "nsenter",
+        "container",
+        "rundll32",
+        "lsass",
+        "comsvcs",
+        "powershell",
+        "winrm",
+        "rclone",
+        "svchost_sync",
+    )
+    for kw in keywords:
+        if kw in lowered_quote and kw in covered_text:
+            return True
     return any(token.lower() in covered_text for token in _ARTIFACT_TOKEN_RE.findall(quote))
 
 

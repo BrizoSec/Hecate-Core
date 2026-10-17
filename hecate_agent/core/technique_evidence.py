@@ -255,12 +255,12 @@ _WINDOW = 200
 def extract_primary_actor(text: str) -> Optional[str]:
     """Actor name the report attributes activity to, e.g. UNC-3882, APT29, UAT-8302."""
     match = re.search(
-        r"(?:^|\n)\s*(?:>\s*)?(?:\*\*)?(?:Adversary/Attribution|Threat Actor|Actor|Adversary|Attribution)\s*(?:\*\*)?:\s*([^\n\r(]+)",
+        r"(?:^|\n)\s*(?:>\s*)?(?:\*\*)?(?:Adversary/Attribution|Threat Actor|Actor|Adversary|Attribution)(?:\*\*)?\s*:\s*(?:\*\*)?([^\n\r(]+)",
         text or "",
         re.IGNORECASE,
     )
     if match:
-        val = match.group(1).strip()
+        val = match.group(1).strip().strip("*_` #:\t ")
         if val and val.lower() not in ("none", "unknown", "unattributed", "n/a"):
             return val
     return None
@@ -274,8 +274,9 @@ def sentence_status(sentence: str, actor_material: bool = False, primary_actor: 
     lowered = sentence.lower()
     ctx_match = _CONTEXT_RE.search(lowered)
     if ctx_match:
-        matched_str = ctx_match.group(0).lower()
-        if not (primary_actor and matched_str == primary_actor.lower()):
+        matched_str = ctx_match.group(0).lower().replace("-", "")
+        clean_actor = (primary_actor or "").lower().replace("-", "").strip("*_` #:\t ")
+        if not (clean_actor and (clean_actor == matched_str or clean_actor in matched_str or matched_str in clean_actor)):
             return "context"
     if attacker_side(lowered, actor_material):
         return "context"

@@ -1687,7 +1687,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     preamble=preamble,
                     level=str(candidate.get("level", "medium")),
                     author="hecate (auto-generated from commands quoted in the source - requires analyst review)",
-                    behaviour=str(candidate.get("behaviour") or candidate.get("title", "")),
+                    behaviour=str(
+                        candidate.get("behaviour") or f"{candidate.get('title', '')} {candidate.get('command', '')}"
+                    ),
                 )
             )
         return results

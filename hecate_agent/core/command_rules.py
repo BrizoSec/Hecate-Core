@@ -33,12 +33,14 @@ _UNIX: Dict[str, str] = {
     "sh": "medium", "zsh": "medium", "python3": "low", "perl": "low", "nc": "medium", "socat": "medium",
     "nsenter": "high", "bpftool": "high", "kubectl": "medium", "crictl": "medium", "docker": "medium",
     "podman": "medium", "nerdctl": "medium", "runc": "high", "insmod": "high", "modprobe": "medium", "rmmod": "medium",
+    "rclone": "high",
 }  # fmt: skip
 _WINDOWS: Dict[str, str] = {
     "powershell": "medium", "pwsh": "medium", "cmd": "low", "rundll32": "medium", "regsvr32": "medium",
     "mshta": "medium", "wmic": "medium", "certutil": "medium", "bitsadmin": "medium", "vssadmin": "high",
     "bcdedit": "high", "wevtutil": "medium", "schtasks": "medium", "reg": "medium", "sc": "medium", "msiexec": "medium",
     "wscript": "medium", "cscript": "medium", "net": "low", "nltest": "medium", "curl.exe": "medium",
+    "rclone": "high", "svchost_sync": "high", "wsmprovhost": "medium",
 }  # fmt: skip
 #: Tokens that end a command in running text: a shell separator, or a colon
 #: introducing the report's explanation of it.
@@ -49,13 +51,14 @@ _VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
 _SUBCOMMANDS = frozenset(
     {"launchctl", "systemctl", "defaults", "dscl", "net", "sc", "reg", "schtasks", "wmic", "bcdedit", "vssadmin",
      "wevtutil", "crontab", "spctl", "codesign", "hdiutil", "openssl", "bpftool", "kubectl", "crictl", "docker",
-     "podman", "nerdctl", "nsenter"}
+     "podman", "nerdctl", "nsenter", "rclone", "svchost_sync"}
 )  # fmt: skip
 #: Words that follow a program name in prose ("cmd.exe and then Word", "Bash script that").
 _PROSE_WORDS = frozenset(
     {"and", "then", "the", "to", "a", "an", "that", "which", "is", "was", "from", "with", "for", "or", "in", "on", "as",
      "are", "itself", "script", "scripts", "command", "commands", "process", "window", "binary", "shell", "loader",
-     "profiler", "tool", "tools", "awareness", "team", "teams", "operations", "center", "centre", "training"}
+     "profiler", "tool", "tools", "awareness", "team", "teams", "operations", "center", "centre", "training",
+     "executable", "executables", "utility", "utilities"}
 )  # fmt: skip
 #: A token shaped like a command-line argument.
 _ARGUMENT_SHAPE_RE = re.compile(r"^[-+/.~$\"'%\\]|[./:=\\]|[a-z][A-Z]|\d")
@@ -82,7 +85,7 @@ def _program_re(programs: Sequence[str]) -> re.Pattern:
 
 def _distinctive(tokens: List[str], program: str = "") -> Optional[str]:
     """The first argument that says what the command does: not a flag, placeholder or bare number."""
-    if program in ("bpftool", "kubectl", "crictl", "docker", "podman", "nerdctl"):
+    if program in ("bpftool", "kubectl", "crictl", "docker", "podman", "nerdctl", "rclone", "svchost_sync"):
         clean = [t.strip("\"'`,);") for t in tokens if t and not _PLACEHOLDER_RE.search(t)]
         if len(clean) >= 2 and not clean[0].startswith("-") and not clean[1].startswith("-"):
             return f"{clean[0]} {clean[1]}"
