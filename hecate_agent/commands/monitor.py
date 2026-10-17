@@ -766,7 +766,7 @@ def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> st
         for event in reversed(events):
             if event.cycle_id != current.cycle_id or event.stage != "research":
                 continue
-            searches = re.search(r"(\d+) web search\(es\)", event.message)
+            searches = re.search(r"(\d+)\s+web\s+search(?:es|\(es\))?", event.message)
             if searches:
                 return searches.group(1)
             break
@@ -931,8 +931,12 @@ def _integrations_panel(
     search_count: str = "pending",
     narrow: bool = True,
     compact: bool = False,
+    events: Optional[List[TrailEvent]] = None,
+    metrics: Optional[Dict[str, Any]] = None,
+    live: Optional[Dict[str, Any]] = None,
+    current: Optional[TrailEvent] = None,
 ) -> Panel:
-    """A dedicated panel displaying external API and service integration statuses."""
+    """A dedicated panel displaying external API and service integration statuses and activity metrics."""
     checks = (
         ("LLM", ("HECATE_LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AWS_PROFILE", "OLLAMA_HOST")),
         ("Tavily", ("TAVILY_API_KEY",)),
@@ -954,6 +958,14 @@ def _integrations_panel(
         except OSError:
             continue
 
+    cycle_events: List[TrailEvent] = []
+    if current and events:
+        cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
+    elif events:
+        last_cid = events[-1].cycle_id if events else None
+        if last_cid:
+            cycle_events = [e for e in events if e.cycle_id == last_cid]
+
     services_data = []
     for label, names in checks:
         is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
@@ -962,55 +974,142 @@ def _integrations_panel(
                 provider_name = os.environ.get("HECATE_LLM_PROVIDER")
                 if not provider_name:
                     if any(os.environ.get(k) or k in file_keys for k in ("ANTHROPIC_API_KEY",)):
-                        provider_name = "Anthropic"
+                        provider_name = "anthropic"
                     elif any(os.environ.get(k) or k in file_keys for k in ("OPENAI_API_KEY",)):
-                        provider_name = "OpenAI"
+                        provider_name = "openai"
                     elif any(os.environ.get(k) or k in file_keys for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY")):
-                        provider_name = "Gemini"
+                        provider_name = "gemini"
                     elif any(os.environ.get(k) or k in file_keys for k in ("AWS_PROFILE",)):
-                        provider_name = "Bedrock"
+                        provider_name = "bedrock"
                     else:
-                        provider_name = "Ollama (local)"
-                services_data.append((label, True, str(provider_name)))
+                        provider_name = "ollama"
+                else:
+                    provider_name = provider_name.lower().split()[0]
+                detail = str(provider_name)
+                calls = 0
+                if live and live.get("llm_calls") is not None:
+                    calls = int(live.get("llm_calls") or 0)
+                elif metrics:
+                    llm_stages = [s for s in (metrics.get("stages") or []) if isinstance(s, dict) and s.get("llm_calls") is not None]
+                    calls = sum(int(s.get("llm_calls") or 0) for s in llm_stages)
+                metric = f"{calls} calls"
+                services_data.append((label, True, detail, metric))
             else:
-                services_data.append((label, False, "unconfigured"))
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "Tavily":
             if is_set:
-                detail = f"{search_count} searches" if search_count.isdigit() else ("in progress" if search_count == "in progress..." else "ready")
-                services_data.append((label, True, detail))
+                detail = "web search"
+                searches = None
+                in_prog = False
+                for e in reversed(cycle_events):
+                    m = re.search(r"(\d+)\s+web\s+search(?:es|\(es\))?", e.message)
+                    if m:
+                        searches = int(m.group(1))
+                        break
+                    if e.stage == "research" and "web search on" in e.message:
+                        in_prog = True
+                if searches is not None:
+                    metric = f"{searches} searches"
+                elif in_prog:
+                    metric = "searching..."
+                elif search_count.isdigit():
+                    metric = f"{search_count} searches"
+                elif search_count in ("in progress...", "searching..."):
+                    metric = "searching..."
+                else:
+                    metric = "0 searches"
+                services_data.append((label, True, detail, metric))
             else:
-                services_data.append((label, False, "unconfigured"))
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "OTX":
-            services_data.append((label, is_set, "pulse feed" if is_set else "unconfigured"))
+            if is_set:
+                detail = "pulse feed"
+                otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in cycle_events)
+                if otx_found:
+                    metric = "1 pulse"
+                else:
+                    backlog = _backlog_observation(events or [])
+                    if backlog and backlog[0] > 0:
+                        metric = f"{backlog[0]} queued"
+                    else:
+                        metric = "0 pulses"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "MISP":
-            services_data.append((label, is_set, "threat sharing" if is_set else "unconfigured"))
+            if is_set:
+                detail = "threat sharing" if narrow else "threat share"
+                misp_found = any(e.stage == "intake" and "misp:" in e.message.lower() for e in cycle_events)
+                metric = "1 event" if misp_found else "0 events"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "VT":
-            services_data.append((label, is_set, "enrichment" if is_set else "unconfigured"))
+            if is_set:
+                detail = "enrichment"
+                ioc_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+indicator\(s\)", e.message)
+                    if m:
+                        ioc_count = max(ioc_count, int(m.group(1)))
+                    m_typed = re.search(r"(\d+)/\d+\s+indicator\(s\)\s+typed", e.message)
+                    if m_typed:
+                        ioc_count = max(ioc_count, int(m_typed.group(1)))
+                    m_intake = re.search(r"indicators:\s*([^\);]+)", e.message)
+                    if m_intake and "none" not in m_intake.group(1).lower():
+                        nums = [int(n) for n in re.findall(r"\b(\d+)\b", m_intake.group(1))]
+                        if nums:
+                            ioc_count = max(ioc_count, sum(nums))
+                metric = f"{ioc_count} checked" if ioc_count > 0 else "0 checked"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "Slack":
-            services_data.append((label, is_set, "webhook alerts" if is_set else "unconfigured"))
+            if is_set:
+                detail = "alerts"
+                draft_created = any("draft_created" in e.message for e in cycle_events)
+                metric = "1 sent" if draft_created else "0 sent"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     if narrow:
-        table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
-        table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
-        for label, is_set, detail in services_data:
+        table.add_column("label", style="dim", width=6, no_wrap=True)
+        table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
+        table.add_column("metric", justify="right", width=10, no_wrap=True)
+        for label, is_set, detail, metric in services_data:
             if is_set:
                 st = Text.assemble(("ON", "bold bright_green"), (" · ", "dim"), (detail, "bright_white"))
+                m_style = "bright_cyan" if metric != "--" else "dim"
             else:
                 st = Text.assemble(("OFF", "dim yellow"), (" · ", "dim"), (detail, "dim"))
-            table.add_row(label, st)
+                m_style = "dim"
+            table.add_row(label, st, Text(metric, style=m_style))
     else:
-        table.add_column("col1", ratio=1)
-        table.add_column("col2", ratio=1)
+        table = Table(box=None, show_header=False, expand=True, padding=(0, 0))
+        table.add_column("col1", ratio=1, no_wrap=True)
+        table.add_column("col2", ratio=1, no_wrap=True)
         pairs = [
             (services_data[0], services_data[1]),
             (services_data[2], services_data[3]),
             (services_data[4], services_data[5]),
         ]
-        for (l1, s1, d1), (l2, s2, d2) in pairs:
-            st1 = Text.assemble((f"{l1:8}", "dim"), ("ON" if s1 else "OFF", "bold bright_green" if s1 else "dim yellow"), (" · ", "dim"), (d1, "bright_white" if s1 else "dim"))
-            st2 = Text.assemble((f"{l2:8}", "dim"), ("ON" if s2 else "OFF", "bold bright_green" if s2 else "dim yellow"), (" · ", "dim"), (d2, "bright_white" if s2 else "dim"))
-            table.add_row(st1, st2)
+        def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
+            st = "ON" if is_on else "OFF"
+            col = "bold bright_green" if is_on else "dim yellow"
+            m_col = "bright_cyan" if is_on and met != "--" else "dim"
+            return Text.assemble(
+                (f"{lbl:6}", "dim"),
+                (" ", "default"),
+                (st, col),
+                (" · ", "dim"),
+                (f"{det[:7]:<7}", "bright_white" if is_on else "dim"),
+                (" ", "default"),
+                (f"{met:>9}", m_col),
+            )
+        for d1, d2 in pairs:
+            table.add_row(format_item(*d1), format_item(*d2))
 
     return Panel(table, title="[bold bright_cyan]INTEGRATIONS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
@@ -1294,7 +1393,7 @@ def _render_dashboard(
         layout["usage"].split_row(
             Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), ratio=1),
             Layout(Text(" "), size=1),
-            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False), ratio=1),
+            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False, events=events, metrics=metrics, live=live, current=latest), ratio=1),
         )
         return layout
 
@@ -1317,7 +1416,7 @@ def _render_dashboard(
     search_count = _search_count(latest, events)
     usage_on_left = body_height >= stages_height + service_height + llm_height + integrations_height
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
-    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left)
+    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left, events=events, metrics=metrics, live=live, current=latest)
     if usage_on_left:
         middle_height = body_height
         layout.split_column(

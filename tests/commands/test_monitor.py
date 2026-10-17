@@ -251,3 +251,70 @@ def test_the_usage_panel_is_four_rows_whatever_it_shows() -> None:
         assert len(lines) == m._USAGE_PANEL_HEIGHT
         assert "16 calls" in lines[1] and "Latency" in lines[4]
         assert "source 4 (13,469/2,749)" in lines[3] and "cycle" not in lines[3]
+
+
+def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
+    monkeypatch.setenv("OTX_API_KEY", "otx-test")
+    monkeypatch.setenv("MISP_API_KEY", "misp-test")
+    monkeypatch.setenv("VT_API_KEY", "vt-test")
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("HECATE_RUNNER_SLACK_WEBHOOK_URL", raising=False)
+
+    events = _events(
+        "intake: otx: \"Pulse report\" (indicators: IPv4 1, FileHash-SHA256 7)",
+        "route: narrative",
+        "research: R-0001 done in 30s; grounding: independent research, 2 web search(es);",
+        "sigma: done in 100s: 3 rule(s) kept",
+        "provenance: 14 indicator(s) across 3 rule(s)",
+        "done: draft_created -> H-0001 in 200s",
+    )
+    metrics = {"stages": [{"stage": "source", "llm_calls": 2}, {"stage": "research", "llm_calls": 3}]}
+    c = Console(width=46, record=True, force_terminal=False)
+    panel = m._integrations_panel(
+        workspace=tmp_path,
+        narrow=True,
+        events=events,
+        metrics=metrics,
+        current=events[-1],
+    )
+    c.print(panel)
+    text = c.export_text()
+
+    assert "LLM" in text and "5 calls" in text
+    assert "Tavily" in text and "2 searches" in text
+    assert "OTX" in text and "1 pulse" in text
+    assert "MISP" in text and "0 events" in text
+    assert "VT" in text and "14 checked" in text
+    assert "Slack" in text and "--" in text
+
+
+def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
+    monkeypatch.setenv("OTX_API_KEY", "otx-test")
+    monkeypatch.setenv("MISP_API_KEY", "misp-test")
+    monkeypatch.setenv("VT_API_KEY", "vt-test")
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
+
+    events = _events(
+        "intake: misp: \"Threat Event\" (indicators: none)",
+        "done: draft_created -> H-0002 in 120s",
+    )
+    live = {"llm_calls": 8, "in_flight": 0}
+    c = Console(width=70, record=True, force_terminal=False)
+    panel = m._integrations_panel(
+        workspace=tmp_path,
+        narrow=False,
+        events=events,
+        live=live,
+        current=events[-1],
+    )
+    c.print(panel)
+    text = c.export_text()
+
+    assert "8 calls" in text
+    assert "1 event" in text
+    assert "1 sent" in text
+
