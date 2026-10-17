@@ -39,9 +39,58 @@ _MARKERS: Dict[str, Tuple[str, ...]] = {
         r"\blaunch(agent|daemon)s?\b", r"\bosascript\b", r"\bapplescript\b", r"\bmach-?o\b", r"\bgatekeeper\b",
         r"~?/library/", r"\.app/contents\b", r"\bxprotect\b", r"\btcc\.db\b",
     ),
+    "Containers": (
+        r"\bkubernetes\b", r"\bk8s\b", r"\bdocker\b", r"\bpod(s)?\b", r"\be-?k-?s\b",
+        r"\bg-?k-?e\b", r"\ba-?k-?s\b", r"\bcontainerd\b", r"\bnsenter\b", r"\bcrictl\b",
+        r"\bkubectl\b", r"\bdaemonset\b", r"\bconfigmap\b", r"\bhelm\b",
+    ),
+    "IaaS": (
+        r"\baws\b", r"\bcloudtrail\b", r"\biam role\b", r"\bec2\b", r"\bs3\b",
+        r"\bassumerole\b", r"\bazure\b", r"\bgcp\b", r"\bgoogle cloud\b", r"\biaas\b",
+        r"\bvpc\b", r"\bsecurity group\b",
+    ),
+    "Identity Provider": (
+        r"\bentra id\b", r"\bazure ad\b", r"\bokta\b", r"\boauth\b", r"\bdevice code\b",
+        r"\bconsent grant\b", r"\bsso\b", r"\bsaml\b", r"\bidentity provider\b",
+        r"\btoken theft\b", r"\bgraph api\b", r"\brefresh token\b",
+    ),
+    "SaaS": (
+        r"\bsaas\b", r"\bm365\b", r"\boffice 365\b", r"\bgoogle workspace\b",
+        r"\bsharepoint\b", r"\bonedrive\b", r"\bslack\b",
+    ),
+    "ESXi": (
+        r"\besxi\b", r"\bvcenter\b", r"\bvmware\b", r"\bvmx\b", r"\bvmdk\b",
+    ),
+    "Network Devices": (
+        r"\bfortios\b", r"\bcisco\b", r"\bpan-os\b", r"\bjuniper\b",
+    ),
 }  # fmt: skip
 #: A platform named outright: counted like a marker, once.
-_NAMES: Dict[str, str] = {"windows": "Windows", "linux": "Linux", "macos": "macOS", "mac os": "macOS"}
+_NAMES: Dict[str, str] = {
+    "windows": "Windows",
+    "linux": "Linux",
+    "macos": "macOS",
+    "mac os": "macOS",
+    "container": "Containers",
+    "containers": "Containers",
+    "kubernetes": "Containers",
+    "k8s": "Containers",
+    "docker": "Containers",
+    "iaas": "IaaS",
+    "aws": "IaaS",
+    "cloud": "IaaS",
+    "identity provider": "Identity Provider",
+    "entra id": "Identity Provider",
+    "azure ad": "Identity Provider",
+    "okta": "Identity Provider",
+    "saas": "SaaS",
+    "office suite": "Office Suite",
+    "office 365": "Office Suite",
+    "m365": "Office Suite",
+    "esxi": "ESXi",
+    "network devices": "Network Devices",
+    "network device": "Network Devices",
+}
 #: Distinct markers a platform needs before its evidence outranks the hypothesis.
 MIN_MARKERS = 2
 

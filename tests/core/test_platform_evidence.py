@@ -62,3 +62,14 @@ def test_the_vshell_feed_blurb_alone_is_too_thin_to_scope() -> None:
     cti = yaml.safe_load(gold.read_text(encoding="utf-8"))["source"]["cti"]
     # The feed blurb alone names no platform-only artifact: scoping falls back to the intel.
     assert platform_evidence([cti]).supported == []
+
+
+def test_container_and_cloud_evidence_detected() -> None:
+    text = (
+        "Adversary compromised a privileged Kubernetes pod and executed nsenter to escape. "
+        "They then used an illicit OAuth application in Entra ID to assume an IAM role in AWS."
+    )
+    evidence = platform_evidence([text])
+    assert "Containers" in evidence.supported
+    assert "Identity Provider" in evidence.supported
+    assert "IaaS" in evidence.supported
