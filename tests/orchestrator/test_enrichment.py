@@ -100,6 +100,7 @@ def test_query_greynoise_ip(monkeypatch):
     assert query_greynoise_ip("8.8.8.8") == "GREYNOISE_API_KEY not configured."
 
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        # Test Community format
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "noise": True,
@@ -113,6 +114,30 @@ def test_query_greynoise_ip(monkeypatch):
         res = query_greynoise_ip("1.2.3.4")
         assert "Mass Internet Scanner (malicious)" in res
         assert "Mirai" in res
+
+        # Test v3 Enterprise format
+        mock_resp_v3 = MagicMock(status_code=200)
+        mock_resp_v3.json.return_value = {
+            "ip": "198.235.24.237",
+            "business_service_intelligence": {"found": None, "trust_level": ""},
+            "internet_scanner_intelligence": {
+                "found": True,
+                "classification": "benign",
+                "actor": "Cortex Xpanse",
+                "tags": [{"name": "F5 BIG-IP Crawler"}, {"name": "Well-Known Scanner"}]
+            }
+        }
+        mock_get.return_value = mock_resp_v3
+        res_v3 = query_greynoise_ip("198.235.24.237")
+        assert "Mass Internet Scanner (benign)" in res_v3
+        assert "Cortex Xpanse" in res_v3
+        assert "F5 BIG-IP Crawler" in res_v3
+
+        # Test 404 unseen IP
+        mock_resp_404 = MagicMock(status_code=404)
+        mock_get.return_value = mock_resp_404
+        res_404 = query_greynoise_ip("8.8.8.8")
+        assert "No mass-internet scanning observed" in res_404
 
 
 

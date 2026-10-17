@@ -112,8 +112,8 @@ def query_greynoise_ip(ip: str) -> str:
         return "GREYNOISE_API_KEY not configured."
     headers = {"key": key, "Accept": "application/json"}
     try:
-        # Try context endpoint first (v2 for full details), fallback to community v3
-        url = f"https://api.greynoise.io/v2/noise/context/{ip}"
+        # Try v3 IP lookup endpoint first, fallback to v3 community endpoint
+        url = f"https://api.greynoise.io/v3/ip/{ip}"
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 404:
             return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
@@ -129,15 +129,27 @@ def query_greynoise_ip(ip: str) -> str:
             return f"GreyNoise API Error: {resp.status_code}"
 
         data = resp.json()
-        noise = data.get("noise", data.get("seen", False))
-        riot = data.get("riot", False)
-        classification = data.get("classification", "unknown")
-        actor = data.get("actor") or data.get("name") or "Unknown"
-        tags = data.get("tags") or []
+        bsi = data.get("business_service_intelligence") or {}
+        isi = data.get("internet_scanner_intelligence") or {}
+        riot = (bsi.get("found") is True) or data.get("riot", False)
+        noise = (isi.get("found") is True) or data.get("noise", data.get("seen", False))
+        classification = isi.get("classification") or data.get("classification") or "unknown"
+        actor = isi.get("actor") or bsi.get("name") or data.get("actor") or data.get("name") or "Unknown"
+
+        raw_tags = isi.get("tags") or data.get("tags") or []
+        tags = []
+        for t in raw_tags:
+            if isinstance(t, str):
+                tags.append(t)
+            elif isinstance(t, dict) and t.get("name"):
+                tags.append(t["name"])
         tag_str = f" | Tags: {', '.join(tags[:3])}" if tags else ""
 
         if riot:
-            return f"RIOT: Benign Enterprise Service ({actor}) | Class: {classification}{tag_str}"
+            name = bsi.get("name") or actor
+            trust = bsi.get("trust_level", "")
+            trust_str = f" ({trust})" if trust else ""
+            return f"RIOT: Benign Enterprise Service ({name}){trust_str} | Class: {classification}{tag_str}"
         elif noise:
             return f"Mass Internet Scanner ({classification}) | Actor: {actor}{tag_str}"
         elif classification and classification != "unknown":
