@@ -1312,6 +1312,33 @@ def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     except Exception:
         return 0, 0, 0
 
+def _format_cycle_outcome(msg: str) -> str:
+    """Format a completed or parked cycle's outcome message cleanly for the header.
+
+    Eliminates awkward mid-word slicing and formats reasons like
+    'parked_after_hypothesis (reason) in 170s' into:
+    'parked_after_hypothesis in 170s · reason'
+    """
+    clean = " ".join(msg.split())
+    match = re.match(r"^(parked_after_\w+|parked\w*)\s*\((.*?)\)(?:\s*in\s*(\d+s))?$", clean)
+    if match:
+        outcome = match.group(1)
+        reason = match.group(2).strip()
+        dur = match.group(3)
+        for prefix in (
+            "hypothesis model judged this ",
+            "model judged this ",
+            "route model judged this ",
+        ):
+            if reason.lower().startswith(prefix):
+                reason = reason[len(prefix):].strip()
+                break
+        if dur:
+            return f"{outcome} in {dur} · {reason}"
+        return f"{outcome} · {reason}"
+    return clean
+
+
 def _render_dashboard(
     workspace: Path,
     events: List[TrailEvent],
@@ -1329,17 +1356,16 @@ def _render_dashboard(
     working_on = _STAGES[in_progress][1] if in_progress >= 0 else "starting"
     status = "RUNNING" if active else "STALLED" if stale else "IDLE"
     cycle = latest.cycle_id if latest else "------"
-    title = Text.assemble(
-        (" HECATE ", "bold black on bright_cyan"),
-        (" MONITOR ", "bold bright_white"),
-    )
+    title = Text(no_wrap=True, overflow="ellipsis")
+    title.append(" HECATE ", style="bold black on bright_cyan")
+    title.append(" MONITOR ", style="bold bright_white")
     pending, completed, failed = _get_inbox_counts(workspace)
     queue_str = f" · Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
 
     if latest and active:
         subline = (
             f"[{status}] cycle {cycle} · now: {working_on} · elapsed {_duration(elapsed)}"
-            f" · last: {latest.stage}: {latest.message[:60]}{queue_str}"
+            f" · last: {latest.stage}: {' '.join(latest.message.split())}{queue_str}"
         )
     elif latest and stale:
         why = (
@@ -1350,12 +1376,13 @@ def _render_dashboard(
         time_str = latest.timestamp.split()[-1] if " " in latest.timestamp else latest.timestamp
         subline = f"[{status}] cycle {cycle} · stopped in {working_on} · seen {time_str} · {why}{queue_str}"
     elif latest:
-        subline = f"[{status}] last cycle {cycle} · {latest.message[:100]}{queue_str}"
+        outcome_str = _format_cycle_outcome(latest.message)
+        subline = f"[{status}] last cycle {cycle} · {outcome_str}{queue_str}"
     else:
         subline = f"[{status}] monitoring {workspace} · waiting for a pipeline cycle{queue_str}"
 
     layout = Layout()
-    title.append(" " + subline.replace("\n", " "), style="dim")
+    title.append(" " + subline, style="dim")
     header_panel = Panel(title, border_style="bright_cyan", box=box.DOUBLE)
     compact = console.size.height < 40
     if compact:

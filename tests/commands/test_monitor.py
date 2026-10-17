@@ -318,3 +318,29 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
     assert "1 event" in text
     assert "1 sent" in text
 
+
+def test_format_cycle_outcome_handles_parking_and_duration() -> None:
+    msg = (
+        "parked_after_hypothesis (hypothesis model judged this NOT a threat report: "
+        "The source is a vendor-published risk management guidance document) in 170s"
+    )
+    formatted = m._format_cycle_outcome(msg)
+    assert formatted.startswith("parked_after_hypothesis in 170s · NOT a threat report")
+    assert "vendor-published" in formatted
+
+    draft_msg = "draft_created -> H-0800 in 617s"
+    assert m._format_cycle_outcome(draft_msg) == draft_msg
+
+
+def test_header_panel_does_not_abruptly_truncate_or_wrap() -> None:
+    events = _events(
+        "route: narrative",
+        "done: parked_after_hypothesis (hypothesis model judged this NOT a threat report: The source is a vendor-published risk management guidance document) in 170s"
+    )
+    m.console = Console(width=160, height=48, record=True, force_terminal=False)
+    m.console.print(m._render_dashboard(Path("/nonexistent/workspace"), events, {}, _host(), refreshed=datetime.now()))
+    header_text = m.console.export_text().splitlines()[1]
+    assert "vendor-published" in header_text
+    assert "HECATE" in header_text and "MONITOR" in header_text
+
+
