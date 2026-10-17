@@ -169,7 +169,7 @@ def test_a_running_cycle_shows_its_own_calls_as_they_happen() -> None:
     assert "2 done · 1 in flight" in text
     assert "12,400" in text and "900" in text
     assert "ollama/qwen2.5" in text
-    assert "Latency: no replies yet" in text
+    assert "Latency" in text and "no replies yet" in text
     assert "n/a" not in text and "e2675e" not in text
 
 
@@ -206,12 +206,12 @@ def test_a_tall_screen_gives_the_stream_the_whole_right_column() -> None:
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
     tall, short = _render(_long_cycle(40), runner, height=60), _render(_long_cycle(40), runner, height=30)
     assert tall.count("rejected rule") > short.count("rejected rule")
-    for title in ("RUNNER SERVICE", "TELEMETRY"):
+    for title in ("RUNNER SERVICE", "LLM STATS", "INTEGRATIONS"):
         line = next(line for line in tall.splitlines() if title in line)
         assert line.index(title) < 140 // 3
-    # Too short for that, the usage panel keeps its full-width row under the stream.
-    usage = next(line for line in short.splitlines() if "TELEMETRY" in line)
-    assert usage.index("TELEMETRY") > 140 // 3
+    # Too short for that, the usage panel keeps its row under the stream.
+    usage = next(line for line in short.splitlines() if "INTEGRATIONS" in line)
+    assert usage.index("INTEGRATIONS") > 140 // 3
 
 
 def test_the_side_usage_panel_shows_every_stage() -> None:

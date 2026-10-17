@@ -639,7 +639,7 @@ def _build_summary_table(
     usage_note: str, has_stages: bool, stage_line: str = "", narrow: bool = False
 ) -> Table:
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
+    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if narrow:
         _narrow_usage_rows(
@@ -657,46 +657,40 @@ def _build_summary_table(
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no completed metrics"
         table.add_row("LLM", llm_summary)
         table.add_row("Speed", speed_text)
-        table.add_row("Tavily", f"{search_count} searches" if search_count.isdigit() else search_count)
+        table.add_row("Latency", usage_note)
         table.add_row("Model", ", ".join(models) or "not reported")
-        table.add_row("Services", _credential_summary(workspace))
     else:
         llm_summary = f"{calls} calls · {input_tokens:,} in / {output_tokens:,} out" if has_stages else "no usage recorded"
         _usage_rows(
             table,
             f"{llm_summary} · speed {speed_text}",
-            f"{', '.join(models) or 'not reported'} · Tavily searches: {search_count}",
+            ", ".join(models) or "not reported",
             stage_line,
-            f"{usage_note} · {_credential_summary(workspace)}",
+            usage_note,
         )
     return table
 
 
 def _narrow_usage_rows(
     table: Table, llm: str, tokens: str, speed: str, model: str, searches: str, by_stage: str, latency: str,
-    workspace: Optional[Path],
+    workspace: Optional[Path] = None,
 ) -> None:
     """The usage rows for a column a third of the screen wide: one fact a row."""
     table.add_row("LLM", llm)
     table.add_row("Tokens", tokens)
     table.add_row("Speed", speed)
+    table.add_row("Latency", latency)
     table.add_row("Model", model)
-    table.add_row("Tavily", f"{searches} searches" if searches.isdigit() else searches)
     first, _, second = by_stage.partition("\n")
     table.add_row("By stage", first)
     if second:
         table.add_row("", second)
-    table.add_row("Latency", latency)
-    on, off = _credential_status(workspace)
-    if on:
-        services_val = f"{', '.join(on)} ON" + (f" ({', '.join(off)} off)" if off else "")
-    else:
-        services_val = f"none ({', '.join(off)} off)" if off else "none"
-    table.add_row("Services", services_val)
 
 
-#: Rows of the usage panel in a side column, with its border.
-_NARROW_USAGE_PANEL_HEIGHT = 11
+#: Rows of the LLM panel in a side column, with its border.
+_NARROW_USAGE_PANEL_HEIGHT = 9
+_NARROW_LLM_PANEL_HEIGHT = 9
+_INTEGRATIONS_PANEL_HEIGHT = 8
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -764,7 +758,7 @@ def _usage_panel(
         compact, calls, input_tokens, output_tokens, cost_text,
         search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages, tokens=not narrow), narrow
     )
-    return Panel(table, title="[bold bright_cyan]TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+    return Panel(table, title="[bold bright_cyan]LLM STATS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> str:
@@ -853,7 +847,7 @@ def _live_usage_panel(
         live_stage_line = "no usage recorded yet"
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
+    table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
     table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
     if narrow:
         _narrow_usage_rows(
@@ -870,18 +864,17 @@ def _live_usage_panel(
     elif compact:
         table.add_row("LLM", f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out")
         table.add_row("Speed", speed_text)
-        table.add_row("Tavily", f"{search_count} searches" if search_count.isdigit() else search_count)
+        table.add_row("Latency", latency_text)
         table.add_row("Model", models)
-        table.add_row("Services", _credential_summary(workspace))
     else:
         _usage_rows(
             table,
             f"{call_text} · {live['input_tokens']:,} in / {live['output_tokens']:,} out · speed {speed_text}",
-            f"{models} · Tavily searches: {search_count}",
+            models,
             live_stage_line,
-            f"Latency: {latency_text} · {_credential_summary(workspace)}",
+            latency_text,
         )
-    return Panel(table, title="[bold bright_cyan]TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
+    return Panel(table, title="[bold bright_cyan]LLM STATS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], List[str]]:
@@ -931,6 +924,95 @@ def _credential_summary(workspace: Optional[Path] = None) -> str:
     """Show configured status only; never read or render credential values."""
     on, off = _credential_status(workspace)
     return " · ".join([f"{l} ON" for l in on] + [f"{l} OFF" for l in off])
+
+
+def _integrations_panel(
+    workspace: Optional[Path] = None,
+    search_count: str = "pending",
+    narrow: bool = True,
+    compact: bool = False,
+) -> Panel:
+    """A dedicated panel displaying external API and service integration statuses."""
+    checks = (
+        ("LLM", ("HECATE_LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AWS_PROFILE", "OLLAMA_HOST")),
+        ("Tavily", ("TAVILY_API_KEY",)),
+        ("OTX", ("OTX_API_KEY",)),
+        ("MISP", ("MISP_API_KEY",)),
+        ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
+        ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
+    )
+    env_files = [workspace / ".env"] if workspace else []
+    if workspace:
+        env_files.append(workspace.parent / "Hecate-Runner" / ".env")
+    file_keys = set()
+    for env_file in env_files:
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                key, sep, value = line.partition("=")
+                if sep and value.strip().strip("\"'"):
+                    file_keys.add(key.strip().removeprefix("export "))
+        except OSError:
+            continue
+
+    services_data = []
+    for label, names in checks:
+        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
+        if label == "LLM":
+            if is_set:
+                provider_name = os.environ.get("HECATE_LLM_PROVIDER")
+                if not provider_name:
+                    if any(os.environ.get(k) or k in file_keys for k in ("ANTHROPIC_API_KEY",)):
+                        provider_name = "Anthropic"
+                    elif any(os.environ.get(k) or k in file_keys for k in ("OPENAI_API_KEY",)):
+                        provider_name = "OpenAI"
+                    elif any(os.environ.get(k) or k in file_keys for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY")):
+                        provider_name = "Gemini"
+                    elif any(os.environ.get(k) or k in file_keys for k in ("AWS_PROFILE",)):
+                        provider_name = "Bedrock"
+                    else:
+                        provider_name = "Ollama (local)"
+                services_data.append((label, True, str(provider_name)))
+            else:
+                services_data.append((label, False, "unconfigured"))
+        elif label == "Tavily":
+            if is_set:
+                detail = f"{search_count} searches" if search_count.isdigit() else ("in progress" if search_count == "in progress..." else "ready")
+                services_data.append((label, True, detail))
+            else:
+                services_data.append((label, False, "unconfigured"))
+        elif label == "OTX":
+            services_data.append((label, is_set, "pulse feed" if is_set else "unconfigured"))
+        elif label == "MISP":
+            services_data.append((label, is_set, "threat sharing" if is_set else "unconfigured"))
+        elif label == "VT":
+            services_data.append((label, is_set, "enrichment" if is_set else "unconfigured"))
+        elif label == "Slack":
+            services_data.append((label, is_set, "webhook alerts" if is_set else "unconfigured"))
+
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    if narrow:
+        table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
+        table.add_column("value", style="bright_white", ratio=1, overflow="ellipsis", no_wrap=True)
+        for label, is_set, detail in services_data:
+            if is_set:
+                st = Text.assemble(("ON", "bold bright_green"), (" · ", "dim"), (detail, "bright_white"))
+            else:
+                st = Text.assemble(("OFF", "dim yellow"), (" · ", "dim"), (detail, "dim"))
+            table.add_row(label, st)
+    else:
+        table.add_column("col1", ratio=1)
+        table.add_column("col2", ratio=1)
+        pairs = [
+            (services_data[0], services_data[1]),
+            (services_data[2], services_data[3]),
+            (services_data[4], services_data[5]),
+        ]
+        for (l1, s1, d1), (l2, s2, d2) in pairs:
+            st1 = Text.assemble((f"{l1:8}", "dim"), ("ON" if s1 else "OFF", "bold bright_green" if s1 else "dim yellow"), (" · ", "dim"), (d1, "bright_white" if s1 else "dim"))
+            st2 = Text.assemble((f"{l2:8}", "dim"), ("ON" if s2 else "OFF", "bold bright_green" if s2 else "dim yellow"), (" · ", "dim"), (d2, "bright_white" if s2 else "dim"))
+            table.add_row(st1, st2)
+
+    return Panel(table, title="[bold bright_cyan]INTEGRATIONS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
 def _compact_progress(
@@ -1191,12 +1273,13 @@ def _render_dashboard(
             action_panel = Panel(Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.SIMPLE)
         else:
             action_panel = Panel(activity, title="[bold bright_cyan]ACTION STREAM[/]", border_style="bright_magenta", box=box.SIMPLE)
+        search_count = _search_count(latest, events)
         layout.split_column(
             Layout(header_panel, name="header", size=3),
             Layout(_compact_resources(host), name="resources", size=4),
             Layout(_compact_progress(latest, active, stale, in_progress), name="progress", size=3),
             Layout(action_panel, name="activity", size=6),
-            Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), name="usage", size=7),
+            Layout(name="usage", size=6),
             Layout(
                 Text(
                     f"Updated {refreshed:%H:%M:%S} · Ctrl-C exits"
@@ -1207,6 +1290,11 @@ def _render_dashboard(
                 name="footer",
                 size=1,
             ),
+        )
+        layout["usage"].split_row(
+            Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False), ratio=1),
         )
         return layout
 
@@ -1224,11 +1312,12 @@ def _render_dashboard(
         size=1,
     )
     body_height = console.size.height - 3 - resources_height - 1
-    # A full-width usage panel is mostly empty to the right of its values, and
-    # every row it takes is one the stream loses. With room for all three
-    # panels in the left-hand column, the stream runs the full height instead.
-    usage_on_left = body_height >= stages_height + service_height + _NARROW_USAGE_PANEL_HEIGHT
-    usage_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
+    llm_height = _NARROW_LLM_PANEL_HEIGHT
+    integrations_height = _INTEGRATIONS_PANEL_HEIGHT
+    search_count = _search_count(latest, events)
+    usage_on_left = body_height >= stages_height + service_height + llm_height + integrations_height
+    llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
+    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left)
     if usage_on_left:
         middle_height = body_height
         layout.split_column(
@@ -1243,8 +1332,13 @@ def _render_dashboard(
             Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
-            Layout(usage_panel, name="usage", size=_USAGE_PANEL_HEIGHT),
+            Layout(name="usage", size=_USAGE_PANEL_HEIGHT),
             footer,
+        )
+        layout["usage"].split_row(
+            Layout(llm_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(integrations_panel, ratio=1),
         )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
@@ -1338,7 +1432,8 @@ def _render_dashboard(
     if service_on_left:
         left.append(Layout(_runner_panel(runner, events), size=service_height))
     if usage_on_left:
-        left.append(Layout(usage_panel, ratio=1))
+        left.append(Layout(llm_panel, size=llm_height))
+        left.append(Layout(integrations_panel, ratio=1))
     if len(left) > 1:
         layout["stages"].split_column(*left)
     else:
