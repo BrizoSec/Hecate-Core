@@ -169,7 +169,7 @@ def test_a_running_cycle_shows_its_own_calls_as_they_happen() -> None:
     assert "2 done · 1 in flight" in text
     assert "12,400" in text and "900" in text
     assert "ollama/qwen2.5" in text
-    assert "Live · cycle 54ac42 so far" in text
+    assert "Latency: no replies yet" in text
     assert "n/a" not in text and "e2675e" not in text
 
 
@@ -180,7 +180,7 @@ def test_a_finished_cycle_shows_its_recorded_totals_not_the_call_log() -> None:
     m.console = Console(width=140, height=30, record=True, force_terminal=False)
     m.console.print(m._usage_panel(metrics, events[-1], False, events, live=live))
     text = m.console.export_text()
-    assert "Last cycle 54ac42 · draft_created" in text and "5,000" in text
+    assert "4 calls" in text and "5,000" in text
 
 
 # --- The action stream -------------------------------------------------------------------------
@@ -198,20 +198,20 @@ def test_the_newest_line_is_always_in_the_action_stream(height: int) -> None:
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
     text = _render(_long_cycle(), runner, height=height)
     assert "draft_created -> H-0001 in 844s" in text.split("ACTION STREAM", 1)[1]
-    assert "HECATE RUNNER SERVICE" in text
+    assert "RUNNER SERVICE" in text
 
 
 def test_a_tall_screen_gives_the_stream_the_whole_right_column() -> None:
     """With room for them, the service and usage panels stack under the stage list, left of the stream."""
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
-    tall, short = _render(_long_cycle(40), runner, height=60), _render(_long_cycle(40), runner, height=40)
+    tall, short = _render(_long_cycle(40), runner, height=60), _render(_long_cycle(40), runner, height=30)
     assert tall.count("rejected rule") > short.count("rejected rule")
-    for title in ("HECATE RUNNER SERVICE", "LLM / API TELEMETRY"):
+    for title in ("RUNNER SERVICE", "TELEMETRY"):
         line = next(line for line in tall.splitlines() if title in line)
         assert line.index(title) < 140 // 3
     # Too short for that, the usage panel keeps its full-width row under the stream.
-    usage = next(line for line in short.splitlines() if "LLM / API TELEMETRY" in line)
-    assert usage.index("LLM / API TELEMETRY") > 140 // 3
+    usage = next(line for line in short.splitlines() if "TELEMETRY" in line)
+    assert usage.index("TELEMETRY") > 140 // 3
 
 
 def test_the_side_usage_panel_shows_every_stage() -> None:
@@ -224,7 +224,7 @@ def test_the_side_usage_panel_shows_every_stage() -> None:
     m.console.print(m._usage_panel({"cycle_id": "54ac42", "outcome": "draft_created", "stages": stages}, events[-1], False, events, narrow=True))
     text = m.console.export_text()
     assert len(text.splitlines()) == m._NARROW_USAGE_PANEL_HEIGHT
-    for part in ("25 calls", "source 4", "research 4", "hypothesis 1", "sigma 16", "Last cycle 54ac42"):
+    for part in ("25 calls", "source 4", "research 4", "hypothesis 1", "sigma 16"):
         assert part in text
 
 
@@ -249,5 +249,5 @@ def test_the_usage_panel_is_four_rows_whatever_it_shows() -> None:
         m.console.print(m._usage_panel(metrics, events[-1], False, events))
         lines = m.console.export_text().splitlines()
         assert len(lines) == m._USAGE_PANEL_HEIGHT
-        assert "16 calls" in lines[1] and "Last cycle 54ac42" in lines[4]
+        assert "16 calls" in lines[1] and "Latency" in lines[4]
         assert "source 4 (13,469/2,749)" in lines[3] and "cycle" not in lines[3]

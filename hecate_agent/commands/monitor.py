@@ -477,7 +477,7 @@ def _pipeline_state(
     current_events = [event for event in events if event.cycle_id == latest.cycle_id]
     last_update = _parse_time(latest.timestamp)
     fresh = last_update is not None and (now - last_update).total_seconds() < _QUIET_SECONDS
-    active = latest.stage != "done" and (fresh or bool(service_running))
+    active = latest.stage != "done" and (fresh if service_running is None else service_running)
     logged = max((event.elapsed for event in current_events), default=latest.elapsed)
     # A stage logs when it ends, so the log's own clock stops at the last line:
     # ten minutes into source extraction it still read "elapsed 4s".
@@ -687,7 +687,12 @@ def _narrow_usage_rows(
     if second:
         table.add_row("", second)
     table.add_row("Latency", latency)
-    table.add_row("Services", _credential_summary(workspace))
+    on, off = _credential_status(workspace)
+    if on:
+        services_val = f"{', '.join(on)} ON" + (f" ({', '.join(off)} off)" if off else "")
+    else:
+        services_val = f"none ({', '.join(off)} off)" if off else "none"
+    table.add_row("Services", services_val)
 
 
 #: Rows of the usage panel in a side column, with its border.
@@ -879,8 +884,8 @@ def _live_usage_panel(
     return Panel(table, title="[bold bright_cyan]TELEMETRY[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
-def _credential_summary(workspace: Optional[Path] = None) -> str:
-    """Show configured status only; never read or render credential values."""
+def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], List[str]]:
+    """Return lists of active (configured) and inactive service labels."""
     checks = (
         (
             "LLM",
@@ -912,11 +917,20 @@ def _credential_summary(workspace: Optional[Path] = None) -> str:
                     file_keys.add(key.strip().removeprefix("export "))
         except OSError:
             continue
-    present = []
+    on, off = [], []
     for label, names in checks:
         is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
-        present.append(f"{label} {'ON' if is_set else 'OFF'}")
-    return " · ".join(present)
+        if is_set:
+            on.append(label)
+        else:
+            off.append(label)
+    return on, off
+
+
+def _credential_summary(workspace: Optional[Path] = None) -> str:
+    """Show configured status only; never read or render credential values."""
+    on, off = _credential_status(workspace)
+    return " · ".join([f"{l} ON" for l in on] + [f"{l} OFF" for l in off])
 
 
 def _compact_progress(
@@ -1136,15 +1150,15 @@ def _render_dashboard(
     cycle = latest.cycle_id if latest else "------"
     title = Text.assemble(
         (" HECATE ", "bold black on bright_cyan"),
-        ("  PIPELINE MONITOR  ", "bold bright_white"),
+        (" MONITOR ", "bold bright_white"),
     )
     pending, completed, failed = _get_inbox_counts(workspace)
-    queue_str = f"  ·  Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
+    queue_str = f" · Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
 
     if latest and active:
         subline = (
-            f"[{status}] cycle {cycle}  ·  now: {working_on}  ·  elapsed {_duration(elapsed)}"
-            f"  ·  last: {latest.stage}: {latest.message[:60]}{queue_str}"
+            f"[{status}] cycle {cycle} · now: {working_on} · elapsed {_duration(elapsed)}"
+            f" · last: {latest.stage}: {latest.message[:60]}{queue_str}"
         )
     elif latest and stale:
         why = (
@@ -1152,14 +1166,15 @@ def _render_dashboard(
             if _service_running(runner, workspace) is False
             else f"no log activity for {_QUIET_SECONDS // 60}+ minutes"
         )
-        subline = f"[{status}] cycle {cycle}  ·  stopped in {working_on}  ·  last seen {latest.timestamp}  ·  {why}{queue_str}"
+        time_str = latest.timestamp.split()[-1] if " " in latest.timestamp else latest.timestamp
+        subline = f"[{status}] cycle {cycle} · stopped in {working_on} · seen {time_str} · {why}{queue_str}"
     elif latest:
-        subline = f"[{status}] last cycle {cycle}  ·  {latest.message[:100]}{queue_str}"
+        subline = f"[{status}] last cycle {cycle} · {latest.message[:100]}{queue_str}"
     else:
-        subline = f"[{status}] monitoring {workspace}  ·  waiting for a pipeline cycle{queue_str}"
+        subline = f"[{status}] monitoring {workspace} · waiting for a pipeline cycle{queue_str}"
 
     layout = Layout()
-    title.append("   " + subline.replace("\n", "  "), style="dim")
+    title.append(" " + subline.replace("\n", " "), style="dim")
     header_panel = Panel(title, border_style="bright_cyan", box=box.DOUBLE)
     compact = console.size.height < 40
     if compact:
@@ -1195,9 +1210,9 @@ def _render_dashboard(
         )
         return layout
 
-    resources_height = 6 if len(host.disks) <= 1 else 5 + len(host.disks) + 3
+    resources_height = 4 if len(host.disks) <= 1 else 4 + len(host.disks)
     stages_height = len(_STAGES) + 3
-    service_height = 8 if runner.installed else 0
+    service_height = 7 if runner.installed else 0
     footer = Layout(
         Text(
             f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
@@ -1261,8 +1276,8 @@ def _render_dashboard(
         )
     else:
         layout["resources"].split_column(
-            Layout(name="compute", size=5),
-            Layout(_disk_panel(host), size=len(host.disks) + 3),
+            Layout(name="compute", size=4),
+            Layout(_disk_panel(host), size=len(host.disks) + 2),
         )
         layout["compute"].split_row(
             Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
@@ -1289,11 +1304,19 @@ def _render_dashboard(
         border_style="bright_magenta",
         box=box.ROUNDED,
     )
-    layout["middle"].split_row(
-        Layout(name="stages", ratio=1),
-        Layout(Text(" "), name="gutter", size=1),
-        Layout(name="operations", ratio=2),
-    )
+    left_width = min(52, max(46, console.size.width // 4)) if console.size.width >= 120 else None
+    if left_width:
+        layout["middle"].split_row(
+            Layout(name="stages", size=left_width),
+            Layout(Text(" "), name="gutter", size=1),
+            Layout(name="operations", ratio=1),
+        )
+    else:
+        layout["middle"].split_row(
+            Layout(name="stages", ratio=1),
+            Layout(Text(" "), name="gutter", size=1),
+            Layout(name="operations", ratio=2),
+        )
     # The stage list is short and its column was half empty, so the service
     # panel sits under it when there is room and the stream gets the whole
     # right-hand column.
@@ -1302,19 +1325,20 @@ def _render_dashboard(
     if recent_error and stale:
         main_panel = Panel(Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.ROUNDED)
     else:
+        act_width = (console.size.width - left_width - 6) if left_width else (console.size.width * 2 // 3 - 30)
         main_panel = Panel(
             # Inside the panel: two border lines and the table's header; two fixed columns and the padding.
-            _activity_table(events, rows=max(1, stream_height - 3), width=console.size.width * 2 // 3 - 30),
+            _activity_table(events, rows=max(1, stream_height - 3), width=max(40, act_width)),
             title="[bold bright_cyan]ACTION STREAM[/]",
             border_style="bright_magenta",
             box=box.ROUNDED,
         )
 
-    left = [Layout(stages_panel, ratio=1)]
+    left = [Layout(stages_panel, size=stages_height)]
     if service_on_left:
         left.append(Layout(_runner_panel(runner, events), size=service_height))
     if usage_on_left:
-        left.append(Layout(usage_panel, size=_NARROW_USAGE_PANEL_HEIGHT))
+        left.append(Layout(usage_panel, ratio=1))
     if len(left) > 1:
         layout["stages"].split_column(*left)
     else:
