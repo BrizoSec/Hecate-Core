@@ -118,3 +118,54 @@ def test_every_rule_is_valid_sigma_and_carries_the_hunt() -> None:
 def test_no_network_indicators_means_no_network_rules() -> None:
     assert _rules({"md5": ["a" * 32]}).keys() == {"process_creation"}
     assert _rules({"ip-dst": ["10.0.0.5"]}) == {}
+
+
+def test_dual_use_network_binding_prevents_bare_sweeps() -> None:
+    agent = SigmaGeneratorAgent(llm_enabled=True)
+    with (
+        patch.object(agent, "_call_llm_with_retry", return_value=json.dumps({"rules": []})),
+        patch.object(agent, "_get_provider") as provider,
+    ):
+        provider.return_value.provider_name = "test"
+        result = agent.execute(
+            SigmaGenerationInput(
+                hypothesis="Threat actor exfiltrates data using svchost_sync.exe to S3",
+                hunt_id="H-0808",
+                threat_intel="Living-off-the-Cloud exfiltration: svchost_sync.exe copy to s3.us-east-1.amazonaws.com",
+                platforms=["Windows"],
+                indicators={
+                    "ipv4": ["194.26.29.112", "52.216.148.130"],
+                    "domain": ["evil-c2.net", "s3.us-east-1.amazonaws.com"],
+                },
+                logsources=["process_creation"],
+            )
+        )
+    assert result.success is True
+    rules = [yaml.safe_load(r.rule_yaml) for r in (result.data.rules if result.data else [])]
+
+    # DNS rule matches only direct C2, never dual-use S3
+    dns_rules = [r for r in rules if r.get("logsource", {}).get("category") == "dns_query"]
+    assert len(dns_rules) == 1
+    dns_det = dns_rules[0]["detection"]
+    assert "evil-c2.net" in dns_det["selection_exact"]["QueryName"]
+    assert "s3.us-east-1.amazonaws.com" not in str(dns_det)
+
+    # Network connection rules: one bare sweep for direct C2, one process-bound for S3
+    net_rules = [r for r in rules if r.get("logsource", {}).get("category") == "network_connection"]
+    assert len(net_rules) == 2
+
+    bare_net = next(r for r in net_rules if "Dual-Use" not in r["title"])
+    dual_net = next(r for r in net_rules if "Dual-Use" in r["title"])
+
+    # Bare sweep has only direct C2
+    assert "194.26.29.112" in bare_net["detection"]["selection_address"]["DestinationIp"]
+    assert "52.216.148.130" not in str(bare_net["detection"])
+    assert "s3.us-east-1.amazonaws.com" not in str(bare_net["detection"])
+
+    # Dual-use rule has process binding and matches S3 indicators
+    assert "52.216.148.130" in dual_net["detection"]["selection_dest_ip"]["DestinationIp"]
+    assert "s3.us-east-1.amazonaws.com" in dual_net["detection"]["selection_dest_host"]["DestinationHostname"]
+    assert "selection_process" in dual_net["detection"]
+    assert "\\svchost_sync.exe" in dual_net["detection"]["selection_process"]["Image|endswith"]
+    assert "(1 of selection_dest_*) and selection_process" in dual_net["detection"]["condition"]
+

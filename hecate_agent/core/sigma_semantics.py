@@ -611,6 +611,49 @@ def hallucinated_filter(detection: Dict[str, Any], named: List[str]) -> Optional
     return None
 
 
+def dual_use_destination_without_process_context(detection: Dict[str, Any], category: str) -> Optional[str]:
+    """Reject a network connection rule matching dual-use cloud/SaaS endpoints without process context.
+
+    Public cloud storage and SaaS endpoints (e.g., AWS S3, Azure Blob, Google Cloud Storage,
+    Discord, Telegram) must never be matched as bare standalone destinations: they create
+    massive alert storms. They must be bound to the specific initiating process (Image / CommandLine)
+    or filter legitimate software.
+    """
+    if category != "network_connection":
+        return None
+
+    negated = set(_negated_names(detection))
+    has_process_constraint = False
+    for name, block in blocks(detection):
+        for key in block:
+            field = base_field(key).lower()
+            if field in ("image", "commandline", "parentimage", "originalfilename"):
+                has_process_constraint = True
+                break
+        if has_process_constraint:
+            break
+
+    if has_process_constraint:
+        return None
+
+    from hecate_agent.core.provenance import is_dual_use
+
+    for name, block in blocks(detection):
+        if name in negated:
+            continue
+        for key, raw in block.items():
+            field = base_field(key).lower()
+            if field in ("destinationhostname", "queryname", "destinationip"):
+                for val in _values(raw):
+                    if is_dual_use(val):
+                        return (
+                            f"detection matches dual-use cloud destination {val!r} without process context; "
+                            "dual-use network indicators must be bound to the initiating process (e.g. Image) "
+                            "or filter legitimate browsers to prevent alert storms"
+                        )
+    return None
+
+
 def semantic_problem(
     detection: Dict[str, Any], category: str, description: str = "", named: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -633,6 +676,7 @@ def semantic_problem(
         lambda: actor_only_selection(detection, category),
         lambda: filter_excludes_named_artifact(detection, named or []),
         lambda: hallucinated_filter(detection, named or []),
+        lambda: dual_use_destination_without_process_context(detection, category),
     )
     for check in checks:
         problem = check()

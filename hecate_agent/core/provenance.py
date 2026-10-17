@@ -11,6 +11,7 @@ source gives, with the passage that says so, and :func:`placements` routes each
 record only to the telemetry that can actually observe it.
 """
 
+import ipaddress
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
@@ -28,7 +29,8 @@ HASH_ROLES = (
 #: What a network indicator does in the intrusion. ``target``: an address the
 #: actor attacked, scanned or tested against. It is a victim, not
 #: infrastructure, so a connection to it says nothing about the host making it.
-NETWORK_ROLES = ("c2", "staging", "download", "target", "historical", "unknown")
+#: ``dual_use``: shared/public cloud storage or SaaS endpoints (AWS S3, Azure Blob, etc.).
+NETWORK_ROLES = ("c2", "staging", "download", "dual_use", "target", "historical", "unknown")
 STATUSES = ("active", "historical", "unknown")
 CONFIDENCES = ("high", "medium", "low", "unknown")
 
@@ -111,8 +113,75 @@ def _normalise_value(value: str, rtype: str) -> str:
     return value
 
 
+_DUAL_USE_DOMAINS = (
+    "amazonaws.com",
+    "blob.core.windows.net",
+    "azureedge.net",
+    "azure.com",
+    "storage.googleapis.com",
+    "drive.google.com",
+    "storage.cloud.google.com",
+    "dropbox.com",
+    "dropboxapi.com",
+    "box.com",
+    "mega.nz",
+    "mega.io",
+    "onedrive.live.com",
+    "sharepoint.com",
+    "discord.com",
+    "discordapp.com",
+    "telegram.org",
+    "slack.com",
+    "pastebin.com",
+    "raw.githubusercontent.com",
+    "githubusercontent.com",
+    "ngrok.io",
+    "ngrok-free.app",
+    "trycloudflare.com",
+    "webhook.site",
+)
+
+_DUAL_USE_NETWORKS = (
+    ipaddress.ip_network("52.216.0.0/15"),  # AWS S3 (e.g. us-east-1)
+    ipaddress.ip_network("54.231.0.0/16"),  # AWS S3
+    ipaddress.ip_network("52.92.0.0/15"),   # AWS S3
+    ipaddress.ip_network("52.218.0.0/15"),  # AWS S3
+)
+
+
+def is_dual_use(indicator: str, evidence: str = "") -> bool:
+    """Return True if an indicator represents shared/dual-use cloud or SaaS infrastructure.
+
+    Such indicators (e.g., AWS S3, Azure Blob, Google Drive, Discord, Telegram)
+    must NEVER be swept as bare standalone IOCs, but bound to specific suspicious
+    processes.
+    """
+    cleaned = refang(indicator).lower().strip()
+    ev_lower = (evidence or "").lower()
+
+    if "dual use" in ev_lower or "dual-use" in ev_lower:
+        return True
+
+    for d in _DUAL_USE_DOMAINS:
+        if cleaned == d or cleaned.endswith("." + d):
+            return True
+
+    try:
+        ip = ipaddress.ip_address(cleaned)
+        for net in _DUAL_USE_NETWORKS:
+            if ip in net:
+                return True
+    except ValueError:
+        pass
+
+    if any(k in ev_lower for k in ("aws s3", "amazon s3", "azure blob", "google cloud storage", "s3 bucket")):
+        return True
+
+    return False
+
+
 def records_from_cti(indicators: Mapping[str, Iterable[str]], source: str = "cti") -> List[IndicatorRecord]:
-    """Untyped feed indicators as records with unknown role and status."""
+    """Untyped feed indicators as records with unknown or dual_use role and status."""
     records: List[IndicatorRecord] = []
     for itype, values in (indicators or {}).items():
         rtype = _CTI_TYPE_MAP.get(str(itype).lower().strip())
@@ -121,7 +190,8 @@ def records_from_cti(indicators: Mapping[str, Iterable[str]], source: str = "cti
         for raw in values:
             value = _normalise_value(raw, rtype)
             if value and not any(r.value == value and r.type == rtype for r in records):
-                records.append(IndicatorRecord(value=value, type=rtype, source=source))
+                role = "dual_use" if is_dual_use(value) else "unknown"
+                records.append(IndicatorRecord(value=value, type=rtype, role=role, source=source))
     return records
 
 
@@ -175,6 +245,9 @@ def merge_records(cti: List[IndicatorRecord], extracted: List[IndicatorRecord]) 
             by_key[key] = fresh
         else:
             _combine(by_key[key], record)
+    for r in by_key.values():
+        if r.role == "unknown" and is_dual_use(r.value, r.evidence):
+            r.role = "dual_use"
     return list(by_key.values())
 
 
@@ -320,6 +393,8 @@ def placements(record: IndicatorRecord) -> List[str]:
         if record.role == "library":
             return ["image_load.Hashes"]
         return []
+    if record.role == "dual_use" or is_dual_use(record.value, record.evidence):
+        return ["network_connection.dual_use"]
     if record.type in ("ipv4", "ipv6"):
         return ["network_connection.DestinationIp"]
     if record.type in ("domain", "hostname"):

@@ -284,3 +284,44 @@ def test_a_wildcard_filter_that_matches_a_named_artifact_is_rejected() -> None:
     assert "matches" in (semantic_problem(detection, "file_event", "", named) or "")
     detection["filter"] = {"TargetFilename|startswith": "/Users/*/Library/Application Support/"}
     assert semantic_problem(detection, "file_event", "", named) is None
+
+
+def test_dual_use_destination_without_process_context_is_rejected() -> None:
+    # Bare connection to S3 without process context fails
+    detection = {
+        "selection": {"DestinationHostname|endswith": ".amazonaws.com"},
+        "condition": "selection",
+    }
+    problem = semantic_problem(detection, "network_connection", "Connects to S3")
+    assert problem is not None
+    assert "without process context" in problem
+
+    # Bare connection to S3 IP fails
+    detection_ip = {
+        "selection": {"DestinationIp": "52.216.148.130"},
+        "condition": "selection",
+    }
+    problem_ip = semantic_problem(detection_ip, "network_connection", "Connects to S3 IP")
+    assert problem_ip is not None
+    assert "without process context" in problem_ip
+
+
+def test_dual_use_destination_with_process_binding_passes() -> None:
+    # Bound to svchost_sync.exe
+    detection = {
+        "selection_dest": {"DestinationHostname|endswith": ".amazonaws.com"},
+        "selection_process": {"Image|endswith": "\\svchost_sync.exe"},
+        "condition": "selection_dest and selection_process",
+    }
+    assert semantic_problem(detection, "network_connection", "Sync to S3") is None
+
+
+def test_dual_use_destination_with_browser_filter_passes() -> None:
+    # Filter legitimate browsers
+    detection = {
+        "selection_dest": {"DestinationHostname|endswith": ".amazonaws.com"},
+        "filter_browsers": {"Image|endswith": ["\\chrome.exe", "\\msedge.exe"]},
+        "condition": "selection_dest and not filter_browsers",
+    }
+    assert semantic_problem(detection, "network_connection", "Sync to S3") is None
+

@@ -1396,3 +1396,24 @@ def test_a_script_in_the_command_line_is_kept():
     }
     rule, reason = _agent()._build_rule(_rule(detection=detection), _input())
     assert rule is not None, reason
+
+
+def test_unsupported_logsources_are_omitted_not_rejected():
+    agent = SigmaGeneratorAgent(llm_enabled=True)
+    sources = ["process_creation", "authentication"]
+
+    def fake(prompt, *a, **k):
+        if "authentication" in prompt:
+            return json.dumps({"rules": []})
+        return json.dumps({"rules": [_rule(logsource_category="process_creation")]})
+
+    with patch.object(agent, "_call_llm_with_retry", side_effect=fake), patch.object(agent, "_get_provider") as provider:
+        provider.return_value.provider_name = "test"
+        result = agent.execute(_input(logsources=sources))
+
+    assert result.success is True
+    assert [r.logsource_category for r in result.data.rules] == ["process_creation"]
+    assert result.data.rejected == []
+    assert result.data.omitted == ["authentication: no rule returned"]
+    assert not any("authentication" in w for w in result.warnings)
+

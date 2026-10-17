@@ -456,29 +456,32 @@ class SigmaGenerationOutput:
     rules: List[SigmaRule] = field(default_factory=list)
     logsources_considered: List[str] = field(default_factory=list)
     rejected: List[str] = field(default_factory=list)
+    omitted: List[str] = field(default_factory=list)
     #: Behaviours the rule reviewer found no rule for, each with its verified quote.
     review_gaps: List[Dict[str, str]] = field(default_factory=list)
 
 
 def _select_for_logsource(
     built: List[SigmaRule], logsource: str, problems: List[str]
-) -> Tuple[Optional[SigmaRule], List[str]]:
-    """Pick the rule written for the requested category, noting the rest.
+) -> Tuple[Optional[SigmaRule], List[str], List[str]]:
+    """Pick the rule written for the requested category, noting rejections and omitted sources.
 
     A rule written for a different category than the one asked for is not the
     rule this iteration needed; relabelling it would file process telemetry
     under DNS.
     """
     match = None
+    rejections = list(problems)
+    omitted: List[str] = []
     for rule in built:
         if match is None and rule.logsource_category == logsource:
             match = rule
         elif rule.logsource_category != logsource:
-            problems.append(f"{logsource}: model returned a {rule.logsource_category} rule instead")
+            rejections.append(f"{logsource}: model returned a {rule.logsource_category} rule instead")
 
-    if match is None and not problems:
-        problems.append(f"{logsource}: no rule returned")
-    return match, problems
+    if match is None and not rejections:
+        omitted.append(f"{logsource}: no rule returned")
+    return match, rejections, omitted
 
 
 #: Fragments that mark a detection value as scaffolding rather than a real
@@ -1504,17 +1507,23 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # guidance can be narrowed to the category actually being written.
         from concurrent.futures import ThreadPoolExecutor
 
+        rules: List[SigmaRule] = []
+        rejected: List[str] = []
+        omitted: List[str] = []
+
         with ThreadPoolExecutor(max_workers=min(len(logsources) or 1, 6)) as executor:
             futures = {
                 executor.submit(self._generate_for_logsource, input_data, logsource): logsource for logsource in logsources
             }
             for future in futures:
-                rule, problems = future.result()
-                rejected.extend(problems)
-                if rule is None:
-                    warnings.append(f"no valid rule generated for log source '{futures[future]}'")
-                else:
+                source_name = futures[future]
+                rule, rule_problems, rule_omitted = future.result()
+                rejected.extend(rule_problems)
+                omitted.extend(rule_omitted)
+                if rule is not None:
                     rules.append(rule)
+                elif rule_problems:
+                    warnings.append(f"rejected rule: {source_name}: {'; '.join(rule_problems)}")
 
         # Built from the indicators alone, with no model call. On the first
         # live cycle with the fixed pipeline, a pulse carrying ten file hashes
@@ -1543,10 +1552,15 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             warnings.extend(review_warnings)
 
         if not rules:
+            all_reasons = rejected or omitted or ["no log source produced a valid rule"]
             return AgentResult(
                 success=False,
-                data=SigmaGenerationOutput(logsources_considered=logsources, rejected=rejected),
-                error="no log source produced a valid rule: " + "; ".join(rejected),
+                data=SigmaGenerationOutput(
+                    logsources_considered=logsources,
+                    rejected=rejected or omitted,
+                    omitted=omitted,
+                ),
+                error="no log source produced a valid rule: " + "; ".join(all_reasons),
                 warnings=warnings,
                 metadata={
                     "duration_ms": int((time.monotonic() - start) * 1000),
@@ -1554,12 +1568,12 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 },
             )
 
-        warnings.extend(f"rejected rule: {r}" for r in rejected)
+        warnings.extend(f"rejected rule: {r}" for r in rejected if not any(w.endswith(r) for w in warnings))
         provider = self._get_provider()
         return AgentResult(
             success=True,
             data=SigmaGenerationOutput(
-                rules=rules, logsources_considered=logsources, rejected=rejected, review_gaps=review_gaps
+                rules=rules, logsources_considered=logsources, rejected=rejected, omitted=omitted, review_gaps=review_gaps
             ),
             error=None,
             warnings=warnings,
@@ -1813,10 +1827,19 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 )
             )
         addresses, names, suffixes = network_selectors(input_data.indicators)
-        if names:
-            detection: Dict[str, Any] = {"selection_exact": {"QueryName": names}}
-            if suffixes:
-                detection["selection_subdomain"] = {"QueryName|endswith": suffixes}
+        from hecate_agent.core.provenance import is_dual_use
+
+        direct_addresses = [a for a in addresses if not is_dual_use(a)]
+        dual_addresses = [a for a in addresses if is_dual_use(a)]
+        direct_names = [n for n in names if not is_dual_use(n)]
+        dual_names = [n for n in names if is_dual_use(n)]
+        direct_suffixes = [s for s in suffixes if not is_dual_use(s.lstrip("."))]
+        dual_suffixes = [s for s in suffixes if is_dual_use(s.lstrip("."))]
+
+        if direct_names:
+            detection: Dict[str, Any] = {"selection_exact": {"QueryName": direct_names}}
+            if direct_suffixes:
+                detection["selection_subdomain"] = {"QueryName|endswith": direct_suffixes}
             detection["condition"] = "1 of selection_*"
             results.append(
                 self._ioc_rule(
@@ -1826,19 +1849,19 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     title="DNS lookup of a domain named in the source intelligence",
                     # Subdomains only when a suffix selection exists: hostnames stay exact.
                     description="Matches a DNS query for a domain or host the source published"
-                    + (", or a subdomain of a published domain." if suffixes else "."),
+                    + (", or a subdomain of a published domain." if direct_suffixes else "."),
                     detection=detection,
                     falsepositives="Security tooling or analysts resolving the indicators themselves",
                 )
             )
-        if addresses or names:
+        if direct_addresses or direct_names:
             detection = {}
-            if addresses:
-                detection["selection_address"] = {"DestinationIp": addresses}
-            if names:
-                detection["selection_host"] = {"DestinationHostname": names}
-            if suffixes:
-                detection["selection_subdomain"] = {"DestinationHostname|endswith": suffixes}
+            if direct_addresses:
+                detection["selection_address"] = {"DestinationIp": direct_addresses}
+            if direct_names:
+                detection["selection_host"] = {"DestinationHostname": direct_names}
+            if direct_suffixes:
+                detection["selection_subdomain"] = {"DestinationHostname|endswith": direct_suffixes}
             detection["condition"] = "1 of selection_*"
             results.append(
                 self._ioc_rule(
@@ -1854,7 +1877,92 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     falsepositives="Shared hosting or CDN addresses reused by unrelated sites",
                 )
             )
+        if dual_addresses or dual_names:
+            candidate_procs = self._find_initiating_processes(input_data)
+            dual_detection: Dict[str, Any] = {}
+            if dual_addresses:
+                dual_detection["selection_dest_ip"] = {"DestinationIp": dual_addresses}
+            if dual_names:
+                dual_detection["selection_dest_host"] = {"DestinationHostname": dual_names}
+            if dual_suffixes:
+                dual_detection["selection_dest_subdomain"] = {"DestinationHostname|endswith": dual_suffixes}
+            if candidate_procs:
+                dual_detection["selection_process"] = {"Image|endswith": candidate_procs}
+                dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
+            else:
+                dual_detection["filter_legit"] = {
+                    "Image|endswith": [
+                        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
+                        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
+                    ]
+                }
+                dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
+            techs = [t for t in ("T1567.002", "T1567", "T1071.001", "T1071") if any(t.lower() == it.lower() for it in input_data.techniques)]
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="network_connection",
+                    label="dual-use network IOC",
+                    title="Outbound Connection to Dual-Use Cloud Endpoint by Observed Staging/Exfiltration Process",
+                    description=(
+                        "Matches an outbound network connection to a dual-use cloud storage or SaaS endpoint "
+                        "published in intelligence, bound to the observed suspicious/staging process to avoid "
+                        "enterprise alert storms."
+                    ),
+                    detection=dual_detection,
+                    falsepositives="Legitimate administrative synchronization or automated cloud storage jobs using the specified binary",
+                    level="high",
+                    references=input_data.references,
+                    behaviour="exfiltration to cloud storage",
+                    techniques=techs or None,
+                )
+            )
         return results
+
+    def _find_initiating_processes(self, input_data: SigmaGenerationInput) -> List[str]:
+        """Find candidate non-system executables tied to exfiltration, staging, or network activity."""
+        from hecate_agent.core.query_literals import SYSTEM_IMAGES
+
+        staging_keywords = re.compile(
+            r"\b(s3|cloud|storage|rclone|sync|exfiltrat\w*|upload\w*|aws|blob|bucket|transfer)\b", re.I
+        )
+        procs: List[str] = []
+
+        # 1. Look in threat intel text for binaries near staging/cloud keywords
+        for line in (input_data.threat_intel or "").splitlines():
+            if staging_keywords.search(line):
+                for match in re.finditer(r"\b([a-zA-Z0-9_\-\.]+\.exe)\b", line, re.I):
+                    name = match.group(1).lower()
+                    if name not in SYSTEM_IMAGES and f"\\{name}" not in procs:
+                        procs.append(f"\\{name}")
+
+        # 2. Look in observed commands
+        for cmd_dict in input_data.observed_commands:
+            cmd = str(cmd_dict.get("command", "")).strip()
+            if staging_keywords.search(cmd):
+                for match in re.finditer(r"\b([a-zA-Z0-9_\-\.]+\.exe)\b", cmd, re.I):
+                    name = match.group(1).lower()
+                    if name not in SYSTEM_IMAGES and f"\\{name}" not in procs:
+                        procs.append(f"\\{name}")
+
+        # 3. Look in query literals
+        for lit in input_data.query_literals():
+            if "process_creation.Image" in lit.get("fields", []):
+                val = str(lit.get("value", "")).strip()
+                clean = val.split("\\")[-1].split("/")[-1].lower()
+                if clean.endswith(".exe") and clean not in SYSTEM_IMAGES:
+                    entry = f"\\{clean}"
+                    if entry not in procs:
+                        procs.append(entry)
+
+        # 4. Fallback to any non-system .exe in threat intel if none found near keywords
+        if not procs:
+            for match in re.finditer(r"\b([a-zA-Z0-9_\-\.]+\.exe)\b", input_data.threat_intel or "", re.I):
+                name = match.group(1).lower()
+                if name not in SYSTEM_IMAGES and f"\\{name}" not in procs:
+                    procs.append(f"\\{name}")
+
+        return procs
 
     def _ioc_rules_from_records(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
         """IOC rules from typed records: each indicator only where its role can be observed.
@@ -1865,7 +1973,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         rule at all. Each address is paired with the ports the source ties to
         it, one selection per port, so HTTP staging and a raw-TCP channel on
         the same host stay distinguishable. URL paths go to proxy logs, the
-        only telemetry that records them.
+        only telemetry that records them. Dual-use cloud and SaaS indicators
+        (AWS S3, Azure Blob, etc.) are bound to initiating suspicious processes
+        rather than swept bare.
         """
         from hecate_agent.core.provenance import IndicatorRecord, hash_label, placements, url_parts
 
@@ -1933,6 +2043,53 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 )
             )
 
+        dual = values_for("network_connection.dual_use")
+        if dual:
+            candidate_procs = self._find_initiating_processes(input_data)
+            dual_detection: Dict[str, Any] = {}
+            dual_ips = [r.value for r in dual if r.type in ("ipv4", "ipv6")]
+            dual_hosts = [r.value for r in dual if r.type in ("domain", "hostname")]
+            if dual_ips:
+                dual_detection["selection_dest_ip"] = {"DestinationIp": dual_ips}
+            if dual_hosts:
+                dual_detection["selection_dest_host"] = {"DestinationHostname": dual_hosts}
+                domain_suffixes = ["." + r.value for r in dual if r.type == "domain" or r.value.startswith("s3.")]
+                if domain_suffixes:
+                    dual_detection["selection_dest_subdomain"] = {"DestinationHostname|endswith": sorted(set(domain_suffixes))}
+
+            if candidate_procs:
+                dual_detection["selection_process"] = {"Image|endswith": candidate_procs}
+                dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
+            else:
+                dual_detection["filter_legit"] = {
+                    "Image|endswith": [
+                        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
+                        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
+                    ]
+                }
+                dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
+
+            techs = [t for t in ("T1567.002", "T1567", "T1071.001", "T1071") if any(t.lower() == it.lower() for it in input_data.techniques)]
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="network_connection",
+                    label="dual-use network IOC",
+                    title="Outbound Connection to Dual-Use Cloud Endpoint by Observed Staging/Exfiltration Process",
+                    description=(
+                        "Matches an outbound network connection to a dual-use cloud storage or SaaS endpoint "
+                        "published in intelligence, bound to the observed suspicious/staging process to avoid "
+                        "enterprise alert storms."
+                    ),
+                    detection=dual_detection,
+                    falsepositives="Legitimate administrative synchronization or automated cloud storage jobs using the specified binary",
+                    level="high",
+                    references=input_data.references,
+                    behaviour="exfiltration to cloud storage",
+                    techniques=techs or None,
+                )
+            )
+
         paths = sorted({path for r in values_for("proxy.c-uri") for path in [url_parts(r.value)[2]] if path and path != "/"})
         if paths:
             results.append(
@@ -1966,6 +2123,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         author: str = "hecate (auto-generated from source indicators - requires analyst review)",
         references: Optional[List[str]] = None,
         behaviour: str = "",
+        techniques: Optional[List[str]] = None,
     ) -> Tuple[Optional[SigmaRule], Optional[str]]:
         """Render and validate one deterministic rule: IOC sweeps and the source's own detection guidance."""
         # The same semantic gate as a model rule: a template change that put a
@@ -1973,7 +2131,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         problem = semantic_problem(detection, category, description)
         if problem:
             return None, f"{category} ({label}): {problem}"
-        techniques = _behaviour_techniques(behaviour, input_data.techniques)
+        rule_techniques = techniques if techniques is not None else _behaviour_techniques(behaviour, input_data.techniques)
         document: Dict[str, Any] = {
             "title": title,
             "id": str(uuid.uuid4()),
@@ -1982,7 +2140,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "references": list(dict.fromkeys([*input_data.references, *(references or [])])),
             "author": author,
             "date": date.today().isoformat(),
-            "tags": [f"attack.{t.lower()}" for t in techniques],
+            "tags": [f"attack.{t.lower()}" for t in rule_techniques],
             "logsource": self._logsource_block(category, input_data.platforms),
             "detection": detection,
             "falsepositives": [falsepositives],
@@ -2003,7 +2161,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 title=title,
                 rule_yaml=rule_yaml,
                 level=level,
-                techniques=techniques,
+                techniques=rule_techniques,
                 origin="deterministic",
             ),
             None,
@@ -2011,10 +2169,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
     def _generate_for_logsource(
         self, input_data: SigmaGenerationInput, logsource: str
-    ) -> Tuple[Optional[SigmaRule], List[str]]:
+    ) -> Tuple[Optional[SigmaRule], List[str], List[str]]:
         """Draft one rule for one log source.
 
-        Returns ``(rule_or_None, problems)`` rather than raising, so one log
+        Returns ``(rule_or_None, problems, omitted)`` rather than raising, so one log
         source failing -- a timeout, a truncated reply, an unusable rule --
         costs only its own rule and the rest of the hunt still gets coverage.
         Problems are reported even alongside a successful rule: a response
@@ -2082,7 +2240,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             )
             raw_rules = self._parse_json_response(output_text).get("rules", [])
         except Exception as exc:  # noqa: BLE001 - reported per log source, not fatal
-            return None, [f"{logsource}: {exc}"]
+            return None, [f"{logsource}: {exc}"], []
 
         built, problems = self._collect_rules(raw_rules, input_data)
         return _select_for_logsource(built, logsource, problems)
@@ -2525,6 +2683,7 @@ RULES OF THE TASK:
 14. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
 15. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
 16. NO EXTERNAL THREAT-ACTOR KNOWLEDGE: Do NOT use or extrapolate from pre-trained knowledge about named threat groups, campaigns, or malware families (e.g., "SocGholish", "APT28"). You must strictly restrict detection logic to behaviors, mechanisms, and indicators explicitly given in the HUNT HYPOTHESIS, INDICATORS, and SOURCE PASSAGES. If a behavior, domain, IP, or file artifact is not explicitly stated in the prompt, assume it does not exist.
+17. DUAL-USE CLOUD/SAAS DESTINATIONS: If writing a network connection or DNS query rule involving public cloud storage or SaaS endpoints (e.g. AWS S3 amazonaws.com, Azure Blob blob.core.windows.net, Google Drive, Discord, Telegram), NEVER match the destination as a bare standalone indicator: it causes severe alert storms in enterprise environments. You MUST bind the network connection to the specific initiating process or utility (e.g., Image|endswith: \\svchost_sync.exe or \\rclone.exe) using a combined condition: "(1 of selection_dest_*) and selection_process", or filter legitimate software/browsers.
 Return JSON with a single entry in "rules", or an empty list if this log source category has no supporting evidence in the hypothesis or intelligence:
 {{
   "rules": [
