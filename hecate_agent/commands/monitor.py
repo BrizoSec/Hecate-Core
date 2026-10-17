@@ -1641,8 +1641,43 @@ def _render_dashboard(
     return layout
 
 
+def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
+    """Check if any hecate-runner process is currently running on the host."""
+    try:
+        current_pid = os.getpid()
+        ws_str = str(workspace.resolve()) if workspace else ""
+        for pid_dir in Path("/proc").glob("[0-9]*"):
+            try:
+                pid = int(pid_dir.name)
+                if pid == current_pid:
+                    continue
+                cmdline = (pid_dir / "cmdline").read_bytes().decode("utf-8", errors="ignore").replace("\x00", " ")
+                if "hecate-runner" in cmdline or ("hecate-agent" in cmdline and "monitor" not in cmdline):
+                    try:
+                        cwd = Path(f"/proc/{pid}/cwd").resolve()
+                    except OSError:
+                        cwd = None
+                    if not ws_str or ws_str in cmdline or (cwd and cwd == workspace.resolve()):
+                        return True
+            except (OSError, ValueError):
+                continue
+    except Exception:
+        pass
+    return False
+
+
 def _service_running(runner: RunnerStatus, workspace: Path) -> Optional[bool]:
-    """Whether the Runner service is working, or None when it is not the one writing to ``workspace``."""
+    """Whether the Runner service or process is working, or None when it is not writing to ``workspace``."""
+    if runner.installed and runner.workspace is not None:
+        try:
+            if runner.workspace.resolve() == workspace.resolve() and runner.service_state in {"active", "activating"}:
+                return True
+        except OSError:
+            pass
+
+    if _is_runner_process_running(workspace):
+        return True
+
     if not runner.installed or runner.workspace is None:
         return None
     try:
@@ -1650,7 +1685,7 @@ def _service_running(runner: RunnerStatus, workspace: Path) -> Optional[bool]:
             return None
     except OSError:
         return None
-    return runner.service_state in {"active", "activating"}
+    return False
 
 
 def _duration(seconds: Optional[float]) -> str:
