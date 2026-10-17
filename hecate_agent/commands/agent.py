@@ -634,6 +634,30 @@ def _display_hypothesis_generator_result(result: Any) -> None:  # noqa: C901
         console.print("[bold cyan]Evidence:[/bold cyan]")
         console.print(f"  {data.evidence}\n")
 
+    if data.expected_malicious:
+        console.print("[bold cyan]Expected Malicious:[/bold cyan]")
+        console.print(f"  {data.expected_malicious}\n")
+
+    if data.expected_benign:
+        console.print("[bold cyan]Expected Benign Baseline:[/bold cyan]")
+        console.print(f"  {data.expected_benign}\n")
+
+    if data.falsification_criteria:
+        console.print("[bold cyan]Falsification Criteria:[/bold cyan]")
+        console.print(f"  {data.falsification_criteria}\n")
+
+    if data.rubric_score:
+        score = data.rubric_score
+        verdict = score.get("verdict", "N/A")
+        total = score.get("total", 0)
+        verdict_color = "green" if verdict == "GO" else ("yellow" if verdict == "CONDITIONAL" else "red")
+        console.print(f"[bold cyan]Hypothesis Quality Rubric:[/bold cyan] [{verdict_color}]{verdict} ({total}/15)[/{verdict_color}]")
+        console.print(
+            f"  • Specificity: {score.get('specificity', 0)}/3 | Testability: {score.get('testability', 0)}/3 | "
+            f"Falsifiability: {score.get('falsifiability', 0)}/3 | Relevance: {score.get('relevance', 0)}/3 | "
+            f"Pyramid Level: {score.get('pyramid_level', 0)}/3\n"
+        )
+
     if not data.is_threat_report:
         # No emoji/decoration in the header text itself, same as every
         # other header above -- a caller line-parsing this output (see

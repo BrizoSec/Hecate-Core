@@ -10,6 +10,7 @@ from hecate_agent.agents.llm.hypothesis_generator import (
     HypothesisGenerationOutput,
     HypothesisGeneratorAgent,
     ResearchContext,
+    score_hypothesis_rubric,
 )
 from hecate_agent.core.llm_provider import LLMProvider, LLMResponse
 
@@ -635,3 +636,82 @@ class TestHypothesisGeneratorDuration:
         assert result.success is True
         assert "duration_ms" in result.metadata
         assert isinstance(result.metadata["duration_ms"], int)
+
+
+@pytest.mark.unit
+class TestHypothesisQualityRubric:
+    """Test the 5-dimension rubric scoring and baseline falsification fields."""
+
+    def test_score_hypothesis_rubric_high_quality_go(self):
+        output = HypothesisGenerationOutput(
+            hypothesis="Adversaries dump LSASS using comsvcs.dll MiniDump",
+            justification="Well-documented credential access technique",
+            mitre_techniques=["T1003.001"],
+            data_sources=["Process creation", "Sysmon Event ID 10"],
+            expected_observables=["rundll32.exe comsvcs.dll MiniDump"],
+            known_false_positives=["Authorized memory diagnostic tools"],
+            time_range_suggestion="7 days",
+            actor="FIN7",
+            behavior="LSASS memory dump via rundll32.exe calling comsvcs.dll",
+            location="Domain-joined Windows endpoints",
+            evidence="Sysmon Event ID 10 targeting lsass.exe",
+            is_threat_report=True,
+            expected_malicious="rundll32.exe executing MiniDump export against lsass PID",
+            expected_benign="Standard IT remote diagnostics without LSASS targeting",
+            falsification_criteria="No process access events to lsass.exe across the fleet in 7 days",
+        )
+        scores = score_hypothesis_rubric(output)
+        assert scores["specificity"] == 3
+        assert scores["testability"] == 3
+        assert scores["falsifiability"] == 3
+        assert scores["relevance"] == 3
+        assert scores["pyramid_level"] == 3
+        assert scores["total"] == 15
+        assert scores["verdict"] == "GO"
+
+    def test_score_hypothesis_rubric_low_relevance_no_go(self):
+        output = HypothesisGenerationOutput(
+            hypothesis="Speculative vendor product update",
+            justification="",
+            mitre_techniques=[],
+            data_sources=[],
+            expected_observables=[],
+            known_false_positives=[],
+            time_range_suggestion="7 days",
+            is_threat_report=False,
+            is_indicator_only=False,
+        )
+        scores = score_hypothesis_rubric(output)
+        assert scores["total"] <= 6
+        assert scores["verdict"] == "NO-GO"
+
+    def test_score_hypothesis_rubric_conditional_when_missing_falsification(self):
+        output = HypothesisGenerationOutput(
+            hypothesis="Adversaries dump LSASS",
+            justification="T1003.001",
+            mitre_techniques=["T1003.001"],
+            data_sources=["Process creation"],
+            expected_observables=[],
+            known_false_positives=[],
+            time_range_suggestion="7 days",
+            behavior="LSASS dumping",
+            is_threat_report=True,
+            falsification_criteria="",
+            expected_benign="",
+            expected_malicious="",
+        )
+        scores = score_hypothesis_rubric(output)
+        # Falsifiability drops to 1, causing conditional verdict
+        assert scores["falsifiability"] == 1
+        assert scores["verdict"] in ("CONDITIONAL", "NO-GO")
+
+    def test_execute_populates_rubric_score(self):
+        mock = MockProvider(VALID_HYPOTHESIS_JSON)
+        agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
+        result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data is not None
+        assert "verdict" in result.data.rubric_score
+        assert "total" in result.data.rubric_score
+

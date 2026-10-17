@@ -145,6 +145,43 @@ class TestDisplayHypothesisGeneratorResult:
         assert "Cost: $0.0123" in output
         assert "Tokens: 500 input + 120 output" in output
 
+    def test_shows_baseline_and_rubric_fields_when_present(self):
+        data = _make_output(
+            expected_malicious="Unscheduled execution of target process or script",
+            expected_benign="Standard system administration scripts and approved deployment tools",
+            falsification_criteria="Absence of target behavior in telemetry over the 7-day lookback window",
+            rubric_score={
+                "specificity": 3,
+                "testability": 3,
+                "falsifiability": 3,
+                "relevance": 3,
+                "pyramid_level": 3,
+                "total": 15,
+                "verdict": "GO",
+            },
+        )
+        result = AgentResult(success=True, data=data, error=None)
+        output = _capture(result)
+
+        assert "Expected Malicious:" in output
+        assert "Unscheduled execution of target process or script" in output
+        assert "Expected Benign Baseline:" in output
+        assert "Standard system administration scripts" in output
+        assert "Falsification Criteria:" in output
+        assert "Absence of target behavior in telemetry" in output
+        assert "Hypothesis Quality Rubric:" in output
+        assert "GO (15/15)" in output
+        assert "Specificity: 3/3" in output
+
+    def test_omits_baseline_and_rubric_fields_when_empty(self):
+        result = AgentResult(success=True, data=_make_output(), error=None)
+        output = _capture(result)
+
+        assert "Expected Malicious:" not in output
+        assert "Expected Benign Baseline:" not in output
+        assert "Falsification Criteria:" not in output
+        assert "Hypothesis Quality Rubric:" not in output
+
 
 class TestDisplayPivotResult:
     """Tests for _display_pivot_result."""

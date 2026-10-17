@@ -89,6 +89,69 @@ class HypothesisGenerationOutput:
     # keeps the normal behavior-hypothesis path.
     is_indicator_only: bool = False
     indicator_records: List[Dict[str, Any]] = field(default_factory=list)
+    # Quality rubric & baseline anchors (Unified Threat Hunting)
+    expected_malicious: str = ""
+    expected_benign: str = ""
+    falsification_criteria: str = ""
+    rubric_score: Dict[str, Any] = field(default_factory=dict)
+
+
+def score_hypothesis_rubric(output: HypothesisGenerationOutput) -> Dict[str, Any]:
+    """Score hypothesis quality according to the 5-dimension rubric.
+
+    Dimensions scored 1-3: Specificity, Testability, Falsifiability, Relevance, Pyramid Level.
+    Threshold: >= 10 total with no dimension scoring 1 yields 'GO'.
+    """
+    # 1. Specificity:
+    spec = 1
+    if output.behavior and (output.evidence or len(output.expected_observables) > 0):
+        spec = 3
+    elif output.behavior or len(output.mitre_techniques) > 0:
+        spec = 2
+
+    # 2. Testability:
+    test = 1
+    if output.data_sources and (output.expected_observables or output.evidence):
+        test = 3
+    elif output.data_sources or output.expected_observables:
+        test = 2
+
+    # 3. Falsifiability:
+    fals = 1
+    if output.falsification_criteria or (output.expected_benign and output.expected_malicious):
+        fals = 3
+    elif output.known_false_positives or output.expected_benign:
+        fals = 2
+
+    # 4. Relevance:
+    rel = 1
+    if output.is_threat_report and (output.mitre_techniques or output.justification):
+        rel = 3
+    elif output.is_threat_report:
+        rel = 2
+
+    # 5. Pyramid Level:
+    pyr = 3 if output.mitre_techniques else (1 if output.is_indicator_only else 2)
+
+    total = spec + test + fals + rel + pyr
+    scores: Dict[str, Any] = {
+        "specificity": spec,
+        "testability": test,
+        "falsifiability": fals,
+        "relevance": rel,
+        "pyramid_level": pyr,
+        "total": total,
+    }
+
+    if total >= 10 and min(spec, test, fals, rel, pyr) > 1:
+        verdict = "GO"
+    elif total <= 6:
+        verdict = "NO-GO"
+    else:
+        verdict = "CONDITIONAL"
+
+    scores["verdict"] = verdict
+    return scores
 
 
 def _bullet_block(heading: str, items: List[str]) -> List[str]:
@@ -176,6 +239,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 
             # Validate technique IDs against the real ATT&CK matrix and extracted evidence
             output, warnings = self._apply_technique_validation(output, input_data)
+            output.rubric_score = score_hypothesis_rubric(output)
 
             provider = self._get_provider()
             model_name = getattr(
@@ -290,6 +354,11 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 is_threat_report=output.is_threat_report,
                 low_confidence_reason=output.low_confidence_reason,
                 is_indicator_only=output.is_indicator_only,
+                indicator_records=output.indicator_records,
+                expected_malicious=output.expected_malicious,
+                expected_benign=output.expected_benign,
+                falsification_criteria=output.falsification_criteria,
+                rubric_score=output.rubric_score,
             ),
             warnings,
         )
@@ -481,6 +550,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "- Data Sources: Which data sources to query. MUST MATCH THE TARGET OS: If the threat intel targets Linux or macOS, you MUST NOT list Windows-only data sources like `registry_events` or `wmi`.\n"
             "- Expected Observables: What we expect to find\n"
             "- Known False Positives: Specific, concrete IT or administrative activities that overlap with the targeted behavior. Do NOT write generic defaults like 'Legitimate network traffic' or 'Legitimate software updates'. Name the exact administrative tools, processes, or configurations that might trigger these observables.\n"
+            "- Expected Malicious: What an anomalous or true-positive execution looks like in telemetry (specific anomalous pattern).\n"
+            "- Expected Benign Baseline: What normal/legitimate administrative behavior looks like (authorized IT baseline to contrast against).\n"
+            "- Falsification Criteria: What specific telemetry finding or absence of events would disprove/falsify this hypothesis.\n"
             "- Time Range: Suggested time window with justification\n\n"
             "Also provide ABLE scoping (Actor, Behavior, Location, Evidence) "
             "-- Hecate's standard hunt-scoping framework. Base every ABLE field "
@@ -516,6 +588,9 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '["<a specific artifact from the intel: file name, command line, domain, registry path>"],\n'
             '  "known_false_positives": '
             '["<a named benign activity that produces the same artifact in this hunt>"],\n'
+            '  "expected_malicious": "string (specific anomalous execution in logs)",\n'
+            '  "expected_benign": "string (normal/authorized baseline behavior)",\n'
+            '  "falsification_criteria": "string (what negative finding or absence falsifies this hypothesis)",\n'
             '  "time_range_suggestion": "7 days (justification)",\n'
             '  "actor": "string (or empty string if unknown)",\n'
             '  "behavior": "string",\n'
@@ -674,7 +749,11 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 "Administrative tools",
             ],
             time_range_suggestion="7 days (standard baseline)",
+            expected_malicious="Unscheduled execution of target process or script from non-standard directory",
+            expected_benign="Standard system administration scripts and approved deployment tools",
+            falsification_criteria="Absence of target behavior in telemetry over the 7-day lookback window",
         )
+        output.rubric_score = score_hypothesis_rubric(output)
 
         warnings = ["LLM disabled - using template generation"]
         if error:
