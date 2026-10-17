@@ -1359,12 +1359,14 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
             ("SERVICE  ", "dim"),
             (service_state, service_style),
             (" · timer " + ("active" if status.timer_active else "inactive"), "bright_cyan"),
+            no_wrap=True,
         ),
-        Text.assemble(("NEXT RUN ", "dim"), (_until_next_run(status.next_run), "bright_magenta")),
+        Text.assemble(("NEXT RUN ", "dim"), (_until_next_run(status.next_run), "bright_magenta"), no_wrap=True),
         Text.assemble(
             ("QUOTA    ", "dim"),
             ("drafts " + _quota_text(status.drafts_today, status.drafts_limit), "bright_white"),
             (" · research " + _quota_text(status.research_today, status.research_limit), "bright_white"),
+            no_wrap=True,
         ),
     ]
     backlog = _backlog_observation(events)
@@ -1372,19 +1374,20 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
         rows.append(
             Text.assemble(
                 ("BACKLOG  ", "dim"),
-                (f"{backlog[0]} high-signal waiting", "bright_cyan"),
-                (f" · observed {backlog[1]}", "dim"),
+                (f"{backlog[0]} waiting", "bright_cyan"),
+                (f" · {backlog[1]}", "dim"),
+                no_wrap=True,
             )
         )
     else:
-        rows.append(Text.assemble(("BACKLOG  ", "dim"), ("not reported in recent trail", "yellow")))
+        rows.append(Text.assemble(("BACKLOG  ", "dim"), ("none reported", "yellow"), no_wrap=True))
     if status.parked_items is not None or status.total_drafts is not None:
         details = []
         if status.parked_items is not None:
             details.append(f"{status.parked_items} parked")
         if status.total_drafts is not None:
             details.append(f"{status.total_drafts} total drafts")
-        rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), "bright_white")))
+        rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), "bright_white"), no_wrap=True))
     return Panel(
         Group(*rows),
         title="[bold bright_cyan]RUNNER SERVICE[/]",
