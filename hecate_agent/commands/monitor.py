@@ -927,7 +927,7 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
 def _credential_summary(workspace: Optional[Path] = None) -> str:
     """Show configured status only; never read or render credential values."""
     on, off = _credential_status(workspace)
-    return " · ".join([f"{l} ON" for l in on] + [f"{l} OFF" for l in off])
+    return " · ".join([f"{item} ON" for item in on] + [f"{item} OFF" for item in off])
 
 
 def _integrations_panel(
@@ -1357,7 +1357,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore
+        from hecate_agent.orchestrator.graph import hecate_graph
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
@@ -1657,7 +1657,7 @@ def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
                         cwd = Path(f"/proc/{pid}/cwd").resolve()
                     except OSError:
                         cwd = None
-                    if not ws_str or ws_str in cmdline or (cwd and cwd == workspace.resolve()):
+                    if not ws_str or ws_str in cmdline or (cwd is not None and workspace is not None and cwd == workspace.resolve()):
                         return True
             except (OSError, ValueError):
                 continue
