@@ -1241,6 +1241,9 @@ class HuntsMetrics:
     active_count: int = 0
     completed_count: int = 0
     threats_count: int = 0
+    actors_count: int = 0
+    campaigns_count: int = 0
+    malware_count: int = 0
     ttps_count: int = 0
     network_total: int = 0
     network_ips: int = 0
@@ -1257,6 +1260,7 @@ _RE_IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _RE_SHA256 = re.compile(r"\b[a-fA-F0-9]{64}\b")
 _RE_SHA1 = re.compile(r"\b[a-fA-F0-9]{40}\b")
 _RE_MD5 = re.compile(r"\b[a-fA-F0-9]{32}\b")
+_RE_HEX = re.compile(r"^[a-fA-F0-9]{32,64}$")
 _RE_DOMAIN = re.compile(
     r"\b(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|xyz|ru|cn|io|top|biz|info|cc|co|kg|lv|dev|online|store|site|club|app|vip|pro|mobi|tech)\b",
     re.IGNORECASE,
@@ -1265,9 +1269,23 @@ _RE_ACTOR_ROW = re.compile(r"\|\s*\*\*Actor\*\*\s*\|\s*([^|\n]+)\|")
 _RE_THREAT_CONTEXT = re.compile(r"\*\*Threat(?:\s+Actor)?:\*\*\s*([^\n]+)")
 _RE_GROUNDING_ENTITY = re.compile(r"\|\s*`([^`]+)`\s*\|\s*entity\s*\|\s*asserted by CTI")
 _RE_ROLE_INDICATOR = re.compile(r"\|\s*`([^`]+)`\s*\|\s*([\w_]+)\s*\|")
+_RE_MALWARE_TERMS = re.compile(
+    r"\b(trojan|ransomware|stealer|loader|backdoor|rat|botnet|wiper|rootkit|infostealer|dropper|implant|spyware|worm|malware|keylogger|miner|vshell)\b",
+    re.I,
+)
+_RE_CAMEL_MALWARE = re.compile(r"\b[A-Z][a-z0-9]+(?:RAT|Bot|Loader|Stealer|Locker)\b")
+_RE_ACTOR_TERMS = re.compile(
+    r"\b(apt\d+|fin\d+|unc\d+|ta\d+|storm-\d+|group|team|crew|cartel|operators?|syndicate|threat cluster)\b",
+    re.I,
+)
+_RE_CAMPAIGN_TERMS = re.compile(
+    r"\b(campaign|operation|op\s+[a-z0-9_-]+)\b",
+    re.I,
+)
 _GENERIC_THREAT_NAMES = {
     "unknown", "none", "n/a", "various", "threat actor", "adversary",
     "unspecified", "tbd", "actor", "attacker", "malware", "not specified",
+    "hkcu", "hklm",
 }
 
 _HUNTS_METRICS_CACHE: Dict[Path, Tuple[float, int, float, HuntsMetrics]] = {}
@@ -1310,13 +1328,46 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     drafts_count = 0
     active_count = 0
     completed_count = 0
-    threats: Set[str] = set()
+    actors: Set[str] = set()
+    campaigns: Set[str] = set()
+    malware: Set[str] = set()
     techniques: Set[str] = set()
     network_ips: Set[str] = set()
     network_domains: Set[str] = set()
     network_urls: Set[str] = set()
     host_hashes: Set[str] = set()
     host_paths: Set[str] = set()
+
+    from hecate_agent.core.grounding import _ACRONYM_STOPWORDS
+
+    def _is_valid_threat(val: str) -> bool:
+        if not val or len(val) < 2:
+            return False
+        lowered = val.lower()
+        if lowered in _GENERIC_THREAT_NAMES or lowered in _ACRONYM_STOPWORDS:
+            return False
+        if lowered.startswith("[review") or lowered.startswith("review cti"):
+            return False
+        if "/" in val or "\\" in val:
+            return False
+        if _RE_HEX.match(val) or _RE_IP.match(val):
+            return False
+        return True
+
+    def _record_threat(name: str, hint: str = "") -> None:
+        clean = name.strip().strip("*_`# ")
+        if not _is_valid_threat(clean):
+            return
+        if _RE_ACTOR_TERMS.search(clean) or hint == "actor":
+            actors.add(clean)
+        elif _RE_CAMPAIGN_TERMS.search(clean) or hint == "campaign":
+            campaigns.add(clean)
+        elif _RE_MALWARE_TERMS.search(clean) or _RE_CAMEL_MALWARE.search(clean) or hint == "malware":
+            malware.add(clean)
+        elif hint == "attribution":
+            actors.add(clean)
+        else:
+            malware.add(clean)
 
     for hunt_file in hunt_files:
         try:
@@ -1344,9 +1395,8 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                 for k in ("threat", "threat_actor", "actor"):
                     val = fm.get(k)
                     if val and isinstance(val, str):
-                        clean_val = val.strip().strip("*_`")
-                        if clean_val.lower() not in _GENERIC_THREAT_NAMES:
-                            threats.add(clean_val)
+                        for p in re.split(r",\s*|\s*;\s*|\s+and\s+", val):
+                            _record_threat(p, hint="attribution")
             except Exception:
                 drafts_count += 1
         else:
@@ -1354,26 +1404,35 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
 
         m_act = _RE_ACTOR_ROW.search(text)
         if m_act:
-            clean_act = m_act.group(1).strip().strip("*_`")
-            if clean_act.lower() not in _GENERIC_THREAT_NAMES:
-                threats.add(clean_act)
+            for p in re.split(r",\s*|\s*;\s*|\s+and\s+", m_act.group(1)):
+                _record_threat(p, hint="actor")
 
         m_ta = _RE_THREAT_CONTEXT.search(text)
         if m_ta:
-            clean_ta = m_ta.group(1).strip().strip("*_# `")
-            if clean_ta.lower() not in _GENERIC_THREAT_NAMES:
-                threats.add(clean_ta)
+            for p in re.split(r",\s*|\s*;\s*|\s+and\s+", m_ta.group(1)):
+                _record_threat(p, hint="attribution")
+
+        m_tags = re.search(r"Tags:\s*([^\n]+)", text)
+        if m_tags:
+            for tag in m_tags.group(1).split(","):
+                clean_tag = tag.strip().strip("*_`# ")
+                if _is_valid_threat(clean_tag):
+                    if _RE_CAMPAIGN_TERMS.search(clean_tag):
+                        campaigns.add(clean_tag)
+                    elif _RE_MALWARE_TERMS.search(clean_tag) or _RE_CAMEL_MALWARE.search(clean_tag):
+                        malware.add(clean_tag)
 
         for m_ge in _RE_GROUNDING_ENTITY.finditer(text):
-            clean_ent = m_ge.group(1).strip()
-            if clean_ent.lower() not in _GENERIC_THREAT_NAMES:
-                threats.add(clean_ent)
+            _record_threat(m_ge.group(1).strip())
 
         for m_ir in _RE_ROLE_INDICATOR.finditer(text):
             val, itype = m_ir.group(1).strip(), m_ir.group(2).lower()
-            if itype in {"malware_family", "threat_actor", "actor"}:
-                if val.lower() not in _GENERIC_THREAT_NAMES:
-                    threats.add(val)
+            if itype in {"malware_family", "malware"}:
+                _record_threat(val, hint="malware")
+            elif itype in {"threat_actor", "actor"}:
+                _record_threat(val, hint="actor")
+            elif itype == "campaign":
+                _record_threat(val, hint="campaign")
             elif itype in {"ip", "ipv4", "ipv6"}:
                 clean_ip = val.replace("[", "").replace("]", "")
                 if _RE_IP.match(clean_ip):
@@ -1405,12 +1464,18 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                 for p in re.findall(r"`([^`]+)`", m_fp.group(0)):
                     host_paths.add(p)
 
+    actors.difference_update(malware | campaigns)
+    all_threats = actors | campaigns | malware
+
     metrics = HuntsMetrics(
         total_hunts=file_count,
         drafts_count=drafts_count,
         active_count=active_count,
         completed_count=completed_count,
-        threats_count=len(threats),
+        threats_count=len(all_threats),
+        actors_count=len(actors),
+        campaigns_count=len(campaigns),
+        malware_count=len(malware),
         ttps_count=len(techniques),
         network_total=len(network_ips | network_domains | network_urls),
         network_ips=len(network_ips),
@@ -1450,23 +1515,39 @@ def _hunts_summary_panel(
                 "HUNTS",
                 Text.assemble((hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
             )
+            if compact:
+                threats_val = f"{h_metrics.threats_count}"
+                threats_sub = f"{h_metrics.actors_count} act, {h_metrics.campaigns_count} camp, {h_metrics.malware_count} mal"
+            else:
+                threats_val = f"{h_metrics.threats_count} tracked"
+                threats_sub = f"{h_metrics.actors_count} actors, {h_metrics.campaigns_count} campaigns, {h_metrics.malware_count} malware"
             table.add_row(
                 "THREATS",
-                Text.assemble((f"{h_metrics.threats_count} tracked", "bright_white"), (" · ", "dim"), ("actors & malware", "bright_cyan")),
+                Text.assemble((threats_val, "bright_white"), (" · ", "dim"), (threats_sub, "bright_cyan")),
             )
             table.add_row(
                 "ATT&CK",
                 Text.assemble((f"{h_metrics.ttps_count} techniques", "bright_white"), (" · ", "dim"), ("coverage", "bright_cyan")),
             )
-            table.add_row(
-                "IOCs",
-                Text.assemble(
-                    (f"{h_metrics.network_total:,} net", "bright_white"),
-                    (f" ({h_metrics.network_ips} IPs, {h_metrics.network_domains} dom) · ", "dim"),
-                    (f"{h_metrics.host_total:,} host", "bright_white"),
-                    (f" ({h_metrics.host_hashes} hash)", "dim"),
-                ),
-            )
+            if compact:
+                table.add_row(
+                    "IOCs",
+                    Text.assemble(
+                        (f"{h_metrics.network_total:,} net", "bright_white"),
+                        (" · ", "dim"),
+                        (f"{h_metrics.host_total:,} host", "bright_white"),
+                    ),
+                )
+            else:
+                table.add_row(
+                    "IOCs",
+                    Text.assemble(
+                        (f"{h_metrics.network_total:,} net", "bright_white"),
+                        (f" ({h_metrics.network_ips} IPs, {h_metrics.network_domains} dom) · ", "dim"),
+                        (f"{h_metrics.host_total:,} host", "bright_white"),
+                        (f" ({h_metrics.host_hashes} hash)", "dim"),
+                    ),
+                )
     else:
         # Narrow mode (stacked on left column under INTEGRATIONS)
         if h_metrics.total_hunts == 0:
@@ -1482,9 +1563,11 @@ def _hunts_summary_panel(
                 "HUNTS",
                 Text.assemble((hunts_val, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
             )
+            threats_val = f"{h_metrics.threats_count}"
+            threats_sub_narrow = f"{h_metrics.actors_count} act, {h_metrics.campaigns_count} camp, {h_metrics.malware_count} mal"
             table.add_row(
                 "THREATS",
-                Text.assemble((f"{h_metrics.threats_count} tracked", "bright_white"), (" · ", "dim"), ("actors & malware", "bright_cyan")),
+                Text.assemble((threats_val, "bright_white"), (" · ", "dim"), (threats_sub_narrow, "bright_cyan")),
             )
             table.add_row(
                 "ATT&CK",

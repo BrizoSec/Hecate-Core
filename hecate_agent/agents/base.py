@@ -6,7 +6,7 @@ import re
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, cast
 
 from hecate_agent.core.cost_tracker import summarize_cost
 
@@ -264,17 +264,64 @@ class LLMAgent(Agent[InputT, OutputT]):
             if json_end > json_start:
                 cleaned = cleaned[json_start:json_end].strip()
 
+        def _repair_json_string(s: str) -> str:
+            # Strip trailing commas: ", ]" -> "]" or ", }" -> "}"
+            s = re.sub(r",\s*([\]}])", r"\1", s)
+            # Remove single-line comments outside strings
+            s = re.sub(r"(?m)^\s*//.*?$", "", s)
+            # Repair unescaped backslashes
+            s = re.sub(r"(?<!\\)\\(?![\"\\/bfnrt]|u[0-9a-fA-F]{4})", r"\\\\", s)
+            return s
+
+        def _close_unclosed_json(s: str) -> str:
+            trimmed = s.strip()
+            in_string = False
+            escape = False
+            stack = []
+            for ch in trimmed:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if ch in "{[":
+                        stack.append(ch)
+                    elif ch == "}" and stack and stack[-1] == "{":
+                        stack.pop()
+                    elif ch == "]" and stack and stack[-1] == "[":
+                        stack.pop()
+
+            if in_string:
+                trimmed += '"'
+            trimmed = re.sub(r",\s*$", "", trimmed)
+            trimmed = re.sub(r":\s*$", "", trimmed)
+            close_map = {"{": "}", "[": "]"}
+            for open_ch in reversed(stack):
+                trimmed += close_map[open_ch]
+            return trimmed
+
         def _try_decode(candidate: str) -> Optional[Dict[str, Any]]:
-            try:
-                return json.loads(candidate)
-            except json.JSONDecodeError:
-                pass
-            try:
-                repaired = re.sub(r"(?<!\\)\\(?![\"\\/bfnrt]|u[0-9a-fA-F]{4})", r"\\\\", candidate)
-                return json.loads(repaired)
-            except json.JSONDecodeError:
-                pass
-            return None
+            def _load_dict(s: str) -> Optional[Dict[str, Any]]:
+                try:
+                    res = json.loads(s)
+                    if isinstance(res, dict):
+                        return cast(Dict[str, Any], res)
+                except json.JSONDecodeError:
+                    pass
+                return None
+
+            res = _load_dict(candidate)
+            if res is not None:
+                return res
+            res = _load_dict(_repair_json_string(candidate))
+            if res is not None:
+                return res
+            return _load_dict(_repair_json_string(_close_unclosed_json(candidate)))
 
         parsed = _try_decode(cleaned)
         if parsed is not None:

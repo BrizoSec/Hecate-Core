@@ -64,6 +64,14 @@ _MARKERS: Dict[str, Tuple[str, ...]] = {
     "Network Devices": (
         r"\bfortios\b", r"\bcisco\b", r"\bpan-os\b", r"\bjuniper\b",
     ),
+    "Android": (
+        r"\.apk\b", r"\.dex\b", r"\.aab\b", r"\bandroid\b", r"\bdalvik\b", r"\bart runtime\b",
+        r"\bplay store\b", r"\bgoogle play\b", r"\badb\b", r"\byahfa\b", r"\bdobby\b",
+    ),
+    "iOS": (
+        r"\.ipa\b", r"\bios\b", r"\biphone\b", r"\bipad\b", r"\bjailbreak\b", r"\bcydia\b",
+        r"\bapp store\b", r"\btestflight\b",
+    ),
 }  # fmt: skip
 #: A platform named outright: counted like a marker, once.
 _NAMES: Dict[str, str] = {
@@ -71,6 +79,10 @@ _NAMES: Dict[str, str] = {
     "linux": "Linux",
     "macos": "macOS",
     "mac os": "macOS",
+    "android": "Android",
+    "ios": "iOS",
+    "iphone": "iOS",
+    "ipad": "iOS",
     "container": "Containers",
     "containers": "Containers",
     "kubernetes": "Containers",

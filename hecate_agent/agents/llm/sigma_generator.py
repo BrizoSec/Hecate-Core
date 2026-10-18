@@ -1507,8 +1507,6 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         # guidance can be narrowed to the category actually being written.
         from concurrent.futures import ThreadPoolExecutor
 
-        rules: List[SigmaRule] = []
-        rejected: List[str] = []
         omitted: List[str] = []
 
         with ThreadPoolExecutor(max_workers=min(len(logsources) or 1, 6)) as executor:
@@ -2399,6 +2397,12 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             return detection, None  # let _validate_detection report the shape
 
         detection = dict(detection)
+        for k, v in list(detection.items()):
+            if k != "condition" and isinstance(v, dict) and "condition" in v:
+                cond = v.pop("condition")
+                if not detection.get("condition") and isinstance(cond, str) and cond.strip():
+                    detection["condition"] = cond.strip()
+
         if not detection.get("condition"):
             top_level = raw.get("condition")
             if isinstance(top_level, str) and top_level.strip():

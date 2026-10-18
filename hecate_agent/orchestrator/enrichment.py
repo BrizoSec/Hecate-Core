@@ -424,7 +424,7 @@ def query_abuseipdb_ip(ip: str) -> str:
     }
     params = {
         "ipAddress": ip,
-        "maxAgeInDays": 90,
+        "maxAgeInDays": "90",
     }
     try:
         resp = httpx.get(url, headers=headers, params=params, timeout=10.0)
@@ -504,11 +504,11 @@ def query_malwarebazaar(file_hash: str) -> str:
                 ftype = item.get("file_type") or "Unknown"
                 delivery = item.get("delivery_method")
                 raw_yara = item.get("yara_rules") or []
-                yara_rules = [
-                    y.get("rule_name") for y in raw_yara
+                yara_rules: List[str] = [
+                    str(y.get("rule_name")) for y in raw_yara
                     if isinstance(y, dict) and y.get("rule_name")
                 ]
-                tags = item.get("tags") or []
+                tags: List[str] = [str(t) for t in (item.get("tags") or []) if t]
 
                 parts = [f"Family: {sig}", f"Type: {ftype}"]
                 if delivery:

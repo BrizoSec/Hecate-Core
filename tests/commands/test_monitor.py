@@ -478,6 +478,9 @@ def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
         host_total=1085,
         host_hashes=477,
         host_paths=608,
+        actors_count=50,
+        campaigns_count=10,
+        malware_count=235,
     )
     c = Console(width=48, record=True, force_terminal=False)
     panel = m._hunts_summary_panel(workspace=tmp_path, narrow=True, metrics=mock_metrics)
@@ -486,7 +489,8 @@ def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
 
     assert "HUNTS SUMMARY" in text
     assert "HUNTS" in text and "197 total" in text and "197 drafts" in text
-    assert "THREATS" in text and "295 tracked" in text
+    assert "THREATS" in text and "295" in text
+    assert "50 act, 10 camp, 235 mal" in text
     assert "ATT&CK" in text and "200 techniques" in text
     assert "NETWORK" in text and "1,053 IOCs" in text and "271 IPs" in text
     assert "HOST" in text and "1,085 IOCs" in text and "477 hash" in text
@@ -500,6 +504,9 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
         total_hunts=197,
         drafts_count=197,
         threats_count=295,
+        actors_count=50,
+        campaigns_count=10,
+        malware_count=235,
         ttps_count=200,
         network_total=1053,
         network_ips=271,
@@ -516,6 +523,7 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
     assert "HUNTS SUMMARY" in text_wide
     assert "197 total" in text_wide
     assert "295 tracked" in text_wide
+    assert "50 actors, 10 campaigns, 235 malware" in text_wide
     assert "IOCs" in text_wide and "1,053 net" in text_wide
 
     # Compact mode
@@ -524,6 +532,7 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
     c_compact.print(panel_compact)
     text_compact = c_compact.export_text()
     assert len(text_compact.splitlines()) == m._USAGE_PANEL_HEIGHT
+    assert "50 act, 10 camp, 235 mal" in text_compact
 
 
 def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
