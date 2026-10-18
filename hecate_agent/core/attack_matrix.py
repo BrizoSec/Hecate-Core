@@ -752,6 +752,11 @@ def _load_mobile_ics_mappings() -> Tuple[Dict[str, List[str]], Dict[str, List[st
         return _MOBILE_ICS_CACHE
 
     stix_dir = _get_stix_cache_dir()
+    candidate_dirs = [
+        stix_dir,
+        Path.home() / ".hecate" / "stix-data",
+        Path("/home/chemch/.hecate/stix-data"),
+    ]
     mobile_map: Dict[str, List[str]] = {}
     ics_map: Dict[str, List[str]] = {}
 
@@ -759,8 +764,13 @@ def _load_mobile_ics_mappings() -> Tuple[Dict[str, List[str]], Dict[str, List[st
         ("mobile", "mobile-attack.json", mobile_map),
         ("ics", "ics-attack.json", ics_map),
     ):
-        file_path = stix_dir / fname
-        if not file_path.exists():
+        file_path: Optional[Path] = None
+        for cdir in candidate_dirs:
+            p = cdir / fname
+            if p.exists():
+                file_path = p
+                break
+        if not file_path:
             continue
         try:
             with open(file_path, "r", encoding="utf-8") as f:

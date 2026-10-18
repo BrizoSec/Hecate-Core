@@ -703,7 +703,7 @@ _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
 _INTEGRATIONS_PANEL_HEIGHT = 10
 _HUNTS_PANEL_HEIGHT = 7
-_MITRE_PANEL_HEIGHT = 8
+_MITRE_PANEL_HEIGHT = 12
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -717,7 +717,7 @@ def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str)
 #: Rows of the usage panel in the full layout, with its border.
 _USAGE_PANEL_HEIGHT = 6
 #: Height of the bottom usage/summary/integrations row in horizontal dashboard layouts.
-_BOTTOM_ROW_HEIGHT = 10
+_BOTTOM_ROW_HEIGHT = 12
 
 
 def _stage_line(llm_stages: List[Dict[str, Any]], tokens: bool = True) -> str:
@@ -1717,55 +1717,51 @@ def _mitre_metrics_panel(
     exfil = ent.get("exfiltration", 0)
     impact = ent.get("impact", 0)
 
-    if ent_total == 0 and h_metrics.ttps_count == 0:
-        table.add_row("ENTERPRISE", Text("0 TTPs · 15 tactics ready", style="dim"))
-        table.add_row(" Ingress", Text("Recon 0 · ResDev 0 · InitAcc 0", style="dim"))
-        table.add_row(" Execution", Text("Exec 0 · Persist 0 · PrivEsc 0", style="dim"))
-        table.add_row(" Evasion", Text("Stealth 0 · DefImp 0 · CredAcc 0", style="dim"))
-        if narrow:
-            table.add_row(" Objectives", Text("Disc 0 · C2 0 · Impact 0", style="dim"))
+    active_tactics = sum(1 for v in ent.values() if v > 0)
+
+    if compact:
+        if ent_total == 0 and h_metrics.ttps_count == 0:
+            table.add_row("ENTERPRISE", Text("0 TTPs · 15 tactics ready", style="dim"))
+            table.add_row(" Ingress", Text("Recon 0 · ResDev 0 · InitAcc 0", style="dim"))
+            table.add_row(" Execution", Text("Exec 0 · Persist 0 · PrivEsc 0", style="dim"))
+            table.add_row(" Defense", Text("Stealth 0 · DefImp 0 · CredAcc 0", style="dim"))
+            table.add_row(" Actions", Text("Disc 0 · C2 0 · Impact 0", style="dim"))
             table.add_row("MOB & ICS", Text("Mob: 0 · ICS: 0", style="dim"))
         else:
-            table.add_row(" Movement", Text("Disc 0 · LatMove 0 · Collect 0", style="dim"))
-            table.add_row(" Objective", Text("C2 0 · Exfil 0 · Impact 0", style="dim"))
-            table.add_row("MOBILE", Text("0 TTPs · 14 tactics ready", style="dim"))
-            table.add_row("ICS", Text("0 TTPs · 12 tactics ready", style="dim"))
-    else:
-        table.add_row(
-            "ENTERPRISE",
-            Text.assemble(
-                (f"{ent_total} TTPs", "bright_white"),
-                (" · ", "dim"),
-                ("15 tactics active" if ent_total > 0 else "ready", "bright_cyan"),
-            ),
-        )
-        table.add_row(
-            " Ingress",
-            Text.assemble(
-                ("Recon ", "dim"), (str(recon), "bright_white"), (" · ", "dim"),
-                ("ResDev ", "dim"), (str(resdev), "bright_white"), (" · ", "dim"),
-                ("InitAcc ", "dim"), (str(initacc), "bright_white"),
-            ),
-        )
-        table.add_row(
-            " Execution",
-            Text.assemble(
-                ("Exec ", "dim"), (str(exec_cnt), "bright_white"), (" · ", "dim"),
-                ("Persist ", "dim"), (str(persist), "bright_white"), (" · ", "dim"),
-                ("PrivEsc ", "dim"), (str(privesc), "bright_white"),
-            ),
-        )
-        table.add_row(
-            " Evasion",
-            Text.assemble(
-                ("Stealth ", "dim"), (str(stealth), "bright_white"), (" · ", "dim"),
-                ("DefImp ", "dim"), (str(defimp), "bright_white"), (" · ", "dim"),
-                ("CredAcc ", "dim"), (str(credacc), "bright_white"),
-            ),
-        )
-        if narrow:
             table.add_row(
-                " Objectives",
+                "ENTERPRISE",
+                Text.assemble(
+                    (f"{ent_total} TTPs", "bright_white"),
+                    (" · ", "dim"),
+                    (f"{active_tactics} tactics active" if active_tactics > 0 else "ready", "bright_cyan"),
+                ),
+            )
+            table.add_row(
+                " Ingress",
+                Text.assemble(
+                    ("Recon ", "dim"), (str(recon), "bright_white"), (" · ", "dim"),
+                    ("ResDev ", "dim"), (str(resdev), "bright_white"), (" · ", "dim"),
+                    ("InitAcc ", "dim"), (str(initacc), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Execution",
+                Text.assemble(
+                    ("Exec ", "dim"), (str(exec_cnt), "bright_white"), (" · ", "dim"),
+                    ("Persist ", "dim"), (str(persist), "bright_white"), (" · ", "dim"),
+                    ("PrivEsc ", "dim"), (str(privesc), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Defense",
+                Text.assemble(
+                    ("Stealth ", "dim"), (str(stealth), "bright_white"), (" · ", "dim"),
+                    ("DefImp ", "dim"), (str(defimp), "bright_white"), (" · ", "dim"),
+                    ("CredAcc ", "dim"), (str(credacc), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Actions",
                 Text.assemble(
                     ("Disc ", "dim"), (str(disc), "bright_white"), (" · ", "dim"),
                     ("C2 ", "dim"), (str(c2), "bright_white"), (" · ", "dim"),
@@ -1782,23 +1778,78 @@ def _mitre_metrics_panel(
                     (ics_str, "bright_cyan" if ics_total else "dim"),
                 ),
             )
+    else:
+        if ent_total == 0 and h_metrics.ttps_count == 0:
+            table.add_row("ENTERPRISE", Text("0 TTPs · 15 tactics ready", style="dim"))
+            table.add_row(" Pre-Attack", Text("Recon 0 · ResDev 0", style="dim"))
+            table.add_row(" Initial", Text("InitAcc 0 · Exec 0", style="dim"))
+            table.add_row(" Persist", Text("Persist 0 · PrivEsc 0", style="dim"))
+            table.add_row(" Defense", Text("Stealth 0 · DefImp 0", style="dim"))
+            table.add_row(" Discovery", Text("Disc 0 · CredAcc 0", style="dim"))
+            table.add_row(" Movement", Text("LatMove 0 · Collect 0", style="dim"))
+            table.add_row(" Actions", Text("C2 0 · Exfil 0 · Impact 0", style="dim"))
+            table.add_row("MOBILE", Text("0 TTPs · 14 tactics ready", style="dim"))
+            table.add_row("ICS", Text("0 TTPs · 12 tactics ready", style="dim"))
         else:
+            table.add_row(
+                "ENTERPRISE",
+                Text.assemble(
+                    (f"{ent_total} TTPs", "bright_white"),
+                    (" · ", "dim"),
+                    (f"{active_tactics} tactics active" if active_tactics > 0 else "ready", "bright_cyan"),
+                ),
+            )
+            table.add_row(
+                " Pre-Attack",
+                Text.assemble(
+                    ("Recon ", "dim"), (str(recon), "bright_white"), (" · ", "dim"),
+                    ("ResDev ", "dim"), (str(resdev), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Initial",
+                Text.assemble(
+                    ("InitAcc ", "dim"), (str(initacc), "bright_white"), (" · ", "dim"),
+                    ("Exec ", "dim"), (str(exec_cnt), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Persist",
+                Text.assemble(
+                    ("Persist ", "dim"), (str(persist), "bright_white"), (" · ", "dim"),
+                    ("PrivEsc ", "dim"), (str(privesc), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Defense",
+                Text.assemble(
+                    ("Stealth ", "dim"), (str(stealth), "bright_white"), (" · ", "dim"),
+                    ("DefImp ", "dim"), (str(defimp), "bright_white"),
+                ),
+            )
+            table.add_row(
+                " Discovery",
+                Text.assemble(
+                    ("Disc ", "dim"), (str(disc), "bright_white"), (" · ", "dim"),
+                    ("CredAcc ", "dim"), (str(credacc), "bright_white"),
+                ),
+            )
             table.add_row(
                 " Movement",
                 Text.assemble(
-                    ("Disc ", "dim"), (str(disc), "bright_white"), (" · ", "dim"),
                     ("LatMove ", "dim"), (str(latmove), "bright_white"), (" · ", "dim"),
                     ("Collect ", "dim"), (str(collect), "bright_white"),
                 ),
             )
             table.add_row(
-                " Objective",
+                " Actions",
                 Text.assemble(
                     ("C2 ", "dim"), (str(c2), "bright_white"), (" · ", "dim"),
                     ("Exfil ", "dim"), (str(exfil), "bright_white"), (" · ", "dim"),
                     ("Impact ", "dim"), (str(impact), "bright_white"),
                 ),
             )
+
             if mob_total > 0:
                 mob_actives = [("C2: " + str(v) if k == "command-and-control" else f"{k[:4].capitalize()}: {v}") for k, v in mob.items() if v > 0]
                 mob_sub = ", ".join(mob_actives[:2])
@@ -1830,7 +1881,7 @@ def _mitre_metrics_panel(
             else:
                 table.add_row(
                     "ICS",
-                    Text.assemble(("0 TTPs", "dim"), (" · ", "dim"), ("T08xx ready", "dim")),
+                    Text.assemble(("0 TTPs", "dim"), (" · ", "dim"), ("12 tactics ready", "dim")),
                 )
 
     return Panel(
@@ -2177,7 +2228,7 @@ def _render_dashboard(
     hunts_height = _HUNTS_PANEL_HEIGHT
     mitre_height = _MITRE_PANEL_HEIGHT
     search_count = _search_count(latest, events)
-    usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 6
+    usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 5
     h_metrics = _collect_hunts_metrics(workspace)
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
     integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left, events=events, metrics=metrics, live=live, current=latest)
