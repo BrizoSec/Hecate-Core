@@ -345,3 +345,15 @@ def query_otx_cve(cve: str) -> str:
     return _q(cve)
 
 
+def query_feodotracker_ip(ip: str) -> str:
+    """Check if an IPv4 address is an active botnet C2 on abuse.ch Feodo Tracker."""
+    from hecate_agent.orchestrator.enrichment import query_feodotracker_ip as _q
+    return _q(ip)
+
+
+def query_sslbl_fingerprint(fingerprint: str) -> str:
+    """Check if a SHA1 SSL certificate or JA3 MD5 hash is on abuse.ch SSL Blacklist."""
+    from hecate_agent.orchestrator.enrichment import query_sslbl_fingerprint as _q
+    return _q(fingerprint)
+
+

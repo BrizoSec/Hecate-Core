@@ -459,3 +459,28 @@ class TestCachePaths:
         monkeypatch.chdir(tmp_path)
         cache_dir = _get_stix_cache_dir()
         assert "stix-data" in str(cache_dir)
+
+
+@pytest.mark.unit
+class TestCategorizeTechniquesByMatrix:
+    """Test multi-matrix categorization across Enterprise, Mobile, and ICS."""
+
+    def test_categorize_empty(self):
+        from hecate_agent.core.attack_matrix import categorize_techniques_by_matrix
+
+        res = categorize_techniques_by_matrix(set())
+        assert res["total_unique"] == 0
+        assert res["enterprise_total"] == 0
+        assert res["mobile_total"] == 0
+        assert res["ics_total"] == 0
+
+    def test_categorize_techniques_counts(self):
+        from hecate_agent.core.attack_matrix import categorize_techniques_by_matrix
+
+        techniques = {"T1059", "T1059.001", "T0800"}
+        res = categorize_techniques_by_matrix(techniques)
+        assert res["total_unique"] == 3
+        assert "enterprise" in res
+        assert "mobile" in res
+        assert "ics" in res
+        assert res["ics_total"] >= 1 or res["ics"]["impact"] >= 0

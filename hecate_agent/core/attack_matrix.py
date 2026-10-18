@@ -15,7 +15,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -740,6 +740,149 @@ def get_attack_version() -> str:
 def is_using_stix() -> bool:
     """Check if using live STIX data."""
     return _get_provider().is_stix()
+
+
+_MOBILE_ICS_CACHE: Optional[Tuple[Dict[str, List[str]], Dict[str, List[str]]]] = None
+
+
+def _load_mobile_ics_mappings() -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+    """Load mobile and ICS technique-to-tactic mappings from STIX cache if present."""
+    global _MOBILE_ICS_CACHE
+    if _MOBILE_ICS_CACHE is not None:
+        return _MOBILE_ICS_CACHE
+
+    stix_dir = _get_stix_cache_dir()
+    mobile_map: Dict[str, List[str]] = {}
+    ics_map: Dict[str, List[str]] = {}
+
+    for dom_key, fname, target_map in (
+        ("mobile", "mobile-attack.json", mobile_map),
+        ("ics", "ics-attack.json", ics_map),
+    ):
+        file_path = stix_dir / fname
+        if not file_path.exists():
+            continue
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                bundle = json.load(f)
+            for obj in bundle.get("objects", []):
+                if obj.get("type") == "attack-pattern" and not obj.get("revoked", False):
+                    for ref in obj.get("external_references", []):
+                        if ref.get("source_name") in ("mitre-attack", "mitre-mobile-attack", "mitre-ics-attack") and "external_id" in ref:
+                            t_id = ref["external_id"]
+                            tactics = [
+                                str(kc.get("phase_name"))
+                                for kc in obj.get("kill_chain_phases", [])
+                                if kc.get("phase_name")
+                            ]
+                            target_map[t_id] = tactics
+                            break
+        except Exception as exc:
+            logger.debug("Failed reading %s: %s", file_path, exc)
+
+    _MOBILE_ICS_CACHE = (mobile_map, ics_map)
+    return _MOBILE_ICS_CACHE
+
+
+def categorize_techniques_by_matrix(technique_ids: Set[str]) -> Dict[str, Any]:
+    """Categorize a set of ATT&CK technique IDs across Enterprise, Mobile, and ICS matrices.
+
+    Returns a dict with:
+        enterprise: {tactic_shortname: count}
+        mobile: {tactic_shortname: count}
+        ics: {tactic_shortname: count}
+        total_unique: count of unique techniques given
+        enterprise_total: sum of enterprise tactic instances
+        mobile_total: sum of mobile tactic instances
+        ics_total: sum of ics tactic instances
+    """
+    ent_tactics: Dict[str, int] = {
+        "reconnaissance": 0,
+        "resource-development": 0,
+        "initial-access": 0,
+        "execution": 0,
+        "persistence": 0,
+        "privilege-escalation": 0,
+        "stealth": 0,
+        "defense-impairment": 0,
+        "credential-access": 0,
+        "discovery": 0,
+        "lateral-movement": 0,
+        "collection": 0,
+        "command-and-control": 0,
+        "exfiltration": 0,
+        "impact": 0,
+    }
+    mob_tactics: Dict[str, int] = {
+        "initial-access": 0,
+        "execution": 0,
+        "persistence": 0,
+        "privilege-escalation": 0,
+        "defense-evasion": 0,
+        "credential-access": 0,
+        "discovery": 0,
+        "lateral-movement": 0,
+        "collection": 0,
+        "command-and-control": 0,
+        "exfiltration": 0,
+        "impact": 0,
+        "network-effects": 0,
+        "remote-service-effects": 0,
+    }
+    ics_tactics: Dict[str, int] = {
+        "initial-access": 0,
+        "execution": 0,
+        "persistence": 0,
+        "privilege-escalation": 0,
+        "evasion": 0,
+        "discovery": 0,
+        "lateral-movement": 0,
+        "collection": 0,
+        "command-and-control": 0,
+        "inhibit-response-function": 0,
+        "impair-process-control": 0,
+        "impact": 0,
+    }
+
+    mobile_map, ics_map = _load_mobile_ics_mappings()
+
+    for tid in technique_ids:
+        clean_tid = tid.strip()
+        if not clean_tid:
+            continue
+
+        # Check ICS domain first (T08xx or in ics_map)
+        if clean_tid.startswith("T08") or clean_tid in ics_map:
+            tacs = ics_map.get(clean_tid, ["impact"])
+            for tac in tacs:
+                if tac in ics_tactics:
+                    ics_tactics[tac] += 1
+
+        # Check Mobile domain
+        if clean_tid in mobile_map:
+            for tac in mobile_map[clean_tid]:
+                if tac in mob_tactics:
+                    mob_tactics[tac] += 1
+
+        # Check Enterprise domain
+        info = get_technique(clean_tid)
+        if info and info.get("tactic_shortnames"):
+            for tac in info["tactic_shortnames"]:
+                canon = canonical_tactic(tac)
+                if canon in ent_tactics:
+                    ent_tactics[canon] += 1
+                elif tac in ent_tactics:
+                    ent_tactics[tac] += 1
+
+    return {
+        "enterprise": ent_tactics,
+        "mobile": mob_tactics,
+        "ics": ics_tactics,
+        "total_unique": len(technique_ids),
+        "enterprise_total": sum(ent_tactics.values()),
+        "mobile_total": sum(mob_tactics.values()),
+        "ics_total": sum(ics_tactics.values()),
+    }
 
 
 # ---------------------------------------------------------------------------

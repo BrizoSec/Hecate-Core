@@ -340,6 +340,8 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "Shodan" in text
         assert "ThreatFox" in text
         assert "MalBazaar" in text
+        assert "Feodo C2" in text
+        assert "SSLBL" in text
         assert "RDAP" in text
         assert "EPSS" in text
 
@@ -490,16 +492,15 @@ def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
     c.print(panel)
     text = c.export_text()
 
-    assert "HUNTS SUMMARY" in text
+    assert "HUNT SUMMARY" in text
     assert "HUNTS" in text and "197 total" in text and "197 drafts" in text
     assert "THREATS" in text and "295" in text
     assert "50 act, 10 camp, 235 mal" in text
-    assert "ATT&CK" in text and "200 techniques" in text
     assert "SIGMA" in text and "1,200 rules" in text
     assert "NETWORK" in text and "1,053 IOCs" in text and "271 IPs" in text
     assert "HOST" in text and "1,085 IOCs" in text and "477 hash" in text
 
-    # Verify height is exactly 8 lines (6 data rows + 2 borders)
+    # Verify height is exactly 7 lines (5 data rows + 2 borders)
     assert len(text.splitlines()) == m._HUNTS_PANEL_HEIGHT
 
 
@@ -525,12 +526,13 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
     panel = m._hunts_summary_panel(workspace=tmp_path, narrow=False, metrics=mock_metrics)
     c.print(panel)
     text_wide = c.export_text()
-    assert "HUNTS SUMMARY" in text_wide
+    assert "HUNT SUMMARY" in text_wide
     assert "197 total" in text_wide
     assert "295 tracked" in text_wide
     assert "50 actors, 10 campaigns, 235 malware" in text_wide
     assert "1,200 rules" in text_wide
-    assert "IOCs" in text_wide and "1,053 net" in text_wide
+    assert "1,053 IOCs" in text_wide
+    assert "2,138 observables" in text_wide
 
     # Compact mode
     c_compact = Console(width=50, record=True, force_terminal=False)
@@ -541,25 +543,79 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
     assert "50 act, 10 camp, 235 mal" in text_compact
 
 
+def test_mitre_metrics_panel_rendering(tmp_path: Path) -> None:
+    mock_metrics = m.HuntsMetrics(
+        ttps_count=225,
+        enterprise_ttps={
+            "reconnaissance": 6,
+            "resource-development": 11,
+            "initial-access": 13,
+            "execution": 33,
+            "persistence": 39,
+            "privilege-escalation": 35,
+            "stealth": 66,
+            "defense-impairment": 18,
+            "credential-access": 38,
+            "discovery": 26,
+            "lateral-movement": 16,
+            "collection": 18,
+            "command-and-control": 26,
+            "exfiltration": 8,
+            "impact": 11,
+        },
+        mobile_ttps={"command-and-control": 1},
+        ics_ttps={},
+        enterprise_total=346,
+        mobile_total=1,
+        ics_total=0,
+    )
+    # Wide mode (bottom row of dashboard): 8 data rows + 2 borders = 10 lines
+    c_wide = Console(width=80, record=True, force_terminal=False)
+    panel_wide = m._mitre_metrics_panel(workspace=tmp_path, narrow=False, metrics=mock_metrics)
+    c_wide.print(panel_wide)
+    text_wide = c_wide.export_text()
+
+    assert "MITRE METRICS" in text_wide
+    assert "ENTERPRISE" in text_wide and "346 TTPs" in text_wide
+    assert "Recon 6" in text_wide and "ResDev 11" in text_wide and "InitAcc 13" in text_wide
+    assert "Exec 33" in text_wide and "Persist 39" in text_wide and "PrivEsc 35" in text_wide
+    assert "Stealth 66" in text_wide and "DefImp 18" in text_wide and "CredAcc 38" in text_wide
+    assert "Disc 26" in text_wide and "LatMove 16" in text_wide and "Collect 18" in text_wide
+    assert "C2 26" in text_wide and "Exfil 8" in text_wide and "Impact 11" in text_wide
+    assert "MOBILE" in text_wide and "1 TTP" in text_wide
+    assert "ICS" in text_wide and "0 TTPs" in text_wide
+    assert len(text_wide.splitlines()) == m._BOTTOM_ROW_HEIGHT
+
+    # Narrow mode (tall display side column): 6 data rows + 2 borders = 8 lines
+    c_narrow = Console(width=48, record=True, force_terminal=False)
+    panel_narrow = m._mitre_metrics_panel(workspace=tmp_path, narrow=True, metrics=mock_metrics)
+    c_narrow.print(panel_narrow)
+    text_narrow = c_narrow.export_text()
+    assert len(text_narrow.splitlines()) == m._MITRE_PANEL_HEIGHT
+    assert "MOB & ICS" in text_narrow and "Mob: 1" in text_narrow
+
+
 def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     events = _events("route: narrative", "done: draft_created")
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
 
-    # Tall screen (height=60): HUNTS SUMMARY is stacked on the left above INTEGRATIONS
+    # Tall screen (height=60): HUNT SUMMARY is stacked on the left above INTEGRATIONS
     tall = _render(events, runner, height=60)
-    assert "HUNTS SUMMARY" in tall
+    assert "HUNT SUMMARY" in tall
+    assert "MITRE METRICS" in tall
     tall_lines = tall.splitlines()
-    tall_line = next(line for line in tall_lines if "HUNTS SUMMARY" in line)
-    assert tall_line.index("HUNTS SUMMARY") < 140 // 3
-    hunts_line_no = next(i for i, line_text in enumerate(tall_lines) if "HUNTS SUMMARY" in line_text)
+    tall_line = next(line for line in tall_lines if "HUNT SUMMARY" in line)
+    assert tall_line.index("HUNT SUMMARY") < 140 // 3
+    hunts_line_no = next(i for i, line_text in enumerate(tall_lines) if "HUNT SUMMARY" in line_text)
     integrations_line_no = next(i for i, line_text in enumerate(tall_lines) if "INTEGRATIONS" in line_text)
     assert hunts_line_no < integrations_line_no
 
-    # Short screen (height=30): HUNTS SUMMARY is in the bottom usage row
+    # Short screen (height=30): HUNT SUMMARY is in the bottom usage row
     short = _render(events, runner, height=30)
-    assert "HUNTS SUMMARY" in short
-    short_line = next(line for line in short.splitlines() if "HUNTS SUMMARY" in line)
-    assert short_line.index("HUNTS SUMMARY") > 140 // 3
+    assert "HUNT SUMMARY" in short
+    assert "MITRE METRICS" in short
+    short_line = next(line for line in short.splitlines() if "HUNT SUMMARY" in line)
+    assert short_line.index("HUNT SUMMARY") > 140 // 4
 
 
 

@@ -1,9 +1,10 @@
 import os
 import re
+import time
 import httpx
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Tuple, Any
 
 
 from dotenv import load_dotenv
@@ -592,6 +593,105 @@ def query_malwarebazaar(file_hash: str) -> str:
         return f"Error querying MalwareBazaar: {e}"
 
 
+_FEODO_CACHE: Dict[str, Any] = {"data": None, "ts": 0.0}
+_SSLBL_CACHE: Dict[str, Any] = {"data": None, "ts": 0.0}
+
+
+def _get_feodo_ip_map() -> Dict[str, Dict[str, Any]]:
+    """Fetch and cache abuse.ch Feodo Tracker IP blocklist (1-hour TTL)."""
+    now = time.time()
+    if _FEODO_CACHE["data"] is not None and (now - _FEODO_CACHE["ts"] < 3600.0):
+        return _FEODO_CACHE["data"]
+    try:
+        url = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            entries = resp.json()
+            ip_map = {item.get("ip_address"): item for item in entries if isinstance(item, dict) and item.get("ip_address")}
+            _FEODO_CACHE["data"] = ip_map
+            _FEODO_CACHE["ts"] = now
+            return ip_map
+    except Exception as e:
+        logger.debug(f"Failed to fetch Feodo Tracker blocklist: {e}")
+    return _FEODO_CACHE["data"] or {}
+
+
+def _get_sslbl_fingerprint_map() -> Dict[str, Tuple[str, str]]:
+    """Fetch and cache abuse.ch SSL Blacklist certificate & JA3 fingerprints (1-hour TTL)."""
+    now = time.time()
+    if _SSLBL_CACHE["data"] is not None and (now - _SSLBL_CACHE["ts"] < 3600.0):
+        return _SSLBL_CACHE["data"]
+    try:
+        url = "https://sslbl.abuse.ch/blacklist/sslblacklist.csv"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            res_map: Dict[str, Tuple[str, str]] = {}
+            for line in resp.text.splitlines():
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split(",")
+                if len(parts) >= 3:
+                    dt, sha1, reason = parts[0].strip(), parts[1].strip().lower(), parts[2].strip()
+                    res_map[sha1] = (reason, dt)
+            try:
+                ja3_resp = httpx.get("https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv", timeout=3.0)
+                if ja3_resp.status_code == 200:
+                    for line in ja3_resp.text.splitlines():
+                        if not line or line.startswith("#"):
+                            continue
+                        parts = line.split(",")
+                        if len(parts) >= 4:
+                            ja3_md5, reason = parts[0].strip().lower(), parts[3].strip()
+                            res_map[ja3_md5] = (f"JA3 {reason}", parts[1].strip())
+            except Exception:
+                pass
+            _SSLBL_CACHE["data"] = res_map
+            _SSLBL_CACHE["ts"] = now
+            return res_map
+    except Exception as e:
+        logger.debug(f"Failed to fetch SSLBL blocklist: {e}")
+    return _SSLBL_CACHE["data"] or {}
+
+
+def query_feodotracker_ip(ip: str) -> str:
+    """Check if an IPv4 address is an active botnet C2 on abuse.ch Feodo Tracker."""
+    clean_ip = ip.strip()
+    feodo_map = _get_feodo_ip_map()
+    if not feodo_map:
+        return "Not listed on Feodo Tracker (feed empty/clean)."
+    entry = feodo_map.get(clean_ip)
+    if entry:
+        malware = entry.get("malware") or "Unknown Botnet"
+        status = entry.get("status") or "active"
+        port = entry.get("port")
+        asn = entry.get("as_name") or ""
+        first_seen = entry.get("first_seen", "").split()[0]
+        details = [f"Botnet C2: {malware}"]
+        if port:
+            details.append(f"Port: {port}")
+        details.append(f"Status: {status}")
+        if first_seen:
+            details.append(f"First Seen: {first_seen}")
+        if asn:
+            details.append(f"ASN: {asn}")
+        return " · ".join(details)
+    return "Not listed on Feodo Tracker (clean)."
+
+
+def query_sslbl_fingerprint(fingerprint: str) -> str:
+    """Check if a SHA1 SSL certificate or JA3 MD5 hash is on abuse.ch SSL Blacklist."""
+    clean_fp = fingerprint.strip().lower()
+    sslbl_map = _get_sslbl_fingerprint_map()
+    if not sslbl_map:
+        return "Not listed on SSLBL (feed empty/clean)."
+    entry = sslbl_map.get(clean_fp)
+    if entry:
+        reason, listing_date = entry
+        date_str = f" · Listed: {listing_date.split()[0]}" if listing_date else ""
+        return f"Malicious SSL Cert / JA3: {reason}{date_str}"
+    return "Not listed on SSLBL (clean)."
+
+
 def query_epss(cve: str) -> str:
     """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
     clean_cve = cve.strip().upper()
@@ -799,7 +899,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP, EPSS & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -807,20 +907,25 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         res = query_vt_hash(h)
         otx_res = query_otx_hash(h)
         mb_res = query_malwarebazaar(h)
+        sslbl_res = query_sslbl_fingerprint(h)
         threatfox_res = query_threatfox(h)
         misp_res = query_misp_indicator(h)
-        return (
+        lines = [
             f"- **Hash {h}**:\n"
             f"  - *VirusTotal:* {res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
-            f"  - *Abuse.ch (MalwareBazaar):* {mb_res}\n"
-            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
-            f"  - *Internal MISP:* {misp_res}"
-        )
+            f"  - *Abuse.ch (MalwareBazaar):* {mb_res}"
+        ]
+        if len(h) in (32, 40):
+            lines.append(f"  - *Abuse.ch (SSLBL Fingerprint):* {sslbl_res}")
+        lines.append(f"  - *Abuse.ch (ThreatFox):* {threatfox_res}")
+        lines.append(f"  - *Internal MISP:* {misp_res}")
+        return "\n".join(lines)
 
     def process_ip(ip: str) -> str:
         vt_res = query_vt_ip(ip)
         otx_res = query_otx_ip(ip)
+        feodo_res = query_feodotracker_ip(ip)
         abuseipdb_res = query_abuseipdb_ip(ip)
         gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
@@ -831,6 +936,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             f"- **IP {ip}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
+            f"  - *Abuse.ch (Feodo Tracker C2):* {feodo_res}\n"
             f"  - *AbuseIPDB:* {abuseipdb_res}\n"
             f"  - *GreyNoise:* {gn_res}\n"
             f"  - *Shodan:* {shodan_res}\n"

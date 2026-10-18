@@ -514,6 +514,64 @@ def test_query_otx_not_found():
             assert res == "No record on OTX."
 
 
+def test_query_feodotracker_ip_found():
+    import time
+    from hecate_agent.orchestrator.enrichment import _FEODO_CACHE, query_feodotracker_ip
+    mock_data = {
+        "198.51.100.1": {
+            "ip_address": "198.51.100.1",
+            "malware": "QakBot",
+            "status": "online",
+            "port": 443,
+            "first_seen": "2026-10-15 12:00:00",
+            "as_name": "EXAMPLE-ASN",
+        }
+    }
+    _FEODO_CACHE["data"] = mock_data
+    _FEODO_CACHE["ts"] = time.time()
+    res = query_feodotracker_ip("198.51.100.1")
+    assert "Botnet C2: QakBot" in res
+    assert "Port: 443" in res
+    assert "Status: online" in res
+    assert "First Seen: 2026-10-15" in res
+    assert "ASN: EXAMPLE-ASN" in res
+
+
+def test_query_feodotracker_ip_clean():
+    import time
+    from hecate_agent.orchestrator.enrichment import _FEODO_CACHE, query_feodotracker_ip
+    _FEODO_CACHE["data"] = {"198.51.100.1": {"malware": "Emotet"}}
+    _FEODO_CACHE["ts"] = time.time()
+    res = query_feodotracker_ip("8.8.8.8")
+    assert res == "Not listed on Feodo Tracker (clean)."
+
+
+def test_query_sslbl_fingerprint_found():
+    import time
+    from hecate_agent.orchestrator.enrichment import _SSLBL_CACHE, query_sslbl_fingerprint
+    _SSLBL_CACHE["data"] = {
+        "d83515431690184ba48f4be8be3e9594b2ee718d": ("Vidar C&C SSL Cert", "2026-10-10"),
+        "65230654877f2fedd6a066928e08d6d8": ("JA3 AsyncRAT C2", "2026-10-12"),
+    }
+    _SSLBL_CACHE["ts"] = time.time()
+    res_sha1 = query_sslbl_fingerprint("D83515431690184BA48F4BE8BE3E9594B2EE718D")
+    assert "Vidar C&C SSL Cert" in res_sha1
+    assert "Listed: 2026-10-10" in res_sha1
+
+    res_ja3 = query_sslbl_fingerprint("65230654877f2fedd6a066928e08d6d8")
+    assert "JA3 AsyncRAT C2" in res_ja3
+    assert "Listed: 2026-10-12" in res_ja3
+
+
+def test_query_sslbl_fingerprint_clean():
+    import time
+    from hecate_agent.orchestrator.enrichment import _SSLBL_CACHE, query_sslbl_fingerprint
+    _SSLBL_CACHE["data"] = {"d83515431690184ba48f4be8be3e9594b2ee718d": ("Vidar", "2026-10-10")}
+    _SSLBL_CACHE["ts"] = time.time()
+    res = query_sslbl_fingerprint("e3b0c44298fc1c149afbf4c8996fb92427ae41e4")
+    assert res == "Not listed on SSLBL (clean)."
+
+
 
 
 
