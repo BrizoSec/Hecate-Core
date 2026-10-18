@@ -16,12 +16,14 @@ Extracted text is evidence from one source, not independent confirmation; the
 records carry that provenance so later stages can say where a claim came from.
 """
 
+import ipaddress
 import json
 import logging
 import re
 from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -45,9 +47,57 @@ MAX_PAGE_CHARS = 120000
 #: Words that must match contiguously for a quoted passage to count as found.
 EVIDENCE_WINDOW = 8
 
-_SKIP_HOSTS = ("localhost", "127.0.0.1")
+_SKIP_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0")
 _LINK_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 _CONFIDENCE_RE = re.compile(r"(?i)\b(high|medium|low)\s+confidence\b")
+
+_DISALLOWED_EXTENSIONS = {
+    ".bin", ".exe", ".dll", ".sys", ".ps1", ".sh", ".bat", ".cmd", ".vbs",
+    ".js", ".elf", ".so", ".zip", ".tar", ".gz", ".7z", ".rar", ".iso",
+    ".img", ".dmg", ".pkg", ".deb", ".rpm", ".apk", ".dat", ".payload",
+    ".scr", ".msi", ".hta", ".vbe", ".wsf", ".jar", ".class",
+}
+_DISALLOWED_PATHS = {
+    "/gate.php", "/c2", "/beacon",
+}
+
+
+def is_safe_report_url(url: str) -> bool:
+    """True if ``url`` looks like a public advisory/article and not adversary infra or a payload drop."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urlsplit(url.strip())
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = parsed.hostname
+    if not host:
+        return False
+    host = host.lower()
+    if host in _SKIP_HOSTS or host.endswith(".local") or host.endswith(".internal") or host.endswith(".onion"):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False  # Raw IP addresses are adversary C2/staging, not published CTI articles
+    except ValueError:
+        pass
+    if "." not in host:
+        return False
+    if parsed.port is not None:
+        if parsed.scheme == "http" and parsed.port != 80:
+            return False
+        if parsed.scheme == "https" and parsed.port != 443:
+            return False
+    path = (parsed.path or "").lower()
+    for ext in _DISALLOWED_EXTENSIONS:
+        if path.endswith(ext):
+            return False
+    for bad_path in _DISALLOWED_PATHS:
+        if path.endswith(bad_path) or bad_path in path:
+            return False
+    return True
 
 INDICATOR_KINDS = {
     "sha256": "sha256",
@@ -175,10 +225,14 @@ class SourceEvidence:
 def report_urls(threat_intel: str, source_url: str = "", limit: int = 1) -> List[str]:
     """The report(s) a CTI item points to: its own link first, then links in its text."""
     urls: List[str] = []
-    for url in [source_url, *(m.group(0).rstrip(".,;:") for m in _LINK_RE.finditer(threat_intel or ""))]:
-        if url and url.startswith("http") and not any(h in url for h in _SKIP_HOSTS) and url not in urls:
+    candidates = [source_url] if source_url else []
+    candidates.extend(m.group(0).rstrip(".,;:)") for m in _LINK_RE.finditer(threat_intel or ""))
+    for url in candidates:
+        if url and is_safe_report_url(url) and url not in urls:
             urls.append(url)
-    return urls[:limit]
+            if len(urls) == limit:
+                break
+    return urls
 
 
 def fetch_page_text(url: str, timeout: float = 20.0) -> str:

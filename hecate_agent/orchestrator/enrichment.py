@@ -24,17 +24,42 @@ def _misp_verify_tls() -> bool:
 logger = logging.getLogger(__name__)
 
 
+def refang(value: str) -> str:
+    """Undo report defanging ("hxxp", "[.]", "(.)", "[:]", "(:)", etc.) so values match real telemetry."""
+    if not value or not isinstance(value, str):
+        return ""
+    v = value.replace("[.]", ".").replace("(.)", ".").replace("[dot]", ".").replace("(dot)", ".")
+    v = v.replace("[:]", ":").replace("(:)", ":")
+    return re.sub(r"\bhxxp", "http", v, flags=re.IGNORECASE)
+
+
 def extract_indicators(text: str) -> Dict[str, List[str]]:
-    """Extract IPs, Domains, and Hashes from text using regex."""
-    tlds = (
-        r"com|org|net|io|ru|cn|info|biz|shop|top|xyz|site|online|club|vip|"
-        r"live|app|dev|me|cc|co|pro|pw|win|work|cloud|space|link|click"
-    )
-    domain_re = rf'\b[a-zA-Z0-9.-]+\.(?:{tlds})\b'
+    """Extract IPs, Domains, and Hashes from text using regex, refanging first."""
+    if not text:
+        return {"ips": [], "hashes": [], "domains": []}
+    clean_text = refang(text)
+    tlds_list = [
+        r"co\.uk", r"gov\.uk", r"ac\.uk", r"org\.uk", r"com\.au", r"net\.au",
+        r"co\.nz", r"co\.jp", r"com\.kg", r"org\.kg", r"net\.kg", r"com\.cn",
+        r"net\.cn", r"org\.cn", r"gov\.cn", r"com\.br", r"co\.in", r"com\.tr",
+        r"co\.za", r"com\.mx", r"com\.ar",
+        r"com", r"org", r"net", r"edu", r"gov", r"mil", r"info", r"biz",
+        r"shop", r"top", r"xyz", r"site", r"online", r"club", r"vip", r"live",
+        r"app", r"dev", r"pro", r"win", r"work", r"cloud", r"space", r"link",
+        r"click", r"tech", r"store", r"news", r"blog", r"icu", r"fun", r"digital",
+        r"security", r"agency", r"center",
+        r"io", r"ai", r"me", r"cc", r"tv", r"to", r"is", r"pw", r"ws",
+        r"uk", r"de", r"cn", r"ru", r"jp", r"kr", r"in", r"br", r"ca", r"au",
+        r"fr", r"nl", r"se", r"no", r"fi", r"es", r"it", r"pl", r"ch", r"at",
+        r"be", r"cz", r"ro", r"ua", r"za", r"mx", r"ar", r"cl", r"co", r"id",
+        r"my", r"th", r"vn", r"ph", r"sg", r"nz", r"kg"
+    ]
+    tlds = "|".join(tlds_list)
+    domain_re = rf'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{{0,61}}[a-zA-Z0-9])?\.)+(?:{tlds})\b(?!\.[a-zA-Z0-9])'
     indicators = {
-        "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', text))),
-        "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', text))),
-        "domains": list(set(re.findall(domain_re, text, re.IGNORECASE)))
+        "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', clean_text))),
+        "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', clean_text))),
+        "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE)))
     }
     # Filter out common false positives and private IPs
     indicators["ips"] = [
@@ -112,7 +137,11 @@ def _get_apex_domain(domain: str) -> str:
     parts = domain.lower().strip(".").split(".")
     if len(parts) <= 2:
         return domain
-    two_part_tlds = {"co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp"}
+    two_part_tlds = {
+        "co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz",
+        "co.jp", "com.kg", "org.kg", "net.kg", "com.cn", "net.cn", "org.cn",
+        "gov.cn", "com.br", "co.in", "com.tr", "co.za", "com.mx", "com.ar",
+    }
     last_two = f"{parts[-2]}.{parts[-1]}"
     if last_two in two_part_tlds and len(parts) > 2:
         return ".".join(parts[-3:])

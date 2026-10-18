@@ -27,6 +27,17 @@ def test_report_urls_skips_local_misp_links_and_trailing_punctuation():
     assert ax.report_urls(cti) == [VOLEXITY]
 
 
+def test_report_urls_rejects_adversary_c2_and_payload_downloads():
+    cti = (
+        "Malware connects to http://45.150.34.2:8080/gate.php to fetch payloads.\n"
+        "Payload was hosted at http://sync-telemetry.top/payload.bin and staging at "
+        "http://hub.zoom.com.kg:5173/bin/zoomMacArm.\n"
+        f"Read full advisory at {VOLEXITY}."
+    )
+    # The adversary C2 endpoints and payload drops must be skipped; only the advisory link is kept.
+    assert ax.report_urls(cti) == [VOLEXITY]
+
+
 def test_only_artifacts_the_page_states_verbatim_are_kept():
     """The old mock put `update.windows-time.com` in the text; the report never names it."""
     kept, dropped = ax.verbatim_artifacts(

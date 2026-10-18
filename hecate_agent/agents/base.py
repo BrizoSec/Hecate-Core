@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -263,28 +264,38 @@ class LLMAgent(Agent[InputT, OutputT]):
             if json_end > json_start:
                 cleaned = cleaned[json_start:json_end].strip()
 
-        try:
-            parsed: Dict[str, Any] = json.loads(cleaned)
-            return parsed
-        except json.JSONDecodeError as first_error:
-            # Smaller local models (e.g. via Ollama) often prepend chatty
-            # preamble ("Sure, here's the JSON:") or trailing commentary
-            # instead of returning bare JSON despite the prompt. Fall back
-            # to slicing out the outermost {...} span and retrying once
-            # before giving up.
-            brace_start = cleaned.find("{")
-            brace_end = cleaned.rfind("}")
-            if brace_start != -1 and brace_end > brace_start:
-                try:
-                    parsed = json.loads(cleaned[brace_start : brace_end + 1])
-                    return parsed
-                except json.JSONDecodeError:
-                    pass
+        def _try_decode(candidate: str) -> Optional[Dict[str, Any]]:
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+            try:
+                repaired = re.sub(r"(?<!\\)\\(?![\"\\/bfnrt]|u[0-9a-fA-F]{4})", r"\\\\", candidate)
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+            return None
 
-            raise ValueError(
-                "Failed to parse JSON from LLM response. Error: {}. "
-                "Response text (first 500 chars): {}".format(first_error, cleaned[:500])
-            )
+        parsed = _try_decode(cleaned)
+        if parsed is not None:
+            return parsed
+
+        # Smaller local models (e.g. via Ollama) often prepend chatty
+        # preamble ("Sure, here's the JSON:") or trailing commentary
+        # instead of returning bare JSON despite the prompt. Fall back
+        # to slicing out the outermost {...} span and retrying once
+        # before giving up.
+        brace_start = cleaned.find("{")
+        brace_end = cleaned.rfind("}")
+        if brace_start != -1 and brace_end > brace_start:
+            parsed = _try_decode(cleaned[brace_start : brace_end + 1])
+            if parsed is not None:
+                return parsed
+
+        raise ValueError(
+            "Failed to parse JSON from LLM response. "
+            "Response text (first 500 chars): {}".format(cleaned[:500])
+        )
 
     def _log_llm_metrics(
         self,

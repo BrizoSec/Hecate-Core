@@ -1,6 +1,12 @@
 from unittest.mock import MagicMock, patch
 
-from hecate_agent.orchestrator.enrichment import extract_indicators, generate_enrichment_summary, query_vt_hash
+from hecate_agent.orchestrator.enrichment import (
+    _get_apex_domain,
+    extract_indicators,
+    generate_enrichment_summary,
+    query_vt_hash,
+    refang,
+)
 
 
 def test_extract_indicators():
@@ -9,6 +15,29 @@ def test_extract_indicators():
     assert "35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in inds["hashes"]
     assert "evil.shop" in inds["domains"]
     assert "github.com" not in inds["domains"]
+
+
+def test_extract_indicators_defanged_and_cctlds():
+    text = (
+        "Adversary staged payload at 96.9.125[.]52 and chinadigitaltimes[.]top.\n"
+        "C2 resolved at hub.zoom.com.kg and sync-telemetry.top.\n"
+        "Older infra: hxxps://malicious[.]co[.]uk/gate."
+    )
+    inds = extract_indicators(text)
+    assert "96.9.125.52" in inds["ips"]
+    assert "chinadigitaltimes.top" in inds["domains"]
+    assert "hub.zoom.com.kg" in inds["domains"]
+    # Ensure it did NOT truncate to hub.zoom.com
+    assert "hub.zoom.com" not in inds["domains"]
+    assert "sync-telemetry.top" in inds["domains"]
+    assert "malicious.co.uk" in inds["domains"]
+
+
+def test_get_apex_domain():
+    assert _get_apex_domain("hub.zoom.com.kg") == "zoom.com.kg"
+    assert _get_apex_domain("c2.evil.co.uk") == "evil.co.uk"
+    assert _get_apex_domain("sync-telemetry.top") == "sync-telemetry.top"
+    assert _get_apex_domain("sub.corp.example.com") == "example.com"
 
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 @patch("hecate_agent.orchestrator.enrichment.httpx.post")

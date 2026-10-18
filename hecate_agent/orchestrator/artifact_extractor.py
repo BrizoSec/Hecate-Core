@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from hecate_agent.core.llm_provider import create_provider
+from hecate_agent.core.source_evidence import is_safe_report_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +41,8 @@ def report_urls(threat_intel: str, limit: int = 2) -> List[str]:
     """The first ``limit`` distinct public links in the CTI text."""
     urls: List[str] = []
     for match in _URL_RE.finditer(threat_intel):
-        url = match.group(0).rstrip(".,;:")
-        if any(host in url for host in _SKIP_HOSTS) or url in urls:
+        url = match.group(0).rstrip(".,;:)")
+        if not is_safe_report_url(url) or url in urls:
             continue
         urls.append(url)
         if len(urls) == limit:
