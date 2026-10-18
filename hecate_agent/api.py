@@ -357,3 +357,22 @@ def query_sslbl_fingerprint(fingerprint: str) -> str:
     return _q(fingerprint)
 
 
+def query_urlhaus_url(url: str) -> str:
+    """Query abuse.ch URLhaus API for malicious URL status, threat classification, and payload info."""
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_url as _q
+    return _q(url)
+
+
+def query_urlhaus_host(host: str) -> str:
+    """Query abuse.ch URLhaus API for host (domain or IP) malware distribution history."""
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_host as _q
+    return _q(host)
+
+
+def query_urlhaus_payload(file_hash: str) -> str:
+    """Query abuse.ch URLhaus API for payload hash (MD5 or SHA256) distribution info."""
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_payload as _q
+    return _q(file_hash)
+
+
+

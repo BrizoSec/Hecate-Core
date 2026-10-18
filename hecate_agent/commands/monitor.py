@@ -972,6 +972,7 @@ def _integrations_panel(
         ("MalBazaar", ("ABUSECH_API_KEY",)),
         ("Feodo C2", ()),
         ("SSLBL", ()),
+        ("URLhaus", ("ABUSECH_API_KEY",)),
         ("RDAP", ()),
         ("EPSS", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
@@ -1211,6 +1212,18 @@ def _integrations_panel(
                     hash_count = max(hash_count, int(m.group(1)))
             metric = f"{hash_count} queries" if hash_count > 0 else "ready"
             services_data.append((label, True, detail, metric))
+        elif label == "URLhaus":
+            if is_set:
+                detail = "urls" if narrow else "malware urls"
+                url_count = 0
+                for e in cycle_events:
+                    m = re.search(r"(\d+)\s+url", e.message, re.IGNORECASE)
+                    if m:
+                        url_count = max(url_count, int(m.group(1)))
+                metric = f"{url_count} queries" if url_count > 0 else "ready"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
         elif label == "RDAP":
             detail = "whois/age"
             dom_count = 0

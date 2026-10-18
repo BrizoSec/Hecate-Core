@@ -572,6 +572,104 @@ def test_query_sslbl_fingerprint_clean():
     assert res == "Not listed on SSLBL (clean)."
 
 
+def test_query_urlhaus_url(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_url
+    monkeypatch.delenv("ABUSECH_API_KEY", raising=False)
+    assert query_urlhaus_url("http://bad.com/exe") == "ABUSECH_API_KEY not configured."
+
+    monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        # Test found URL
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "query_status": "ok",
+            "url_status": "online",
+            "threat": "malware_download",
+            "tags": ["Mozi", "elf"],
+            "payloads": [{"signature": "Mozi", "file_type": "elf"}],
+        }
+        mock_post.return_value = mock_resp
+        res = query_urlhaus_url("http://example-c2.com/malware.bin")
+        assert "Status: online" in res
+        assert "Threat: malware_download" in res
+        assert "Payload: Mozi" in res
+        assert "Tags: Mozi, elf" in res
+
+        # Test no results
+        mock_resp_clean = MagicMock(status_code=200)
+        mock_resp_clean.json.return_value = {"query_status": "no_results"}
+        mock_post.return_value = mock_resp_clean
+        res_clean = query_urlhaus_url("http://clean-site.org/file.pdf")
+        assert res_clean == "Not listed on URLhaus."
+
+        # Test auth error
+        mock_resp_401 = MagicMock(status_code=401)
+        mock_post.return_value = mock_resp_401
+        res_401 = query_urlhaus_url("http://bad.com/exe")
+        assert "URLhaus Auth Error" in res_401
+
+
+def test_query_urlhaus_host(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_host
+    monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "query_status": "ok",
+            "url_count": 8,
+            "firstseen": "2026-10-14 10:00:00",
+        }
+        mock_post.return_value = mock_resp
+        res = query_urlhaus_host("malicious-c2-host.com")
+        assert "Malware host (8 URL(s))" in res
+        assert "First seen: 2026-10-14" in res
+
+        mock_resp_none = MagicMock(status_code=200)
+        mock_resp_none.json.return_value = {"query_status": "no_results"}
+        mock_post.return_value = mock_resp_none
+        assert query_urlhaus_host("clean.org") == "Not listed on URLhaus."
+
+
+def test_query_urlhaus_payload(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_urlhaus_payload
+    monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "query_status": "ok",
+            "signature": "RedLineStealer",
+            "file_type": "exe",
+            "url_count": 4,
+        }
+        mock_post.return_value = mock_resp
+        res = query_urlhaus_payload("d41d8cd98f00b204e9800998ecf8427e")
+        assert "Payload: RedLineStealer (exe)" in res
+        assert "Seen on 4 URL(s)" in res
+
+        mock_resp_clean = MagicMock(status_code=200)
+        mock_resp_clean.json.return_value = {"query_status": "no_results"}
+        mock_post.return_value = mock_resp_clean
+        assert query_urlhaus_payload("d41d8cd98f00b204e9800998ecf8427e") == "No payload on URLhaus."
+
+
+def test_extract_indicators_extracts_urls_and_filters_publishers():
+    from hecate_agent.orchestrator.enrichment import extract_indicators
+    text = (
+        "Adversary downloaded malware from hxxp://evil-download.com/payload.exe and http://198.51.100.5/stage2.bin. "
+        "Reference: https://www.mandiant.com/resources/blog/apt41-malware. "
+        "See also report at https://unit42.paloaltonetworks.com/threat-report."
+    )
+    inds = extract_indicators(text)
+    assert "urls" in inds
+    # evil-download.com and 198.51.100.5 should be included
+    assert any("evil-download.com/payload.exe" in u for u in inds["urls"])
+    assert any("198.51.100.5/stage2.bin" in u for u in inds["urls"])
+    # Mandiant and Palo Alto publisher URLs must be filtered out
+    assert not any("mandiant.com" in u for u in inds["urls"])
+    assert not any("paloaltonetworks.com" in u for u in inds["urls"])
+
+
+
 
 
 

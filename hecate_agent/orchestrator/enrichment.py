@@ -159,6 +159,21 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
         d.lower() for d in indicators["domains"]
         if not _is_benign_or_publisher(d)
     ]
+
+    raw_urls = re.findall(r'https?://[^\s<>"\'\)\]`]+', clean_text)
+    filtered_urls = []
+    for u in raw_urls:
+        clean_u = u.rstrip(".,;:)")
+        m_u_host = re.match(r"https?://(?:www\.)?([^/:\s\)\],]+)", clean_u, re.IGNORECASE)
+        if m_u_host:
+            u_host = m_u_host.group(1).lower()
+            if _is_benign_or_publisher(u_host):
+                continue
+            if any(u_host.startswith(p) for p in ("127.", "10.", "192.168.", "172.", "0.0.0.0", "localhost")):
+                continue
+            filtered_urls.append(clean_u)
+
+    indicators["urls"] = list(dict.fromkeys(filtered_urls))
     return indicators
 
 def query_vt_hash(file_hash: str) -> str:
@@ -692,6 +707,109 @@ def query_sslbl_fingerprint(fingerprint: str) -> str:
     return "Not listed on SSLBL (clean)."
 
 
+def query_urlhaus_url(url: str) -> str:
+    """Query abuse.ch URLhaus API for malicious URL status, threat classification, and payload info."""
+    key = _setting("ABUSECH_API_KEY")
+    if not key:
+        return "ABUSECH_API_KEY not configured."
+    clean_url = url.strip()
+    api_url = "https://urlhaus-api.abuse.ch/v1/url/"
+    headers = {"Auth-Key": key}
+    data = {"url": clean_url}
+    try:
+        resp = httpx.post(api_url, headers=headers, data=data, timeout=8.0)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            q_status = res_json.get("query_status")
+            if q_status == "ok":
+                url_status = res_json.get("url_status") or "unknown"
+                threat = res_json.get("threat") or "malware_download"
+                tags = res_json.get("tags") or []
+                payloads = res_json.get("payloads") or []
+                sig = ""
+                if payloads and isinstance(payloads, list):
+                    p0 = payloads[0]
+                    if isinstance(p0, dict):
+                        sig = p0.get("signature") or p0.get("file_type") or ""
+                parts = [f"Status: {url_status}", f"Threat: {threat}"]
+                if sig:
+                    parts.append(f"Payload: {sig}")
+                if tags:
+                    parts.append(f"Tags: {', '.join(str(t) for t in tags[:3])}")
+                return " | ".join(parts)
+            elif q_status == "no_results":
+                return "Not listed on URLhaus."
+            return f"URLhaus: {q_status}"
+        elif resp.status_code in (401, 403):
+            return "URLhaus Auth Error (check ABUSECH_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying URLhaus: {e}"
+
+
+def query_urlhaus_host(host: str) -> str:
+    """Query abuse.ch URLhaus API for host (domain or IP) malware distribution history."""
+    key = _setting("ABUSECH_API_KEY")
+    if not key:
+        return "ABUSECH_API_KEY not configured."
+    clean_host = host.strip().lower()
+    api_url = "https://urlhaus-api.abuse.ch/v1/host/"
+    headers = {"Auth-Key": key}
+    data = {"host": clean_host}
+    try:
+        resp = httpx.post(api_url, headers=headers, data=data, timeout=8.0)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            q_status = res_json.get("query_status")
+            if q_status == "ok":
+                cnt = res_json.get("url_count")
+                if cnt is None:
+                    cnt = len(res_json.get("urls") or [])
+                firstseen = str(res_json.get("firstseen") or "")[:10]
+                parts = [f"Malware host ({cnt} URL(s))"]
+                if firstseen:
+                    parts.append(f"First seen: {firstseen}")
+                return " | ".join(parts)
+            elif q_status == "no_results":
+                return "Not listed on URLhaus."
+            return f"URLhaus: {q_status}"
+        elif resp.status_code in (401, 403):
+            return "URLhaus Auth Error (check ABUSECH_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying URLhaus: {e}"
+
+
+def query_urlhaus_payload(file_hash: str) -> str:
+    """Query abuse.ch URLhaus API for payload hash (MD5 or SHA256) distribution info."""
+    key = _setting("ABUSECH_API_KEY")
+    if not key:
+        return "ABUSECH_API_KEY not configured."
+    clean_hash = file_hash.strip().lower()
+    api_url = "https://urlhaus-api.abuse.ch/v1/payload/"
+    headers = {"Auth-Key": key}
+    field = "sha256_hash" if len(clean_hash) == 64 else "md5_hash"
+    data = {field: clean_hash}
+    try:
+        resp = httpx.post(api_url, headers=headers, data=data, timeout=8.0)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            q_status = res_json.get("query_status")
+            if q_status == "ok":
+                sig = res_json.get("signature") or "Unknown"
+                ftype = res_json.get("file_type") or "Unknown"
+                cnt = res_json.get("url_count") or 0
+                return f"Payload: {sig} ({ftype}) | Seen on {cnt} URL(s)"
+            elif q_status == "no_results":
+                return "No payload on URLhaus."
+            return f"URLhaus: {q_status}"
+        elif resp.status_code in (401, 403):
+            return "URLhaus Auth Error (check ABUSECH_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying URLhaus: {e}"
+
+
 def query_epss(cve: str) -> str:
     """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
     clean_cve = cve.strip().upper()
@@ -899,7 +1017,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -908,6 +1026,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         otx_res = query_otx_hash(h)
         mb_res = query_malwarebazaar(h)
         sslbl_res = query_sslbl_fingerprint(h)
+        urlhaus_res = query_urlhaus_payload(h)
         threatfox_res = query_threatfox(h)
         misp_res = query_misp_indicator(h)
         lines = [
@@ -918,6 +1037,8 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         ]
         if len(h) in (32, 40):
             lines.append(f"  - *Abuse.ch (SSLBL Fingerprint):* {sslbl_res}")
+        if not urlhaus_res.startswith("No payload on URLhaus"):
+            lines.append(f"  - *Abuse.ch (URLhaus Payload):* {urlhaus_res}")
         lines.append(f"  - *Abuse.ch (ThreatFox):* {threatfox_res}")
         lines.append(f"  - *Internal MISP:* {misp_res}")
         return "\n".join(lines)
@@ -949,13 +1070,28 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         vt_res = query_vt_domain(d)
         otx_res = query_otx_domain(d)
         rdap_res = query_rdap_domain(d)
+        urlhaus_res = query_urlhaus_host(d)
         threatfox_res = query_threatfox(d)
         misp_res = query_misp_indicator(d)
-        return (
+        lines = [
             f"- **Domain {d}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
-            f"  - *RDAP (Domain Age & Registrar):* {rdap_res}\n"
+            f"  - *RDAP (Domain Age & Registrar):* {rdap_res}"
+        ]
+        if not urlhaus_res.startswith("Not listed on URLhaus"):
+            lines.append(f"  - *Abuse.ch (URLhaus Host):* {urlhaus_res}")
+        lines.append(f"  - *Abuse.ch (ThreatFox):* {threatfox_res}")
+        lines.append(f"  - *Internal MISP:* {misp_res}")
+        return "\n".join(lines)
+
+    def process_url(u: str) -> str:
+        urlhaus_res = query_urlhaus_url(u)
+        threatfox_res = query_threatfox(u)
+        misp_res = query_misp_indicator(u)
+        return (
+            f"- **URL {u}**:\n"
+            f"  - *Abuse.ch (URLhaus):* {urlhaus_res}\n"
             f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
             f"  - *Internal MISP:* {misp_res}"
         )
@@ -964,6 +1100,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         hash_futures = {executor.submit(process_hash, h): h for h in indicators["hashes"][:5]}
         ip_futures = {executor.submit(process_ip, ip): ip for ip in indicators["ips"][:5]}
         domain_futures = {executor.submit(process_domain, d): d for d in indicators["domains"][:5]}
+        url_futures = {executor.submit(process_url, u): u for u in indicators.get("urls", [])[:5]}
 
         # To maintain order
         hash_results = {future: future.result() for future in hash_futures}
@@ -984,6 +1121,13 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         for d in indicators["domains"][:5]:
             for future, result in domain_results.items():
                 if domain_futures[future] == d:
+                    summary.append(result)
+                    break
+
+        url_results = {future: future.result() for future in url_futures}
+        for u in indicators.get("urls", [])[:5]:
+            for future, result in url_results.items():
+                if url_futures[future] == u:
                     summary.append(result)
                     break
 

@@ -342,6 +342,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "MalBazaar" in text
         assert "Feodo C2" in text
         assert "SSLBL" in text
+        assert "URLhaus" in text
         assert "RDAP" in text
         assert "EPSS" in text
 
