@@ -72,9 +72,9 @@ _KNOWN_PUBLISHER_DOMAINS: Set[str] = {
 
 
 def extract_indicators(text: str) -> Dict[str, List[str]]:
-    """Extract IPs, Domains, and Hashes from text using regex, refanging first."""
+    """Extract IPs, Domains, Hashes, and CVEs from text using regex, refanging first."""
     if not text:
-        return {"ips": [], "hashes": [], "domains": []}
+        return {"ips": [], "hashes": [], "domains": [], "cves": []}
     clean_text = refang(text)
     tlds_list = [
         r"co\.uk", r"gov\.uk", r"ac\.uk", r"org\.uk", r"com\.au", r"net\.au",
@@ -97,7 +97,8 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     indicators = {
         "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', clean_text))),
         "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', clean_text))),
-        "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE)))
+        "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE))),
+        "cves": list(dict.fromkeys(cve.upper() for cve in re.findall(r'\bCVE-\d{4}-\d{4,7}\b', clean_text, re.IGNORECASE))),
     }
     # Filter out common false positives and private IPs
     indicators["ips"] = [
@@ -591,16 +592,95 @@ def query_malwarebazaar(file_hash: str) -> str:
         return f"Error querying MalwareBazaar: {e}"
 
 
+def query_epss(cve: str) -> str:
+    """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
+    clean_cve = cve.strip().upper()
+    if not re.match(r"^CVE-\d{4}-\d{4,7}$", clean_cve):
+        return f"Invalid CVE identifier '{cve}'."
+    try:
+        url = f"https://api.first.org/data/v1/epss?cve={clean_cve}"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json().get("data", [])
+            if data and isinstance(data, list):
+                item = data[0]
+                epss_val = float(item.get("epss", 0.0))
+                perc_val = float(item.get("percentile", 0.0))
+                date_val = item.get("date", "")
+                epss_pct = epss_val * 100
+                perc_pct = perc_val * 100
+                if epss_val >= 0.70:
+                    severity = "CRITICAL EXPLOIT PROBABILITY"
+                elif epss_val >= 0.35:
+                    severity = "HIGH EXPLOIT PROBABILITY"
+                elif epss_val >= 0.10:
+                    severity = "ELEVATED EXPLOIT PROBABILITY"
+                else:
+                    severity = "MODERATE/LOW EXPLOIT PROBABILITY"
+                date_str = f" · Date: {date_val}" if date_val else ""
+                return (
+                    f"EPSS: {epss_pct:.2f}% ({severity}) · "
+                    f"{perc_pct:.1f}th percentile{date_str}"
+                )
+            return f"No EPSS score published for {clean_cve}."
+        return f"EPSS API HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying EPSS: {e}"
+
+
+def query_epss_batch(cves: List[str]) -> Dict[str, str]:
+    """Query FIRST EPSS API for multiple CVEs in a single HTTP request."""
+    valid_cves = [c.strip().upper() for c in cves if re.match(r"^CVE-\d{4}-\d{4,7}$", c.strip().upper())]
+    if not valid_cves:
+        return {}
+    results: Dict[str, str] = {}
+    chunk = valid_cves[:30]
+    try:
+        url = f"https://api.first.org/data/v1/epss?cve={','.join(chunk)}"
+        resp = httpx.get(url, timeout=7.0)
+        if resp.status_code == 200:
+            data = resp.json().get("data", [])
+            for item in data:
+                cve_id = item.get("cve", "").upper()
+                if not cve_id:
+                    continue
+                epss_val = float(item.get("epss", 0.0))
+                perc_val = float(item.get("percentile", 0.0))
+                date_val = item.get("date", "")
+                epss_pct = epss_val * 100
+                perc_pct = perc_val * 100
+                if epss_val >= 0.70:
+                    severity = "CRITICAL EXPLOIT PROBABILITY"
+                elif epss_val >= 0.35:
+                    severity = "HIGH EXPLOIT PROBABILITY"
+                elif epss_val >= 0.10:
+                    severity = "ELEVATED EXPLOIT PROBABILITY"
+                else:
+                    severity = "MODERATE/LOW EXPLOIT PROBABILITY"
+                date_str = f" · Date: {date_val}" if date_val else ""
+                results[cve_id] = (
+                    f"EPSS: {epss_pct:.2f}% ({severity}) · "
+                    f"{perc_pct:.1f}th percentile{date_str}"
+                )
+        for c in chunk:
+            if c not in results:
+                results[c] = f"No EPSS score published for {c}."
+    except Exception as e:
+        for c in chunk:
+            results[c] = f"Error querying EPSS: {e}"
+    return results
+
+
 def generate_enrichment_summary(threat_intel: str) -> str:
-    """Extracts indicators and queries VT, returning a markdown summary."""
+    """Extracts indicators and queries OSINT platforms, returning a markdown summary."""
     indicators = extract_indicators(threat_intel)
     if not any(indicators.values()):
         return ""
-        
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP & MISP)"]
-    
+
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP, EPSS & MISP)"]
+
     from concurrent.futures import ThreadPoolExecutor
-    
+
     def process_hash(h: str) -> str:
         res = query_vt_hash(h)
         mb_res = query_malwarebazaar(h)
@@ -672,13 +752,25 @@ def generate_enrichment_summary(threat_intel: str) -> str:
                 if domain_futures[future] == d:
                     summary.append(result)
                     break
-    
+
+    cve_list = indicators.get("cves", [])[:5]
+    if cve_list:
+        epss_batch = query_epss_batch(cve_list)
+        for cve in cve_list:
+            epss_res = epss_batch.get(cve, "No EPSS score published.")
+            misp_res = query_misp_indicator(cve)
+            summary.append(
+                f"- **Vulnerability {cve}**:\n"
+                f"  - *FIRST EPSS (Exploit Prediction):* {epss_res}\n"
+                f"  - *Internal MISP:* {misp_res}"
+            )
+
     final_output = ""
     if len(summary) > 1:
         final_output += "\n".join(summary)
-        
+
     ttp_summary = expand_ttps(threat_intel)
     if ttp_summary:
         final_output += "\n" + ttp_summary
-        
+
     return final_output

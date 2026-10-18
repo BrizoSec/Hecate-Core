@@ -303,3 +303,15 @@ def query_rdap_domain(domain: str) -> str:
     return _q(domain)
 
 
+def query_epss(cve: str) -> str:
+    """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
+    from hecate_agent.orchestrator.enrichment import query_epss as _q
+    return _q(cve)
+
+
+def query_epss_batch(cves: List[str]) -> Dict[str, str]:
+    """Query FIRST EPSS API for multiple CVEs in a single HTTP request."""
+    from hecate_agent.orchestrator.enrichment import query_epss_batch as _q
+    return _q(cves)
+
+

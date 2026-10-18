@@ -968,6 +968,7 @@ def _integrations_panel(
         ("ThreatFox", ("ABUSECH_API_KEY",)),
         ("MalBazaar", ("ABUSECH_API_KEY",)),
         ("RDAP", ()),
+        ("EPSS", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -993,7 +994,7 @@ def _integrations_panel(
 
     services_data = []
     for label, names in checks:
-        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names) or (label == "RDAP")
+        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names) or (label in ("RDAP", "EPSS"))
         if label == "LLM":
             if is_set:
                 provider_name = os.environ.get("HECATE_LLM_PROVIDER")
@@ -1181,6 +1182,15 @@ def _integrations_panel(
                 if m:
                     dom_count = max(dom_count, int(m.group(1)))
             metric = f"{dom_count} queries" if dom_count > 0 else "ready"
+            services_data.append((label, True, detail, metric))
+        elif label == "EPSS":
+            detail = "cve score" if narrow else "exploit prediction"
+            cve_count = 0
+            for e in cycle_events:
+                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
+                if m:
+                    cve_count = max(cve_count, int(m.group(1)))
+            metric = f"{cve_count} CVEs" if cve_count > 0 else "ready"
             services_data.append((label, True, detail, metric))
         elif label == "Slack":
             if is_set:

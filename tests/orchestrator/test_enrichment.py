@@ -9,11 +9,13 @@ from hecate_agent.orchestrator.enrichment import (
 
 
 def test_extract_indicators():
-    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc. A domain is evil.shop. Also benign github.com."
+    text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc. A domain is evil.shop. Also benign github.com. Exploit CVE-2024-3272 and cve-2021-44228."
     inds = extract_indicators(text)
     assert "35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in inds["hashes"]
     assert "evil.shop" in inds["domains"]
     assert "github.com" not in inds["domains"]
+    assert "CVE-2024-3272" in inds["cves"]
+    assert "CVE-2021-44228" in inds["cves"]
 
 
 def test_extract_indicators_defanged_and_cctlds():
@@ -126,6 +128,18 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             return mock_abuseipdb
         if "rdap.org" in url:
             return mock_rdap
+        if "api.first.org" in url:
+            mock_epss = MagicMock(status_code=200)
+            mock_epss.json.return_value = {
+                "status": "OK",
+                "data": [{
+                    "cve": "CVE-2023-1234",
+                    "epss": "0.92500",
+                    "percentile": "0.98500",
+                    "date": "2026-10-16"
+                }]
+            }
+            return mock_epss
         if "censys" in url:
             mock_censys = MagicMock()
             mock_censys.status_code = 404
@@ -147,13 +161,17 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     
     with patch("hecate_agent.orchestrator.enrichment._setting") as mock_set:
         mock_set.side_effect = lambda k, d="": "test-key" if "KEY" in k or "TOKEN" in k else d
-        text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz"
+        text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz and vuln CVE-2023-1234"
         summary = generate_enrichment_summary(text)
     
     assert "🛡️ Automated Threat Enrichment" in summary
     assert "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in summary
     assert "IP 8.8.8.8" in summary
     assert "Domain c2.evil.xyz" in summary
+    assert "Vulnerability CVE-2023-1234" in summary
+    assert "FIRST EPSS (Exploit Prediction)" in summary
+    assert "92.50%" in summary
+    assert "CRITICAL EXPLOIT PROBABILITY" in summary
     assert "Malicious hits: 5" in summary
     assert "Mirai" in summary
     assert "MalwareBazaar" in summary
@@ -318,6 +336,58 @@ def test_query_rdap_domain():
         mock_resp_404 = MagicMock(status_code=404)
         mock_get.return_value = mock_resp_404
         assert "Domain not found on RDAP." in query_rdap_domain("unknown-domain.xyz")
+
+
+def test_query_epss():
+    from hecate_agent.orchestrator.enrichment import query_epss
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        # Happy path - critical probability
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "status": "OK",
+            "data": [{
+                "cve": "CVE-2024-3272",
+                "epss": "0.98038",
+                "percentile": "0.99911",
+                "date": "2026-10-16"
+            }]
+        }
+        mock_get.return_value = mock_resp
+        res = query_epss("CVE-2024-3272")
+        assert "98.04%" in res
+        assert "CRITICAL EXPLOIT PROBABILITY" in res
+        assert "99.9th percentile" in res
+        assert "2026-10-16" in res
+
+        # Not found / no score
+        mock_resp_empty = MagicMock(status_code=200)
+        mock_resp_empty.json.return_value = {"status": "OK", "data": []}
+        mock_get.return_value = mock_resp_empty
+        assert "No EPSS score published for CVE-2099-0001." in query_epss("CVE-2099-0001")
+
+        # Invalid format
+        assert "Invalid CVE identifier" in query_epss("not-a-cve")
+
+
+def test_query_epss_batch():
+    from hecate_agent.orchestrator.enrichment import query_epss_batch
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "status": "OK",
+            "data": [
+                {"cve": "CVE-2024-3272", "epss": "0.98038", "percentile": "0.99911", "date": "2026-10-16"},
+                {"cve": "CVE-2021-44228", "epss": "0.15000", "percentile": "0.85000", "date": "2026-10-16"},
+            ]
+        }
+        mock_get.return_value = mock_resp
+        results = query_epss_batch(["CVE-2024-3272", "CVE-2021-44228", "CVE-2099-1111"])
+        assert "CVE-2024-3272" in results
+        assert "CRITICAL EXPLOIT PROBABILITY" in results["CVE-2024-3272"]
+        assert "CVE-2021-44228" in results
+        assert "ELEVATED EXPLOIT PROBABILITY" in results["CVE-2021-44228"]
+        assert "No EPSS score published for CVE-2099-1111." in results["CVE-2099-1111"]
+
 
 
 

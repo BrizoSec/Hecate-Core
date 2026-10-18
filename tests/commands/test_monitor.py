@@ -300,6 +300,7 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "AbuseIPDB" in text and "--" in text
     assert "MalBazaar" in text and "ready" in text
     assert "RDAP" in text and "2 queries" in text
+    assert "EPSS" in text
     assert "Slack" in text and "--" in text
 
 
@@ -340,6 +341,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "ThreatFox" in text
         assert "MalBazaar" in text
         assert "RDAP" in text
+        assert "EPSS" in text
 
 
 
