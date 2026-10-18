@@ -388,4 +388,159 @@ def test_latest_metrics_preserves_llm_stages_across_zero_call_cycles(tmp_path: P
     assert latest["stages"][0]["llm_calls"] == 3
 
 
+def test_collect_hunts_metrics_empty_workspace(tmp_path: Path) -> None:
+    metrics = m._collect_hunts_metrics(tmp_path)
+    assert metrics.total_hunts == 0
+    assert metrics.threats_count == 0
+    assert metrics.ttps_count == 0
+    assert metrics.network_total == 0
+    assert metrics.host_total == 0
+
+
+def test_collect_hunts_metrics_with_hunts(tmp_path: Path) -> None:
+    hunts_dir = tmp_path / "hunts" / "2026" / "Q4"
+    hunts_dir.mkdir(parents=True)
+
+    hunt_text = """---
+hunt_id: H-0001
+title: "Test Hunt - Adversary Execution"
+status: planning
+date: 2026-10-18
+techniques: ["T1059.001", "T1105", "T1218.011"]
+---
+
+### Threat Context
+**Threat Actor:** APT28 (Fancy Bear)
+
+### ABLE Scoping
+| **Field** | **Your Input** |
+|---|---|
+| **Actor** | Fancy Bear |
+
+### Grounding
+| Claim | Type | Grounding |
+|---|---|---|
+| `X-Agent` | entity | asserted by CTI |
+
+**Indicators by role**:
+| Indicator | Type | Role | Status | Confidence | Rules |
+|---|---|---|---|---|---|
+| `198.51.100.1` | ip | c2 | active | high | network_connection |
+| `evil-domain.com` | domain | c2 | active | high | dns_query |
+| `https://evil-domain.com/payload.exe` | url | payload | active | high | network_connection |
+| `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | sha256 | payload | active | high | file_event |
+| `C:\\Windows\\Temp\\malware.exe` | file_path | artifact | active | high | file_event |
+
+### Indicators of Compromise (IoCs)
+#### File Hashes (SHA-256)
+- `2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae`
+
+#### Network Observables & Infrastructure
+- `203.0.113.5`
+- `bad-c2.xyz`
+
+#### File Paths & Artifacts
+- `C:\\ProgramData\\updater.dll`
+"""
+    (hunts_dir / "H-0001.md").write_text(hunt_text, encoding="utf-8")
+    # Also create an excluded doc file to verify it is ignored
+    (tmp_path / "hunts" / "README.md").write_text("# Documentation", encoding="utf-8")
+
+    metrics = m._collect_hunts_metrics(tmp_path)
+    assert metrics.total_hunts == 1
+    assert metrics.drafts_count == 1
+    assert metrics.ttps_count == 3
+    # Threats: APT28 (Fancy Bear), Fancy Bear, X-Agent
+    assert metrics.threats_count >= 2
+    # Network: 198.51.100.1, evil-domain.com, url, 203.0.113.5, bad-c2.xyz
+    assert metrics.network_total >= 4
+    assert metrics.network_ips >= 2
+    assert metrics.network_domains >= 2
+    # Host: hashes (2) + paths (2)
+    assert metrics.host_total >= 3
+    assert metrics.host_hashes >= 2
+    assert metrics.host_paths >= 1
+
+    # Verify cache returns the same instance on quick successive calls
+    cached_metrics = m._collect_hunts_metrics(tmp_path)
+    assert cached_metrics is metrics
+
+
+def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
+    mock_metrics = m.HuntsMetrics(
+        total_hunts=197,
+        drafts_count=197,
+        threats_count=295,
+        ttps_count=200,
+        network_total=1053,
+        network_ips=271,
+        network_domains=532,
+        host_total=1085,
+        host_hashes=477,
+        host_paths=608,
+    )
+    c = Console(width=48, record=True, force_terminal=False)
+    panel = m._hunts_summary_panel(workspace=tmp_path, narrow=True, metrics=mock_metrics)
+    c.print(panel)
+    text = c.export_text()
+
+    assert "HUNTS SUMMARY" in text
+    assert "HUNTS" in text and "197 total" in text and "197 drafts" in text
+    assert "THREATS" in text and "295 tracked" in text
+    assert "ATT&CK" in text and "200 techniques" in text
+    assert "NETWORK" in text and "1,053 IOCs" in text and "271 IPs" in text
+    assert "HOST" in text and "1,085 IOCs" in text and "477 hash" in text
+
+    # Verify height is exactly 7 lines (5 data rows + 2 borders)
+    assert len(text.splitlines()) == m._HUNTS_PANEL_HEIGHT
+
+
+def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
+    mock_metrics = m.HuntsMetrics(
+        total_hunts=197,
+        drafts_count=197,
+        threats_count=295,
+        ttps_count=200,
+        network_total=1053,
+        network_ips=271,
+        network_domains=532,
+        host_total=1085,
+        host_hashes=477,
+        host_paths=608,
+    )
+    # Wide mode
+    c = Console(width=80, record=True, force_terminal=False)
+    panel = m._hunts_summary_panel(workspace=tmp_path, narrow=False, metrics=mock_metrics)
+    c.print(panel)
+    text_wide = c.export_text()
+    assert "HUNTS SUMMARY" in text_wide
+    assert "197 total" in text_wide
+    assert "295 tracked" in text_wide
+    assert "IOCs" in text_wide and "1,053 net" in text_wide
+
+    # Compact mode
+    c_compact = Console(width=50, record=True, force_terminal=False)
+    panel_compact = m._hunts_summary_panel(workspace=tmp_path, compact=True, metrics=mock_metrics)
+    c_compact.print(panel_compact)
+    text_compact = c_compact.export_text()
+    assert len(text_compact.splitlines()) == m._USAGE_PANEL_HEIGHT
+
+
+def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
+    events = _events("route: narrative", "done: draft_created")
+    runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
+
+    # Tall screen (height=60): HUNTS SUMMARY is stacked on the left
+    tall = _render(events, runner, height=60)
+    assert "HUNTS SUMMARY" in tall
+    tall_line = next(line for line in tall.splitlines() if "HUNTS SUMMARY" in line)
+    assert tall_line.index("HUNTS SUMMARY") < 140 // 3
+
+    # Short screen (height=30): HUNTS SUMMARY is in the bottom usage row
+    short = _render(events, runner, height=30)
+    assert "HUNTS SUMMARY" in short
+    short_line = next(line for line in short.splitlines() if "HUNTS SUMMARY" in line)
+    assert short_line.index("HUNTS SUMMARY") > 140 // 3
+
+
 

@@ -12,9 +12,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import click
+import yaml
 from rich import box
 from rich.console import Console, Group
 from rich.layout import Layout
@@ -700,7 +701,8 @@ def _narrow_usage_rows(
 #: Rows of the LLM panel in a side column, with its border.
 _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
-_INTEGRATIONS_PANEL_HEIGHT = 12
+_INTEGRATIONS_PANEL_HEIGHT = 10
+_HUNTS_PANEL_HEIGHT = 7
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -1232,6 +1234,287 @@ def _integrations_panel(
     return Panel(table, title="[bold bright_cyan]INTEGRATIONS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
 
+@dataclass
+class HuntsMetrics:
+    total_hunts: int = 0
+    drafts_count: int = 0
+    active_count: int = 0
+    completed_count: int = 0
+    threats_count: int = 0
+    ttps_count: int = 0
+    network_total: int = 0
+    network_ips: int = 0
+    network_domains: int = 0
+    network_urls: int = 0
+    host_total: int = 0
+    host_hashes: int = 0
+    host_paths: int = 0
+
+
+_EXCLUDED_HUNT_DOCS = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
+_RE_TECHNIQUE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+_RE_IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_RE_SHA256 = re.compile(r"\b[a-fA-F0-9]{64}\b")
+_RE_SHA1 = re.compile(r"\b[a-fA-F0-9]{40}\b")
+_RE_MD5 = re.compile(r"\b[a-fA-F0-9]{32}\b")
+_RE_DOMAIN = re.compile(
+    r"\b(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|xyz|ru|cn|io|top|biz|info|cc|co|kg|lv|dev|online|store|site|club|app|vip|pro|mobi|tech)\b",
+    re.IGNORECASE,
+)
+_RE_ACTOR_ROW = re.compile(r"\|\s*\*\*Actor\*\*\s*\|\s*([^|\n]+)\|")
+_RE_THREAT_CONTEXT = re.compile(r"\*\*Threat(?:\s+Actor)?:\*\*\s*([^\n]+)")
+_RE_GROUNDING_ENTITY = re.compile(r"\|\s*`([^`]+)`\s*\|\s*entity\s*\|\s*asserted by CTI")
+_RE_ROLE_INDICATOR = re.compile(r"\|\s*`([^`]+)`\s*\|\s*([\w_]+)\s*\|")
+_GENERIC_THREAT_NAMES = {
+    "unknown", "none", "n/a", "various", "threat actor", "adversary",
+    "unspecified", "tbd", "actor", "attacker", "malware", "not specified",
+}
+
+_HUNTS_METRICS_CACHE: Dict[Path, Tuple[float, int, float, HuntsMetrics]] = {}
+
+
+def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
+    """Collect summary metrics across all hunt drafts in the workspace.
+
+    Cached with a 10s cooldown and file count/mtime fingerprinting
+    so monitor refresh cycles remain instantaneous.
+    """
+    if not workspace:
+        return HuntsMetrics()
+    hunts_dir = workspace / "hunts"
+    if not hunts_dir.exists() or not hunts_dir.is_dir():
+        return HuntsMetrics()
+
+    resolved_path = hunts_dir.resolve()
+    now = time.monotonic()
+    cached = _HUNTS_METRICS_CACHE.get(resolved_path)
+
+    if cached is not None and (now - cached[0] < 10.0):
+        return cached[3]
+
+    try:
+        hunt_files = sorted(f for f in hunts_dir.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
+    except OSError:
+        return cached[3] if cached is not None else HuntsMetrics()
+
+    file_count = len(hunt_files)
+    try:
+        max_mtime = max((f.stat().st_mtime for f in hunt_files), default=0.0)
+    except OSError:
+        max_mtime = 0.0
+
+    if cached is not None and cached[1] == file_count and cached[2] == max_mtime:
+        _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, cached[3])
+        return cached[3]
+
+    drafts_count = 0
+    active_count = 0
+    completed_count = 0
+    threats: Set[str] = set()
+    techniques: Set[str] = set()
+    network_ips: Set[str] = set()
+    network_domains: Set[str] = set()
+    network_urls: Set[str] = set()
+    host_hashes: Set[str] = set()
+    host_paths: Set[str] = set()
+
+    for hunt_file in hunt_files:
+        try:
+            text = hunt_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        m_fm = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
+        if m_fm:
+            try:
+                fm = yaml.safe_load(m_fm.group(1)) or {}
+                st = str(fm.get("status", "")).lower()
+                if st in {"active", "in_progress", "in-progress"}:
+                    active_count += 1
+                elif st in {"completed", "done", "closed"}:
+                    completed_count += 1
+                else:
+                    drafts_count += 1
+
+                for t in fm.get("techniques", []):
+                    t_str = str(t).strip()
+                    if _RE_TECHNIQUE.match(t_str):
+                        techniques.add(t_str)
+
+                for k in ("threat", "threat_actor", "actor"):
+                    val = fm.get(k)
+                    if val and isinstance(val, str):
+                        clean_val = val.strip().strip("*_`")
+                        if clean_val.lower() not in _GENERIC_THREAT_NAMES:
+                            threats.add(clean_val)
+            except Exception:
+                drafts_count += 1
+        else:
+            drafts_count += 1
+
+        m_act = _RE_ACTOR_ROW.search(text)
+        if m_act:
+            clean_act = m_act.group(1).strip().strip("*_`")
+            if clean_act.lower() not in _GENERIC_THREAT_NAMES:
+                threats.add(clean_act)
+
+        m_ta = _RE_THREAT_CONTEXT.search(text)
+        if m_ta:
+            clean_ta = m_ta.group(1).strip().strip("*_# `")
+            if clean_ta.lower() not in _GENERIC_THREAT_NAMES:
+                threats.add(clean_ta)
+
+        for m_ge in _RE_GROUNDING_ENTITY.finditer(text):
+            clean_ent = m_ge.group(1).strip()
+            if clean_ent.lower() not in _GENERIC_THREAT_NAMES:
+                threats.add(clean_ent)
+
+        for m_ir in _RE_ROLE_INDICATOR.finditer(text):
+            val, itype = m_ir.group(1).strip(), m_ir.group(2).lower()
+            if itype in {"malware_family", "threat_actor", "actor"}:
+                if val.lower() not in _GENERIC_THREAT_NAMES:
+                    threats.add(val)
+            elif itype in {"ip", "ipv4", "ipv6"}:
+                clean_ip = val.replace("[", "").replace("]", "")
+                if _RE_IP.match(clean_ip):
+                    network_ips.add(clean_ip)
+            elif itype in {"domain", "hostname"}:
+                network_domains.add(val.replace("[", "").replace("]", "").lower())
+            elif itype == "url":
+                network_urls.add(val.replace("[", "").replace("]", ""))
+            elif itype in {"hash", "file_hash", "sha256", "md5", "sha1"}:
+                host_hashes.add(val.lower())
+            elif itype in {"file_path", "path", "file", "registry", "process"}:
+                host_paths.add(val)
+
+        m_ioc = re.search(r"###\s+Indicators of Compromise.*?(?=\n###\s+[A-Z]|\n## |\Z)", text, re.DOTALL | re.IGNORECASE)
+        if m_ioc:
+            ioc_txt = m_ioc.group(0)
+            for ip in _RE_IP.findall(ioc_txt):
+                network_ips.add(ip)
+            for d in _RE_DOMAIN.findall(ioc_txt):
+                network_domains.add(d.lower())
+            for hsh in _RE_SHA256.findall(ioc_txt):
+                host_hashes.add(hsh.lower())
+            for hsh in _RE_MD5.findall(ioc_txt):
+                host_hashes.add(hsh.lower())
+            for hsh in _RE_SHA1.findall(ioc_txt):
+                host_hashes.add(hsh.lower())
+            m_fp = re.search(r"####\s+File Paths.*?(?=####|\Z)", ioc_txt, re.DOTALL | re.IGNORECASE)
+            if m_fp:
+                for p in re.findall(r"`([^`]+)`", m_fp.group(0)):
+                    host_paths.add(p)
+
+    metrics = HuntsMetrics(
+        total_hunts=file_count,
+        drafts_count=drafts_count,
+        active_count=active_count,
+        completed_count=completed_count,
+        threats_count=len(threats),
+        ttps_count=len(techniques),
+        network_total=len(network_ips | network_domains | network_urls),
+        network_ips=len(network_ips),
+        network_domains=len(network_domains),
+        network_urls=len(network_urls),
+        host_total=len(host_hashes | host_paths),
+        host_hashes=len(host_hashes),
+        host_paths=len(host_paths),
+    )
+    _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
+    return metrics
+
+
+def _hunts_summary_panel(
+    workspace: Optional[Path] = None,
+    narrow: bool = True,
+    compact: bool = False,
+    metrics: Optional[HuntsMetrics] = None,
+) -> Panel:
+    """A dedicated panel displaying summary metrics for hunts generated across the workspace."""
+    h_metrics = metrics or _collect_hunts_metrics(workspace)
+
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("label", style="dim", width=9, min_width=9, no_wrap=True)
+    table.add_column("value", ratio=1, overflow="ellipsis", no_wrap=True)
+
+    if compact or not narrow:
+        if h_metrics.total_hunts == 0:
+            table.add_row("HUNTS", Text("0 generated", style="dim"))
+            table.add_row("THREATS", Text("0 tracked", style="dim"))
+            table.add_row("ATT&CK", Text("0 techniques", style="dim"))
+            table.add_row("IOCs", Text("0 observables", style="dim"))
+        else:
+            hunts_text = f"{h_metrics.total_hunts} total"
+            hunts_sub = f"{h_metrics.drafts_count} drafts" if not h_metrics.completed_count else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
+            table.add_row(
+                "HUNTS",
+                Text.assemble((hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
+            )
+            table.add_row(
+                "THREATS",
+                Text.assemble((f"{h_metrics.threats_count} tracked", "bright_white"), (" · ", "dim"), ("actors & malware", "bright_cyan")),
+            )
+            table.add_row(
+                "ATT&CK",
+                Text.assemble((f"{h_metrics.ttps_count} techniques", "bright_white"), (" · ", "dim"), ("coverage", "bright_cyan")),
+            )
+            table.add_row(
+                "IOCs",
+                Text.assemble(
+                    (f"{h_metrics.network_total:,} net", "bright_white"),
+                    (f" ({h_metrics.network_ips} IPs, {h_metrics.network_domains} dom) · ", "dim"),
+                    (f"{h_metrics.host_total:,} host", "bright_white"),
+                    (f" ({h_metrics.host_hashes} hash)", "dim"),
+                ),
+            )
+    else:
+        # Narrow mode (stacked on left column under INTEGRATIONS)
+        if h_metrics.total_hunts == 0:
+            table.add_row("HUNTS", Text("0 generated", style="dim"))
+            table.add_row("THREATS", Text("0 tracked", style="dim"))
+            table.add_row("ATT&CK", Text("0 techniques", style="dim"))
+            table.add_row("NETWORK", Text("0 IOCs", style="dim"))
+            table.add_row("HOST", Text("0 IOCs", style="dim"))
+        else:
+            hunts_val = f"{h_metrics.total_hunts} total"
+            hunts_sub = f"{h_metrics.drafts_count} drafts" if not h_metrics.completed_count else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
+            table.add_row(
+                "HUNTS",
+                Text.assemble((hunts_val, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
+            )
+            table.add_row(
+                "THREATS",
+                Text.assemble((f"{h_metrics.threats_count} tracked", "bright_white"), (" · ", "dim"), ("actors & malware", "bright_cyan")),
+            )
+            table.add_row(
+                "ATT&CK",
+                Text.assemble((f"{h_metrics.ttps_count} techniques", "bright_white"), (" · ", "dim"), ("coverage", "bright_cyan")),
+            )
+            table.add_row(
+                "NETWORK",
+                Text.assemble(
+                    (f"{h_metrics.network_total:,} IOCs", "bright_white"),
+                    (" · ", "dim"),
+                    (f"{h_metrics.network_ips} IPs, {h_metrics.network_domains} dom", "bright_cyan"),
+                ),
+            )
+            table.add_row(
+                "HOST",
+                Text.assemble(
+                    (f"{h_metrics.host_total:,} IOCs", "bright_white"),
+                    (" · ", "dim"),
+                    (f"{h_metrics.host_hashes} hash, {h_metrics.host_paths} path", "bright_cyan"),
+                ),
+            )
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]HUNTS SUMMARY[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
 def _compact_progress(
     current: Optional[TrailEvent], active: bool, stale: bool, in_progress: Optional[int] = None
 ) -> Panel:
@@ -1542,6 +1825,8 @@ def _render_dashboard(
             Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), ratio=1),
             Layout(Text(" "), size=1),
             Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False, events=events, metrics=metrics, live=live, current=latest), ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(_hunts_summary_panel(workspace=workspace, compact=True, narrow=False), ratio=1),
         )
         return layout
 
@@ -1561,10 +1846,12 @@ def _render_dashboard(
     body_height = console.size.height - 3 - resources_height - 1
     llm_height = _NARROW_LLM_PANEL_HEIGHT
     integrations_height = _INTEGRATIONS_PANEL_HEIGHT
+    hunts_height = _HUNTS_PANEL_HEIGHT
     search_count = _search_count(latest, events)
-    usage_on_left = body_height >= stages_height + service_height + llm_height + integrations_height
+    usage_on_left = body_height >= stages_height + service_height + llm_height + integrations_height + hunts_height
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
     integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left, events=events, metrics=metrics, live=live, current=latest)
+    hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left)
     if usage_on_left:
         middle_height = body_height
         layout.split_column(
@@ -1586,6 +1873,8 @@ def _render_dashboard(
             Layout(llm_panel, ratio=1),
             Layout(Text(" "), size=1),
             Layout(integrations_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(hunts_panel, ratio=1),
         )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
@@ -1681,6 +1970,7 @@ def _render_dashboard(
     if usage_on_left:
         left.append(Layout(llm_panel, size=llm_height))
         left.append(Layout(integrations_panel, ratio=1))
+        left.append(Layout(hunts_panel, size=hunts_height))
     if len(left) > 1:
         layout["stages"].split_column(*left)
     else:
