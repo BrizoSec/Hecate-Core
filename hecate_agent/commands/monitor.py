@@ -715,6 +715,8 @@ def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str)
 
 #: Rows of the usage panel in the full layout, with its border.
 _USAGE_PANEL_HEIGHT = 6
+#: Height of the bottom usage/summary/integrations row in horizontal dashboard layouts.
+_BOTTOM_ROW_HEIGHT = 10
 
 
 def _stage_line(llm_stages: List[Dict[str, Any]], tokens: bool = True) -> str:
@@ -1808,7 +1810,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore[import-not-found]
+        from hecate_agent.orchestrator.graph import hecate_graph
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
@@ -1926,7 +1928,7 @@ def _render_dashboard(
             Layout(_compact_resources(host), name="resources", size=4),
             Layout(_compact_progress(latest, active, stale, in_progress), name="progress", size=3),
             Layout(action_panel, name="activity", size=6),
-            Layout(name="usage", size=6),
+            Layout(name="usage", size=_BOTTOM_ROW_HEIGHT),
             Layout(
                 Text(
                     f"Updated {refreshed:%H:%M:%S} · Ctrl-C exits"
@@ -1978,12 +1980,12 @@ def _render_dashboard(
             footer,
         )
     else:
-        middle_height = body_height - _USAGE_PANEL_HEIGHT
+        middle_height = body_height - _BOTTOM_ROW_HEIGHT
         layout.split_column(
             Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
-            Layout(name="usage", size=_USAGE_PANEL_HEIGHT),
+            Layout(name="usage", size=_BOTTOM_ROW_HEIGHT),
             footer,
         )
         layout["usage"].split_row(
