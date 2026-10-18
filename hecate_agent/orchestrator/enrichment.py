@@ -671,24 +671,148 @@ def query_epss_batch(cves: List[str]) -> Dict[str, str]:
     return results
 
 
+def query_otx_indicator(indicator_type: str, indicator: str) -> str:
+    """Query AlienVault OTX Direct API for indicator general metadata, pulse associations, adversaries, and passive DNS.
+
+    Supported indicator_type values: 'IPv4', 'domain', 'file', 'cve'.
+    """
+    key = _setting("OTX_API_KEY") or _setting("HECATE_RUNNER_OTX_API_KEY")
+    if not key:
+        return "OTX_API_KEY not configured."
+
+    headers = {
+        "X-OTX-API-KEY": key,
+        "Accept": "application/json",
+    }
+    norm_type = indicator_type.strip()
+    clean_val = indicator.strip()
+
+    if norm_type.lower() in ("ip", "ipv4"):
+        norm_type = "IPv4"
+    elif norm_type.lower() in ("domain", "hostname"):
+        norm_type = "domain"
+        clean_val = clean_val.removeprefix("http://").removeprefix("https://").split("/")[0]
+    elif norm_type.lower() in ("hash", "file", "sha256", "sha1", "md5"):
+        norm_type = "file"
+        clean_val = clean_val.lower()
+    elif norm_type.lower() in ("cve", "vulnerability"):
+        norm_type = "cve"
+        clean_val = clean_val.upper()
+
+    try:
+        url = f"https://otx.alienvault.com/api/v1/indicators/{norm_type}/{clean_val}/general"
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            pulse_info = data.get("pulse_info") or {}
+            cnt = int(pulse_info.get("count", 0))
+            pulses = pulse_info.get("pulses") or []
+
+            adversaries: List[str] = []
+            for p in pulses:
+                adv = p.get("adversary")
+                if adv and isinstance(adv, str):
+                    adv_clean = adv.strip()
+                    if adv_clean and adv_clean.lower() != "unknown" and adv_clean not in adversaries:
+                        adversaries.append(adv_clean)
+
+            titles: List[str] = [
+                str(p.get("name")).strip()
+                for p in pulses
+                if p.get("name") and str(p.get("name")).strip()
+            ]
+
+            tags: List[str] = []
+            for p in pulses:
+                for t in p.get("tags") or []:
+                    if t and isinstance(t, str):
+                        t_clean = t.strip()
+                        if t_clean and t_clean not in tags:
+                            tags.append(t_clean)
+
+            # For IPs and domains, attempt a quick passive DNS query to get correlated hostnames
+            pdns_hosts: List[str] = []
+            if norm_type in ("IPv4", "domain"):
+                try:
+                    pdns_url = f"https://otx.alienvault.com/api/v1/indicators/{norm_type}/{clean_val}/passive_dns"
+                    pdns_resp = httpx.get(pdns_url, headers=headers, timeout=3.0)
+                    if pdns_resp.status_code == 200:
+                        entries = pdns_resp.json().get("passive_dns") or []
+                        for e in entries:
+                            h = e.get("hostname") or e.get("address")
+                            if h and isinstance(h, str) and h not in pdns_hosts and h.lower() != clean_val.lower():
+                                pdns_hosts.append(h)
+                                if len(pdns_hosts) >= 2:
+                                    break
+                except Exception:
+                    pass
+
+            parts: List[str] = []
+            if cnt > 0:
+                p_desc = f"{cnt} Pulse(s)"
+                if titles:
+                    p_desc += f" (e.g. '{titles[0]}')"
+                parts.append(p_desc)
+                if adversaries:
+                    parts.append(f"Adversary: {', '.join(adversaries[:2])}")
+                if tags:
+                    parts.append(f"Tags: {', '.join(tags[:3])}")
+                if pdns_hosts:
+                    parts.append(f"Passive DNS: {', '.join(pdns_hosts)}")
+                return " | ".join(parts)
+            else:
+                if pdns_hosts:
+                    return f"0 Pulses | Passive DNS: {', '.join(pdns_hosts)}"
+                return "Not observed in OTX Pulses."
+        elif resp.status_code == 404:
+            return "No record on OTX."
+        elif resp.status_code in (401, 403):
+            return "OTX Auth Error (check OTX_API_KEY)."
+        return f"OTX error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying OTX: {e}"
+
+
+def query_otx_ip(ip: str) -> str:
+    """Query AlienVault OTX Direct API for an IPv4 address."""
+    return query_otx_indicator("IPv4", ip)
+
+
+def query_otx_domain(domain: str) -> str:
+    """Query AlienVault OTX Direct API for a domain."""
+    return query_otx_indicator("domain", domain)
+
+
+def query_otx_hash(file_hash: str) -> str:
+    """Query AlienVault OTX Direct API for a file hash."""
+    return query_otx_indicator("file", file_hash)
+
+
+def query_otx_cve(cve: str) -> str:
+    """Query AlienVault OTX Direct API for a CVE vulnerability."""
+    return query_otx_indicator("cve", cve)
+
+
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Extracts indicators and queries OSINT platforms, returning a markdown summary."""
     indicators = extract_indicators(threat_intel)
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP, EPSS & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch, RDAP, EPSS & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
     def process_hash(h: str) -> str:
         res = query_vt_hash(h)
+        otx_res = query_otx_hash(h)
         mb_res = query_malwarebazaar(h)
         threatfox_res = query_threatfox(h)
         misp_res = query_misp_indicator(h)
         return (
             f"- **Hash {h}**:\n"
             f"  - *VirusTotal:* {res}\n"
+            f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *Abuse.ch (MalwareBazaar):* {mb_res}\n"
             f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
             f"  - *Internal MISP:* {misp_res}"
@@ -696,6 +820,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
 
     def process_ip(ip: str) -> str:
         vt_res = query_vt_ip(ip)
+        otx_res = query_otx_ip(ip)
         abuseipdb_res = query_abuseipdb_ip(ip)
         gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
@@ -705,6 +830,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         return (
             f"- **IP {ip}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
+            f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *AbuseIPDB:* {abuseipdb_res}\n"
             f"  - *GreyNoise:* {gn_res}\n"
             f"  - *Shodan:* {shodan_res}\n"
@@ -715,12 +841,14 @@ def generate_enrichment_summary(threat_intel: str) -> str:
 
     def process_domain(d: str) -> str:
         vt_res = query_vt_domain(d)
+        otx_res = query_otx_domain(d)
         rdap_res = query_rdap_domain(d)
         threatfox_res = query_threatfox(d)
         misp_res = query_misp_indicator(d)
         return (
             f"- **Domain {d}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
+            f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *RDAP (Domain Age & Registrar):* {rdap_res}\n"
             f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
             f"  - *Internal MISP:* {misp_res}"
@@ -758,10 +886,12 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         epss_batch = query_epss_batch(cve_list)
         for cve in cve_list:
             epss_res = epss_batch.get(cve, "No EPSS score published.")
+            otx_res = query_otx_cve(cve)
             misp_res = query_misp_indicator(cve)
             summary.append(
                 f"- **Vulnerability {cve}**:\n"
                 f"  - *FIRST EPSS (Exploit Prediction):* {epss_res}\n"
+                f"  - *AlienVault OTX:* {otx_res}\n"
                 f"  - *Internal MISP:* {misp_res}"
             )
 

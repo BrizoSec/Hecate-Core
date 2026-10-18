@@ -1051,16 +1051,26 @@ def _integrations_panel(
                 services_data.append((label, False, "unconfigured", "--"))
         elif label == "OTX":
             if is_set:
-                detail = "pulse feed"
+                detail = "feed/ioc" if narrow else "pulses"
                 otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in cycle_events)
                 if otx_found:
                     metric = "1 pulse"
                 else:
-                    backlog = _backlog_observation(events or [])
-                    if backlog and backlog[0] > 0:
-                        metric = f"{backlog[0]} queued"
+                    obs_count = 0
+                    for e in cycle_events:
+                        if e.stage == "enrichment":
+                            m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
+                            if m_obs:
+                                obs_count = int(m_obs.group(1))
+                                break
+                    if obs_count > 0:
+                        metric = f"{obs_count} queries"
                     else:
-                        metric = "0 pulses"
+                        backlog = _backlog_observation(events or [])
+                        if backlog and backlog[0] > 0:
+                            metric = f"{backlog[0]} queued"
+                        else:
+                            metric = "ready"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))

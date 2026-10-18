@@ -140,6 +140,17 @@ def test_generate_enrichment_summary(mock_post, mock_get):
                 }]
             }
             return mock_epss
+        if "alienvault.com" in url or "otx" in url:
+            mock_otx = MagicMock(status_code=200)
+            mock_otx.json.return_value = {
+                "pulse_info": {
+                    "count": 2,
+                    "pulses": [
+                        {"name": "Mirai C2 Infrastructure", "adversary": "ThreatGroup-1", "tags": ["botnet", "iot"]}
+                    ]
+                }
+            }
+            return mock_otx
         if "censys" in url:
             mock_censys = MagicMock()
             mock_censys.status_code = 404
@@ -170,6 +181,8 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     assert "Domain c2.evil.xyz" in summary
     assert "Vulnerability CVE-2023-1234" in summary
     assert "FIRST EPSS (Exploit Prediction)" in summary
+    assert "AlienVault OTX" in summary
+    assert "Mirai C2 Infrastructure" in summary
     assert "92.50%" in summary
     assert "CRITICAL EXPLOIT PROBABILITY" in summary
     assert "Malicious hits: 5" in summary
@@ -387,6 +400,119 @@ def test_query_epss_batch():
         assert "CVE-2021-44228" in results
         assert "ELEVATED EXPLOIT PROBABILITY" in results["CVE-2021-44228"]
         assert "No EPSS score published for CVE-2099-1111." in results["CVE-2099-1111"]
+
+
+def test_query_otx_ip_with_pulses_and_pdns():
+    from hecate_agent.orchestrator.enrichment import query_otx_ip
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
+        with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+            def side_effect(url, **kwargs):
+                if "passive_dns" in url:
+                    mock_pdns = MagicMock(status_code=200)
+                    mock_pdns.json.return_value = {
+                        "passive_dns": [
+                            {"hostname": "c2-node.malicious.net", "record_type": "A"},
+                            {"hostname": "backup-relay.xyz", "record_type": "A"}
+                        ]
+                    }
+                    return mock_pdns
+                mock_gen = MagicMock(status_code=200)
+                mock_gen.json.return_value = {
+                    "pulse_info": {
+                        "count": 5,
+                        "pulses": [
+                            {"name": "Cobalt Strike Infrastructure", "adversary": "APT29", "tags": ["c2", "cobalt strike"]},
+                            {"name": "Red Team Operations", "adversary": "APT29", "tags": ["beacon"]}
+                        ]
+                    }
+                }
+                return mock_gen
+
+            mock_get.side_effect = side_effect
+            res = query_otx_ip("198.51.100.1")
+            assert "5 Pulse(s)" in res
+            assert "Cobalt Strike Infrastructure" in res
+            assert "Adversary: APT29" in res
+            assert "Tags: c2, cobalt strike, beacon" in res
+            assert "Passive DNS: c2-node.malicious.net, backup-relay.xyz" in res
+
+
+def test_query_otx_domain():
+    from hecate_agent.orchestrator.enrichment import query_otx_domain
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
+        with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+            mock_resp = MagicMock(status_code=200)
+            mock_resp.json.return_value = {
+                "pulse_info": {
+                    "count": 1,
+                    "pulses": [
+                        {"name": "Lazarus FakeJob Campaign", "adversary": "Lazarus Group", "tags": ["phishing"]}
+                    ]
+                }
+            }
+            mock_get.return_value = mock_resp
+            res = query_otx_domain("evil-domain.com")
+            assert "1 Pulse(s)" in res
+            assert "Lazarus FakeJob Campaign" in res
+            assert "Adversary: Lazarus Group" in res
+
+
+def test_query_otx_hash():
+    from hecate_agent.orchestrator.enrichment import query_otx_hash
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
+        with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+            mock_resp = MagicMock(status_code=200)
+            mock_resp.json.return_value = {
+                "pulse_info": {
+                    "count": 12,
+                    "pulses": [
+                        {"name": "AsyncRAT Payload Distribution", "adversary": "UAC-0050", "tags": ["rat", "asyncrat"]}
+                    ]
+                }
+            }
+            mock_get.return_value = mock_resp
+            res = query_otx_hash("44d88612fea8a8f36de82e1278abb02f")
+            assert "12 Pulse(s)" in res
+            assert "AsyncRAT Payload Distribution" in res
+            assert "Adversary: UAC-0050" in res
+
+
+def test_query_otx_cve():
+    from hecate_agent.orchestrator.enrichment import query_otx_cve
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
+        with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+            mock_resp = MagicMock(status_code=200)
+            mock_resp.json.return_value = {
+                "pulse_info": {
+                    "count": 4,
+                    "pulses": [
+                        {"name": "skynox7: Proxyjacking Edge Devices", "adversary": "skynox7", "tags": ["proxyjacking"]}
+                    ]
+                }
+            }
+            mock_get.return_value = mock_resp
+            res = query_otx_cve("CVE-2024-3272")
+            assert "4 Pulse(s)" in res
+            assert "skynox7: Proxyjacking Edge Devices" in res
+            assert "Adversary: skynox7" in res
+
+
+def test_query_otx_no_api_key():
+    from hecate_agent.orchestrator.enrichment import query_otx_indicator
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
+        res = query_otx_indicator("IPv4", "198.51.100.1")
+        assert res == "OTX_API_KEY not configured."
+
+
+def test_query_otx_not_found():
+    from hecate_agent.orchestrator.enrichment import query_otx_indicator
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
+        with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+            mock_resp = MagicMock(status_code=404)
+            mock_get.return_value = mock_resp
+            res = query_otx_indicator("domain", "clean-domain.test")
+            assert res == "No record on OTX."
+
 
 
 

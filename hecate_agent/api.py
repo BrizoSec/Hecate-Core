@@ -315,3 +315,33 @@ def query_epss_batch(cves: List[str]) -> Dict[str, str]:
     return _q(cves)
 
 
+def query_otx_indicator(indicator_type: str, indicator: str) -> str:
+    """Query AlienVault OTX Direct API for indicator metadata, pulses, adversaries, and passive DNS."""
+    from hecate_agent.orchestrator.enrichment import query_otx_indicator as _q
+    return _q(indicator_type, indicator)
+
+
+def query_otx_ip(ip: str) -> str:
+    """Query AlienVault OTX Direct API for an IPv4 address."""
+    from hecate_agent.orchestrator.enrichment import query_otx_ip as _q
+    return _q(ip)
+
+
+def query_otx_domain(domain: str) -> str:
+    """Query AlienVault OTX Direct API for a domain."""
+    from hecate_agent.orchestrator.enrichment import query_otx_domain as _q
+    return _q(domain)
+
+
+def query_otx_hash(file_hash: str) -> str:
+    """Query AlienVault OTX Direct API for a file hash."""
+    from hecate_agent.orchestrator.enrichment import query_otx_hash as _q
+    return _q(file_hash)
+
+
+def query_otx_cve(cve: str) -> str:
+    """Query AlienVault OTX Direct API for a CVE vulnerability."""
+    from hecate_agent.orchestrator.enrichment import query_otx_cve as _q
+    return _q(cve)
+
+
