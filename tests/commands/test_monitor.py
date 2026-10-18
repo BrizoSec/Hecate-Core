@@ -472,6 +472,7 @@ def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
         drafts_count=197,
         threats_count=295,
         ttps_count=200,
+        sigma_rules_count=1200,
         network_total=1053,
         network_ips=271,
         network_domains=532,
@@ -492,10 +493,11 @@ def test_hunts_summary_panel_narrow_rendering(tmp_path: Path) -> None:
     assert "THREATS" in text and "295" in text
     assert "50 act, 10 camp, 235 mal" in text
     assert "ATT&CK" in text and "200 techniques" in text
+    assert "SIGMA" in text and "1,200 rules" in text
     assert "NETWORK" in text and "1,053 IOCs" in text and "271 IPs" in text
     assert "HOST" in text and "1,085 IOCs" in text and "477 hash" in text
 
-    # Verify height is exactly 7 lines (5 data rows + 2 borders)
+    # Verify height is exactly 8 lines (6 data rows + 2 borders)
     assert len(text.splitlines()) == m._HUNTS_PANEL_HEIGHT
 
 
@@ -508,6 +510,7 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
         campaigns_count=10,
         malware_count=235,
         ttps_count=200,
+        sigma_rules_count=1200,
         network_total=1053,
         network_ips=271,
         network_domains=532,
@@ -524,6 +527,7 @@ def test_hunts_summary_panel_wide_and_compact_rendering(tmp_path: Path) -> None:
     assert "197 total" in text_wide
     assert "295 tracked" in text_wide
     assert "50 actors, 10 campaigns, 235 malware" in text_wide
+    assert "1,200 rules" in text_wide
     assert "IOCs" in text_wide and "1,053 net" in text_wide
 
     # Compact mode
@@ -539,11 +543,15 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     events = _events("route: narrative", "done: draft_created")
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
 
-    # Tall screen (height=60): HUNTS SUMMARY is stacked on the left
+    # Tall screen (height=60): HUNTS SUMMARY is stacked on the left above INTEGRATIONS
     tall = _render(events, runner, height=60)
     assert "HUNTS SUMMARY" in tall
-    tall_line = next(line for line in tall.splitlines() if "HUNTS SUMMARY" in line)
+    tall_lines = tall.splitlines()
+    tall_line = next(line for line in tall_lines if "HUNTS SUMMARY" in line)
     assert tall_line.index("HUNTS SUMMARY") < 140 // 3
+    hunts_line_no = next(i for i, line_text in enumerate(tall_lines) if "HUNTS SUMMARY" in line_text)
+    integrations_line_no = next(i for i, line_text in enumerate(tall_lines) if "INTEGRATIONS" in line_text)
+    assert hunts_line_no < integrations_line_no
 
     # Short screen (height=30): HUNTS SUMMARY is in the bottom usage row
     short = _render(events, runner, height=30)

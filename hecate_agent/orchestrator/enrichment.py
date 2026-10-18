@@ -3,7 +3,7 @@ import re
 import httpx
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict
+from typing import List, Dict, Set
 
 
 from dotenv import load_dotenv
@@ -33,6 +33,44 @@ def refang(value: str) -> str:
     return re.sub(r"\bhxxp", "http", v, flags=re.IGNORECASE)
 
 
+def _get_apex_domain(domain: str) -> str:
+    """Extract registrable apex domain (e.g. c2.evil.com -> evil.com)."""
+    parts = domain.lower().strip(".").split(".")
+    if len(parts) <= 2:
+        return domain
+    two_part_tlds = {
+        "co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz",
+        "co.jp", "com.kg", "org.kg", "net.kg", "com.cn", "net.cn", "org.cn",
+        "gov.cn", "com.br", "co.in", "com.tr", "co.za", "com.mx", "com.ar",
+    }
+    last_two = f"{parts[-2]}.{parts[-1]}"
+    if last_two in two_part_tlds and len(parts) > 2:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+_KNOWN_PUBLISHER_DOMAINS: Set[str] = {
+    # Platform / code / vendor repositories and schemas
+    "github.com", "schemas.microsoft.com", "microsoft.com", "google.com",
+    "raw.githubusercontent.com", "api.github.com", "docs.microsoft.com",
+    "learn.microsoft.com", "localhost",
+    # Intelligence providers, sandboxes, OSINT & scanners
+    "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
+    "shodan.io", "censys.io", "greynoise.io", "abuseipdb.com", "threatfox.abuse.ch",
+    "urlhaus.abuse.ch", "malwarebazaar.abuse.ch", "feodotracker.abuse.ch",
+    # Major cybersecurity vendors and threat research publishers
+    "blackpointcyber.com", "mandiant.com", "crowdstrike.com", "paloaltonetworks.com",
+    "sentinelone.com", "bleepingcomputer.com", "thehackernews.com", "recordedfuture.com",
+    "redcanary.com", "trendmicro.com", "trellix.com", "kaspersky.com", "securelist.com",
+    "talosintelligence.com", "cisco.com", "proofpoint.com", "symantec.com", "broadcom.com",
+    "sophos.com", "fireeye.com", "elastic.co", "rapid7.com", "cybereason.com", "dragos.com",
+    "welivesecurity.com", "eset.com", "darkreading.com", "securityweek.com",
+    "krebsonsecurity.com", "cisa.gov", "ncsc.gov.uk", "cert.europa.eu", "circl.lu",
+    "socradar.io", "volexity.com", "huntress.com", "group-ib.com", "fortinet.com",
+    "checkpoint.com", "blackberry.com", "qualys.com", "tenable.com", "snyk.io", "github.blog",
+}
+
+
 def extract_indicators(text: str) -> Dict[str, List[str]]:
     """Extract IPs, Domains, and Hashes from text using regex, refanging first."""
     if not text:
@@ -45,7 +83,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
         r"co\.za", r"com\.mx", r"com\.ar",
         r"com", r"org", r"net", r"edu", r"gov", r"mil", r"info", r"biz",
         r"shop", r"top", r"xyz", r"site", r"online", r"club", r"vip", r"live",
-        r"app", r"dev", r"pro", r"win", r"work", r"cloud", r"space", r"link",
+        r"app", r"dev", r"pro", r"win", r"work", r"cloud", r"space", r"link", r"one",
         r"click", r"tech", r"store", r"news", r"blog", r"icu", r"fun", r"digital",
         r"security", r"agency", r"center",
         r"io", r"ai", r"me", r"cc", r"tv", r"to", r"is", r"pw", r"ws",
@@ -70,15 +108,54 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
             "172.28.", "172.29.", "172.30.", "172.31.", "0.0.0.0", "255.255.255.255"
         ))
     ]
-    benign_domains = {
-        "github.com", "schemas.microsoft.com", "microsoft.com", "google.com",
-        "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
-        "raw.githubusercontent.com", "api.github.com", "docs.microsoft.com",
-        "learn.microsoft.com", "localhost"
-    }
+
+    # Dynamically extract domains cited in reference/source/citation URLs
+    dynamic_publishers: Set[str] = set()
+    for ref_url in re.findall(
+        r"(?:references?|sources?|see\s+also|read\s+more|link|url|via|courtesy|author|published\s+by|credit|report|research):\s*(https?://[^\s\)\],]+)",
+        clean_text,
+        re.IGNORECASE,
+    ):
+        m_host = re.match(r"https?://(?:www\.)?([^/:\s\)\],]+)", ref_url, re.IGNORECASE)
+        if m_host:
+            host = m_host.group(1).lower()
+            dynamic_publishers.add(host)
+            dynamic_publishers.add(_get_apex_domain(host))
+
+    for m_host_match in re.finditer(
+        r"https?://(?:www\.)?([^/:\s\)\],]+)(?:/[^\s\)\],]*(?:blog|research|threat-intel|advisory|advisories|security-center|posts?|articles?|news|publications?|topics/threat-intelligence)[^\s\)\],]*)",
+        clean_text,
+        re.IGNORECASE,
+    ):
+        host = m_host_match.group(1).lower()
+        dynamic_publishers.add(host)
+        dynamic_publishers.add(_get_apex_domain(host))
+
+    for md_link in re.findall(
+        r"\[(?:source|reference|report|link|article|read\s+more|blog)\]\((https?://[^\s\)]+)\)",
+        clean_text,
+        re.IGNORECASE,
+    ):
+        m_host = re.match(r"https?://(?:www\.)?([^/:\s\)]+)", md_link, re.IGNORECASE)
+        if m_host:
+            host = m_host.group(1).lower()
+            dynamic_publishers.add(host)
+            dynamic_publishers.add(_get_apex_domain(host))
+
+    def _is_benign_or_publisher(d: str) -> bool:
+        low = d.lower()
+        if low.endswith(".local"):
+            return True
+        if low in _KNOWN_PUBLISHER_DOMAINS or low in dynamic_publishers:
+            return True
+        apex = _get_apex_domain(low)
+        if apex in _KNOWN_PUBLISHER_DOMAINS or apex in dynamic_publishers:
+            return True
+        return False
+
     indicators["domains"] = [
         d.lower() for d in indicators["domains"]
-        if d.lower() not in benign_domains and not d.endswith(".local")
+        if not _is_benign_or_publisher(d)
     ]
     return indicators
 
@@ -131,21 +208,6 @@ def query_vt_domain(domain: str) -> str:
     except Exception as e:
         return f"Error querying VT: {e}"
 
-
-def _get_apex_domain(domain: str) -> str:
-    """Extract registrable apex domain (e.g. c2.evil.com -> evil.com)."""
-    parts = domain.lower().strip(".").split(".")
-    if len(parts) <= 2:
-        return domain
-    two_part_tlds = {
-        "co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz",
-        "co.jp", "com.kg", "org.kg", "net.kg", "com.cn", "net.cn", "org.cn",
-        "gov.cn", "com.br", "co.in", "com.tr", "co.za", "com.mx", "com.ar",
-    }
-    last_two = f"{parts[-2]}.{parts[-1]}"
-    if last_two in two_part_tlds and len(parts) > 2:
-        return ".".join(parts[-3:])
-    return ".".join(parts[-2:])
 
 
 def _format_rdap_date(date_str: str) -> str:

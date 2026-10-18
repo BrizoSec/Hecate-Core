@@ -702,7 +702,7 @@ def _narrow_usage_rows(
 _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
 _INTEGRATIONS_PANEL_HEIGHT = 10
-_HUNTS_PANEL_HEIGHT = 7
+_HUNTS_PANEL_HEIGHT = 8
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -1245,6 +1245,7 @@ class HuntsMetrics:
     campaigns_count: int = 0
     malware_count: int = 0
     ttps_count: int = 0
+    sigma_rules_count: int = 0
     network_total: int = 0
     network_ips: int = 0
     network_domains: int = 0
@@ -1467,6 +1468,14 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     actors.difference_update(malware | campaigns)
     all_threats = actors | campaigns | malware
 
+    queries_dir = workspace / "queries"
+    sigma_rules_count = 0
+    if queries_dir.is_dir():
+        try:
+            sigma_rules_count = sum(1 for _ in queries_dir.rglob("*.yml"))
+        except OSError:
+            sigma_rules_count = 0
+
     metrics = HuntsMetrics(
         total_hunts=file_count,
         drafts_count=drafts_count,
@@ -1477,6 +1486,7 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         campaigns_count=len(campaigns),
         malware_count=len(malware),
         ttps_count=len(techniques),
+        sigma_rules_count=sigma_rules_count,
         network_total=len(network_ips | network_domains | network_urls),
         network_ips=len(network_ips),
         network_domains=len(network_domains),
@@ -1529,6 +1539,15 @@ def _hunts_summary_panel(
                 "ATT&CK",
                 Text.assemble((f"{h_metrics.ttps_count} techniques", "bright_white"), (" · ", "dim"), ("coverage", "bright_cyan")),
             )
+            if not compact:
+                table.add_row(
+                    "SIGMA",
+                    Text.assemble(
+                        (f"{h_metrics.sigma_rules_count:,} rules", "bright_white"),
+                        (" · ", "dim"),
+                        ("detection queries drafted", "bright_cyan"),
+                    ),
+                )
             if compact:
                 table.add_row(
                     "IOCs",
@@ -1554,6 +1573,7 @@ def _hunts_summary_panel(
             table.add_row("HUNTS", Text("0 generated", style="dim"))
             table.add_row("THREATS", Text("0 tracked", style="dim"))
             table.add_row("ATT&CK", Text("0 techniques", style="dim"))
+            table.add_row("SIGMA", Text("0 rules", style="dim"))
             table.add_row("NETWORK", Text("0 IOCs", style="dim"))
             table.add_row("HOST", Text("0 IOCs", style="dim"))
         else:
@@ -1572,6 +1592,10 @@ def _hunts_summary_panel(
             table.add_row(
                 "ATT&CK",
                 Text.assemble((f"{h_metrics.ttps_count} techniques", "bright_white"), (" · ", "dim"), ("coverage", "bright_cyan")),
+            )
+            table.add_row(
+                "SIGMA",
+                Text.assemble((f"{h_metrics.sigma_rules_count:,} rules", "bright_white"), (" · ", "dim"), ("queries drafted", "bright_cyan")),
             )
             table.add_row(
                 "NETWORK",
@@ -1774,7 +1798,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph
+        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore[import-not-found]
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
@@ -1907,9 +1931,9 @@ def _render_dashboard(
         layout["usage"].split_row(
             Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), ratio=1),
             Layout(Text(" "), size=1),
-            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False, events=events, metrics=metrics, live=live, current=latest), ratio=1),
-            Layout(Text(" "), size=1),
             Layout(_hunts_summary_panel(workspace=workspace, compact=True, narrow=False), ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False, events=events, metrics=metrics, live=live, current=latest), ratio=1),
         )
         return layout
 
@@ -1955,9 +1979,9 @@ def _render_dashboard(
         layout["usage"].split_row(
             Layout(llm_panel, ratio=1),
             Layout(Text(" "), size=1),
-            Layout(integrations_panel, ratio=1),
-            Layout(Text(" "), size=1),
             Layout(hunts_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(integrations_panel, ratio=1),
         )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
@@ -2052,8 +2076,8 @@ def _render_dashboard(
         left.append(Layout(_runner_panel(runner, events), size=service_height))
     if usage_on_left:
         left.append(Layout(llm_panel, size=llm_height))
-        left.append(Layout(integrations_panel, ratio=1))
         left.append(Layout(hunts_panel, size=hunts_height))
+        left.append(Layout(integrations_panel, ratio=1))
     if len(left) > 1:
         layout["stages"].split_column(*left)
     else:

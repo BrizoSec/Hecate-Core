@@ -38,6 +38,22 @@ def test_get_apex_domain():
     assert _get_apex_domain("sync-telemetry.top") == "sync-telemetry.top"
     assert _get_apex_domain("sub.corp.example.com") == "example.com"
 
+
+def test_extract_indicators_filters_publisher_and_reference_domains():
+    text = (
+        "Adversary C2 was n.alox.one with fallback to evil.shop.\n"
+        "References: https://blackpointcyber.com/blog/variola-from-clickfix-to-modular-implant/\n"
+        "Read more at https://unit42.paloaltonetworks.com/research/threat-brief/\n"
+        "Also see https://www.mandiant.com/resources/blog/apt41-report"
+    )
+    inds = extract_indicators(text)
+    assert "n.alox.one" in inds["domains"]
+    assert "evil.shop" in inds["domains"]
+    assert "blackpointcyber.com" not in inds["domains"]
+    assert "unit42.paloaltonetworks.com" not in inds["domains"]
+    assert "mandiant.com" not in inds["domains"]
+    assert "paloaltonetworks.com" not in inds["domains"]
+
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 @patch("hecate_agent.orchestrator.enrichment.httpx.post")
 def test_generate_enrichment_summary(mock_post, mock_get):
