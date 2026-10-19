@@ -998,6 +998,16 @@ def _integrations_panel(
         if last_cid:
             cycle_events = [e for e in events if e.cycle_id == last_cid]
 
+    # For enrichment services, preserve metrics from the latest active cycle that performed
+    # enrichment across idle polling cycles (similar to _latest_metrics for LLM calls).
+    active_enrichment_events: List[TrailEvent] = cycle_events
+    if not any(e.stage == "enrichment" for e in cycle_events) and events:
+        for e in reversed(events):
+            if e.stage == "enrichment":
+                last_enrich_cid = e.cycle_id
+                active_enrichment_events = [ev for ev in events if ev.cycle_id == last_enrich_cid]
+                break
+
     services_data = []
     for label, names in checks:
         is_set = (
@@ -1044,6 +1054,12 @@ def _integrations_panel(
                         break
                     if e.stage == "research" and "web search on" in e.message:
                         in_prog = True
+                if searches is None and not in_prog and active_enrichment_events != cycle_events:
+                    for e in reversed(active_enrichment_events):
+                        m = re.search(r"(\d+)\s+web\s+search(?:es|\(es\))?", e.message)
+                        if m:
+                            searches = int(m.group(1))
+                            break
                 if searches is not None:
                     metric = f"{searches} searches"
                 elif in_prog:
@@ -1061,11 +1077,13 @@ def _integrations_panel(
             if is_set:
                 detail = "feed/ioc" if narrow else "pulses"
                 otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in cycle_events)
+                if not otx_found and active_enrichment_events != cycle_events:
+                    otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in active_enrichment_events)
                 if otx_found:
                     metric = "1 pulse"
                 else:
                     obs_count = 0
-                    for e in cycle_events:
+                    for e in active_enrichment_events:
                         if e.stage == "enrichment":
                             m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
                             if m_obs:
@@ -1078,7 +1096,7 @@ def _integrations_panel(
                         if backlog and backlog[0] > 0:
                             metric = f"{backlog[0]} queued"
                         else:
-                            metric = "ready"
+                            metric = "0 queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1086,6 +1104,8 @@ def _integrations_panel(
             if is_set:
                 detail = "threat sharing" if narrow else "threat share"
                 misp_found = any(e.stage == "intake" and "misp:" in e.message.lower() for e in cycle_events)
+                if not misp_found and active_enrichment_events != cycle_events:
+                    misp_found = any(e.stage == "intake" and "misp:" in e.message.lower() for e in active_enrichment_events)
                 metric = "1 event" if misp_found else "0 events"
                 services_data.append((label, True, detail, metric))
             else:
@@ -1094,7 +1114,7 @@ def _integrations_panel(
             if is_set:
                 detail = "enrichment"
                 ioc_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
                     if m_obs:
                         ioc_count = max(ioc_count, int(m_obs.group(1)))
@@ -1109,7 +1129,7 @@ def _integrations_panel(
                         nums = [int(n) for n in re.findall(r"\b(\d+)\b", m_intake.group(1))]
                         if nums:
                             ioc_count = max(ioc_count, sum(nums))
-                metric = f"{ioc_count} checked" if ioc_count > 0 else "ready"
+                metric = f"{ioc_count} checked"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1117,11 +1137,11 @@ def _integrations_panel(
             if is_set:
                 detail = "noise" if narrow else "noise filter"
                 ip_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
                     if m:
                         ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                metric = f"{ip_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1129,11 +1149,11 @@ def _integrations_panel(
             if is_set:
                 detail = "ip abuse"
                 ip_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
                     if m:
                         ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                metric = f"{ip_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1141,11 +1161,11 @@ def _integrations_panel(
             if is_set:
                 detail = "recon"
                 ip_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
                     if m:
                         ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                metric = f"{ip_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1153,11 +1173,11 @@ def _integrations_panel(
             if is_set:
                 detail = "surface" if narrow else "attack surface"
                 ip_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
                     if m:
                         ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+                metric = f"{ip_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1165,7 +1185,7 @@ def _integrations_panel(
             if is_set:
                 detail = "abuse.ch"
                 tf_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     if e.stage == "enrichment":
                         m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
                         if m_obs:
@@ -1178,7 +1198,7 @@ def _integrations_panel(
                         m_ind = re.search(r"(\d+)\s+indicator\(s\)", e.message, re.IGNORECASE)
                         if m_ind:
                             tf_count = max(tf_count, int(m_ind.group(1)))
-                metric = f"{tf_count} queries" if tf_count > 0 else "ready"
+                metric = f"{tf_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
@@ -1186,66 +1206,68 @@ def _integrations_panel(
             if is_set:
                 detail = "malware"
                 hash_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
                     if m:
                         hash_count = max(hash_count, int(m.group(1)))
-                metric = f"{hash_count} queries" if hash_count > 0 else "ready"
+                metric = f"{hash_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
         elif label in ("Feodo C2", "Feodo"):
             detail = "botnet c2" if narrow else "botnet"
             ip_count = 0
-            for e in cycle_events:
+            for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
                 if m:
                     ip_count = max(ip_count, int(m.group(1)))
-            metric = f"{ip_count} queries" if ip_count > 0 else "ready"
+            metric = f"{ip_count} queries"
             services_data.append((label, True, detail, metric))
         elif label == "SSLBL":
             detail = "ssl/ja3"
             hash_count = 0
-            for e in cycle_events:
+            for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
                 if m:
                     hash_count = max(hash_count, int(m.group(1)))
-            metric = f"{hash_count} queries" if hash_count > 0 else "ready"
+            metric = f"{hash_count} queries"
             services_data.append((label, True, detail, metric))
         elif label == "URLhaus":
             if is_set:
                 detail = "urls" if narrow else "malware urls"
                 url_count = 0
-                for e in cycle_events:
+                for e in active_enrichment_events:
                     m = re.search(r"(\d+)\s+url", e.message, re.IGNORECASE)
                     if m:
                         url_count = max(url_count, int(m.group(1)))
-                metric = f"{url_count} queries" if url_count > 0 else "ready"
+                metric = f"{url_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
         elif label == "RDAP":
             detail = "whois/age"
             dom_count = 0
-            for e in cycle_events:
+            for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)
                 if m:
                     dom_count = max(dom_count, int(m.group(1)))
-            metric = f"{dom_count} queries" if dom_count > 0 else "ready"
+            metric = f"{dom_count} queries"
             services_data.append((label, True, detail, metric))
         elif label == "EPSS":
             detail = "cve score" if narrow else "exploit prediction"
             cve_count = 0
-            for e in cycle_events:
+            for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
                 if m:
                     cve_count = max(cve_count, int(m.group(1)))
-            metric = f"{cve_count} CVEs" if cve_count > 0 else "ready"
+            metric = f"{cve_count} CVEs"
             services_data.append((label, True, detail, metric))
         elif label == "Slack":
             if is_set:
                 detail = "alerts"
                 draft_created = any("draft_created" in e.message for e in cycle_events)
+                if not draft_created and active_enrichment_events != cycle_events:
+                    draft_created = any("draft_created" in e.message for e in active_enrichment_events)
                 metric = "1 sent" if draft_created else "0 sent"
                 services_data.append((label, True, detail, metric))
             else:
@@ -1255,7 +1277,7 @@ def _integrations_panel(
     if narrow:
         table.add_column("label", style="dim", width=9, no_wrap=True)
         table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
-        table.add_column("metric", justify="right", width=10, no_wrap=True)
+        table.add_column("metric", justify="right", width=11, no_wrap=True)
         for label, is_set, detail, metric in services_data:
             if is_set:
                 st = Text.assemble(("ON", "bold bright_green"), (" · ", "dim"), (detail, "bright_white"))

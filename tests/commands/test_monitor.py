@@ -298,9 +298,12 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "Censys" in text and "1 queries" in text
     assert "ThreatFox" in text and "3 queries" in text
     assert "AbuseIPDB" in text and "--" in text
-    assert "MalBazaar" in text and "ready" in text
+    assert "MalBazaar" in text and "0 queries" in text
+    assert "Feodo C2" in text and "1 queries" in text
+    assert "SSLBL" in text and "0 queries" in text
+    assert "URLhaus" in text and "0 queries" in text
     assert "RDAP" in text and "2 queries" in text
-    assert "EPSS" in text
+    assert "EPSS" in text and "0 CVEs" in text
     assert "Slack" in text and "--" in text
 
 
@@ -336,15 +339,78 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "8 calls" in text
         assert "1 event" in text
         assert "1 sent" in text
-        assert "GreyNoise" in text
-        assert "Shodan" in text
-        assert "ThreatFox" in text
-        assert "MalBazaar" in text
-        assert "Feodo C2" in text
-        assert "SSLBL" in text
-        assert "URLhaus" in text
-        assert "RDAP" in text
-        assert "EPSS" in text
+        assert "GreyNoise" in text and "0 queries" in text
+        assert "Shodan" in text and "0 queries" in text
+        assert "ThreatFox" in text and "0 queries" in text
+        assert "MalBazaar" in text and "0 queries" in text
+        assert "Feodo C2" in text and "0 queries" in text
+        assert "SSLBL" in text and "0 queries" in text
+        assert "URLhaus" in text and "0 queries" in text
+        assert "RDAP" in text and "0 queries" in text
+        assert "EPSS" in text and "0 CVEs" in text
+        assert "ready" not in text
+
+
+def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
+    monkeypatch.setenv("OTX_API_KEY", "otx-test")
+    monkeypatch.setenv("MISP_API_KEY", "misp-test")
+    monkeypatch.setenv("VT_API_KEY", "vt-test")
+    monkeypatch.setenv("GREYNOISE_API_KEY", "gn-test")
+    monkeypatch.setenv("SHODAN_API_KEY", "shodan-test")
+    monkeypatch.setenv("CENSYS_API_TOKEN", "censys-test")
+    monkeypatch.setenv("ABUSECH_API_KEY", "abusech-test")
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
+
+    # Cycle 1: active enrichment and draft creation
+    active_events = _events(
+        "intake: otx: \"Active threat campaign\" (indicators: IPv4 2, FileHash-SHA256 1)",
+        "enrichment: 6 observable(s) (2 ip, 1 hash, 1 domain, 1 url, 1 cve) checked via VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch (ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus), RDAP, EPSS, OTX",
+        "research: grounding: independent research, 4 web search(es);",
+        "sigma: done in 100s: 2 rule(s) kept",
+        "provenance: 6 indicator(s) across 2 rule(s)",
+        "done: draft_created -> H-0005 in 180s",
+    )
+    for ev in active_events:
+        ev.cycle_id = "cycle-0001"
+
+    # Cycle 2: idle queue poll
+    idle_events = _events(
+        "intake: queue empty",
+        "done: no_actionable_cti (skipped 0) in 2s",
+    )
+    for ev in idle_events:
+        ev.cycle_id = "cycle-0002"
+
+    all_events = active_events + idle_events
+    c = Console(width=46, record=True, force_terminal=False)
+    panel = m._integrations_panel(
+        workspace=tmp_path,
+        narrow=True,
+        events=all_events,
+        current=idle_events[-1],
+    )
+    c.print(panel)
+    text = c.export_text()
+
+    # Active cycle metrics should be preserved rather than wiped to 0 queries / ready
+    assert "VT" in text and "6 checked" in text
+    assert "GreyNoise" in text and "2 queries" in text
+    assert "Shodan" in text and "2 queries" in text
+    assert "Censys" in text and "2 queries" in text
+    assert "ThreatFox" in text and "6 queries" in text
+    assert "MalBazaar" in text and "1 queries" in text
+    assert "Feodo C2" in text and "2 queries" in text
+    assert "SSLBL" in text and "1 queries" in text
+    assert "URLhaus" in text and "1 queries" in text
+    assert "RDAP" in text and "1 queries" in text
+    assert "EPSS" in text and "1 CVEs" in text
+    assert "Tavily" in text and "4 searches" in text
+    assert "Slack" in text and "1 sent" in text
+    assert "ready" not in text
 
 
 
