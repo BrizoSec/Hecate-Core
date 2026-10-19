@@ -165,6 +165,16 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             mock_censys = MagicMock()
             mock_censys.status_code = 404
             return mock_censys
+        if "api.osv.dev" in url:
+            mock_osv = MagicMock(status_code=200)
+            mock_osv.json.return_value = {
+                "id": "CVE-2023-1234",
+                "summary": "Sample open source vulnerability in pkg-xyz",
+                "affected": [{"package": {"name": "pkg-xyz", "ecosystem": "PyPI"}}],
+                "aliases": ["GHSA-1234-5678-90ab"],
+                "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}],
+            }
+            return mock_osv
         return MagicMock(status_code=404)
         
     def post_side_effect(*args, **kwargs):
@@ -191,6 +201,8 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     assert "Domain c2.evil.xyz" in summary
     assert "Vulnerability CVE-2023-1234" in summary
     assert "FIRST EPSS (Exploit Prediction)" in summary
+    assert "OSV.dev (Open Source Supply Chain)" in summary
+    assert "pkg-xyz" in summary
     assert "AlienVault OTX" in summary
     assert "Hybrid Analysis (Falcon Sandbox)" in summary
     assert "Mirai C2 Infrastructure" in summary
@@ -762,6 +774,74 @@ def test_query_hybrid_analysis_auth_and_rate_limits(monkeypatch):
         mock_get.return_value = mock_resp_429
         res_429 = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
         assert "Hybrid Analysis rate limit exceeded." in res_429
+
+
+def test_query_osv_vuln_success():
+    from hecate_agent.orchestrator.enrichment import query_osv_vuln
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "id": "CVE-2024-3094",
+            "summary": "Xz: malicious code in distributed source",
+            "aliases": ["GHSA-rxwq-x6h5-x525"],
+            "affected": [{"package": {"name": "xz", "ecosystem": "Debian"}}],
+            "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"}],
+        }
+        mock_get.return_value = mock_resp
+        res = query_osv_vuln("CVE-2024-3094")
+        assert "Advisory: Xz: malicious code in distributed source" in res
+        assert "Affected: Debian:xz" in res
+        assert "Aliases: GHSA-rxwq-x6h5-x525" in res
+        assert "CVSS: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H" in res
+
+
+def test_query_osv_vuln_details_fallback():
+    from hecate_agent.orchestrator.enrichment import query_osv_vuln
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "id": "CVE-2021-44228",
+            "summary": None,
+            "details": "Apache Log4j2 JNDI remote code execution vulnerability.\nMore details here...",
+            "aliases": ["GHSA-jfh8-c2jp-5v3q"],
+        }
+        mock_get.return_value = mock_resp
+        res = query_osv_vuln("CVE-2021-44228")
+        assert "Advisory: Apache Log4j2 JNDI remote code execution vulnerability." in res
+        assert "Aliases: GHSA-jfh8-c2jp-5v3q" in res
+
+
+def test_query_osv_vuln_not_found():
+    from hecate_agent.orchestrator.enrichment import query_osv_vuln
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=404)
+        mock_get.return_value = mock_resp
+        assert query_osv_vuln("CVE-1990-0000") == "No open-source advisory on OSV.dev."
+
+
+def test_query_osv_vuln_error():
+    from hecate_agent.orchestrator.enrichment import query_osv_vuln
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_get.side_effect = Exception("Connection timed out")
+        res = query_osv_vuln("CVE-2024-3094")
+        assert "Error querying OSV.dev" in res
+
+    assert query_osv_vuln("") == "Invalid vulnerability ID."
+
+
+def test_extract_indicators_ghsa_and_osv_domains():
+    text = (
+        "Found exploit in requests library: GHSA-j8r2-6x86-q33q and CVE-2023-32681.\n"
+        "Reference URLs: https://osv.dev/vulnerability/GHSA-j8r2-6x86-q33q and https://api.osv.dev/v1/vulns/CVE-2023-32681.\n"
+        "Malicious domain is supply-chain-backdoor.xyz."
+    )
+    inds = extract_indicators(text)
+    assert "GHSA-J8R2-6X86-Q33Q" in inds["cves"]
+    assert "CVE-2023-32681" in inds["cves"]
+    assert "supply-chain-backdoor.xyz" in inds["domains"]
+    assert "osv.dev" not in inds["domains"]
+    assert "api.osv.dev" not in inds["domains"]
+
 
 
 

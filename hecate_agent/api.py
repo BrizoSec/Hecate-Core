@@ -381,5 +381,12 @@ def query_hybrid_analysis(file_hash: str) -> str:
     return _q(file_hash)
 
 
+def query_osv_vuln(vuln_id: str) -> str:
+    """Query OSV.dev (Google / OpenSSF Open Source Vulnerabilities) API for advisory details, affected packages, and severity."""
+    from hecate_agent.orchestrator.enrichment import query_osv_vuln as _q
+    return _q(vuln_id)
+
+
+
 
 

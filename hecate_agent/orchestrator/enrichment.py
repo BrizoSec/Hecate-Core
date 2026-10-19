@@ -59,7 +59,7 @@ _KNOWN_PUBLISHER_DOMAINS: Set[str] = {
     "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
     "shodan.io", "censys.io", "greynoise.io", "abuseipdb.com", "threatfox.abuse.ch",
     "urlhaus.abuse.ch", "malwarebazaar.abuse.ch", "feodotracker.abuse.ch",
-    "hybrid-analysis.com", "payload-security.com",
+    "hybrid-analysis.com", "payload-security.com", "osv.dev", "api.osv.dev",
     # Major cybersecurity vendors and threat research publishers
     "blackpointcyber.com", "mandiant.com", "crowdstrike.com", "paloaltonetworks.com",
     "sentinelone.com", "bleepingcomputer.com", "thehackernews.com", "recordedfuture.com",
@@ -100,7 +100,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
         "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', clean_text))),
         "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', clean_text))),
         "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE))),
-        "cves": list(dict.fromkeys(cve.upper() for cve in re.findall(r'\bCVE-\d{4}-\d{4,7}\b', clean_text, re.IGNORECASE))),
+        "cves": list(dict.fromkeys(cve.upper() for cve in re.findall(r'\b(?:CVE-\d{4}-\d{4,7}|GHSA-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4})\b', clean_text, re.IGNORECASE))),
     }
     # Filter out common false positives and private IPs
     indicators["ips"] = [
@@ -890,6 +890,64 @@ def query_epss_batch(cves: List[str]) -> Dict[str, str]:
     return results
 
 
+def query_osv_vuln(vuln_id: str) -> str:
+    """Query OSV.dev (Google / OpenSSF Open Source Vulnerabilities) API for advisory details, affected packages, and severity."""
+    clean_id = vuln_id.strip()
+    if not clean_id:
+        return "Invalid vulnerability ID."
+    try:
+        url = f"https://api.osv.dev/v1/vulns/{clean_id}"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            summary = (data.get("summary") or "").strip()
+            if not summary:
+                details = (data.get("details") or "").strip()
+                if details:
+                    summary = details.split("\n")[0].strip()
+            if summary and len(summary) > 120:
+                summary = summary[:117] + "..."
+
+            aliases = [a for a in data.get("aliases") or [] if isinstance(a, str) and a != clean_id]
+
+            packages = []
+            for aff in data.get("affected") or []:
+                if isinstance(aff, dict):
+                    pkg_info = aff.get("package") or {}
+                    pname = pkg_info.get("name")
+                    peco = pkg_info.get("ecosystem")
+                    if pname:
+                        formatted = f"{peco}:{pname}" if peco else str(pname)
+                        if formatted not in packages:
+                            packages.append(formatted)
+
+            cvss = None
+            for sev in data.get("severity") or []:
+                if isinstance(sev, dict) and sev.get("score"):
+                    cvss = sev.get("score")
+                    break
+
+            parts = []
+            if summary:
+                parts.append(f"Advisory: {summary}")
+            if packages:
+                pkg_str = ", ".join(packages[:3])
+                if len(packages) > 3:
+                    pkg_str += f" (+{len(packages)-3} more)"
+                parts.append(f"Affected: {pkg_str}")
+            if aliases:
+                parts.append(f"Aliases: {', '.join(aliases[:3])}")
+            if cvss:
+                parts.append(f"CVSS: {cvss}")
+
+            return " | ".join(parts) if parts else "Advisory cataloged on OSV.dev."
+        elif resp.status_code == 404:
+            return "No open-source advisory on OSV.dev."
+        return f"OSV.dev error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying OSV.dev: {e}"
+
+
 def query_otx_indicator(indicator_type: str, indicator: str) -> str:
     """Query AlienVault OTX Direct API for indicator general metadata, pulse associations, adversaries, and passive DNS.
 
@@ -1107,7 +1165,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -1230,9 +1288,11 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             epss_res = epss_batch.get(cve, "No EPSS score published.")
             otx_res = query_otx_cve(cve)
             misp_res = query_misp_indicator(cve)
+            osv_res = query_osv_vuln(cve)
             summary.append(
                 f"- **Vulnerability {cve}**:\n"
                 f"  - *FIRST EPSS (Exploit Prediction):* {epss_res}\n"
+                f"  - *OSV.dev (Open Source Supply Chain):* {osv_res}\n"
                 f"  - *AlienVault OTX:* {otx_res}\n"
                 f"  - *Internal MISP:* {misp_res}"
             )

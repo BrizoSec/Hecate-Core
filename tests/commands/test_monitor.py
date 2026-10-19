@@ -305,6 +305,7 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "Hybrid" in text and "--" in text
     assert "RDAP" in text and "2 queries" in text
     assert "EPSS" in text and "0 CVEs" in text
+    assert "OSV.dev" in text and "0 CVEs" in text
     assert "Slack" in text and "--" in text
 
 
@@ -351,6 +352,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "Hybrid" in text and "0 queries" in text
         assert "RDAP" in text and "0 queries" in text
         assert "EPSS" in text and "0 CVEs" in text
+        assert "OSV.dev" in text and "0 CVEs" in text
         assert "ready" not in text
 
 
@@ -413,6 +415,7 @@ def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
     assert "Hybrid" in text and "1 queries" in text
     assert "RDAP" in text and "1 queries" in text
     assert "EPSS" in text and "1 CVEs" in text
+    assert "OSV.dev" in text and "1 CVEs" in text
     assert "Tavily" in text and "4 searches" in text
     assert "Slack" in text and "1 sent" in text
     assert "ready" not in text

@@ -976,6 +976,7 @@ def _integrations_panel(
         ("Hybrid", ("HYBRID_ANALYSIS_API_KEY", "HA_API_KEY", "FALCON_SANDBOX_API_KEY")),
         ("RDAP", ()),
         ("EPSS", ()),
+        ("OSV.dev", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -1014,7 +1015,7 @@ def _integrations_panel(
         is_set = (
             any(os.environ.get(name) for name in names)
             or any(name in file_keys for name in names)
-            or (label in ("RDAP", "EPSS", "Feodo C2", "SSLBL", "Feodo/SSLBL"))
+            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL"))
         )
         if label == "LLM":
             if is_set:
@@ -1268,6 +1269,15 @@ def _integrations_panel(
             services_data.append((label, True, detail, metric))
         elif label == "EPSS":
             detail = "cve score" if narrow else "exploit prediction"
+            cve_count = 0
+            for e in active_enrichment_events:
+                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
+                if m:
+                    cve_count = max(cve_count, int(m.group(1)))
+            metric = f"{cve_count} CVEs"
+            services_data.append((label, True, detail, metric))
+        elif label in ("OSV.dev", "OSV"):
+            detail = "supply chain" if narrow else "osv/pkg"
             cve_count = 0
             for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
