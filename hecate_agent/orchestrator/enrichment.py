@@ -1026,44 +1026,50 @@ def query_hybrid_analysis(file_hash: str) -> str:
     if not re.match(r"^[a-f0-9]{32,64}$", clean_hash):
         return f"Invalid hash format '{file_hash}'."
 
-    url = "https://www.hybrid-analysis.com/api/v2/search/hash"
     headers = {
         "api-key": key,
         "User-Agent": "Falcon Sandbox",
         "Accept": "application/json",
     }
-    data = {"hash": clean_hash}
 
     try:
-        resp = httpx.post(url, headers=headers, data=data, timeout=10.0)
+        url = f"https://hybrid-analysis.com/api/v2/overview/{clean_hash}"
+        resp = httpx.get(url, headers=headers, timeout=5.0)
         if resp.status_code == 200:
-            payload = resp.json()
-            items: List[Dict[str, Any]] = []
-            if isinstance(payload, list):
-                items = payload
-            elif isinstance(payload, dict):
-                items = payload.get("result") or payload.get("data") or [payload]
-
-            if not items:
+            data = resp.json()
+            if not isinstance(data, dict) or not data:
                 return "No records on Hybrid Analysis."
 
-            best_item = items[0]
-            if len(items) > 1:
-                best_item = max(items, key=lambda x: int(x.get("threat_score") or 0))
+            score = data.get("threat_score")
+            verdict = data.get("verdict")
+            vx_family = data.get("vx_family")
+            ftype = data.get("type_short") or data.get("type")
+            if isinstance(ftype, list):
+                ftype = ftype[0] if ftype else "unknown"
+            multiscan = data.get("multiscan_result")
+            reports = data.get("reports") or []
 
-            score = best_item.get("threat_score")
-            verdict = best_item.get("verdict")
-            vx_family = best_item.get("vx_family")
-            env = best_item.get("environment_description")
-            ftype = best_item.get("file_type")
-            mitre_list = best_item.get("mitre_attcs") or []
-
+            env = None
             mitre_ids: List[str] = []
-            for m in mitre_list:
-                if isinstance(m, dict) and m.get("id"):
-                    mid = str(m["id"]).strip()
-                    if mid and mid not in mitre_ids:
-                        mitre_ids.append(mid)
+
+            # If execution reports exist, fetch the primary report summary for dynamic environment & MITRE ATT&CK
+            if reports and isinstance(reports, list):
+                rep_id = str(reports[0]).strip()
+                if rep_id:
+                    try:
+                        rep_url = f"https://hybrid-analysis.com/api/v2/report/{rep_id}/summary"
+                        rep_resp = httpx.get(rep_url, headers=headers, timeout=4.0)
+                        if rep_resp.status_code == 200:
+                            r_json = rep_resp.json()
+                            env = r_json.get("environment_description")
+                            mitre_raw = r_json.get("mitre_attcks") or r_json.get("mitre_attcs") or []
+                            for m in mitre_raw:
+                                if isinstance(m, dict):
+                                    mid = m.get("attck_id") or m.get("id")
+                                    if mid and str(mid) not in mitre_ids:
+                                        mitre_ids.append(str(mid).strip())
+                    except Exception:
+                        pass
 
             parts = []
             if verdict:
@@ -1076,12 +1082,14 @@ def query_hybrid_analysis(file_hash: str) -> str:
                 parts.append(f"Family: {vx_family}")
             if ftype:
                 parts.append(f"Type: {ftype}")
+            if multiscan is not None:
+                parts.append(f"Multi-Scan: {multiscan}%")
             if env:
                 parts.append(f"Env: {env}")
             if mitre_ids:
                 parts.append(f"MITRE: {', '.join(mitre_ids[:3])}")
 
-            return " | ".join(parts) if parts else "Sample analyzed (no threat details)."
+            return " | ".join(parts) if parts else "Sample analyzed on Hybrid Analysis."
         elif resp.status_code == 404:
             return "No records on Hybrid Analysis."
         elif resp.status_code in (401, 403):

@@ -151,6 +151,16 @@ def test_generate_enrichment_summary(mock_post, mock_get):
                 }
             }
             return mock_otx
+        if "hybrid-analysis" in url:
+            mock_ha = MagicMock(status_code=200)
+            mock_ha.json.return_value = {
+                "threat_score": 100,
+                "verdict": "malicious",
+                "vx_family": "Mirai",
+                "type_short": "elf",
+                "reports": []
+            }
+            return mock_ha
         if "censys" in url:
             mock_censys = MagicMock()
             mock_censys.status_code = 404
@@ -159,16 +169,6 @@ def test_generate_enrichment_summary(mock_post, mock_get):
         
     def post_side_effect(*args, **kwargs):
         url = args[0]
-        if "hybrid-analysis" in url:
-            mock_ha = MagicMock(status_code=200)
-            mock_ha.json.return_value = [{
-                "threat_score": 100,
-                "verdict": "malicious",
-                "vx_family": "Mirai",
-                "file_type": "elf",
-                "mitre_attcs": [{"id": "T1059", "technique": "Command and Scripting Interpreter"}]
-            }]
-            return mock_ha
         if "threatfox" in url:
             return mock_tf
         if "mb-api.abuse.ch" in url:
@@ -698,27 +698,38 @@ def test_query_hybrid_analysis_invalid_hash(monkeypatch):
 def test_query_hybrid_analysis_success(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
-    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
-        mock_resp = MagicMock(status_code=200)
-        mock_resp.json.return_value = [
-            {
-                "threat_score": 100,
-                "threat_level": 3,
-                "verdict": "malicious",
-                "vx_family": "AsyncRAT",
-                "file_type": "peexe",
-                "environment_description": "Windows 10 64-bit",
-                "mitre_attcs": [
-                    {"id": "T1547", "technique": "Boot or Logon Autostart Execution"},
-                    {"id": "T1059.001", "technique": "PowerShell"}
-                ]
-            }
-        ]
-        mock_post.return_value = mock_resp
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        def get_side_effect(url, *args, **kwargs):
+            if "overview" in url and "report" not in url:
+                mock_ov = MagicMock(status_code=200)
+                mock_ov.json.return_value = {
+                    "threat_score": 100,
+                    "threat_level": 3,
+                    "verdict": "malicious",
+                    "vx_family": "AsyncRAT",
+                    "type_short": "peexe",
+                    "multiscan_result": 92,
+                    "reports": ["rep-12345"]
+                }
+                return mock_ov
+            elif "report/rep-12345/summary" in url:
+                mock_rep = MagicMock(status_code=200)
+                mock_rep.json.return_value = {
+                    "environment_description": "Windows 10 64-bit",
+                    "mitre_attcks": [
+                        {"attck_id": "T1547", "technique": "Boot or Logon Autostart Execution"},
+                        {"attck_id": "T1059.001", "technique": "PowerShell"}
+                    ]
+                }
+                return mock_rep
+            return MagicMock(status_code=404)
+
+        mock_get.side_effect = get_side_effect
         res = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
         assert "Verdict: MALICIOUS (Score: 100/100)" in res
         assert "Family: AsyncRAT" in res
         assert "Type: peexe" in res
+        assert "Multi-Scan: 92%" in res
         assert "Env: Windows 10 64-bit" in res
         assert "MITRE: T1547, T1059.001" in res
 
@@ -726,31 +737,32 @@ def test_query_hybrid_analysis_success(monkeypatch):
 def test_query_hybrid_analysis_not_found(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
-    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
-        mock_resp.json.return_value = []
-        mock_post.return_value = mock_resp
+        mock_resp.json.return_value = {}
+        mock_get.return_value = mock_resp
         res = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
         assert res == "No records on Hybrid Analysis."
 
         mock_resp_404 = MagicMock(status_code=404)
-        mock_post.return_value = mock_resp_404
+        mock_get.return_value = mock_resp_404
         assert query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc") == "No records on Hybrid Analysis."
 
 
 def test_query_hybrid_analysis_auth_and_rate_limits(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
-    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp_401 = MagicMock(status_code=401)
-        mock_post.return_value = mock_resp_401
+        mock_get.return_value = mock_resp_401
         res_401 = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
         assert "Hybrid Analysis Auth Error" in res_401
 
         mock_resp_429 = MagicMock(status_code=429)
-        mock_post.return_value = mock_resp_429
+        mock_get.return_value = mock_resp_429
         res_429 = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
         assert "Hybrid Analysis rate limit exceeded." in res_429
+
 
 
 

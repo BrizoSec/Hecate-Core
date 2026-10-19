@@ -318,6 +318,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
     monkeypatch.setenv("SHODAN_API_KEY", "shodan-test")
     monkeypatch.setenv("CENSYS_API_TOKEN", "censys-test")
     monkeypatch.setenv("ABUSECH_API_KEY", "abusech-test")
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test")
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
 
     events = _events(
@@ -347,7 +348,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "Feodo C2" in text and "0 queries" in text
         assert "SSLBL" in text and "0 queries" in text
         assert "URLhaus" in text and "0 queries" in text
-        assert "Hybrid" in text and "--" in text
+        assert "Hybrid" in text and "0 queries" in text
         assert "RDAP" in text and "0 queries" in text
         assert "EPSS" in text and "0 CVEs" in text
         assert "ready" not in text
