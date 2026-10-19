@@ -159,6 +159,16 @@ def test_generate_enrichment_summary(mock_post, mock_get):
         
     def post_side_effect(*args, **kwargs):
         url = args[0]
+        if "hybrid-analysis" in url:
+            mock_ha = MagicMock(status_code=200)
+            mock_ha.json.return_value = [{
+                "threat_score": 100,
+                "verdict": "malicious",
+                "vx_family": "Mirai",
+                "file_type": "elf",
+                "mitre_attcs": [{"id": "T1059", "technique": "Command and Scripting Interpreter"}]
+            }]
+            return mock_ha
         if "threatfox" in url:
             return mock_tf
         if "mb-api.abuse.ch" in url:
@@ -182,6 +192,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     assert "Vulnerability CVE-2023-1234" in summary
     assert "FIRST EPSS (Exploit Prediction)" in summary
     assert "AlienVault OTX" in summary
+    assert "Hybrid Analysis (Falcon Sandbox)" in summary
     assert "Mirai C2 Infrastructure" in summary
     assert "92.50%" in summary
     assert "CRITICAL EXPLOIT PROBABILITY" in summary
@@ -667,6 +678,80 @@ def test_extract_indicators_extracts_urls_and_filters_publishers():
     # Mandiant and Palo Alto publisher URLs must be filtered out
     assert not any("mandiant.com" in u for u in inds["urls"])
     assert not any("paloaltonetworks.com" in u for u in inds["urls"])
+
+
+def test_query_hybrid_analysis_no_key(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+    monkeypatch.delenv("HYBRID_ANALYSIS_API_KEY", raising=False)
+    monkeypatch.delenv("HA_API_KEY", raising=False)
+    monkeypatch.delenv("FALCON_SANDBOX_API_KEY", raising=False)
+    assert query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc") == "HYBRID_ANALYSIS_API_KEY not configured."
+
+
+def test_query_hybrid_analysis_invalid_hash(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
+    res = query_hybrid_analysis("invalid-hash!")
+    assert "Invalid hash format" in res
+
+
+def test_query_hybrid_analysis_success(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = [
+            {
+                "threat_score": 100,
+                "threat_level": 3,
+                "verdict": "malicious",
+                "vx_family": "AsyncRAT",
+                "file_type": "peexe",
+                "environment_description": "Windows 10 64-bit",
+                "mitre_attcs": [
+                    {"id": "T1547", "technique": "Boot or Logon Autostart Execution"},
+                    {"id": "T1059.001", "technique": "PowerShell"}
+                ]
+            }
+        ]
+        mock_post.return_value = mock_resp
+        res = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+        assert "Verdict: MALICIOUS (Score: 100/100)" in res
+        assert "Family: AsyncRAT" in res
+        assert "Type: peexe" in res
+        assert "Env: Windows 10 64-bit" in res
+        assert "MITRE: T1547, T1059.001" in res
+
+
+def test_query_hybrid_analysis_not_found(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = []
+        mock_post.return_value = mock_resp
+        res = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+        assert res == "No records on Hybrid Analysis."
+
+        mock_resp_404 = MagicMock(status_code=404)
+        mock_post.return_value = mock_resp_404
+        assert query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc") == "No records on Hybrid Analysis."
+
+
+def test_query_hybrid_analysis_auth_and_rate_limits(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
+        mock_resp_401 = MagicMock(status_code=401)
+        mock_post.return_value = mock_resp_401
+        res_401 = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+        assert "Hybrid Analysis Auth Error" in res_401
+
+        mock_resp_429 = MagicMock(status_code=429)
+        mock_post.return_value = mock_resp_429
+        res_429 = query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+        assert "Hybrid Analysis rate limit exceeded." in res_429
+
 
 
 

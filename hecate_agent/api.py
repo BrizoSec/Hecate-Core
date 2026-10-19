@@ -375,4 +375,11 @@ def query_urlhaus_payload(file_hash: str) -> str:
     return _q(file_hash)
 
 
+def query_hybrid_analysis(file_hash: str) -> str:
+    """Query Hybrid Analysis (CrowdStrike Falcon Sandbox) API v2 for hash detonation results."""
+    from hecate_agent.orchestrator.enrichment import query_hybrid_analysis as _q
+    return _q(file_hash)
+
+
+
 

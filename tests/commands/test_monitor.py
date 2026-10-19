@@ -302,6 +302,7 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     assert "Feodo C2" in text and "1 queries" in text
     assert "SSLBL" in text and "0 queries" in text
     assert "URLhaus" in text and "0 queries" in text
+    assert "Hybrid" in text and "--" in text
     assert "RDAP" in text and "2 queries" in text
     assert "EPSS" in text and "0 CVEs" in text
     assert "Slack" in text and "--" in text
@@ -346,6 +347,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
         assert "Feodo C2" in text and "0 queries" in text
         assert "SSLBL" in text and "0 queries" in text
         assert "URLhaus" in text and "0 queries" in text
+        assert "Hybrid" in text and "--" in text
         assert "RDAP" in text and "0 queries" in text
         assert "EPSS" in text and "0 CVEs" in text
         assert "ready" not in text
@@ -363,6 +365,7 @@ def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
     monkeypatch.setenv("SHODAN_API_KEY", "shodan-test")
     monkeypatch.setenv("CENSYS_API_TOKEN", "censys-test")
     monkeypatch.setenv("ABUSECH_API_KEY", "abusech-test")
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test")
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
 
     # Cycle 1: active enrichment and draft creation
@@ -406,6 +409,7 @@ def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
     assert "Feodo C2" in text and "2 queries" in text
     assert "SSLBL" in text and "1 queries" in text
     assert "URLhaus" in text and "1 queries" in text
+    assert "Hybrid" in text and "1 queries" in text
     assert "RDAP" in text and "1 queries" in text
     assert "EPSS" in text and "1 CVEs" in text
     assert "Tavily" in text and "4 searches" in text

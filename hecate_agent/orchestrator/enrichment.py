@@ -59,6 +59,7 @@ _KNOWN_PUBLISHER_DOMAINS: Set[str] = {
     "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
     "shodan.io", "censys.io", "greynoise.io", "abuseipdb.com", "threatfox.abuse.ch",
     "urlhaus.abuse.ch", "malwarebazaar.abuse.ch", "feodotracker.abuse.ch",
+    "hybrid-analysis.com", "payload-security.com",
     # Major cybersecurity vendors and threat research publishers
     "blackpointcyber.com", "mandiant.com", "crowdstrike.com", "paloaltonetworks.com",
     "sentinelone.com", "bleepingcomputer.com", "thehackernews.com", "recordedfuture.com",
@@ -1011,19 +1012,101 @@ def query_otx_cve(cve: str) -> str:
     return query_otx_indicator("cve", cve)
 
 
+def query_hybrid_analysis(file_hash: str) -> str:
+    """Query Hybrid Analysis (CrowdStrike Falcon Sandbox) API v2 for hash detonation results, threat score, and MITRE techniques."""
+    key = (
+        _setting("HYBRID_ANALYSIS_API_KEY")
+        or _setting("HA_API_KEY")
+        or _setting("FALCON_SANDBOX_API_KEY")
+    )
+    if not key:
+        return "HYBRID_ANALYSIS_API_KEY not configured."
+
+    clean_hash = file_hash.strip().lower()
+    if not re.match(r"^[a-f0-9]{32,64}$", clean_hash):
+        return f"Invalid hash format '{file_hash}'."
+
+    url = "https://www.hybrid-analysis.com/api/v2/search/hash"
+    headers = {
+        "api-key": key,
+        "User-Agent": "Falcon Sandbox",
+        "Accept": "application/json",
+    }
+    data = {"hash": clean_hash}
+
+    try:
+        resp = httpx.post(url, headers=headers, data=data, timeout=10.0)
+        if resp.status_code == 200:
+            payload = resp.json()
+            items: List[Dict[str, Any]] = []
+            if isinstance(payload, list):
+                items = payload
+            elif isinstance(payload, dict):
+                items = payload.get("result") or payload.get("data") or [payload]
+
+            if not items:
+                return "No records on Hybrid Analysis."
+
+            best_item = items[0]
+            if len(items) > 1:
+                best_item = max(items, key=lambda x: int(x.get("threat_score") or 0))
+
+            score = best_item.get("threat_score")
+            verdict = best_item.get("verdict")
+            vx_family = best_item.get("vx_family")
+            env = best_item.get("environment_description")
+            ftype = best_item.get("file_type")
+            mitre_list = best_item.get("mitre_attcs") or []
+
+            mitre_ids: List[str] = []
+            for m in mitre_list:
+                if isinstance(m, dict) and m.get("id"):
+                    mid = str(m["id"]).strip()
+                    if mid and mid not in mitre_ids:
+                        mitre_ids.append(mid)
+
+            parts = []
+            if verdict:
+                score_str = f" (Score: {score}/100)" if score is not None else ""
+                parts.append(f"Verdict: {verdict.upper()}{score_str}")
+            elif score is not None:
+                parts.append(f"Threat Score: {score}/100")
+
+            if vx_family:
+                parts.append(f"Family: {vx_family}")
+            if ftype:
+                parts.append(f"Type: {ftype}")
+            if env:
+                parts.append(f"Env: {env}")
+            if mitre_ids:
+                parts.append(f"MITRE: {', '.join(mitre_ids[:3])}")
+
+            return " | ".join(parts) if parts else "Sample analyzed (no threat details)."
+        elif resp.status_code == 404:
+            return "No records on Hybrid Analysis."
+        elif resp.status_code in (401, 403):
+            return "Hybrid Analysis Auth Error (check HYBRID_ANALYSIS_API_KEY)."
+        elif resp.status_code == 429:
+            return "Hybrid Analysis rate limit exceeded."
+        return f"Hybrid Analysis error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying Hybrid Analysis: {e}"
+
+
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Extracts indicators and queries OSINT platforms, returning a markdown summary."""
     indicators = extract_indicators(threat_intel)
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
     def process_hash(h: str) -> str:
         res = query_vt_hash(h)
         otx_res = query_otx_hash(h)
+        ha_res = query_hybrid_analysis(h)
         mb_res = query_malwarebazaar(h)
         sslbl_res = query_sslbl_fingerprint(h)
         urlhaus_res = query_urlhaus_payload(h)
@@ -1033,6 +1116,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             f"- **Hash {h}**:\n"
             f"  - *VirusTotal:* {res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
+            f"  - *Hybrid Analysis (Falcon Sandbox):* {ha_res}\n"
             f"  - *Abuse.ch (MalwareBazaar):* {mb_res}"
         ]
         if len(h) in (32, 40):

@@ -973,6 +973,7 @@ def _integrations_panel(
         ("Feodo C2", ()),
         ("SSLBL", ()),
         ("URLhaus", ("ABUSECH_API_KEY",)),
+        ("Hybrid", ("HYBRID_ANALYSIS_API_KEY", "HA_API_KEY", "FALCON_SANDBOX_API_KEY")),
         ("RDAP", ()),
         ("EPSS", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
@@ -1241,6 +1242,18 @@ def _integrations_panel(
                     if m:
                         url_count = max(url_count, int(m.group(1)))
                 metric = f"{url_count} queries"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Hybrid":
+            if is_set:
+                detail = "sandbox"
+                hash_count = 0
+                for e in active_enrichment_events:
+                    m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
+                    if m:
+                        hash_count = max(hash_count, int(m.group(1)))
+                metric = f"{hash_count} queries"
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
