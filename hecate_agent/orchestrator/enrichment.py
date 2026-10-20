@@ -4,7 +4,7 @@ import time
 import httpx
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Set, Tuple, Any, Optional, cast
+from typing import List, Dict, Set, Tuple, Any, cast
 
 
 from dotenv import load_dotenv
