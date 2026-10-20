@@ -484,6 +484,8 @@ def _pipeline_state(
     if not events:
         return None, False, None
     now = now or datetime.now()
+    if now.tzinfo is not None:
+        now = now.replace(tzinfo=None)
     latest = events[-1]
     current_events = [event for event in events if event.cycle_id == latest.cycle_id]
     last_update = _parse_time(latest.timestamp)
