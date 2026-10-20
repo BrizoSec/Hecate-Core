@@ -2504,15 +2504,20 @@ def _render_dashboard(
     mitre_height = _MITRE_PANEL_HEIGHT
     search_count = _search_count(latest, events)
     usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 5
+    middle_height = body_height if usage_on_left else max(10, body_height - _BOTTOM_ROW_HEIGHT)
+    service_on_left = runner.installed and middle_height >= stages_height + service_height
+    purple_on_left = (
+        (not runner.installed and middle_height >= stages_height + _PURPLE_PANEL_HEIGHT)
+        or (service_on_left and middle_height >= stages_height + service_height + _PURPLE_PANEL_HEIGHT)
+    )
     h_metrics = _collect_hunts_metrics(workspace)
     pt_metrics = _collect_purple_team_metrics(workspace, events)
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
     integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left, events=events, metrics=metrics, live=live, current=latest)
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
-    purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=usage_on_left, metrics=pt_metrics)
+    purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=False, metrics=pt_metrics)
     if usage_on_left:
-        middle_height = body_height
         layout.split_column(
             Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
@@ -2520,7 +2525,6 @@ def _render_dashboard(
             footer,
         )
     else:
-        middle_height = body_height - _BOTTOM_ROW_HEIGHT
         layout.split_column(
             Layout(header_panel, name="header", size=3),
             Layout(name="resources", size=resources_height),
@@ -2528,17 +2532,28 @@ def _render_dashboard(
             Layout(name="usage", size=_BOTTOM_ROW_HEIGHT),
             footer,
         )
-        layout["usage"].split_row(
-            Layout(llm_panel, ratio=1),
-            Layout(Text(" "), size=1),
-            Layout(hunts_panel, ratio=1),
-            Layout(Text(" "), size=1),
-            Layout(mitre_panel, ratio=1),
-            Layout(Text(" "), size=1),
-            Layout(purple_team_panel, ratio=1),
-            Layout(Text(" "), size=1),
-            Layout(integrations_panel, ratio=1),
-        )
+        if purple_on_left and not usage_on_left:
+            layout["usage"].split_row(
+                Layout(llm_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(hunts_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(mitre_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(integrations_panel, ratio=1),
+            )
+        else:
+            layout["usage"].split_row(
+                Layout(llm_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(hunts_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(mitre_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(purple_team_panel, ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(integrations_panel, ratio=1),
+            )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
             Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
@@ -2635,6 +2650,8 @@ def _render_dashboard(
         left.append(Layout(hunts_panel, size=hunts_height))
         left.append(Layout(mitre_panel, size=mitre_height))
         left.append(Layout(integrations_panel, ratio=1))
+    elif purple_on_left:
+        left.append(Layout(purple_team_panel, ratio=1))
     if len(left) > 1:
         layout["stages"].split_column(*left)
     else:
@@ -2649,10 +2666,10 @@ def _render_dashboard(
 
 
 def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
-    """Check if any hecate-runner process is currently running on the host."""
+    """Check if any hecate-runner process is currently running on the host for the given workspace."""
     try:
         current_pid = os.getpid()
-        ws_str = str(workspace.resolve()) if workspace else ""
+        ws_resolved = workspace.resolve() if workspace else None
         for pid_dir in Path("/proc").glob("[0-9]*"):
             try:
                 pid = int(pid_dir.name)
@@ -2663,14 +2680,26 @@ def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
                 if (
                     "hecate-runner" in cmdline_lower
                     or "replay.py" in cmdline_lower
+                    or "run_two_evals.py" in cmdline_lower
+                    or "run_three_evals.py" in cmdline_lower
                     or ("hecate-agent" in cmdline_lower and "monitor" not in cmdline_lower)
                 ):
+                    if ws_resolved is None:
+                        return True
+                    parts = cmdline.split()
+                    for idx, part in enumerate(parts):
+                        if part in ("--workspace", "-w") and idx + 1 < len(parts):
+                            try:
+                                if Path(parts[idx + 1]).resolve() == ws_resolved:
+                                    return True
+                            except OSError:
+                                pass
                     try:
                         cwd = Path(f"/proc/{pid}/cwd").resolve()
-                    except OSError:
-                        cwd = None
-                    if not ws_str or ws_str in cmdline or (cwd is not None and workspace is not None and cwd == workspace.resolve()):
-                        return True
+                        if cwd == ws_resolved:
+                            return True
+                    except (OSError, ValueError):
+                        pass
             except (OSError, ValueError):
                 continue
     except Exception:
@@ -2773,12 +2802,24 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
             return
     elif workspace is None:
         default_root = workspace_root(None)
-        runner_sampler_check = RunnerStatusSampler(default_root)
-        runner_check = runner_sampler_check.sample()
-        if not _service_running(runner_check, default_root):
-            active_eval = find_eval_workspace()
-            if active_eval and _is_runner_process_running(active_eval):
+        active_eval = find_eval_workspace()
+        if active_eval and _is_runner_process_running(active_eval):
+            workspace = active_eval
+        else:
+            runner_sampler_check = RunnerStatusSampler(default_root)
+            runner_check = runner_sampler_check.sample()
+            if runner_check.installed and runner_check.workspace and runner_check.workspace.exists() and (runner_check.workspace / "hunts").exists():
+                workspace = runner_check.workspace
+            elif (default_root / "hunts").exists():
+                workspace = default_root
+            elif (default_root / "Hecate-Workspace" / "hunts").exists():
+                workspace = default_root / "Hecate-Workspace"
+            elif (Path.home() / "betas" / "Hecate-Workspace" / "hunts").exists():
+                workspace = Path.home() / "betas" / "Hecate-Workspace"
+            elif active_eval and (active_eval / "logs" / "orchestrator.log").exists():
                 workspace = active_eval
+            else:
+                workspace = default_root
 
     root = workspace_root(workspace)
     log_path = root / "logs" / "orchestrator.log"
