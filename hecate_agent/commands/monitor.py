@@ -976,6 +976,7 @@ def _integrations_panel(
         ("Feodo C2", ()),
         ("SSLBL", ()),
         ("URLhaus", ("ABUSECH_API_KEY",)),
+        ("URLScan", ("URLSCAN_API_KEY",)),
         ("Hybrid", ("HYBRID_ANALYSIS_API_KEY", "HA_API_KEY", "FALCON_SANDBOX_API_KEY")),
         ("RDAP", ()),
         ("EPSS", ()),
@@ -1018,7 +1019,7 @@ def _integrations_panel(
         is_set = (
             any(os.environ.get(name) for name in names)
             or any(name in file_keys for name in names)
-            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL"))
+            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan"))
         )
         if label == "LLM":
             if is_set:
@@ -1249,6 +1250,16 @@ def _integrations_panel(
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
+        elif label == "URLScan":
+            has_key = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
+            detail = "web lures" if has_key else "lures"
+            url_count = 0
+            for e in active_enrichment_events:
+                m = re.search(r"(\d+)\s+url", e.message, re.IGNORECASE)
+                if m:
+                    url_count = max(url_count, int(m.group(1)))
+            metric = f"{url_count} scans"
+            services_data.append((label, True, detail, metric))
         elif label == "Hybrid":
             if is_set:
                 detail = "sandbox"
@@ -1414,8 +1425,41 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     """
     if not workspace:
         return HuntsMetrics()
+
     hunts_dir = workspace / "hunts"
-    if not hunts_dir.exists() or not hunts_dir.is_dir():
+    hunt_files: List[Path] = []
+    if hunts_dir.exists() and hunts_dir.is_dir():
+        try:
+            hunt_files = sorted(f for f in hunts_dir.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
+        except OSError:
+            hunt_files = []
+
+    # If this workspace has no hunt files yet (e.g. an eval run still in early stages),
+    # fall back to the primary knowledge base in Hecate-Workspace so the operator
+    # sees the cumulative hunt repository metrics instead of blank zeros.
+    is_eval_or_special = (
+        "/tmp/eval_runs" in str(workspace.resolve())
+        or "eval" in workspace.name.lower()
+        or workspace == Path("/home/chemch/betas")
+    )
+    if not hunt_files and is_eval_or_special:
+        alt_candidates = [
+            Path("/home/chemch/betas/Hecate-Workspace/hunts"),
+            Path.home() / "betas" / "Hecate-Workspace" / "hunts",
+            workspace.parent / "Hecate-Workspace" / "hunts",
+        ]
+        for alt in alt_candidates:
+            if alt.exists() and alt.is_dir():
+                try:
+                    alt_files = sorted(f for f in alt.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
+                    if alt_files:
+                        hunts_dir = alt
+                        hunt_files = alt_files
+                        break
+                except OSError:
+                    continue
+
+    if not hunts_dir or not hunts_dir.exists() or not hunt_files:
         return HuntsMetrics()
 
     resolved_path = hunts_dir.resolve()
@@ -1424,25 +1468,6 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
 
     if cached is not None and (now - cached[0] < 10.0):
         return cached[3]
-
-    try:
-        hunt_files = sorted(f for f in hunts_dir.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
-        if not hunt_files:
-            alt_candidates = [
-                Path("/home/chemch/betas/Hecate-Workspace/hunts"),
-                Path.home() / "betas" / "Hecate-Workspace" / "hunts",
-                workspace.parent / "Hecate-Workspace" / "hunts",
-            ]
-            for alt in alt_candidates:
-                if alt.exists() and alt.is_dir():
-                    alt_files = sorted(f for f in alt.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
-                    if alt_files:
-                        hunts_dir = alt
-                        hunt_files = alt_files
-                        resolved_path = hunts_dir.resolve()
-                        break
-    except OSError:
-        return cached[3] if cached is not None else HuntsMetrics()
 
     file_count = len(hunt_files)
     try:
@@ -1603,6 +1628,14 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
             sigma_rules_count = sum(1 for _ in queries_dir.rglob("*.yml"))
         except OSError:
             sigma_rules_count = 0
+
+    if sigma_rules_count == 0:
+        fallback_queries_dir = hunts_dir.parent / "queries"
+        if fallback_queries_dir.is_dir():
+            try:
+                sigma_rules_count = sum(1 for _ in fallback_queries_dir.rglob("*.yml"))
+            except OSError:
+                sigma_rules_count = 0
 
     from hecate_agent.core.attack_matrix import categorize_techniques_by_matrix
 
@@ -2566,28 +2599,15 @@ def _render_dashboard(
             Layout(name="usage", size=_BOTTOM_ROW_HEIGHT),
             footer,
         )
-        if purple_on_left and not usage_on_left:
-            layout["usage"].split_row(
-                Layout(llm_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(hunts_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(mitre_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(integrations_panel, ratio=1),
-            )
-        else:
-            layout["usage"].split_row(
-                Layout(llm_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(hunts_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(mitre_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(purple_team_panel, ratio=1),
-                Layout(Text(" "), size=1),
-                Layout(integrations_panel, ratio=1),
-            )
+        layout["usage"].split_row(
+            Layout(llm_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(hunts_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(mitre_panel, ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(integrations_panel, ratio=1),
+        )
     if len(host.disks) <= 1:
         layout["resources"].split_row(
             Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
@@ -2684,7 +2704,7 @@ def _render_dashboard(
         left.append(Layout(hunts_panel, size=hunts_height))
         left.append(Layout(mitre_panel, size=mitre_height))
         left.append(Layout(integrations_panel, ratio=1))
-    elif purple_on_left:
+    else:
         left.append(Layout(purple_team_panel, ratio=1))
     if len(left) > 1:
         layout["stages"].split_column(*left)

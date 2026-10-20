@@ -817,6 +817,237 @@ def query_urlhaus_payload(file_hash: str) -> str:
         return f"Error querying URLhaus: {e}"
 
 
+_URLSCAN_CACHE: Dict[str, Tuple[float, str]] = {}
+_URLSCAN_CACHE_TTL: float = 86400.0  # 24-hour cache TTL
+
+
+def extract_web_lure_payloads(text: str) -> List[Dict[str, str]]:
+    """Inspect HTML/DOM/script contents to detect ClickFix, fake CAPTCHA, and clipboard injection lures."""
+    results: List[Dict[str, str]] = []
+    if not text:
+        return results
+
+    # 1. Direct clipboard writing literals: navigator.clipboard.writeText("...")
+    direct_matches = re.finditer(
+        r"""navigator\.clipboard\.writeText\(\s*(["'`])((?:\\.|(?!\1).)*)\1\s*\)""",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    for dm in direct_matches:
+        raw = dm.group(2).replace(r'\"', '"').replace(r"\'", "'").strip()
+        if raw and len(raw) >= 4:
+            results.append({"command": raw, "source": "clipboard_writeText", "lure": "direct_clipboard_injection"})
+
+    # 2. Variable-based clipboard writing: const cmd = "..."; navigator.clipboard.writeText(cmd);
+    var_matches = re.finditer(
+        r"""navigator\.clipboard\.writeText\(\s*([a-zA-Z0-9_$]+)\s*\)""",
+        text,
+        re.IGNORECASE,
+    )
+    for vm in var_matches:
+        var_name = vm.group(1)
+        if var_name.lower() not in {"data", "event", "e"}:
+            var_def = re.search(
+                rf"""(?:const|let|var)\s+{re.escape(var_name)}\s*=\s*(["'`])((?:\\.|(?!\1).)*)\1""",
+                text,
+                re.IGNORECASE | re.DOTALL,
+            )
+            if var_def:
+                raw = var_def.group(2).replace(r'\"', '"').replace(r"\'", "'").strip()
+                if raw and len(raw) >= 4 and not any(r["command"] == raw for r in results):
+                    results.append({"command": raw, "source": f"clipboard_var({var_name})", "lure": "variable_clipboard_injection"})
+
+    # 3. Fake CAPTCHA / Human verification prompt
+    has_captcha_prompt = bool(
+        re.search(
+            r"""(verify\s+you\s+are\s+human|cloudflare\s+human\s+verification|robot\s+check|press\s+(?:win(?:dows)?(?:\s*key)?\s*\+\s*r|ctrl\s*\+\s*v|cmd\s*\+\s*v|terminal))""",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+    # 4. Known command execution patterns in scripts
+    cmd_patterns = [
+        ("powershell", re.compile(r"""(?:powershell(?:\.exe)?|pwsh)\s+(?:-[a-zA-Z0-9_\-]+\s+)*(?:-[eE](?:nc(?:odedcommand)?)?|iex|invoke-expression)\s+["'`]?([^"'`\n;]+)""", re.IGNORECASE)),
+        ("bash", re.compile(r"""(?:curl|wget)\s+-[sSfLkA-Za-z0-9\-_./:=?&]+\s+https?://[^\s;&"'`]+(?:\s*\|\s*(?:ba)?sh\b)?""", re.IGNORECASE)),
+        ("mshta", re.compile(r"""mshta(?:\.exe)?\s+https?://[^\s;&"'`]+""", re.IGNORECASE)),
+        ("osascript", re.compile(r"""osascript\s+-e\s+["']([^"']+)["']""", re.IGNORECASE)),
+    ]
+    for ctype, pat in cmd_patterns:
+        for match in pat.finditer(text):
+            cmd = match.group(0).strip().rstrip("\\")
+            if len(cmd) >= 8 and not any(r["command"] == cmd for r in results):
+                results.append({
+                    "command": cmd,
+                    "source": ctype,
+                    "lure": "fake_captcha_lure" if has_captcha_prompt else "embedded_script",
+                })
+
+    return results
+
+
+def query_urlscan_url(url: str, check_lures: bool = True) -> str:
+    """Query URLScan.io API for recent scan verdicts, hosted infrastructure, redirect chains, and DOM lure scripts."""
+    clean_url = url.strip()
+    now = time.monotonic()
+    cached = _URLSCAN_CACHE.get(f"url:{clean_url}")
+    if cached and (now - cached[0] < _URLSCAN_CACHE_TTL):
+        return cached[1]
+
+    api_url = "https://urlscan.io/api/v1/search/"
+    headers = {"Accept": "application/json"}
+    key = _setting("URLSCAN_API_KEY")
+    if key:
+        headers["API-Key"] = key
+
+    query = f'page.url.keyword:"{clean_url}" OR page.url:"{clean_url}"'
+    params = {"q": query, "size": 1}
+
+    try:
+        resp = httpx.get(api_url, headers=headers, params=params, timeout=8.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            results = data.get("results", [])
+            if not results:
+                res = "Not indexed on URLScan.io."
+                _URLSCAN_CACHE[f"url:{clean_url}"] = (now, res)
+                return res
+
+            r0 = results[0]
+            verdicts = r0.get("verdicts", {})
+            overall = verdicts.get("overall", {})
+            malicious = overall.get("malicious", False)
+            score = overall.get("score", 0)
+            categories = overall.get("categories", [])
+            brands = overall.get("brands", [])
+            tags = overall.get("tags", [])
+
+            page = r0.get("page", {})
+            p_ip = page.get("ip", "unknown")
+            p_asn = page.get("asn", "")
+            p_asnname = page.get("asnname", "")
+            p_country = page.get("country", "")
+            p_title = page.get("title", "")
+
+            result_url = r0.get("result", "")
+
+            status_str = f"Malicious (Score: {score}/100)" if malicious else f"Benign/Neutral (Score: {score}/100)"
+            parts = [f"Status: {status_str}"]
+
+            if tags:
+                parts.append(f"Tags: {', '.join(str(t) for t in tags[:3])}")
+            if brands:
+                parts.append(f"Target Brand: {', '.join(str(b) for b in brands[:3])}")
+
+            host_parts = [p_ip]
+            if p_asn:
+                host_parts.append(f"{p_asn} {p_asnname}".strip())
+            if p_country:
+                host_parts.append(p_country)
+            parts.append(f"Host: {' | '.join(host_parts)}")
+
+            if p_title:
+                parts.append(f"Title: {p_title[:45]}")
+
+            if check_lures:
+                text_corpus = f"{p_title} {' '.join(str(t) for t in tags)} {' '.join(str(c) for c in categories)}"
+                lures = extract_web_lure_payloads(text_corpus)
+                if lures:
+                    parts.append(f"Lure: {lures[0]['command'][:60]}")
+
+            if result_url:
+                parts.append(f"Scan: {result_url}")
+
+            res = " | ".join(parts)
+            _URLSCAN_CACHE[f"url:{clean_url}"] = (now, res)
+            return res
+        elif resp.status_code == 429:
+            return "URLScan.io rate limit exceeded."
+        elif resp.status_code in (401, 403):
+            return "URLScan.io Auth Error (check URLSCAN_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying URLScan.io: {e}"
+
+
+def query_urlscan_domain(domain: str) -> str:
+    """Query URLScan.io API for recent domain scan verdicts, lure activity, and IP/ASN hosting info."""
+    clean_domain = domain.strip().lower()
+    now = time.monotonic()
+    cached = _URLSCAN_CACHE.get(f"domain:{clean_domain}")
+    if cached and (now - cached[0] < _URLSCAN_CACHE_TTL):
+        return cached[1]
+
+    api_url = "https://urlscan.io/api/v1/search/"
+    headers = {"Accept": "application/json"}
+    key = _setting("URLSCAN_API_KEY")
+    if key:
+        headers["API-Key"] = key
+
+    query = f'page.domain:"{clean_domain}"'
+    params = {"q": query, "size": 1}
+
+    try:
+        resp = httpx.get(api_url, headers=headers, params=params, timeout=8.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            results = data.get("results", [])
+            if not results:
+                res = "Not indexed on URLScan.io."
+                _URLSCAN_CACHE[f"domain:{clean_domain}"] = (now, res)
+                return res
+
+            r0 = results[0]
+            verdicts = r0.get("verdicts", {})
+            overall = verdicts.get("overall", {})
+            malicious = overall.get("malicious", False)
+            score = overall.get("score", 0)
+            categories = overall.get("categories", [])
+            brands = overall.get("brands", [])
+            tags = overall.get("tags", [])
+
+            page = r0.get("page", {})
+            p_ip = page.get("ip", "unknown")
+            p_asn = page.get("asn", "")
+            p_asnname = page.get("asnname", "")
+            p_country = page.get("country", "")
+            p_title = page.get("title", "")
+
+            result_url = r0.get("result", "")
+
+            status_str = f"Malicious (Score: {score}/100)" if malicious else f"Benign/Neutral (Score: {score}/100)"
+            parts = [f"Status: {status_str}"]
+
+            if tags:
+                parts.append(f"Tags: {', '.join(str(t) for t in tags[:3])}")
+            if brands:
+                parts.append(f"Target Brand: {', '.join(str(b) for b in brands[:3])}")
+
+            host_parts = [p_ip]
+            if p_asn:
+                host_parts.append(f"{p_asn} {p_asnname}".strip())
+            if p_country:
+                host_parts.append(p_country)
+            parts.append(f"Host: {' | '.join(host_parts)}")
+
+            if p_title:
+                parts.append(f"Title: {p_title[:45]}")
+
+            if result_url:
+                parts.append(f"Scan: {result_url}")
+
+            res = " | ".join(parts)
+            _URLSCAN_CACHE[f"domain:{clean_domain}"] = (now, res)
+            return res
+        elif resp.status_code == 429:
+            return "URLScan.io rate limit exceeded."
+        elif resp.status_code in (401, 403):
+            return "URLScan.io Auth Error (check URLSCAN_API_KEY)."
+        return f"HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying URLScan.io: {e}"
+
+
 def query_epss(cve: str) -> str:
     """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
     clean_cve = cve.strip().upper()
@@ -1171,7 +1402,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -1226,6 +1457,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         vt_res = query_vt_domain(d)
         otx_res = query_otx_domain(d)
         rdap_res = query_rdap_domain(d)
+        urlscan_res = query_urlscan_domain(d)
         urlhaus_res = query_urlhaus_host(d)
         threatfox_res = query_threatfox(d)
         misp_res = query_misp_indicator(d)
@@ -1235,6 +1467,8 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *RDAP (Domain Age & Registrar):* {rdap_res}"
         ]
+        if not urlscan_res.startswith("Not indexed on URLScan"):
+            lines.append(f"  - *URLScan.io (Web Lures & Staging):* {urlscan_res}")
         if not urlhaus_res.startswith("Not listed on URLhaus"):
             lines.append(f"  - *Abuse.ch (URLhaus Host):* {urlhaus_res}")
         lines.append(f"  - *Abuse.ch (ThreatFox):* {threatfox_res}")
@@ -1242,11 +1476,13 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         return "\n".join(lines)
 
     def process_url(u: str) -> str:
+        urlscan_res = query_urlscan_url(u)
         urlhaus_res = query_urlhaus_url(u)
         threatfox_res = query_threatfox(u)
         misp_res = query_misp_indicator(u)
         return (
             f"- **URL {u}**:\n"
+            f"  - *URLScan.io (DOM & Web Lure Analysis):* {urlscan_res}\n"
             f"  - *Abuse.ch (URLhaus):* {urlhaus_res}\n"
             f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
             f"  - *Internal MISP:* {misp_res}"
