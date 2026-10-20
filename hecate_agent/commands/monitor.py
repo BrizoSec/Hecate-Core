@@ -2590,7 +2590,7 @@ def _render_dashboard(
     h_metrics = _collect_hunts_metrics(workspace)
     pt_metrics = _collect_purple_team_metrics(workspace, events)
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
-    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=usage_on_left, events=events, metrics=metrics, live=live, current=latest)
+    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=True, events=events, metrics=metrics, live=live, current=latest)
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=False, metrics=pt_metrics)
