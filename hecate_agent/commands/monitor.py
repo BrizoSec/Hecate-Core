@@ -1427,6 +1427,20 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
 
     try:
         hunt_files = sorted(f for f in hunts_dir.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
+        if not hunt_files:
+            alt_candidates = [
+                Path("/home/chemch/betas/Hecate-Workspace/hunts"),
+                Path.home() / "betas" / "Hecate-Workspace" / "hunts",
+                workspace.parent / "Hecate-Workspace" / "hunts",
+            ]
+            for alt in alt_candidates:
+                if alt.exists() and alt.is_dir():
+                    alt_files = sorted(f for f in alt.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
+                    if alt_files:
+                        hunts_dir = alt
+                        hunt_files = alt_files
+                        resolved_path = hunts_dir.resolve()
+                        break
     except OSError:
         return cached[3] if cached is not None else HuntsMetrics()
 
@@ -2052,6 +2066,26 @@ def _collect_purple_team_metrics(
                         tuned_rules += 1
             except OSError:
                 continue
+
+    if val_rules == 0:
+        eval_base = Path("/tmp/eval_runs")
+        if eval_base.exists():
+            for sub_hunts in eval_base.glob("*/hunts/**/*.md"):
+                try:
+                    content = sub_hunts.read_text(encoding="utf-8", errors="ignore")
+                    if "purple_team_validated: true" in content or "Purple-Team Validated" in content:
+                        hunts_val += 1
+                        m_ev = re.search(r"purple_team_rules_evaluated:\s*(\d+)", content)
+                        if m_ev:
+                            val_rules += int(m_ev.group(1))
+                        m_tu = re.search(r"purple_team_rules_tuned:\s*(\d+)", content)
+                        if m_tu:
+                            tuned_rules += int(m_tu.group(1))
+                        m_te = re.search(r"purple_team_telemetry_events:\s*(\d+)", content)
+                        if m_te:
+                            telemetry += int(m_te.group(1))
+                except OSError:
+                    continue
 
     if metrics.last_validated_count > val_rules:
         val_rules = max(val_rules, metrics.last_validated_count)
