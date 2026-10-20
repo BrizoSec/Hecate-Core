@@ -2126,7 +2126,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph
+        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore[import-not-found]
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
@@ -2436,7 +2436,12 @@ def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
                 if pid == current_pid:
                     continue
                 cmdline = (pid_dir / "cmdline").read_bytes().decode("utf-8", errors="ignore").replace("\x00", " ")
-                if "hecate-runner" in cmdline or ("hecate-agent" in cmdline and "monitor" not in cmdline):
+                cmdline_lower = cmdline.lower()
+                if (
+                    "hecate-runner" in cmdline_lower
+                    or "replay.py" in cmdline_lower
+                    or ("hecate-agent" in cmdline_lower and "monitor" not in cmdline_lower)
+                ):
                     try:
                         cwd = Path(f"/proc/{pid}/cwd").resolve()
                     except OSError:
@@ -2448,6 +2453,37 @@ def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
     except Exception:
         pass
     return False
+
+
+def find_eval_workspace(eval_base: Path = Path("/tmp/eval_runs"), check_procs: bool = True) -> Optional[Path]:
+    """Find the actively running evaluation workspace, or the most recent one in eval_base."""
+    if not eval_base.exists():
+        return None
+    if check_procs:
+        try:
+            for pid_dir in Path("/proc").glob("[0-9]*"):
+                try:
+                    cmdline = (pid_dir / "cmdline").read_bytes().decode("utf-8", errors="ignore").replace("\x00", " ")
+                    if "replay.py" in cmdline:
+                        parts = cmdline.split()
+                        for i, p in enumerate(parts):
+                            if p == "--workspace" and i + 1 < len(parts):
+                                ws = Path(parts[i + 1])
+                                if ws.is_dir() and (ws / "logs" / "orchestrator.log").exists():
+                                    return ws
+                except (OSError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+    candidates = [
+        p for p in eval_base.iterdir()
+        if p.is_dir() and (p / "logs" / "orchestrator.log").exists()
+    ]
+    if candidates:
+        candidates.sort(key=lambda p: (p / "logs" / "orchestrator.log").stat().st_mtime, reverse=True)
+        return candidates[0]
+    return None
 
 
 def _service_running(runner: RunnerStatus, workspace: Path) -> Optional[bool]:
@@ -2491,14 +2527,36 @@ def _percent(used: Optional[int], total: Optional[int]) -> Optional[float]:
     help="Hecate workspace to monitor.",
 )
 @click.option(
+    "--eval",
+    "eval_mode",
+    is_flag=True,
+    help="Monitor the active or most recent evaluation run in /tmp/eval_runs.",
+)
+@click.option(
     "--interval",
     type=click.FloatRange(min=0.5, max=30),
     default=1.0,
     show_default=True,
     help="Screen refresh interval in seconds.",
 )
-def monitor(workspace: Optional[Path], interval: float) -> None:
+def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float = 1.0) -> None:
     """Open a live htop-style dashboard for Hecate pipeline activity."""
+    if eval_mode:
+        detected = find_eval_workspace()
+        if detected:
+            workspace = detected
+        else:
+            console.print("[yellow]No evaluation workspace found in /tmp/eval_runs.[/]")
+            return
+    elif workspace is None:
+        default_root = workspace_root(None)
+        runner_sampler_check = RunnerStatusSampler(default_root)
+        runner_check = runner_sampler_check.sample()
+        if not _service_running(runner_check, default_root):
+            active_eval = find_eval_workspace()
+            if active_eval and _is_runner_process_running(active_eval):
+                workspace = active_eval
+
     root = workspace_root(workspace)
     log_path = root / "logs" / "orchestrator.log"
     metrics_path = root / "logs" / "stage_metrics.jsonl"

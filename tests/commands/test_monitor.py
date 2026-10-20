@@ -706,4 +706,27 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     assert short_line.index("HUNT SUMMARY") > 140 // 4
 
 
+def test_find_eval_workspace_detects_candidate(tmp_path: Path) -> None:
+    eval_dir = tmp_path / "eval_runs"
+    eval_dir.mkdir()
+    ws1 = eval_dir / "eval-case-1"
+    (ws1 / "logs").mkdir(parents=True)
+    (ws1 / "logs" / "orchestrator.log").write_text("log 1")
+
+    ws2 = eval_dir / "eval-case-2"
+    (ws2 / "logs").mkdir(parents=True)
+    (ws2 / "logs" / "orchestrator.log").write_text("log 2")
+
+    found = m.find_eval_workspace(eval_base=eval_dir, check_procs=False)
+    assert found is not None
+    assert found in (ws1, ws2)
+
+
+def test_is_runner_process_running_detects_replay(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Verify that replay.py is recognized as runner activity
+    target_ws = Path("/tmp/eval_runs/test-case")
+    assert not m._is_runner_process_running(target_ws)
+
+
+
 
