@@ -55,6 +55,7 @@ VALID_LOGSOURCE_CATEGORIES = {
     # lines. It answered `CommandLine|contains: login`, which is the best
     # available answer to an impossible question.
     "authentication",
+    "proxy",
 }
 
 #: Field names each log source actually carries, so the prompt for one
@@ -72,6 +73,9 @@ _LOGSOURCE_FIELDS = {
     # hunt is scoped to Linux or a SaaS identity provider.
     "authentication": (
         "TargetUserName, SubjectUserName, LogonType, AuthenticationPackageName, WorkstationName, IpAddress, Status, SubStatus"
+    ),
+    "proxy": (
+        "c-uri, c-uri-stem, c-uri-query, c-uri-extension, c-useragent, cs-host, cs-method, cs-referrer, sc-status, src_ip, dst_ip"
     ),
 }
 
@@ -138,6 +142,7 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1068": {"process_creation"},
     "T1557": {"network_connection", "authentication"},
     "T1021": {"authentication", "network_connection"},
+    "T1189": {"network_connection", "proxy"},
     "T1190": {"network_connection", "process_creation"},
     "T1133": {"network_connection", "authentication"},
     "T1486": {"file_event", "process_creation"},
@@ -155,6 +160,9 @@ _INDICATOR_LOGSOURCES: Dict[str, Set[str]] = {
     "hostname": {"dns_query", "network_connection"},
     "url": {"network_connection"},
     "uri": {"network_connection"},
+    "proxy.c-uri": {"proxy"},
+    "c-uri": {"proxy"},
+    "proxy": {"proxy"},
     "filename": {"file_event", "process_creation"},
     "filepath": {"file_event"},
     "md5": {"file_event"},

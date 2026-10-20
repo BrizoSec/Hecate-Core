@@ -4,14 +4,18 @@ from hecate_agent.orchestrator.enrichment import (
     _CRTSH_CACHE,
     _URLSCAN_CACHE,
     _get_apex_domain,
+    extract_http_transactions,
     extract_indicators,
     extract_sibling_domains_from_crtsh,
     extract_web_lure_payloads,
     generate_enrichment_summary,
+    generate_transaction_sigma_rules,
+    poll_urlscan_result,
     query_crtsh_domain,
     query_urlscan_domain,
     query_urlscan_url,
     query_vt_hash,
+    submit_urlscan_detonation,
 )
 
 
@@ -1153,6 +1157,158 @@ def test_query_crtsh_domain_empty_and_errors(mock_get):
     mock_get.side_effect = Exception("Connection timed out")
     res_err = query_crtsh_domain("timeout-domain.org")
     assert "Error querying crt.sh" in res_err
+
+
+def test_submit_urlscan_detonation_no_key():
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
+        res = submit_urlscan_detonation("https://fake-captcha-login.xyz")
+        assert res["status"] == "error"
+        assert "API key required" in res["message"]
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.post")
+def test_submit_urlscan_detonation_success_and_rate_limit(mock_post):
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="dummy-key-123"):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "message": "Submission successful",
+            "uuid": "8a7c2b01-52f1-4a8d-b42e-1e9a37bcde81",
+            "result": "https://urlscan.io/result/8a7c2b01-52f1-4a8d-b42e-1e9a37bcde81/",
+            "api": "https://urlscan.io/api/v1/result/8a7c2b01-52f1-4a8d-b42e-1e9a37bcde81/",
+        }
+        mock_post.return_value = mock_resp
+
+        res = submit_urlscan_detonation("https://lure.phish-site.cc")
+        assert res["status"] == "submitted"
+        assert res["uuid"] == "8a7c2b01-52f1-4a8d-b42e-1e9a37bcde81"
+        assert "8a7c2b01" in res["result"]
+
+        # Rate limited response
+        mock_resp_429 = MagicMock()
+        mock_resp_429.status_code = 429
+        mock_post.return_value = mock_resp_429
+        res_429 = submit_urlscan_detonation("https://lure2.phish-site.cc")
+        assert res_429["status"] == "rate_limited"
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+@patch("hecate_agent.orchestrator.enrichment.time.sleep")
+def test_poll_urlscan_result_flow(mock_sleep, mock_get):
+    # Simulates: 1st attempt 404 (in progress), 2nd attempt 200 (completed)
+    resp_pending = MagicMock()
+    resp_pending.status_code = 404
+
+    resp_ready = MagicMock()
+    resp_ready.status_code = 200
+    resp_ready.json.return_value = {
+        "page": {"url": "https://fake-captcha.cc"},
+        "data": {"requests": []},
+    }
+
+    mock_get.side_effect = [resp_pending, resp_ready]
+
+    result = poll_urlscan_result("8a7c2b01-52f1-4a8d-b42e-1e9a37bcde81", max_wait_seconds=10.0, poll_interval=0.1)
+    assert result["status"] == "ready"
+    assert "page" in result
+    assert mock_get.call_count == 2
+    assert mock_sleep.call_count == 1
+
+
+def test_extract_http_transactions_and_payload_detection():
+    sample_scan = {
+        "data": {
+            "requests": [
+                {
+                    "request": {
+                        "request": {
+                            "url": "https://update-browser-now.top/verify.html",
+                            "method": "GET",
+                            "headers": {"User-Agent": "Mozilla/5.0"},
+                        }
+                    },
+                    "response": {
+                        "response": {
+                            "status": 200,
+                            "mimeType": "text/html",
+                            "remoteIPAddress": "185.220.101.5",
+                            "remotePort": 443,
+                        }
+                    },
+                },
+                {
+                    "request": {
+                        "request": {
+                            "url": "https://cdn.update-browser-now.top/payloads/ChromeSetup.dmg",
+                            "method": "GET",
+                            "headers": {"User-Agent": "Mozilla/5.0"},
+                        }
+                    },
+                    "response": {
+                        "response": {
+                            "status": 200,
+                            "mimeType": "application/x-apple-diskimage",
+                            "remoteIPAddress": "194.26.29.112",
+                            "remotePort": 8443,
+                        }
+                    },
+                },
+            ]
+        }
+    }
+
+    txs = extract_http_transactions(sample_scan)
+    assert len(txs) == 2
+
+    tx_page, tx_payload = txs[0], txs[1]
+    assert tx_page["host"] == "update-browser-now.top"
+    assert tx_page["path"] == "/verify.html"
+    assert not tx_page["is_payload"]
+
+    assert tx_payload["host"] == "cdn.update-browser-now.top"
+    assert tx_payload["path"] == "/payloads/ChromeSetup.dmg"
+    assert tx_payload["remote_ip"] == "194.26.29.112"
+    assert tx_payload["remote_port"] == 8443
+    assert tx_payload["is_payload"] is True
+
+
+def test_generate_transaction_sigma_rules():
+    transactions = [
+        {
+            "url": "https://stealer-drop.com/stager/payload.exe",
+            "method": "GET",
+            "host": "stealer-drop.com",
+            "path": "/stager/payload.exe",
+            "status": 200,
+            "mime_type": "application/x-msdownload",
+            "remote_ip": "45.142.214.88",
+            "remote_port": 8080,
+            "headers": {},
+            "is_payload": True,
+        }
+    ]
+
+    rules = generate_transaction_sigma_rules(transactions, hunt_id="H-9999", title_prefix="ClickFix Detonation")
+    assert len(rules) == 2
+
+    proxy_rule = next(r for r in rules if r["logsource"]["category"] == "proxy")
+    net_rule = next(r for r in rules if r["logsource"]["category"] == "network_connection")
+
+    # Proxy rule assertions
+    assert "ClickFix Detonation - Web Proxy" in proxy_rule["title"]
+    assert proxy_rule["hunt_id"] == "H-9999"
+    assert proxy_rule["detection"]["selection"]["cs-host"] == "stealer-drop.com"
+    assert ".exe" in proxy_rule["detection"]["selection"]["c-uri-stem|endswith"]
+    assert "rule_yaml" in proxy_rule
+    assert "category: proxy" in proxy_rule["rule_yaml"]
+
+    # Network connection rule assertions
+    assert "ClickFix Detonation - Outbound" in net_rule["title"]
+    assert net_rule["hunt_id"] == "H-9999"
+    assert net_rule["detection"]["selection"]["DestinationIp"] == "45.142.214.88"
+    assert net_rule["detection"]["selection"]["DestinationPort"] == 8080
+    assert "category: network_connection" in net_rule["rule_yaml"]
+
 
 
 
