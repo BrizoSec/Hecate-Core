@@ -979,6 +979,7 @@ def _integrations_panel(
         ("URLScan", ("URLSCAN_API_KEY",)),
         ("Hybrid", ("HYBRID_ANALYSIS_API_KEY", "HA_API_KEY", "FALCON_SANDBOX_API_KEY")),
         ("RDAP", ()),
+        ("crt.sh", ()),
         ("EPSS", ()),
         ("OSV.dev", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
@@ -1019,7 +1020,7 @@ def _integrations_panel(
         is_set = (
             any(os.environ.get(name) for name in names)
             or any(name in file_keys for name in names)
-            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan"))
+            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh"))
         )
         if label == "LLM":
             if is_set:
@@ -1274,6 +1275,15 @@ def _integrations_panel(
                 services_data.append((label, False, "unconfigured", "--"))
         elif label == "RDAP":
             detail = "whois/age"
+            dom_count = 0
+            for e in active_enrichment_events:
+                m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)
+                if m:
+                    dom_count = max(dom_count, int(m.group(1)))
+            metric = f"{dom_count} queries"
+            services_data.append((label, True, detail, metric))
+        elif label == "crt.sh":
+            detail = "ct logs"
             dom_count = 0
             for e in active_enrichment_events:
                 m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)

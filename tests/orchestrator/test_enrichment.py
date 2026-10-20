@@ -1,11 +1,14 @@
 from unittest.mock import MagicMock, patch
 
 from hecate_agent.orchestrator.enrichment import (
+    _CRTSH_CACHE,
     _URLSCAN_CACHE,
     _get_apex_domain,
     extract_indicators,
+    extract_sibling_domains_from_crtsh,
     extract_web_lure_payloads,
     generate_enrichment_summary,
+    query_crtsh_domain,
     query_urlscan_domain,
     query_urlscan_url,
     query_vt_hash,
@@ -1047,6 +1050,109 @@ def test_query_urlscan_rate_limits_and_errors(mock_get):
     mock_get.side_effect = Exception("Connection timeout")
     res_err = query_urlscan_domain("timeout-domain.com")
     assert "Error querying URLScan.io" in res_err
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_extract_sibling_domains_from_crtsh_success(mock_get):
+    _CRTSH_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "application/json"}
+    mock_resp.json.return_value = [
+        {
+            "issuer_name": "C=US, O=Let's Encrypt, CN=R3",
+            "common_name": "lure-01.apple-cloud-support.com",
+            "name_value": "lure-01.apple-cloud-support.com\nstaging.apple-cloud-support.com\n*.apple-cloud-support.com\nc2.apple-cloud-support.com",
+            "entry_timestamp": "2026-10-15T08:30:00",
+            "not_before": "2026-10-15T07:30:00",
+        },
+        {
+            "issuer_name": "C=US, O=Let's Encrypt, CN=R3",
+            "common_name": "download.apple-cloud-support.com",
+            "name_value": "download.apple-cloud-support.com",
+            "entry_timestamp": "2026-10-16T10:15:00",
+            "not_before": "2026-10-16T09:15:00",
+        },
+    ]
+    mock_get.return_value = mock_resp
+
+    siblings = extract_sibling_domains_from_crtsh("lure-01.apple-cloud-support.com")
+    assert "apple-cloud-support.com" in siblings
+    assert "c2.apple-cloud-support.com" in siblings
+    assert "download.apple-cloud-support.com" in siblings
+    assert "staging.apple-cloud-support.com" in siblings
+    assert "lure-01.apple-cloud-support.com" not in siblings  # Queried domain is filtered out
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_extract_sibling_domains_from_crtsh_shared_hosting(mock_get):
+    _CRTSH_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "application/json"}
+    mock_resp.json.return_value = []
+    mock_get.return_value = mock_resp
+
+    extract_sibling_domains_from_crtsh("phish-target.pages.dev")
+    # Verify it queries the exact subdomain rather than wildcard %.pages.dev
+    assert mock_get.call_args[1]["params"]["q"] == "phish-target.pages.dev"
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_crtsh_domain_formatting_and_cache(mock_get):
+    _CRTSH_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "application/json"}
+    mock_resp.json.return_value = [
+        {
+            "issuer_name": "C=US, O=ZeroSSL, CN=ZeroSSL RSA Domain Secure Site CA",
+            "common_name": "login.crypto-wallet-verify.top",
+            "name_value": "login.crypto-wallet-verify.top\nc2-gateway.crypto-wallet-verify.top\nauth.crypto-wallet-verify.top",
+            "entry_timestamp": "2026-10-18T12:00:00",
+            "not_before": "2026-10-18T11:00:00",
+        }
+    ]
+    mock_get.return_value = mock_resp
+
+    res1 = query_crtsh_domain("login.crypto-wallet-verify.top")
+    assert "Certificates: 1 logged" in res1
+    assert "ZeroSSL" in res1
+    assert "Latest: 2026-10-18" in res1
+    assert "Sibling Domains (2):" in res1
+    assert "c2-gateway.crypto-wallet-verify.top" in res1
+
+    # Cached call
+    res2 = query_crtsh_domain("login.crypto-wallet-verify.top")
+    assert res1 == res2
+    assert mock_get.call_count == 1  # 2nd call was served from cache
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_crtsh_domain_empty_and_errors(mock_get):
+    _CRTSH_CACHE.clear()
+    mock_empty = MagicMock()
+    mock_empty.status_code = 200
+    mock_empty.headers = {"content-type": "application/json"}
+    mock_empty.json.return_value = []
+    mock_get.return_value = mock_empty
+
+    res_empty = query_crtsh_domain("no-certs-domain.org")
+    assert res_empty == "No certificates found on crt.sh."
+
+    _CRTSH_CACHE.clear()
+    # Rate limit 429
+    mock_429 = MagicMock()
+    mock_429.status_code = 429
+    mock_get.return_value = mock_429
+    res_429 = query_crtsh_domain("busy-domain.org")
+    assert "rate limit exceeded" in res_429
+
+    _CRTSH_CACHE.clear()
+    # Timeout / exception
+    mock_get.side_effect = Exception("Connection timed out")
+    res_err = query_crtsh_domain("timeout-domain.org")
+    assert "Error querying crt.sh" in res_err
 
 
 
