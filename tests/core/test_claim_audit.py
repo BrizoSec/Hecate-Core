@@ -148,6 +148,11 @@ def test_a_target_sector_the_source_never_states_is_replaced() -> None:
     assert out["hypothesis"] == "VShell is launched on targeted academic systems (target sector unconfirmed by the source)."
     assert findings[0].action == "corrected" and findings[0].text == "in China's defense-tech sector"
 
+    # Also test 'to' and 'into' prepositions:
+    fields_to = {"hypothesis": "persistent access to China's defense-tech sector"}
+    out_to, _ = audit_prose(fields_to, OBSERVED, False, source_text=SOURCE)
+    assert out_to["hypothesis"] == "persistent access (target sector unconfirmed by the source)"
+
 
 def test_a_sector_the_source_states_is_kept() -> None:
     fields = {"location": "Hospitals in the healthcare sector"}

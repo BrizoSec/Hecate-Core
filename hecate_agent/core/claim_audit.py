@@ -230,9 +230,9 @@ def audit_prose(
 
 # --- Target sector and motive the source does not state ---------------------------------------
 
-#: "in China's defense-tech sector", "core assets in the energy industry".
+#: "in China's defense-tech sector", "core assets in the energy industry", "access to China's defense-tech sector".
 _SECTOR_RE = re.compile(
-    r"\s*\b(?:in|within|across|of|targeting)\s+(?P<phrase>(?:[\w'\u2019-]+\s+){0,4}?(?P<kind>sector|industry|ecosystem|vertical)s?)\b",
+    r"\s*\b(?:in|within|across|of|targeting|to|into)\s+(?P<phrase>(?:[\w'\u2019-]+\s+){0,4}?(?P<kind>sector|industry|ecosystem|vertical)s?)\b",
     re.IGNORECASE,
 )
 #: "targeting Chinese defense-tech researchers": a sector word on a target group.

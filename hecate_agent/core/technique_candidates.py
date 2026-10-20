@@ -67,7 +67,7 @@ _GENERIC_NAME_WORDS = frozenset(
         "match", "module", "modules", "name", "network", "other", "process",
         "protocol", "remote", "resource", "service", "services", "software",
         "standard", "system", "systems", "tool", "tools", "user", "using",
-        "with", "over", "through", "abuse", "deployment", "malicious",
+        "with", "over", "through", "abuse", "deployment", "malicious", "valid",
     }
 )  # fmt: skip
 
@@ -116,6 +116,7 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
     "T1056.001": ("keylogger", "keylogging"),
     "T1195.002": ("supply chain", "supply-chain"),
     "T1566": ("phishing",),
+    "T1078": ("compromised credentials", "stolen credentials", "default credentials", "valid accounts", "valid account"),
     # Not "malicious file": nearly every report says it, whoever ran the file.
     # It put User Execution on a VeloCloud exploit that involved no user.
     "T1204.002": ("fake job interview", "fake job interviews"),
@@ -274,7 +275,7 @@ class _SemanticTechniqueMatcher:
         self.vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=25000)
         self.matrix = self.vectorizer.fit_transform(docs)
 
-    def match(self, text: str, threshold: float = 0.08) -> Iterable[Tuple[str, str, int]]:
+    def match(self, text: str, threshold: float = 0.14) -> Iterable[Tuple[str, str, int]]:
         if not self.vectorizer or self.matrix is None:
             return
         from sklearn.metrics.pairwise import cosine_similarity
@@ -325,6 +326,14 @@ def candidate_techniques(text: str, limit: int = 16) -> List[Tuple[str, str]]:
     is the honest answer, and the caller's prompt simply omits the section.
     """
     if not text or not text.strip():
+        return []
+    # Automated OSINT enrichment blocks (WHOIS/RDAP, Shodan port lists, API responses)
+    # contain metadata and error lines, not adversary tradecraft.
+    if "### 🛡️ Automated Threat Enrichment" in text:
+        text = text.split("### 🛡️ Automated Threat Enrichment", 1)[0]
+    elif "Automated Threat Enrichment" in text:
+        text = text.split("Automated Threat Enrichment", 1)[0]
+    if not text.strip():
         return []
     scored: Dict[str, Tuple[int, str]] = {}
     try:

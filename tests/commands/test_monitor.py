@@ -691,6 +691,7 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     tall = _render(events, runner, height=60)
     assert "HUNT SUMMARY" in tall
     assert "MITRE METRICS" in tall
+    assert "PURPLE TEAM ENGINE" in tall
     tall_lines = tall.splitlines()
     tall_line = next(line for line in tall_lines if "HUNT SUMMARY" in line)
     assert tall_line.index("HUNT SUMMARY") < 140 // 3
@@ -702,8 +703,9 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     short = _render(events, runner, height=30)
     assert "HUNT SUMMARY" in short
     assert "MITRE METRICS" in short
+    assert "PURPLE TEAM ENGINE" in short
     short_line = next(line for line in short.splitlines() if "HUNT SUMMARY" in line)
-    assert short_line.index("HUNT SUMMARY") > 140 // 4
+    assert short_line.index("HUNT SUMMARY") >= 140 // 5
 
 
 def test_find_eval_workspace_detects_candidate(tmp_path: Path) -> None:
@@ -726,6 +728,59 @@ def test_is_runner_process_running_detects_replay(monkeypatch: pytest.MonkeyPatc
     # Verify that replay.py is recognized as runner activity
     target_ws = Path("/tmp/eval_runs/test-case")
     assert not m._is_runner_process_running(target_ws)
+
+
+def test_purple_team_panel_rendering() -> None:
+    mock_metrics = m.PurpleTeamMetrics(
+        validated_rules=12,
+        tuned_rules=3,
+        total_telemetry_events=450,
+        precision_rate=1.0,
+        false_positive_count=0,
+        hunts_validated=2,
+        last_status="ACTIVE",
+        last_validated_count=4,
+        last_tuned_count=1,
+        last_duration_sec=2.5,
+    )
+    # Wide mode
+    c_wide = Console(width=80, record=True, force_terminal=False)
+    panel_wide = m._purple_team_panel(narrow=False, metrics=mock_metrics)
+    c_wide.print(panel_wide)
+    text_wide = c_wide.export_text()
+    assert "PURPLE TEAM ENGINE" in text_wide
+    assert "12 rules tested" in text_wide
+    assert "3 logic re-tuned" in text_wide
+    assert "100% precision" in text_wide
+    assert "4 in 2.5s" in text_wide
+
+    # Compact mode
+    c_compact = Console(width=48, record=True, force_terminal=False)
+    panel_compact = m._purple_team_panel(compact=True, metrics=mock_metrics)
+    c_compact.print(panel_compact)
+    text_compact = c_compact.export_text()
+    assert "PURPLE TEAM ENGINE" in text_compact
+    assert "12 rules" in text_compact
+    assert "3 tuned" in text_compact
+
+
+def test_collect_purple_team_metrics_from_trail_events() -> None:
+    events = [
+        m.TrailEvent(
+            stage="purple_team",
+            message="validated 8 rule(s) in 12.0s: 2 tuned, 0 FP",
+            cycle_id="abcdef",
+            timestamp="12:00:00",
+            elapsed=12.0,
+        )
+    ]
+    metrics = m._collect_purple_team_metrics(events=events)
+    assert metrics.last_validated_count == 8
+    assert metrics.last_tuned_count == 2
+    assert metrics.last_duration_sec == 12.0
+    assert metrics.false_positive_count == 0
+    assert metrics.last_status == "COMPLETED"
+
 
 
 

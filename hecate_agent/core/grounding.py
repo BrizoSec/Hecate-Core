@@ -678,10 +678,19 @@ def technique_lacks_evidence(
     draft exists, so a model pick that would only be flagged UNSUPPORTED can
     be kept out of the frontmatter, the tactic list and the Sigma tags instead.
     """
+    upper = technique_id.upper()
+    combined = f"{cti_text}\n{research_text}".lower()
+    if upper.startswith("T1078"):
+        if not re.search(
+            r"\b(valid\s+accounts?|compromised\s+credentials?|stolen\s+credentials?|default\s+credentials?)\b",
+            combined,
+        ):
+            return True
+        return False
     evidence_words = set(_WORD_RE.findall(cti_text.lower())) | set(
         _WORD_RE.findall(research_text.lower())
     )
-    return _names_unsupported(names, evidence_words, technique_id.upper())
+    return _names_unsupported(names, evidence_words, upper)
 
 
 def audit_draft(
