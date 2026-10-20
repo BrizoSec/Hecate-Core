@@ -241,7 +241,7 @@ def _name_matches(text: str) -> Iterable[Tuple[str, str, int]]:
             continue
         tokens = _name_tokens(str(tech.get("name", "")))
         if _phrase_in(tokens, words):
-            yield str(tech["id"]), str(tech.get("name", "")), len(tokens)
+            yield str(tech["id"]), str(tech.get("name", "")), 50 + len(tokens)
 
 
 class _SemanticTechniqueMatcher:
@@ -279,14 +279,17 @@ class _SemanticTechniqueMatcher:
             return
         from sklearn.metrics.pairwise import cosine_similarity
 
-        units = [u.strip() for u in re.split(r"(?<=[.!?])\s+|\n[-*]\s+|\n\n+", text) if len(u.strip()) > 15]
-        if not units:
+        if not text or not text.strip():
             return
+        # Score the whole text along with substantial paragraphs (>= 100 chars)
+        # to ensure tradecraft context rather than out-of-context unigrams.
+        paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) >= 100]
+        units = [text.strip(), *paragraphs] if paragraphs else [text.strip()]
         unit_vecs = self.vectorizer.transform(units)
         sims = cosine_similarity(unit_vecs, self.matrix)
         scored: Dict[str, Tuple[int, str]] = {}
         for row in sims:
-            for idx in row.argsort()[::-1][:3]:
+            for idx in row.argsort()[::-1][:5]:
                 score = float(row[idx])
                 if score >= threshold:
                     tid, name = self.techs[idx]

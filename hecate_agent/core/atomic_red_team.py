@@ -7,6 +7,7 @@ validation of threat hunting hypotheses and detection rules.
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -236,31 +237,61 @@ def load_custom_atomic_tests(
     return {}
 
 
+_WINDOWS_INDICATORS = re.compile(
+    r"\.exe\b|\.dll\b|\.sys\b|powershell|cmd\.exe|c:\\|schtasks|wmic|systeminfo|ipconfig|net\s+use|net\s+user|rubeus|certutil|rundll32|reg\.exe|windows event id|sysmon event id",
+    re.IGNORECASE,
+)
+
+
+def _is_test_compatible_with_platforms(test: Dict[str, str], platforms: Optional[List[str]]) -> bool:
+    if not platforms:
+        return True
+    plats = [str(p).lower() for p in platforms]
+    is_windows = any("win" in p for p in plats)
+    if is_windows:
+        return True
+    cmd = test.get("command", "")
+    name = test.get("name", "")
+    telemetry = test.get("telemetry", "")
+    combined = f"{cmd} {name} {telemetry}"
+    return not bool(_WINDOWS_INDICATORS.search(combined))
+
+
 def get_atomic_tests(
-    technique_id: str, workspace: Optional[Path] = None
+    technique_id: str,
+    workspace: Optional[Path] = None,
+    platforms: Optional[List[str]] = None,
 ) -> List[Dict[str, str]]:
     """Return matching Atomic Red Team test descriptors for an ATT&CK technique.
 
     Looks up:
     1. Workspace or user custom atomic test definitions
-    2. Curated sub-technique then base technique in ATOMIC_TESTS_MAP
+    2. Curated sub-technique then base technique in ATOMIC_TESTS_MAP (filtered by platform)
     3. Real ATT&CK matrix technique metadata (dynamic emulation procedure)
     4. Procedural generic fallback template
     """
     tid = technique_id.strip()
     custom = load_custom_atomic_tests(workspace)
     if tid in custom:
-        return custom[tid]
+        filtered = [t for t in custom[tid] if _is_test_compatible_with_platforms(t, platforms)]
+        if filtered:
+            return filtered
 
     base_tid = tid.split(".")[0]
     if base_tid in custom:
-        return custom[base_tid]
+        filtered = [t for t in custom[base_tid] if _is_test_compatible_with_platforms(t, platforms)]
+        if filtered:
+            return filtered
 
     if tid in ATOMIC_TESTS_MAP:
-        return ATOMIC_TESTS_MAP[tid]
+        filtered = [t for t in ATOMIC_TESTS_MAP[tid] if _is_test_compatible_with_platforms(t, platforms)]
+        if filtered:
+            return filtered
 
     if base_tid in ATOMIC_TESTS_MAP:
-        return ATOMIC_TESTS_MAP[base_tid]
+        filtered = [t for t in ATOMIC_TESTS_MAP[base_tid] if _is_test_compatible_with_platforms(t, platforms)]
+        if filtered:
+            return filtered
 
     # Dynamic lookup against MITRE ATT&CK Matrix metadata
     try:
@@ -269,9 +300,10 @@ def get_atomic_tests(
         meta = get_technique(tid) or get_technique(base_tid)
         if meta and meta.get("name"):
             name = meta["name"]
-            platforms = meta.get("platforms") or []
+            meta_platforms = meta.get("platforms") or []
+            target_pfs = [p for p in (platforms or [])] or meta_platforms
+            pf_str = "/".join(target_pfs[:3]) if target_pfs else "test host"
             data_sources = meta.get("data_sources") or []
-            pf_str = "/".join(platforms[:3]) if platforms else "test host"
             ds_str = ", ".join(data_sources[:3]) if data_sources else "sensor and audit event logs"
             return [
                 {
@@ -284,18 +316,21 @@ def get_atomic_tests(
     except Exception:
         pass
 
+    target_pf_str = "/".join(platforms[:3]) if platforms else "dedicated test host"
     return [
         {
             "name": f"Procedural Emulation for {tid}",
             "test_id": f"ART {tid} #1 (Generic)",
-            "command": f"# Execute controlled simulation of {tid} in dedicated test host",
+            "command": f"# Execute controlled simulation of {tid} in {target_pf_str}",
             "telemetry": "Verify sensor telemetry (Process, Network, or Audit logs) captures the activity",
         }
     ]
 
 
 def format_atomic_tests_markdown(
-    techniques: List[str], workspace: Optional[Path] = None
+    techniques: List[str],
+    workspace: Optional[Path] = None,
+    platforms: Optional[List[str]] = None,
 ) -> str:
     """Format matching Atomic Red Team tests as markdown for hunt briefs."""
     if not techniques:
@@ -312,7 +347,7 @@ def format_atomic_tests_markdown(
 
     seen_tests = set()
     for tid in techniques:
-        tests = get_atomic_tests(tid, workspace=workspace)
+        tests = get_atomic_tests(tid, workspace=workspace, platforms=platforms)
         for t in tests:
             test_key = (tid, t["test_id"])
             if test_key in seen_tests:

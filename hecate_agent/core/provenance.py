@@ -415,9 +415,15 @@ def routable_indicators(records: List[IndicatorRecord]) -> Dict[str, List[str]]:
     (archives, documents, network content, in-memory payloads) are left out,
     so a model-drafted rule that reaches for them is rejected as invented.
     """
+    historical_values = {
+        str(r.value).strip().lower()
+        for r in records
+        if getattr(r, "status", "") == "historical" or getattr(r, "role", "") in ("historical", "target")
+    }
     out: Dict[str, List[str]] = {}
     for record in records:
-        if placements(record):
+        val_lower = str(record.value).strip().lower()
+        if val_lower not in historical_values and placements(record):
             out.setdefault(record.type, [])
             if record.value not in out[record.type]:
                 out[record.type].append(record.value)

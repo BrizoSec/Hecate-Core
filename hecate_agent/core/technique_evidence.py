@@ -242,8 +242,12 @@ def sentences(text: str) -> List[str]:
 #: A statement that something did NOT happen ("Not observed: an operator
 #: issuing a command"). It rules a behaviour out; it is not evidence of it.
 _NEGATED_RE = re.compile(
-    r"\b(not|never|n't) (been )?(observed|seen)\b|\bno (evidence|sign|indication)s? (of|that)\b"
-    r"|\b(did|does|was|were) not (use|show|perform|occur)\w*\b"
+    r"\b(not|never|n't) (been )?(observed|seen|successful|succeeded)\b"
+    r"|\bnot one (?:[\w\s]{1,40})?succeeded\b"
+    r"|\b(?:zero|no|0) confirmed (?:compromise|infection|victim|execution|success)s?\b"
+    r"|\bno (?:evidence|sign|indication)s? (?:of|that)\b"
+    r"|\b(?:did|does|was|were) not (?:use|show|perform|occur|succeed)\w*\b"
+    r"|\b(?:unsuccessful|failed to|attempted but failed)\b"
 )
 #: Segments longer than this are judged, and quoted, by a window around the
 #: match: scraped headings carry no punctuation, so unrelated sections can

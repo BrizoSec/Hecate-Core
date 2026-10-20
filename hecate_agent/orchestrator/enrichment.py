@@ -4,7 +4,7 @@ import time
 import httpx
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Set, Tuple, Any
+from typing import List, Dict, Set, Tuple, Any, Optional, cast
 
 
 from dotenv import load_dotenv
@@ -616,27 +616,32 @@ _SSLBL_CACHE: Dict[str, Any] = {"data": None, "ts": 0.0}
 def _get_feodo_ip_map() -> Dict[str, Dict[str, Any]]:
     """Fetch and cache abuse.ch Feodo Tracker IP blocklist (1-hour TTL)."""
     now = time.time()
-    if _FEODO_CACHE["data"] is not None and (now - _FEODO_CACHE["ts"] < 3600.0):
-        return _FEODO_CACHE["data"]
+    if _FEODO_CACHE.get("data") is not None and (now - float(_FEODO_CACHE.get("ts", 0.0)) < 3600.0):
+        return cast(Dict[str, Dict[str, Any]], _FEODO_CACHE["data"])
     try:
         url = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
         resp = httpx.get(url, timeout=5.0)
         if resp.status_code == 200:
             entries = resp.json()
-            ip_map = {item.get("ip_address"): item for item in entries if isinstance(item, dict) and item.get("ip_address")}
+            ip_map: Dict[str, Dict[str, Any]] = {
+                str(item["ip_address"]): item
+                for item in entries
+                if isinstance(item, dict) and item.get("ip_address")
+            }
             _FEODO_CACHE["data"] = ip_map
             _FEODO_CACHE["ts"] = now
             return ip_map
     except Exception as e:
         logger.debug(f"Failed to fetch Feodo Tracker blocklist: {e}")
-    return _FEODO_CACHE["data"] or {}
+    cached = _FEODO_CACHE.get("data")
+    return cast(Dict[str, Dict[str, Any]], cached) if cached is not None else {}
 
 
 def _get_sslbl_fingerprint_map() -> Dict[str, Tuple[str, str]]:
     """Fetch and cache abuse.ch SSL Blacklist certificate & JA3 fingerprints (1-hour TTL)."""
     now = time.time()
-    if _SSLBL_CACHE["data"] is not None and (now - _SSLBL_CACHE["ts"] < 3600.0):
-        return _SSLBL_CACHE["data"]
+    if _SSLBL_CACHE.get("data") is not None and (now - float(_SSLBL_CACHE.get("ts", 0.0)) < 3600.0):
+        return cast(Dict[str, Tuple[str, str]], _SSLBL_CACHE["data"])
     try:
         url = "https://sslbl.abuse.ch/blacklist/sslblacklist.csv"
         resp = httpx.get(url, timeout=5.0)
@@ -666,7 +671,8 @@ def _get_sslbl_fingerprint_map() -> Dict[str, Tuple[str, str]]:
             return res_map
     except Exception as e:
         logger.debug(f"Failed to fetch SSLBL blocklist: {e}")
-    return _SSLBL_CACHE["data"] or {}
+    cached = _SSLBL_CACHE.get("data")
+    return cast(Dict[str, Tuple[str, str]], cached) if cached is not None else {}
 
 
 def query_feodotracker_ip(ip: str) -> str:

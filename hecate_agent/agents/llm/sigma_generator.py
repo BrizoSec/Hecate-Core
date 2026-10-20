@@ -839,23 +839,23 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                 text = str(value)
                 if base in _IP_FIELDS and not _looks_like_address(text):
                     return (
-                        f"{field} holds a network address, but the detection matches "
+                        f"{field_name} holds a network address, but the detection matches "
                         f"on {text!r}; a hostname in an address field never matches"
                     )
                 if base == "targetobject" and "/" in text and "\\" not in text:
-                    return f"{field} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
+                    return f"{field_name} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
-                    return f"{field} holds a port number, but the detection matches on {text!r}"
+                    return f"{field_name} holds a port number, but the detection matches on {text!r}"
                 if base in _FILENAME_FIELDS and _SWITCH_RE.search(text):
                     return (
-                        f"{field} holds a file path, but the detection matches on {text!r}, "
+                        f"{field_name} holds a file path, but the detection matches on {text!r}, "
                         "which carries command-line switches; those belong in CommandLine"
                     )
                 if base not in ["hashes", "md5", "sha1", "sha256", "imphash"]:
                     cleaned = text.strip().lower()
                     if len(cleaned) in (32, 40, 64) and _HEX_RE.match(cleaned):
                         if not ("=" in cleaned or "-" in cleaned):
-                            return f"{field} is not a hash field, but the detection matches on a {len(cleaned)}-character hex string {cleaned!r} (a file hash)"
+                            return f"{field_name} is not a hash field, but the detection matches on a {len(cleaned)}-character hex string {cleaned!r} (a file hash)"
     return None
 
 
@@ -1405,8 +1405,48 @@ def _modifier_in_value_problem(detection: Dict[str, Any]) -> Optional[str]:
             for value in values:
                 if isinstance(value, str) and _MODIFIER_IN_VALUE_RE.match(value):
                     return (
-                        f"{field} carries its modifier inside the value ({value.strip()!r}); "
-                        f"a modifier belongs on the field name, as in {field}|contains"
+                        f"{field_name} carries its modifier inside the value ({value.strip()!r}); "
+                        f"a modifier belongs on the field name, as in {field_name}|contains"
+                    )
+    return None
+
+
+_SCALAR_EVENT_FIELDS = frozenset({
+    "destinationip", "sourceip", "ipaddress", "destinationhostname",
+    "sourcehostname", "destinationport", "sourceport", "image",
+    "parentimage", "originalfilename", "targetfilename", "user",
+    "username", "computername",
+})
+
+
+def _impossible_modifier_problem(detection: Dict[str, Any]) -> Optional[str]:
+    """Reject rules where |all modifier creates a mathematically impossible condition.
+
+    Observed on LLM-generated rules: ``DestinationIp|all: [IP1, IP2]`` or
+    ``DestinationHostname|all: [H1, H2]``. A single event cannot equal multiple
+    distinct scalar values simultaneously.
+    """
+    for block_name, block in detection.items():
+        if block_name == "condition" or not isinstance(block, dict):
+            continue
+        for field_name, raw_value in block.items():
+            parts = [p.strip().lower() for p in str(field_name).split("|")]
+            base = parts[0]
+            modifiers = set(parts[1:])
+            if "all" in modifiers:
+                has_substring = any(m in ("contains", "startswith", "endswith", "re") for m in modifiers)
+                values = raw_value if isinstance(raw_value, list) else [raw_value]
+                distinct = set(str(v).strip() for v in values if str(v).strip())
+                if base in _SCALAR_EVENT_FIELDS and not has_substring:
+                    return (
+                        f"{field_name} uses '|all' for exact matching on scalar field {base!r}; "
+                        "a single event cannot have multiple exact values simultaneously. "
+                        "Use standard list OR matching without '|all'."
+                    )
+                if base in ("destinationip", "sourceip", "destinationport", "sourceport", "ipaddress") and len(distinct) > 1:
+                    return (
+                        f"{field_name} matches multiple distinct values with '|all' on {base!r}; "
+                        "a single network event cannot match multiple addresses/ports simultaneously."
                     )
     return None
 
@@ -1441,12 +1481,12 @@ def _library_as_process_problem(detection: Dict[str, Any], category: str) -> Opt
                 lowered = str(value).strip().lower()
                 if lowered.endswith(_LIBRARY_SUFFIXES):
                     return (
-                        f"{field} matches {str(value).strip()!r}, but a library or driver is never "
+                        f"{field_name} matches {str(value).strip()!r}, but a library or driver is never "
                         "a process image; a load belongs in image_load as ImageLoaded"
                     )
                 if lowered.endswith(_SCRIPT_SUFFIXES):
                     return (
-                        f"{field} matches {str(value).strip()!r}, but a script is never a process image; "
+                        f"{field_name} matches {str(value).strip()!r}, but a script is never a process image; "
                         "match its interpreter in Image and the script in CommandLine"
                     )
     return None
@@ -1468,6 +1508,35 @@ def _network_selections(records: List[Any]) -> Dict[str, Any]:
                 block["DestinationPort"] = port
             selections[f"selection_{index}_{port or 'any'}"] = block
     return selections
+
+
+def _platform_legit_filters(platforms: Optional[List[str]]) -> List[str]:
+    """Return platform-appropriate legitimate binaries to filter for dual-use network rules."""
+    plats = [str(p).lower() for p in (platforms or [])]
+    is_win = not plats or any("win" in p for p in plats)
+    is_linux = any("linux" in p for p in plats)
+    is_mac = any("mac" in p or "darwin" in p for p in plats)
+
+    filters: List[str] = []
+    if is_win:
+        filters.extend([
+            "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
+            "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
+        ])
+    if is_linux:
+        filters.extend([
+            "/chrome", "/google-chrome", "/firefox", "/brave",
+            "/aws", "/amazon-ssm-agent",
+        ])
+    if is_mac:
+        filters.extend([
+            "/Google Chrome", "/Microsoft Edge", "/Firefox", "/Brave Browser",
+            "/aws",
+        ])
+    return filters or [
+        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
+        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
+    ]
 
 
 class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput]):
@@ -1889,10 +1958,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
             else:
                 dual_detection["filter_legit"] = {
-                    "Image|endswith": [
-                        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
-                        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
-                    ]
+                    "Image|endswith": _platform_legit_filters(input_data.platforms)
                 }
                 dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
             techs = [t for t in ("T1567.002", "T1567", "T1071.001", "T1071") if any(t.lower() == it.lower() for it in input_data.techniques)]
@@ -1978,7 +2044,15 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         from hecate_agent.core.provenance import IndicatorRecord, hash_label, placements, url_parts
 
         records = [IndicatorRecord.from_dict(r) for r in input_data.indicator_records]
-        placed = [(r, placements(r)) for r in records]
+        historical_values = {
+            str(r.value).strip().lower()
+            for r in records
+            if r.status == "historical" or r.role in ("historical", "target")
+        }
+        placed = [
+            (r, [] if str(r.value).strip().lower() in historical_values else placements(r))
+            for r in records
+        ]
 
         def values_for(placement: str) -> List[IndicatorRecord]:
             return [r for r, where in placed if placement in where]
@@ -2060,10 +2134,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
             else:
                 dual_detection["filter_legit"] = {
-                    "Image|endswith": [
-                        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
-                        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
-                    ]
+                    "Image|endswith": _platform_legit_filters(input_data.platforms)
                 }
                 dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
 
@@ -2303,6 +2374,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             lambda d: _self_defeating_filter_problem(d, input_data.hypothesis),
             lambda d: _excluded_threat_problem(d, input_data.indicators),
             _modifier_in_value_problem,
+            _impossible_modifier_problem,
             lambda d: _library_as_process_problem(d, category),
             _field_type_problem,
             _breadth_problem,

@@ -289,40 +289,41 @@ def info() -> None:  # noqa: C901
 
     # Get installed packages count
     pip_path = python_path.parent / "pip"
+    pip_cmd = [str(pip_path)] if pip_path.exists() else [str(python_path), "-m", "pip"]
     package_count: Union[int, str]
     try:
         result = subprocess.run(
-            [str(pip_path), "list", "--format", "freeze"],
+            [*pip_cmd, "list", "--format", "freeze"],
             check=True,
             capture_output=True,
             text=True,
         )
         package_count = len(result.stdout.strip().split("\n"))
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         package_count = "Unknown"
 
     # Check for hecate-agent installation
     try:
         result = subprocess.run(
-            [str(pip_path), "show", "hecate-agent"],
+            [*pip_cmd, "show", "hecate-agent"],
             check=True,
             capture_output=True,
             text=True,
         )
         hecate_installed = "✅ Installed" if result.returncode == 0 else "❌ Not installed"
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         hecate_installed = "❌ Not installed"
 
     # Check for scikit-learn
     try:
         result = subprocess.run(
-            [str(pip_path), "show", "scikit-learn"],
+            [*pip_cmd, "show", "scikit-learn"],
             check=True,
             capture_output=True,
             text=True,
         )
         sklearn_installed = "✅ Installed" if result.returncode == 0 else "❌ Not installed"
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         sklearn_installed = "❌ Not installed"
 
     # Display info

@@ -238,10 +238,40 @@ def report_urls(threat_intel: str, source_url: str = "", limit: int = 1) -> List
 def fetch_page_text(url: str, timeout: float = 20.0) -> str:
     """Visible text of a report page, or raise on any failure."""
     from bs4 import BeautifulSoup
+    import subprocess
 
-    response = httpx.get(url, timeout=timeout, follow_redirects=True)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Ch-Ua": "\"Chromium\";v=\"130\", \"Google Chrome\";v=\"130\", \"Not?A_Brand\";v=\"99\"",
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": "\"Windows\"",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    try:
+        response = httpx.get(url, timeout=timeout, headers=headers, follow_redirects=True)
+        response.raise_for_status()
+        html = response.text
+    except Exception as exc:
+        try:
+            res = subprocess.run(
+                ["curl", "-sL", "-m", str(int(timeout)), url],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            html = res.stdout
+            if not html.strip():
+                raise exc
+        except Exception:
+            raise exc
+
+    soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
     return strip_page_furniture(strip_repeated_body(str(soup.get_text(separator="\n", strip=True))))[:MAX_PAGE_CHARS]

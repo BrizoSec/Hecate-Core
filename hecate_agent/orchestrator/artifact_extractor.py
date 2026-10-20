@@ -24,7 +24,10 @@ _URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 def scrape_url_text(url: str) -> str:
     """Fetch a report page and return its visible text, or "" on any failure."""
     try:
-        resp = httpx.get(url, timeout=15.0, follow_redirects=True)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        resp = httpx.get(url, timeout=15.0, headers=headers, follow_redirects=True)
     except httpx.HTTPError as e:
         logger.error(f"Failed to scrape {url}: {e}")
         return ""
