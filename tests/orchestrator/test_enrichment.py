@@ -2,25 +2,33 @@ from unittest.mock import MagicMock, patch
 
 from hecate_agent.orchestrator.enrichment import (
     _CRTSH_CACHE,
+    _IPINFO_CACHE,
     _PDNS_CACHE,
     _SPUR_CACHE,
+    _TOR_EXIT_CACHE,
     _URLSCAN_CACHE,
     _format_pdns_date,
     _get_apex_domain,
+    _get_tor_exit_nodes,
     _normalize_pdns_timestamp,
     extract_http_transactions,
     extract_indicators,
+    extract_ipinfo_context,
     extract_sibling_domains_from_crtsh,
     extract_spur_context,
     extract_web_lure_payloads,
     generate_enrichment_summary,
     generate_transaction_sigma_rules,
+    is_tor_exit_node,
     poll_urlscan_result,
+    query_anonymity_proxy_ip,
     query_crtsh_domain,
+    query_ipinfo_ip,
     query_passive_dns,
     query_passive_dns_domain,
     query_passive_dns_ip,
     query_spur_ip,
+    query_tor_exit,
     query_urlscan_domain,
     query_urlscan_url,
     query_vt_hash,
@@ -1516,6 +1524,106 @@ def test_generate_enrichment_summary_includes_spur_and_pdns():
         assert "Infra: RESIDENTIAL" in summary
         assert "Passive DNS (Historical Correlated Hostnames):" in summary
         assert "Passive DNS (Historical IP Resolutions):" in summary
+
+
+def test_tor_exit_node_parsing_and_lookup():
+    _TOR_EXIT_CACHE["data"] = set()
+    _TOR_EXIT_CACHE["ts"] = 0.0
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "# Tor exit list\n171.25.193.25\n80.67.167.81\n109.70.100.4\n"
+
+    with patch("httpx.get", return_value=mock_resp):
+        nodes = _get_tor_exit_nodes()
+        assert len(nodes) == 3
+        assert "171.25.193.25" in nodes
+        assert "80.67.167.81" in nodes
+        assert "1.1.1.1" not in nodes
+
+        assert is_tor_exit_node("171.25.193.25") is True
+        assert is_tor_exit_node("1.1.1.1") is False
+
+        assert "Confirmed Active Exit Node" in query_tor_exit("171.25.193.25")
+        assert "Not a Tor exit node" in query_tor_exit("1.1.1.1")
+
+
+def test_ipinfo_parsing_and_classification():
+    _IPINFO_CACHE.clear()
+
+    # Test private IP handling
+    assert query_ipinfo_ip("192.168.1.1") == "Private/internal IP address."
+    raw_priv = extract_ipinfo_context("10.0.0.1")
+    assert raw_priv.get("bogon") is True
+
+    # Test hosting/VPN detection
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "ip": "185.220.101.5",
+        "hostname": "tor-exit-01.relays.net",
+        "city": "Frankfurt",
+        "region": "Hesse",
+        "country": "DE",
+        "org": "AS24940 Hetzner Online GmbH",
+        "anycast": False,
+        "privacy": {
+            "vpn": True,
+            "proxy": False,
+            "tor": True,
+            "hosting": True,
+            "service": "Mullvad",
+        },
+        "company": {"type": "hosting"},
+    }
+
+    with patch("httpx.get", return_value=mock_resp):
+        res = query_ipinfo_ip("185.220.101.5")
+        assert "Classification: Tor, VPN (Mullvad), Hosting/Datacenter" in res
+        assert "Org: AS24940 Hetzner Online GmbH" in res
+        assert "Host: tor-exit-01.relays.net" in res
+        assert "Loc: Frankfurt, Hesse, DE" in res
+
+        raw = extract_ipinfo_context("185.220.101.5")
+        assert raw["configured"] is True
+        assert raw["privacy"]["vpn"] is True
+
+
+def test_query_anonymity_proxy_ip_unified():
+    _TOR_EXIT_CACHE["data"] = {"171.25.193.25"}
+    _TOR_EXIT_CACHE["ts"] = 9999999999.0
+    _IPINFO_CACHE.clear()
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "ip": "171.25.193.25",
+        "hostname": "tor-node.dfri.se",
+        "city": "Stockholm",
+        "country": "SE",
+        "org": "AS198093 DFRI",
+    }
+
+    with patch("httpx.get", return_value=mock_resp):
+        res = query_anonymity_proxy_ip("171.25.193.25")
+        assert "Tor Exit Node (Active)" in res
+        assert "Org: AS198093 DFRI" in res
+        assert "Host: tor-node.dfri.se" in res
+        assert "via IPinfo" in res or "Tor Project" in res
+
+
+def test_generate_enrichment_summary_includes_anonymity_proxy():
+    _TOR_EXIT_CACHE["data"] = set()
+    _IPINFO_CACHE.clear()
+
+    threat_intel = "The attacker used IP 185.220.101.5 for staging."
+
+    with patch("hecate_agent.orchestrator.enrichment.query_anonymity_proxy_ip", return_value="Tor Exit Node (Active) | Org: AS24940 [IPinfo, Tor Project]"):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "Anonymity & Proxy (Tor / Hosting / VPN):" in summary
+        assert "Tor Exit Node (Active)" in summary
+        assert "Org: AS24940" in summary
+
 
 
 

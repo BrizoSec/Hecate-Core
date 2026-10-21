@@ -982,6 +982,7 @@ def _integrations_panel(
         ("crt.sh", ()),
         ("PDNS", ("VT_API_KEY", "MNEMONIC_API_KEY", "OTX_API_KEY")),
         ("Spur", ("SPUR_API_KEY",)),
+        ("Tor/Proxy", ("IPINFO_TOKEN", "IPINFO_API_KEY")),
         ("EPSS", ()),
         ("OSV.dev", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
@@ -1022,7 +1023,7 @@ def _integrations_panel(
         is_set = (
             any(os.environ.get(name) for name in names)
             or any(name in file_keys for name in names)
-            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh", "PDNS"))
+            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh", "PDNS", "Tor/Proxy"))
         )
         if label == "LLM":
             if is_set:
@@ -1314,6 +1315,15 @@ def _integrations_panel(
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Tor/Proxy":
+            detail = "tor/vpn"
+            ip_count = 0
+            for e in active_enrichment_events:
+                m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
+                if m:
+                    ip_count = max(ip_count, int(m.group(1)))
+            metric = f"{ip_count} queries"
+            services_data.append((label, True, detail, metric))
         elif label == "EPSS":
             detail = "cve score" if narrow else "exploit prediction"
             cve_count = 0
