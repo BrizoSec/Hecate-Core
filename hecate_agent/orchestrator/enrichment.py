@@ -2,6 +2,7 @@ import os
 import re
 import time
 import httpx
+import ipaddress
 import logging
 import urllib.parse
 import uuid
@@ -533,6 +534,130 @@ def query_abuseipdb_ip(ip: str) -> str:
         return f"AbuseIPDB error: HTTP {resp.status_code}"
     except Exception as e:
         return f"Error querying AbuseIPDB: {e}"
+
+
+_SPUR_CACHE: Dict[str, Tuple[float, str, Dict[str, Any]]] = {}
+_SPUR_CACHE_TTL: float = 86400.0  # 24-hour cache TTL
+
+
+def extract_spur_context(ip: str) -> Dict[str, Any]:
+    """Query Spur.us Context API for structured IP intelligence, proxy detection, and tunnels."""
+    clean_ip = refang(ip).strip()
+    if not clean_ip:
+        return {"configured": False, "error": "Empty IP address"}
+
+    try:
+        addr = ipaddress.ip_address(clean_ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_reserved:
+            return {"configured": True, "found": False, "message": "Private/internal IP address"}
+    except ValueError:
+        return {"configured": False, "error": f"Invalid IP address: {clean_ip}"}
+
+    key = _setting("SPUR_API_KEY")
+    if not key:
+        return {"configured": False, "error": "SPUR_API_KEY not configured"}
+
+    now = time.time()
+    cached = _SPUR_CACHE.get(clean_ip)
+    if cached and (now - cached[0] < _SPUR_CACHE_TTL):
+        return cached[2]
+
+    url = f"https://api.spur.us/v2/context/{clean_ip}"
+    headers = {"Token": key, "Accept": "application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            data["configured"] = True
+            data["found"] = True
+            return data
+        elif resp.status_code == 404:
+            return {"configured": True, "found": False, "message": "Not observed on Spur"}
+        elif resp.status_code in (401, 403):
+            return {"configured": True, "error": "Spur Auth Error (check SPUR_API_KEY)"}
+        elif resp.status_code == 429:
+            return {"configured": True, "error": "Spur rate limit exceeded"}
+        return {"configured": True, "error": f"Spur API error: HTTP {resp.status_code}"}
+    except httpx.TimeoutException:
+        return {"configured": True, "error": "Spur query timed out"}
+    except Exception as e:
+        return {"configured": True, "error": f"Error querying Spur: {e}"}
+
+
+def query_spur_ip(ip: str) -> str:
+    """Query Spur.us Context API for residential proxies, VPN tunnels, and bulletproof infrastructure."""
+    clean_ip = refang(ip).strip()
+    if not clean_ip:
+        return "Invalid IP address."
+
+    try:
+        addr = ipaddress.ip_address(clean_ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_reserved:
+            return "Private/internal IP address."
+    except ValueError:
+        return f"Invalid IP address: {clean_ip}"
+
+    key = _setting("SPUR_API_KEY")
+    if not key:
+        return "SPUR_API_KEY not configured."
+
+    now = time.time()
+    cached = _SPUR_CACHE.get(clean_ip)
+    if cached and (now - cached[0] < _SPUR_CACHE_TTL):
+        return cached[1]
+
+    data = extract_spur_context(clean_ip)
+    if not data.get("configured", True):
+        return str(data.get("error") or "SPUR_API_KEY not configured.")
+    if data.get("error"):
+        return str(data["error"])
+    if not data.get("found", True):
+        res = "Not observed on Spur."
+        _SPUR_CACHE[clean_ip] = (now, res, data)
+        return res
+
+    infra = data.get("infrastructure") or ""
+    as_info = data.get("as") or {}
+    as_num = as_info.get("number")
+    as_org = as_info.get("organization") or ""
+
+    tunnels = data.get("tunnels") or []
+    tunnel_strs = []
+    for t in tunnels:
+        if isinstance(t, dict):
+            op = t.get("operator") or "Unknown"
+            anon = " (Anonymous)" if t.get("anonymous") else ""
+            tunnel_strs.append(f"{op}{anon}")
+        elif isinstance(t, str):
+            tunnel_strs.append(t)
+
+    client = data.get("client") or {}
+    proxies = client.get("proxies") or []
+    risks = data.get("risks") or []
+    location = data.get("location") or {}
+    city = location.get("city")
+    country = location.get("country")
+
+    parts = []
+    if infra:
+        parts.append(f"Infra: {infra}")
+    if as_num:
+        parts.append(f"AS: AS{as_num} ({as_org})" if as_org else f"AS: AS{as_num}")
+    elif as_org:
+        parts.append(f"Org: {as_org}")
+    if tunnel_strs:
+        parts.append(f"Tunnels: {', '.join(tunnel_strs[:3])}")
+    if proxies:
+        parts.append(f"Proxies: {', '.join(str(p) for p in proxies[:3])}")
+    if risks:
+        parts.append(f"Risks: {', '.join(str(r) for r in risks[:4])}")
+    loc_parts = [p for p in (city, country) if p]
+    if loc_parts:
+        parts.append(f"Loc: {', '.join(loc_parts)}")
+
+    summary = " | ".join(parts) if parts else "No threat or proxy signals reported."
+    _SPUR_CACHE[clean_ip] = (now, summary, data)
+    return summary
 
 
 def query_threatfox(indicator: str) -> str:
@@ -1791,6 +1916,228 @@ def query_otx_cve(cve: str) -> str:
     return query_otx_indicator("cve", cve)
 
 
+_PDNS_CACHE: Dict[str, Tuple[float, str, List[Dict[str, Any]]]] = {}
+_PDNS_CACHE_TTL: float = 86400.0  # 24-hour cache TTL
+
+
+def _normalize_pdns_timestamp(ts: Any) -> Optional[int]:
+    """Normalize timestamp from VT (sec), Mnemonic (ms), or OTX (ISO string) into epoch seconds."""
+    if not ts:
+        return None
+    if isinstance(ts, (int, float)):
+        return int(ts / 1000) if ts > 1e11 else int(ts)
+    if isinstance(ts, str):
+        if ts.isdigit():
+            val = int(ts)
+            return int(val / 1000) if val > 1e11 else val
+        try:
+            clean = ts.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean)
+            return int(dt.timestamp())
+        except Exception:
+            return None
+    return None
+
+
+def _format_pdns_date(epoch_sec: Optional[int]) -> str:
+    """Format epoch seconds into a concise YYYY-MM representation."""
+    if not epoch_sec:
+        return ""
+    try:
+        return datetime.fromtimestamp(epoch_sec, tz=timezone.utc).strftime("%Y-%m")
+    except Exception:
+        return ""
+
+
+def query_vt_pdns_domain(domain: str) -> List[Dict[str, Any]]:
+    """Query VirusTotal v3 for domain passive DNS resolutions."""
+    key = _setting("VT_API_KEY") or _setting("HECATE_RUNNER_VT_API_KEY")
+    if not key:
+        return []
+    clean_domain = domain.strip().lower()
+    url = f"https://www.virustotal.com/api/v3/domains/{clean_domain}/resolutions"
+    headers = {"x-apikey": key, "Accept": "application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            entries = []
+            for item in resp.json().get("data", []):
+                attr = item.get("attributes", {})
+                ip = attr.get("ip_address")
+                date_val = attr.get("date")
+                if ip:
+                    entries.append({"value": ip, "date": date_val, "source": "VT"})
+            return entries
+    except Exception:
+        pass
+    return []
+
+
+def query_vt_pdns_ip(ip: str) -> List[Dict[str, Any]]:
+    """Query VirusTotal v3 for IP passive DNS resolutions."""
+    key = _setting("VT_API_KEY") or _setting("HECATE_RUNNER_VT_API_KEY")
+    if not key:
+        return []
+    clean_ip = refang(ip).strip()
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{clean_ip}/resolutions"
+    headers = {"x-apikey": key, "Accept": "application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            entries = []
+            for item in resp.json().get("data", []):
+                attr = item.get("attributes", {})
+                host = attr.get("host_name")
+                date_val = attr.get("date")
+                if host:
+                    entries.append({"value": host, "date": date_val, "source": "VT"})
+            return entries
+    except Exception:
+        pass
+    return []
+
+
+def query_mnemonic_pdns(indicator: str, is_ip: bool = False) -> List[Dict[str, Any]]:
+    """Query Mnemonic PDNS v3 public keyless API (with optional Argus key) for resolutions."""
+    clean = refang(indicator).strip()
+    if not clean:
+        return []
+    url = f"https://api.mnemonic.no/pdns/v3/{clean}?limit=25"
+    headers = {"Accept": "application/json"}
+    argus_key = _setting("MNEMONIC_API_KEY")
+    if argus_key:
+        headers["Argus-API-Key"] = argus_key
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            entries = []
+            for item in resp.json().get("data", []):
+                val = item.get("query") if is_ip else item.get("answer")
+                ts = item.get("lastSeenTimestamp") or item.get("lastUpdatedTimestamp")
+                if val:
+                    entries.append({"value": val, "date": ts, "source": "Mnemonic"})
+            return entries
+    except Exception:
+        pass
+    return []
+
+
+def query_otx_pdns(indicator: str, is_ip: bool = False) -> List[Dict[str, Any]]:
+    """Query AlienVault OTX Passive DNS endpoint for resolutions."""
+    key = _setting("OTX_API_KEY")
+    if not key:
+        return []
+    clean = refang(indicator).strip()
+    norm_type = "IPv4" if is_ip else "domain"
+    url = f"https://otx.alienvault.com/api/v1/indicators/{norm_type}/{clean}/passive_dns"
+    headers = {"X-OTX-API-KEY": key, "Accept": "application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            entries = []
+            for item in resp.json().get("passive_dns", []):
+                val = item.get("hostname") if is_ip else item.get("address")
+                ts = item.get("last")
+                if val:
+                    entries.append({"value": val, "date": ts, "source": "OTX"})
+            return entries
+    except Exception:
+        pass
+    return []
+
+
+def query_passive_dns(indicator: str, max_results: int = 8) -> str:
+    """Unified multi-source Passive DNS aggregator (VirusTotal, Mnemonic, AlienVault OTX).
+
+    Returns historical resolved IPs for a domain, or correlated resolving hostnames for an IP.
+    """
+    clean = refang(indicator).strip()
+    if not clean:
+        return "No passive DNS records found."
+
+    is_ip = False
+    try:
+        addr = ipaddress.ip_address(clean)
+        is_ip = True
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            return "Private/internal IP address."
+    except ValueError:
+        is_ip = False
+
+    cache_prefix = "ip" if is_ip else "domain"
+    cache_key = f"{cache_prefix}:{clean.lower()}"
+    now = time.time()
+    cached = _PDNS_CACHE.get(cache_key)
+    if cached and (now - cached[0] < _PDNS_CACHE_TTL):
+        return cached[1]
+
+    all_entries: List[Dict[str, Any]] = []
+
+    # Query VT
+    if is_ip:
+        all_entries.extend(query_vt_pdns_ip(clean))
+    else:
+        all_entries.extend(query_vt_pdns_domain(clean))
+
+    # Query Mnemonic (Public keyless)
+    all_entries.extend(query_mnemonic_pdns(clean, is_ip=is_ip))
+
+    # Query OTX
+    all_entries.extend(query_otx_pdns(clean, is_ip=is_ip))
+
+    records: Dict[str, Dict[str, Any]] = {}
+    for entry in all_entries:
+        val = (entry.get("value") or "").strip()
+        if not val or val.lower() == clean.lower() or val.endswith(".arpa"):
+            continue
+        val_norm = val.lower()
+        ts = _normalize_pdns_timestamp(entry.get("date"))
+        source = entry.get("source", "PDNS")
+        if val_norm not in records:
+            records[val_norm] = {
+                "display": val,
+                "timestamp": ts,
+                "sources": {source},
+            }
+        else:
+            records[val_norm]["sources"].add(source)
+            if ts and (records[val_norm]["timestamp"] is None or ts > records[val_norm]["timestamp"]):
+                records[val_norm]["timestamp"] = ts
+
+    if not records:
+        res = "No passive DNS records found."
+        _PDNS_CACHE[cache_key] = (now, res, [])
+        return res
+
+    sorted_records = sorted(
+        records.values(),
+        key=lambda x: (x["timestamp"] is not None, x["timestamp"] or 0),
+        reverse=True,
+    )
+
+    items = []
+    sources_used: Set[str] = set()
+    for r in sorted_records[:max_results]:
+        d = f" ({_format_pdns_date(r['timestamp'])})" if r["timestamp"] else ""
+        items.append(f"{r['display']}{d}")
+        sources_used.update(r["sources"])
+
+    src_str = f" [via {', '.join(sorted(sources_used))}]" if sources_used else ""
+    summary = f"Passive DNS: {', '.join(items)}{src_str}"
+    _PDNS_CACHE[cache_key] = (now, summary, sorted_records)
+    return summary
+
+
+def query_passive_dns_ip(ip: str, max_results: int = 8) -> str:
+    """Convenience wrapper for IP passive DNS lookup."""
+    return query_passive_dns(ip, max_results=max_results)
+
+
+def query_passive_dns_domain(domain: str, max_results: int = 8) -> str:
+    """Convenience wrapper for Domain passive DNS lookup."""
+    return query_passive_dns(domain, max_results=max_results)
+
+
 def query_hybrid_analysis(file_hash: str) -> str:
     """Query Hybrid Analysis (CrowdStrike Falcon Sandbox) API v2 for hash detonation results, threat score, and MITRE techniques."""
     key = (
@@ -1886,7 +2233,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
+    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Spur.us, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -1919,23 +2266,32 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         otx_res = query_otx_ip(ip)
         feodo_res = query_feodotracker_ip(ip)
         abuseipdb_res = query_abuseipdb_ip(ip)
+        spur_res = query_spur_ip(ip)
+        pdns_res = query_passive_dns(ip)
         gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
         censys_res = query_censys_ip(ip)
         threatfox_res = query_threatfox(ip)
         misp_res = query_misp_indicator(ip)
-        return (
+        lines = [
             f"- **IP {ip}**:\n"
             f"  - *VirusTotal:* {vt_res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *Abuse.ch (Feodo Tracker C2):* {feodo_res}\n"
-            f"  - *AbuseIPDB:* {abuseipdb_res}\n"
-            f"  - *GreyNoise:* {gn_res}\n"
-            f"  - *Shodan:* {shodan_res}\n"
-            f"  - *Censys:* {censys_res}\n"
-            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}\n"
+            f"  - *AbuseIPDB:* {abuseipdb_res}"
+        ]
+        if not spur_res.startswith("SPUR_API_KEY not configured"):
+            lines.append(f"  - *Spur.us (Proxy & Infrastructure):* {spur_res}")
+        if not pdns_res.startswith("No passive DNS records found"):
+            lines.append(f"  - *Passive DNS (Historical Correlated Hostnames):* {pdns_res}")
+        lines.extend([
+            f"  - *GreyNoise:* {gn_res}",
+            f"  - *Shodan:* {shodan_res}",
+            f"  - *Censys:* {censys_res}",
+            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}",
             f"  - *Internal MISP:* {misp_res}"
-        )
+        ])
+        return "\n".join(lines)
 
     def process_domain(d: str) -> str:
         vt_res = query_vt_domain(d)
@@ -1943,6 +2299,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         rdap_res = query_rdap_domain(d)
         urlscan_res = query_urlscan_domain(d)
         crtsh_res = query_crtsh_domain(d)
+        pdns_res = query_passive_dns(d)
         urlhaus_res = query_urlhaus_host(d)
         threatfox_res = query_threatfox(d)
         misp_res = query_misp_indicator(d)
@@ -1956,6 +2313,8 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             lines.append(f"  - *URLScan.io (Web Lures & Staging):* {urlscan_res}")
         if not crtsh_res.startswith("No certificates found on crt.sh"):
             lines.append(f"  - *crt.sh (Certificate Transparency & Sibling Domains):* {crtsh_res}")
+        if not pdns_res.startswith("No passive DNS records found"):
+            lines.append(f"  - *Passive DNS (Historical IP Resolutions):* {pdns_res}")
         if not urlhaus_res.startswith("Not listed on URLhaus"):
             lines.append(f"  - *Abuse.ch (URLhaus Host):* {urlhaus_res}")
         lines.append(f"  - *Abuse.ch (ThreatFox):* {threatfox_res}")

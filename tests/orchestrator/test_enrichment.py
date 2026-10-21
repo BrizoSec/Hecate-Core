@@ -2,16 +2,25 @@ from unittest.mock import MagicMock, patch
 
 from hecate_agent.orchestrator.enrichment import (
     _CRTSH_CACHE,
+    _PDNS_CACHE,
+    _SPUR_CACHE,
     _URLSCAN_CACHE,
+    _format_pdns_date,
     _get_apex_domain,
+    _normalize_pdns_timestamp,
     extract_http_transactions,
     extract_indicators,
     extract_sibling_domains_from_crtsh,
+    extract_spur_context,
     extract_web_lure_payloads,
     generate_enrichment_summary,
     generate_transaction_sigma_rules,
     poll_urlscan_result,
     query_crtsh_domain,
+    query_passive_dns,
+    query_passive_dns_domain,
+    query_passive_dns_ip,
+    query_spur_ip,
     query_urlscan_domain,
     query_urlscan_url,
     query_vt_hash,
@@ -1308,6 +1317,206 @@ def test_generate_transaction_sigma_rules():
     assert net_rule["detection"]["selection"]["DestinationIp"] == "45.142.214.88"
     assert net_rule["detection"]["selection"]["DestinationPort"] == 8080
     assert "category: network_connection" in net_rule["rule_yaml"]
+
+
+def test_spur_ip_unset_key():
+    _SPUR_CACHE.clear()
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
+        res = query_spur_ip("8.8.8.8")
+        assert res == "SPUR_API_KEY not configured."
+        raw = extract_spur_context("8.8.8.8")
+        assert raw["configured"] is False
+        assert "not configured" in raw["error"]
+
+
+def test_spur_ip_private_and_invalid():
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"):
+        assert query_spur_ip("192.168.1.50") == "Private/internal IP address."
+        assert query_spur_ip("10.0.0.1") == "Private/internal IP address."
+        assert query_spur_ip("127.0.0.1") == "Private/internal IP address."
+        assert "Invalid IP address" in query_spur_ip("999.999.999.999")
+        assert "Invalid IP address" in query_spur_ip("not-an-ip")
+
+
+def test_spur_ip_parsing_residential_proxy():
+    _SPUR_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "as": {"number": 7922, "organization": "Comcast Cable Communications, LLC"},
+        "infrastructure": "RESIDENTIAL",
+        "client": {"proxies": ["NSOCKS", "PROXY-CHEAP"], "types": ["RESIDENTIAL", "DESKTOP"]},
+        "tunnels": [{"operator": "PROTON_VPN", "anonymous": True, "type": "VPN"}],
+        "risks": ["CALLBACK_PROXY", "TUNNEL", "GEO_MISMATCH"],
+        "location": {"city": "Philadelphia", "country": "US"},
+    }
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"), \
+         patch("httpx.get", return_value=mock_resp):
+        res = query_spur_ip("139.180.203.104")
+        assert "Infra: RESIDENTIAL" in res
+        assert "AS: AS7922 (Comcast Cable Communications, LLC)" in res
+        assert "Tunnels: PROTON_VPN (Anonymous)" in res
+        assert "Proxies: NSOCKS, PROXY-CHEAP" in res
+        assert "Risks: CALLBACK_PROXY, TUNNEL, GEO_MISMATCH" in res
+        assert "Loc: Philadelphia, US" in res
+
+        raw = extract_spur_context("139.180.203.104")
+        assert raw["configured"] is True
+        assert raw["infrastructure"] == "RESIDENTIAL"
+
+
+def test_spur_ip_caching():
+    _SPUR_CACHE.clear()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "as": {"number": 15169, "organization": "Google LLC"},
+        "infrastructure": "DATACENTER",
+        "location": {"city": "Mountain View", "country": "US"},
+    }
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"), \
+         patch("httpx.get", return_value=mock_resp) as mock_get:
+        res1 = query_spur_ip("8.8.8.8")
+        res2 = query_spur_ip("8.8.8.8")
+        assert res1 == res2
+        assert mock_get.call_count == 1
+
+
+def test_spur_ip_errors_and_fallbacks():
+    _SPUR_CACHE.clear()
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"):
+        r404 = MagicMock(status_code=404)
+        with patch("httpx.get", return_value=r404):
+            _SPUR_CACHE.clear()
+            assert query_spur_ip("1.1.1.1") == "Not observed on Spur."
+
+        r401 = MagicMock(status_code=401)
+        with patch("httpx.get", return_value=r401):
+            _SPUR_CACHE.clear()
+            assert "Spur Auth Error" in query_spur_ip("1.1.1.1")
+
+        r429 = MagicMock(status_code=429)
+        with patch("httpx.get", return_value=r429):
+            _SPUR_CACHE.clear()
+            assert "rate limit exceeded" in query_spur_ip("1.1.1.1")
+
+
+def test_passive_dns_timestamp_and_date_helpers():
+    assert _normalize_pdns_timestamp(1661150948) == 1661150948
+    assert _format_pdns_date(1661150948) == "2022-08"
+
+    assert _normalize_pdns_timestamp(1664846708636) == 1664846708
+    assert _format_pdns_date(1664846708) == "2022-10"
+
+    ts = _normalize_pdns_timestamp("2022-08-22T04:09:08")
+    assert ts is not None
+    assert _format_pdns_date(ts) == "2022-08"
+
+    assert _normalize_pdns_timestamp(None) is None
+    assert _format_pdns_date(None) == ""
+
+
+def test_query_passive_dns_ip_aggregation_and_deduplication():
+    _PDNS_CACHE.clear()
+
+    mock_vt_resp = MagicMock()
+    mock_vt_resp.status_code = 200
+    mock_vt_resp.json.return_value = {
+        "data": [
+            {"attributes": {"host_name": "addio1987.com", "date": 1661138909}},
+            {"attributes": {"host_name": "www.addio1987.com", "date": 1661150948}},
+        ]
+    }
+
+    mock_mn_resp = MagicMock()
+    mock_mn_resp.status_code = 200
+    mock_mn_resp.json.return_value = {
+        "data": [
+            {"query": "addio1987.com", "lastSeenTimestamp": 1664846708636},
+            {"query": "microsoft.systemservices.network", "lastSeenTimestamp": 1600441094000},
+        ]
+    }
+
+    mock_otx_resp = MagicMock()
+    mock_otx_resp.status_code = 200
+    mock_otx_resp.json.return_value = {
+        "passive_dns": [
+            {"hostname": "kugua.ooo", "last": "2019-10-15T00:00:00"},
+        ]
+    }
+
+    def fake_get(url, *args, **kwargs):
+        if "virustotal.com" in url:
+            return mock_vt_resp
+        elif "mnemonic.no" in url:
+            return mock_mn_resp
+        elif "alienvault.com" in url:
+            return mock_otx_resp
+        return MagicMock(status_code=404)
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d), \
+         patch("httpx.get", side_effect=fake_get):
+        res = query_passive_dns("139.180.203.104")
+        assert "Passive DNS:" in res
+        assert "addio1987.com" in res
+        assert "www.addio1987.com" in res
+        assert "microsoft.systemservices.network" in res
+        assert "kugua.ooo" in res
+        assert "via Mnemonic" in res or "via VT" in res
+
+
+def test_query_passive_dns_domain_aggregation():
+    _PDNS_CACHE.clear()
+
+    mock_vt_resp = MagicMock()
+    mock_vt_resp.status_code = 200
+    mock_vt_resp.json.return_value = {
+        "data": [
+            {"attributes": {"ip_address": "104.21.54.21", "date": 1776684591}},
+            {"attributes": {"ip_address": "172.67.222.132", "date": 1776684591}},
+        ]
+    }
+
+    mock_mn_resp = MagicMock()
+    mock_mn_resp.status_code = 200
+    mock_mn_resp.json.return_value = {
+        "data": [
+            {"answer": "199.59.243.225", "lastSeenTimestamp": 1713265577007},
+        ]
+    }
+
+    def fake_get(url, *args, **kwargs):
+        if "virustotal.com" in url:
+            return mock_vt_resp
+        elif "mnemonic.no" in url:
+            return mock_mn_resp
+        return MagicMock(status_code=404)
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d), \
+         patch("httpx.get", side_effect=fake_get):
+        res = query_passive_dns_domain("drivinguber.com")
+        assert "Passive DNS:" in res
+        assert "104.21.54.21" in res
+        assert "172.67.222.132" in res
+        assert "199.59.243.225" in res
+
+
+def test_generate_enrichment_summary_includes_spur_and_pdns():
+    _SPUR_CACHE.clear()
+    _PDNS_CACHE.clear()
+
+    threat_intel = "The adversary operated from IP 45.142.214.88 and domain evil-landing.org"
+
+    with patch("hecate_agent.orchestrator.enrichment.query_spur_ip", return_value="Infra: RESIDENTIAL | Tunnels: ProtonVPN (Anonymous)"), \
+         patch("hecate_agent.orchestrator.enrichment.query_passive_dns", return_value="Passive DNS: sibling.evil-landing.org (2026-10) [via Mnemonic]"):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "Spur.us (Proxy & Infrastructure):" in summary
+        assert "Infra: RESIDENTIAL" in summary
+        assert "Passive DNS (Historical Correlated Hostnames):" in summary
+        assert "Passive DNS (Historical IP Resolutions):" in summary
+
 
 
 
