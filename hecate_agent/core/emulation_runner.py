@@ -31,6 +31,11 @@ from hecate_agent.core.telemetry_harvester import TelemetryHarvester
 logger = logging.getLogger(__name__)
 
 
+def _ptrace_unavailable(stderr: str) -> bool:
+    """Detect strace failing before it could run the requested command."""
+    return "ptrace(" in stderr and "Operation not permitted" in stderr
+
+
 @dataclass
 class EmulationResult:
     """Outcome of an adversary emulation detonation."""
@@ -247,6 +252,18 @@ class SubprocessBackend(BaseSandboxBackend):
                     timeout=timeout,
                     cwd=exec_dir,
                 )
+                if self.strace_bin and proc.returncode != 0 and not proc.stdout and _ptrace_unavailable(proc.stderr):
+                    # Some CI/container hosts ship strace but prohibit ptrace.
+                    # Preserve subprocess execution there; telemetry is empty
+                    # because the host cannot provide syscall traces.
+                    proc = subprocess.run(
+                        ["sh", "-c", command],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        cwd=exec_dir,
+                    )
+                    return proc.returncode, proc.stdout, proc.stderr, ""
                 trace = proc.stderr if self.strace_bin else ""
                 return proc.returncode, proc.stdout, proc.stderr, trace
             except subprocess.TimeoutExpired:

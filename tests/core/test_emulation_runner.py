@@ -1,6 +1,7 @@
 """Unit tests for EmulationRunner and Sandboxed Detonation."""
 
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,22 @@ from hecate_agent.core.emulation_runner import (
     MockBackend,
     SubprocessBackend,
 )
+
+
+def _strace_can_trace() -> bool:
+    strace = shutil.which("strace")
+    if strace is None:
+        return False
+    try:
+        result = subprocess.run(
+            [strace, "-qq", "-o", "/dev/null", "-e", "trace=execve", "true"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def test_mock_backend_emulation() -> None:
@@ -44,8 +61,8 @@ detection:
 
 
 @pytest.mark.skipif(
-    shutil.which("bwrap") is None or shutil.which("strace") is None,
-    reason="bwrap or strace not available on host",
+    shutil.which("bwrap") is None or not _strace_can_trace(),
+    reason="bwrap and working ptrace support are required for sandbox telemetry",
 )
 def test_bwrap_sandbox_execution_and_isolation() -> None:
     runner = EmulationRunner(backend="bwrap")
@@ -110,6 +127,10 @@ def test_emulation_runner_run_technique() -> None:
     assert "procdump" in result.command
 
 
+@pytest.mark.skipif(
+    shutil.which("sh") is None or not _strace_can_trace(),
+    reason="sh and working ptrace support are required for telemetry harvesting",
+)
 def test_closed_loop_detonation_and_detection_self_evaluation() -> None:
     """Full closed-loop evaluation: command execution -> harvested telemetry -> Sigma rule evaluation."""
     runner = EmulationRunner(backend="bwrap" if BwrapBackend().is_available() else "subprocess")

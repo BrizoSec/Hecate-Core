@@ -117,7 +117,7 @@ class TestHypothesisGeneratorAgent:
         mock = MockProvider(VALID_HYPOTHESIS_JSON)
         agent = HypothesisGeneratorAgent(provider=mock, llm_enabled=True)
 
-        result = agent.execute(_make_input())
+        result = agent.execute(_make_input("Credential dumping via LSASS (T1003.001)."))
 
         assert result.success is True
         assert result.data is not None
@@ -604,7 +604,7 @@ class TestHypothesisGeneratorAgent:
         filtered, warnings = agent._apply_technique_validation(output, input_data)
 
         assert filtered.mitre_techniques == []
-        assert any("primary threat-intel text does not support" in warning for warning in warnings)
+        assert any("Removed 'T1113'" in warning for warning in warnings)
 
     def test_build_prompt_offers_techniques_the_intel_names(self):
         """H-0002: "masquerade as NVIDIA software" got T1027.004 from memory."""
