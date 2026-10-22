@@ -183,8 +183,11 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     return indicators
 
 def query_vt_hash(file_hash: str) -> str:
+    api_key = _setting("VT_API_KEY")
+    if not api_key:
+        return "Not found or error."
     url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
-    headers = {"x-apikey": _setting("VT_API_KEY")}
+    headers = {"x-apikey": api_key}
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 200:
@@ -267,7 +270,7 @@ def query_rdap_domain(domain: str) -> str:
     try:
         resp = httpx.get(url, headers=headers, follow_redirects=True, timeout=10.0)
         if resp.status_code == 200:
-            data = resp.json()
+            data = cast(Dict[str, Any], resp.json())
             reg_date_raw = ""
             for ev in data.get("events", []):
                 if ev.get("eventAction") in ("registration", "created"):
@@ -366,7 +369,7 @@ def query_shodan_ip(ip: str) -> str:
     try:
         resp = httpx.get(url, timeout=10.0)
         if resp.status_code == 200:
-            data = resp.json()
+            data = cast(Dict[str, Any], resp.json())
             org = data.get("org", "Unknown")
             os_name = data.get("os", "Unknown OS")
             ports = data.get("ports", [])
@@ -567,7 +570,7 @@ def extract_spur_context(ip: str) -> Dict[str, Any]:
     try:
         resp = httpx.get(url, headers=headers, timeout=5.0)
         if resp.status_code == 200:
-            data = resp.json()
+            data = cast(Dict[str, Any], resp.json())
             data["configured"] = True
             data["found"] = True
             return data
@@ -920,7 +923,7 @@ def extract_ipinfo_context(ip: str) -> Dict[str, Any]:
     try:
         resp = httpx.get(url, headers=headers, timeout=5.0)
         if resp.status_code == 200:
-            data = resp.json()
+            data = cast(Dict[str, Any], resp.json())
             data["configured"] = True
             data["found"] = True
             return data
@@ -1221,7 +1224,7 @@ def query_urlscan_url(url: str, check_lures: bool = True) -> str:
         headers["API-Key"] = key
 
     query = f'page.url.keyword:"{clean_url}" OR page.url:"{clean_url}"'
-    params = {"q": query, "size": 1}
+    params: Dict[str, str | int] = {"q": query, "size": 1}
 
     try:
         resp = httpx.get(api_url, headers=headers, params=params, timeout=8.0)
@@ -1305,7 +1308,7 @@ def query_urlscan_domain(domain: str) -> str:
         headers["API-Key"] = key
 
     query = f'page.domain:"{clean_domain}"'
-    params = {"q": query, "size": 1}
+    params: Dict[str, str | int] = {"q": query, "size": 1}
 
     try:
         resp = httpx.get(api_url, headers=headers, params=params, timeout=8.0)
@@ -1322,7 +1325,6 @@ def query_urlscan_domain(domain: str) -> str:
             overall = verdicts.get("overall", {})
             malicious = overall.get("malicious", False)
             score = overall.get("score", 0)
-            categories = overall.get("categories", [])
             brands = overall.get("brands", [])
             tags = overall.get("tags", [])
 
@@ -1438,7 +1440,7 @@ def poll_urlscan_result(
         try:
             resp = httpx.get(api_url, headers=headers, timeout=10.0)
             if resp.status_code == 200:
-                data = resp.json()
+                data = cast(Dict[str, Any], resp.json())
                 data["status"] = "ready"
                 return data
             elif resp.status_code == 404:

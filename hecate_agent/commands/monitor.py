@@ -2450,7 +2450,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore[import-not-found]
+        from hecate_agent.orchestrator.graph import hecate_graph
         import sqlite3
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
@@ -2616,10 +2616,6 @@ def _render_dashboard(
     usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 5
     middle_height = body_height if usage_on_left else max(10, body_height - _BOTTOM_ROW_HEIGHT)
     service_on_left = runner.installed and middle_height >= stages_height + service_height
-    purple_on_left = (
-        (not runner.installed and middle_height >= stages_height + _PURPLE_PANEL_HEIGHT)
-        or (service_on_left and middle_height >= stages_height + service_height + _PURPLE_PANEL_HEIGHT)
-    )
     h_metrics = _collect_hunts_metrics(workspace)
     pt_metrics = _collect_purple_team_metrics(workspace, events)
     llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
