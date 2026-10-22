@@ -94,6 +94,9 @@ class HypothesisGenerationOutput:
     expected_benign: str = ""
     falsification_criteria: str = ""
     rubric_score: Dict[str, Any] = field(default_factory=dict)
+    # Model-provided claim-to-source references. Callers must verify that each
+    # quote exists in the source text before presenting it as provenance.
+    evidence_citations: List[Dict[str, str]] = field(default_factory=list)
 
 
 def _is_substantive(val: Any) -> bool:
@@ -332,25 +335,39 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 
         return re.findall(r"\bT\d{4}(?:\.\d{3})?\b", text)
 
-    def _apply_technique_validation(self, output: HypothesisGenerationOutput, input_data: HypothesisGenerationInput) -> Tuple[HypothesisGenerationOutput, List[str]]:
+    def _apply_technique_validation(
+        self, output: HypothesisGenerationOutput, input_data: HypothesisGenerationInput
+    ) -> Tuple[HypothesisGenerationOutput, List[str]]:
         """Reconcile the model's ATT&CK IDs with the real matrix and evidence table.
 
         Returns the output (rebuilt with the corrected technique list when
         anything changed) and any warnings describing what changed.
         """
         warnings: List[str] = []
-        
-        # Enforce Evidence Boundary: Strip techniques not grounded in the ResearchContext
-        if input_data.research and input_data.research.mitre_techniques:
-            evidenced = set(input_data.research.mitre_techniques)
+
+        # Research can propose leads, but only the source text can evidence a
+        # technique for this specific item. Candidate mappings are generated
+        # from that text and are subsequently checked again by the Runner.
+        evidenced = set(self._extract_techniques_from_text(input_data.threat_intel))
+        try:
+            from hecate_agent.core.technique_candidates import candidate_techniques
+
+            evidenced.update(tid for tid, _ in candidate_techniques(input_data.threat_intel))
+        except Exception:
+            pass
+        if evidenced:
             filtered = []
             for tid in output.mitre_techniques:
                 if tid in evidenced or tid.split(".")[0] in evidenced:
                     filtered.append(tid)
                 else:
-                    warnings.append(f"Removed '{tid}' because it lacks technical observables in the Technique Evidence table.")
+                    warnings.append(f"Removed '{tid}' because the primary threat-intel text does not support it.")
             output.mitre_techniques = filtered
-            
+        else:
+            for tid in output.mitre_techniques:
+                warnings.append(f"Removed '{tid}' because no source-grounded technique candidate was found.")
+            output.mitre_techniques = []
+
         valid, remapped, invalid = self._validate_techniques(output.mitre_techniques)
 
         if remapped:
@@ -386,6 +403,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
                 low_confidence_reason=output.low_confidence_reason,
                 is_indicator_only=output.is_indicator_only,
                 indicator_records=output.indicator_records,
+                evidence_citations=output.evidence_citations,
                 expected_malicious=output.expected_malicious,
                 expected_benign=output.expected_benign,
                 falsification_criteria=output.falsification_criteria,
@@ -455,8 +473,6 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         """
         # Collect any T-codes mentioned in inputs and inject real ATT&CK context
         mentioned = self._extract_techniques_from_text(input_data.threat_intel)
-        if input_data.research:
-            mentioned += list(input_data.research.mitre_techniques)
         grounding = self._technique_grounding(list(dict.fromkeys(mentioned)))
         candidates = "" if input_data.intel_is_indicator_only else self._candidate_section(input_data)
 
@@ -525,6 +541,15 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "{grounding}"
             "**Threat Intel:**\n"
             "{threat_intel}\n\n"
+            "**Evidence discipline (mandatory):** The Threat Intel block above is the only source of case-specific facts. "
+            "Research Context, ATT&CK descriptions, prior hunts, and general malware knowledge are background leads, "
+            "not evidence that this sample or campaign performed a behavior. Do not turn family-level behavior into "
+            "sample-specific claims. Include a claim in the hypothesis, justification, actor, behavior, location, "
+            "evidence, techniques, or observables only when the Threat Intel block contains a relevant passage. "
+            "For each such claim, return an evidence_citations entry with its exact field name, a short excerpt "
+            "copied verbatim from that output field, and a verbatim quote copied from Threat Intel. Never invent or "
+            "paraphrase the quote. Leave the citation out when no supporting passage exists, and leave unknown actor, behavior, or "
+            "platform fields empty rather than filling them from general knowledge.\n\n"
             "{indicator_only_note}"
             "{candidates}"
             "**Step 1 -- assess the threat intel above before doing "
@@ -587,7 +612,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "- Time Range: Suggested time window with justification\n\n"
             "Also provide ABLE scoping (Actor, Behavior, Location, Evidence) "
             "-- Hecate's standard hunt-scoping framework. Base every ABLE field "
-            "strictly on the threat intel and research context given above; "
+            "strictly on the source text; research is context only and does not "
+            "establish what happened in this specific case; "
             'leave a field empty ("") rather than invent specifics -- a '
             "named actor, a specific system, a fabricated log field -- that "
             "isn't actually supported by what you were given:\n"
@@ -632,7 +658,11 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             '  "is_indicator_only": false,\n'
             '  "indicator_records": [\n'
             '    {{"value": "198.51.100.45", "type": "ipv4", "role": "c2"}}\n'
-            '  ]\n'
+            "  ],\n"
+            '  "evidence_citations": [\n'
+            '    {{"field": "behavior", "claim": "exact excerpt from the Behavior field", '
+            '"quote": "verbatim supporting passage from Threat Intel"}}\n'
+            "  ]\n"
             "}}\n"
         ).format(
             grounding=grounding,
@@ -663,22 +693,13 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
         body = load_sections(HYPOTHESIS_SECTIONS, _HUNTING_KNOWLEDGE_BUDGET)
         if not body:
             return ""
-        return "**Hunting Tradecraft (apply this, do not merely cite it):**\n" f"{body}\n\n"
+        return f"**Hunting Tradecraft (apply this, do not merely cite it):**\n{body}\n\n"
 
     def _candidate_section(self, input_data: HypothesisGenerationInput) -> str:
-        """Techniques the intel's own wording names, as a prompt block.
-
-        Matched on the threat intel and research's tradecraft findings (what
-        the retrieved sources said), not its gaps or telemetry mapping (what
-        the model speculated). See ``technique_candidates`` for why.
-        """
+        """Technique candidates found in the primary threat-intel text."""
         from hecate_agent.core.technique_candidates import candidate_techniques, format_candidates
 
-        parts = [input_data.threat_intel]
-        if input_data.research:
-            parts.append(input_data.research.adversary_tradecraft_summary or "")
-            parts.extend(input_data.research.adversary_tradecraft_findings or [])
-        candidates = candidate_techniques("\n".join(parts), limit=16)
+        candidates = candidate_techniques(input_data.threat_intel, limit=16)
         # Logged so a reviewer can tell "the model was never shown the right
         # technique" from "it was shown it and chose something else".
         logger.info(
@@ -708,6 +729,8 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
 
         lines = [
             "**Research Context:**",
+            "- Context only: these generated findings are not evidence for this specific case "
+            "unless the same fact appears in Threat Intel.",
             "- Research ID: {}".format(research.research_id),
             "- Topic: {}".format(research.topic),
             "- Techniques: {}".format(", ".join(research.mitre_techniques)),
@@ -763,7 +786,7 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             hypothesis = input_data.research.recommended_hypothesis
             mitre_techniques = list(input_data.research.mitre_techniques)
         else:
-            hypothesis = "Investigate suspicious activity related to: " "{}".format(input_data.threat_intel[:100])
+            hypothesis = "Investigate suspicious activity related to: {}".format(input_data.threat_intel[:100])
             mitre_techniques = []
 
         output = HypothesisGenerationOutput(

@@ -139,6 +139,22 @@ class TestHypothesisGeneratorAgent:
         assert result.data.location == "Windows domain-joined endpoints"  # type: ignore
         assert result.data.evidence == "EDR process telemetry - process.name, parent.process.name"  # type: ignore
 
+    def test_execute_preserves_evidence_citations(self):
+        response = json.loads(VALID_HYPOTHESIS_JSON)
+        response["evidence_citations"] = [
+            {
+                "field": "hypothesis",
+                "claim": "credential dumping",
+                "quote": "Credential dumping via LSASS",
+            }
+        ]
+        agent = HypothesisGeneratorAgent(provider=MockProvider(json.dumps(response)), llm_enabled=True)
+
+        result = agent.execute(_make_input())
+
+        assert result.success is True
+        assert result.data.evidence_citations == response["evidence_citations"]
+
     def test_execute_defaults_able_fields_when_model_omits_them(self):
         """Regression test: HypothesisGenerationOutput(**output_data) used to
         have no defaults for actor/behavior/location/evidence, so a model
@@ -230,7 +246,7 @@ class TestHypothesisGeneratorAgent:
                     "hecate_agent.core.attack_matrix.get_superseding_technique_id",
                     return_value="T1055.012",
                 ):
-                    result = agent.execute(_make_input())
+                    result = agent.execute(_make_input("The source reports Process Hollowing (T1093) to run payloads."))
 
         assert result.success is True
         assert result.data.mitre_techniques == ["T1055.012"]  # type: ignore
@@ -535,7 +551,7 @@ class TestHypothesisGeneratorAgent:
         )
 
         input_data = HypothesisGenerationInput(
-            threat_intel="Kerberoasting detection",
+            threat_intel="A technical report describes an intrusion.",
             past_hunts=[],
             environment={"data_sources": ["Windows Security"]},
             research=research,
@@ -545,10 +561,50 @@ class TestHypothesisGeneratorAgent:
 
         assert "R-0001" in prompt
         assert "Kerberoasting" in prompt
-        assert "T1558.003" in prompt
+        before_context, context = prompt.split("**Research Context:**", maxsplit=1)
+        assert "T1558.003" not in before_context
+        assert "T1558.003" in context
+        assert "Context only" in context
         assert "Rubeus usage" in prompt
         assert "Event 4769" in prompt
         assert "No SPN audit logging" in prompt
+
+    def test_research_only_technique_is_removed_from_model_output(self):
+        research = ResearchContext(
+            research_id="R-0001",
+            topic="Screen capture",
+            mitre_techniques=["T1113"],
+            recommended_hypothesis="Adversaries use screen capture",
+            gaps_identified=[],
+            data_source_availability={},
+            estimated_hunt_complexity="low",
+            adversary_tradecraft_findings=[],
+            telemetry_mapping_findings=[],
+            system_research_summary="",
+            adversary_tradecraft_summary="",
+            telemetry_mapping_summary="",
+        )
+        input_data = HypothesisGenerationInput(
+            threat_intel="An article describes an intrusion.",
+            past_hunts=[],
+            environment={},
+            research=research,
+        )
+        output = HypothesisGenerationOutput(
+            hypothesis="Adversaries capture screenshots.",
+            justification="Research context only.",
+            mitre_techniques=["T1113"],
+            data_sources=[],
+            expected_observables=[],
+            known_false_positives=[],
+            time_range_suggestion="7 days",
+        )
+        agent = HypothesisGeneratorAgent(provider=MockProvider(VALID_HYPOTHESIS_JSON), llm_enabled=True)
+
+        filtered, warnings = agent._apply_technique_validation(output, input_data)
+
+        assert filtered.mitre_techniques == []
+        assert any("primary threat-intel text does not support" in warning for warning in warnings)
 
     def test_build_prompt_offers_techniques_the_intel_names(self):
         """H-0002: "masquerade as NVIDIA software" got T1027.004 from memory."""
@@ -738,4 +794,3 @@ class TestHypothesisQualityRubric:
         assert scores["testability"] == 1
         assert scores["falsifiability"] == 1
         assert scores["verdict"] in ("CONDITIONAL", "NO-GO")
-
