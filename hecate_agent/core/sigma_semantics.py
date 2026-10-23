@@ -654,6 +654,32 @@ def dual_use_destination_without_process_context(detection: Dict[str, Any], cate
     return None
 
 
+_CONDITION_KEYWORDS = frozenset({"and", "or", "not", "of", "all", "them", "1", "any"})
+
+
+def condition_names_missing_selection(detection: Dict[str, Any]) -> Optional[str]:
+    """A condition term ("selection_dest_*", "filter") that names no detection block.
+
+    Such a rule never matches, and nothing downstream says so: H-0830's
+    dual-use rule kept "(1 of selection_dest_*) and not filter_legit" after
+    every selection_dest_ block was dropped, and was reported validated.
+    """
+    condition = detection.get("condition")
+    conditions = condition if isinstance(condition, list) else [condition]
+    blocks = [k for k in detection if k not in ("condition", "timeframe")]
+    for text in conditions:
+        if not isinstance(text, str):
+            continue
+        body = text.split("|", 1)[0]  # an aggregation tail names fields, not blocks
+        for term in re.findall(r"[A-Za-z_][\w*]*", body):
+            if term.lower() in _CONDITION_KEYWORDS:
+                continue
+            pattern = re.compile("^" + re.escape(term).replace(r"\*", ".*") + "$")
+            if not any(pattern.match(block) for block in blocks):
+                return f"condition names '{term}', which matches no detection block"
+    return None
+
+
 def semantic_problem(
     detection: Dict[str, Any], category: str, description: str = "", named: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -663,6 +689,7 @@ def semantic_problem(
     indicators); a filter may not exclude any of it.
     """
     checks = (
+        lambda: condition_names_missing_selection(detection),
         lambda: field_outside_category(detection, category),
         lambda: non_executable_image(detection),
         lambda: literal_wildcard(detection),

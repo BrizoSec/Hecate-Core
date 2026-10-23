@@ -56,6 +56,10 @@ VALID_LOGSOURCE_CATEGORIES = {
     # available answer to an impossible question.
     "authentication",
     "proxy",
+    # Web server and reverse-proxy access logs: the telemetry an exploited
+    # edge appliance actually produces. Without it H-0830 (NetScaler RCE via
+    # User-Agent log poisoning) could only be drafted as process_creation.
+    "webserver",
 }
 
 #: Field names each log source actually carries, so the prompt for one
@@ -77,6 +81,7 @@ _LOGSOURCE_FIELDS = {
     "proxy": (
         "c-uri, c-uri-stem, c-uri-query, c-uri-extension, c-useragent, cs-host, cs-method, cs-referrer, sc-status, src_ip, dst_ip"
     ),
+    "webserver": "cs-method, cs-uri-stem, cs-uri-query, cs-user-agent, cs-referrer, sc-status, c-ip",
 }
 
 #: Sigma aggregation grammar: ``<func>(<field>?) [by <field>] <op> <number>``.
@@ -143,7 +148,10 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1557": {"network_connection", "authentication"},
     "T1021": {"authentication", "network_connection"},
     "T1189": {"network_connection", "proxy"},
-    "T1190": {"network_connection", "process_creation"},
+    "T1190": {"webserver", "network_connection", "process_creation"},
+    # Web shells are installed by writing a file and used through web requests.
+    "T1505": {"webserver", "file_event", "process_creation"},
+    "T1595": {"webserver", "network_connection"},
     "T1133": {"network_connection", "authentication"},
     "T1486": {"file_event", "process_creation"},
     "T1053": {"process_creation", "file_event"},
@@ -230,6 +238,19 @@ def applicable_logsources(
 #: techniques mapped to registry persistence.
 _PLATFORM_ONLY_LOGSOURCES: Dict[str, str] = {"registry_event": "windows"}
 
+#: Platforms that run no host sensor: a hunt scoped only to these cannot see
+#: process, file, registry or module-load events, only what the device logs
+#: and what the network sees. H-0830's NetScaler hunt was drafted for EDR the
+#: appliance does not have.
+APPLIANCE_PLATFORMS = frozenset({"network devices"})
+HOST_SENSOR_LOGSOURCES = frozenset({"process_creation", "file_event", "registry_event", "image_load"})
+
+
+def appliance_only(platforms: List[str]) -> bool:
+    """Whether every platform the hunt is scoped to is an appliance without host sensors."""
+    known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
+    return bool(known) and known <= APPLIANCE_PLATFORMS
+
 
 def _platform_consistent_logsources(logsources: List[str], platforms: List[str]) -> List[str]:
     """Drop log sources none of the hunt's platforms can produce.
@@ -241,9 +262,11 @@ def _platform_consistent_logsources(logsources: List[str], platforms: List[str])
     if not known:
         return logsources
     kept = [ls for ls in logsources if _PLATFORM_ONLY_LOGSOURCES.get(ls, "") in known | {""}]
+    if appliance_only(platforms):
+        kept = [ls for ls in kept if ls not in HOST_SENSOR_LOGSOURCES]
     for dropped in sorted(set(logsources) - set(kept)):
         logger.info("Skipping %s: no platform of this hunt (%s) produces it", dropped, ", ".join(sorted(known)))
-    return kept or ["process_creation"]
+    return kept or (["webserver"] if appliance_only(platforms) else ["process_creation"])
 
 
 #: Indicator type (MISP and OTX spellings, lowercased) -> the algorithm label
@@ -2247,6 +2270,13 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         if problem:
             return None, f"{category} ({label}): {problem}"
         rule_techniques = techniques if techniques is not None else _behaviour_techniques(behaviour, input_data.techniques)
+        if category in HOST_SENSOR_LOGSOURCES and appliance_only(input_data.platforms):
+            # Kept, because the artifact is real, but a reviewer must know no
+            # sensor on the device will raise it.
+            description += (
+                " This hunt is scoped to appliances, which rarely run a host sensor: use this as a forensic "
+                "check on the device, or where file-integrity or EDR coverage exists for it."
+            )
         document: Dict[str, Any] = {
             "title": title,
             "id": str(uuid.uuid4()),
