@@ -106,10 +106,39 @@ def url_parts(url: str) -> Tuple[str, Optional[int], str]:
     return match.group("host").lower(), port, match.group("path") or ""
 
 
+#: Shell syntax a report's command line leaves attached to the URL it fetches.
+#: H-0830's source ran ``fetch${IFS}-o${IFS}/var/kw2s11${IFS}http://.../kw2-freebsd-x64-s11;chmod${IFS}755``
+#: and the URL came out as ``.../kw2-freebsd-x64-s11;chmod$``, which no request
+#: ever carries. ``;``, ``|``, backticks, ``&&`` and ``$`` are rare enough
+#: unencoded in a real download URL that cutting there loses nothing.
+_SHELL_TAIL_RE = re.compile(r"(?:[;|`]|&&|\$).*$", re.DOTALL)
+
+
+def trim_shell_tail(url: str) -> str:
+    """A URL without the shell syntax that followed it on a command line."""
+    return _SHELL_TAIL_RE.sub("", url).rstrip(".,:)'\"")
+
+
+def is_valid_ipv4(value: str) -> bool:
+    """Whether the value (optionally ``:port``) is an IPv4 address at all.
+
+    Dotted version numbers have the same shape: H-0830's source listed the
+    NetScaler build ``13.1.37.283``, which became a network IOC.
+    """
+    host, _ = split_host_port(value)
+    try:
+        ipaddress.IPv4Address(host)
+    except ValueError:
+        return False
+    return True
+
+
 def _normalise_value(value: str, rtype: str) -> str:
     value = refang(str(value)).strip()
     if rtype in HASH_TYPES or rtype in ("domain", "hostname"):
         return value.lower().rstrip(".")
+    if rtype == "url":
+        return trim_shell_tail(value)
     return value
 
 
@@ -189,6 +218,8 @@ def records_from_cti(indicators: Mapping[str, Iterable[str]], source: str = "cti
             continue
         for raw in values:
             value = _normalise_value(raw, rtype)
+            if rtype == "ipv4" and not is_valid_ipv4(value):
+                continue
             if value and not any(r.value == value and r.type == rtype for r in records):
                 role = "dual_use" if is_dual_use(value) else "unknown"
                 records.append(IndicatorRecord(value=value, type=rtype, role=role, source=source))
@@ -394,6 +425,12 @@ def placements(record: IndicatorRecord) -> List[str]:
             return ["image_load.Hashes"]
         return []
     if record.role == "dual_use" or is_dual_use(record.value, record.evidence):
+        if record.type == "url":
+            # A URL is not a connection target. A full one (bucket and object
+            # on a shared cloud host) is specific enough for proxy logs; a
+            # bare path is the legitimate application's own page -- H-0830's
+            # "/vpn/index.html" -- and matching it alone matches every user.
+            return ["proxy.c-uri"] if url_parts(record.value)[0].count(".") else []
         return ["network_connection.dual_use"]
     if record.type in ("ipv4", "ipv6"):
         return ["network_connection.DestinationIp"]

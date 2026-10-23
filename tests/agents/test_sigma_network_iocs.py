@@ -169,3 +169,35 @@ def test_dual_use_network_binding_prevents_bare_sweeps() -> None:
     assert "\\svchost_sync.exe" in dual_net["detection"]["selection_process"]["Image|endswith"]
     assert "(1 of selection_dest_*) and selection_process" in dual_net["detection"]["condition"]
 
+
+
+def test_a_dual_use_set_of_url_paths_yields_no_connection_rule() -> None:
+    """H-0830's typed dual-use indicators were four URL paths; the rule kept a
+    condition naming selection_dest_* with no selection behind it."""
+    agent = SigmaGeneratorAgent(llm_enabled=True)
+    paths = ["/logon/LogonPoint/tmindex.html", "/vpn/index.html"]
+    with (
+        patch.object(agent, "_call_llm_with_retry", return_value=json.dumps({"rules": []})),
+        patch.object(agent, "_get_provider") as provider,
+    ):
+        provider.return_value.provider_name = "test"
+        result = agent.execute(
+            SigmaGenerationInput(
+                hypothesis="h",
+                hunt_id="H-0013",
+                platforms=["Network Devices"],
+                indicators={"ipv4": ["209.141.43.95"], "url": paths},
+                indicator_records=[
+                    {"value": "209.141.43.95", "type": "ipv4", "role": "download", "status": "active"},
+                    *({"value": p, "type": "url", "role": "dual_use", "status": "active"} for p in paths),
+                ],
+                logsources=["process_creation"],
+            )
+        )
+    rules = [yaml.safe_load(r.rule_yaml) for r in (result.data.rules if result.data else [])]
+    assert not [r for r in rules if "Dual-Use" in r["title"]]
+    for rule in rules:
+        names = {k for k in rule["detection"] if k != "condition"}
+        if "selection_dest_*" in rule["detection"]["condition"]:
+            assert any(n.startswith("selection_dest_") for n in names)
+        assert not any(p in str(rule["detection"]) for p in paths)

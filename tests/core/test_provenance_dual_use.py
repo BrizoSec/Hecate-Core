@@ -68,3 +68,26 @@ def test_records_from_cti_sets_dual_use_role():
     assert roles["s3.us-east-1.amazonaws.com"] == "dual_use"
     assert roles["194.26.29.112"] == "unknown"
     assert roles["c2.example.org"] == "unknown"
+
+
+def test_a_dual_use_url_path_is_not_a_connection_target():
+    """H-0830's dual-use set was four NetScaler login paths; routed to the
+    network rule they produced a condition with no selection behind it."""
+    bare = IndicatorRecord(value="/vpn/index.html", type="url", role="dual_use")
+    full = IndicatorRecord(value="https://s3.amazonaws.com/bucket/stage.bin", type="url", role="dual_use")
+    assert placements(bare) == []
+    assert placements(full) == ["proxy.c-uri"]
+
+
+def test_a_version_number_is_not_an_address():
+    """H-0830's source listed the NetScaler build 13.1.37.283."""
+    records = records_from_cti({"ipv4": ["13.1.37.283", "209.141.43.95"]})
+    assert [r.value for r in records] == ["209.141.43.95"]
+
+
+def test_shell_syntax_after_a_url_is_not_part_of_it():
+    """The source's fetch command left ";chmod${IFS}755" on the download URL."""
+    records = records_from_cti(
+        {"url": ["http://209.141.43[.]95/files/kw2-freebsd-x64-s11;chmod${IFS}755", "http://h.example/a?x=1&y=2"]}
+    )
+    assert [r.value for r in records] == ["http://209.141.43.95/files/kw2-freebsd-x64-s11", "http://h.example/a?x=1&y=2"]

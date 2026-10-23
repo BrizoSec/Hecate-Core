@@ -34,6 +34,7 @@ from hecate_agent.core.provenance import (
     IndicatorRecord,
     refang,
     split_host_port,
+    trim_shell_tail,
 )
 
 logger = logging.getLogger(__name__)
@@ -469,6 +470,8 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
     kind = str(raw.get("kind", "")).strip().lower()
     if not value or kind not in (*INDICATOR_KINDS, *BEHAVIOUR_KINDS):
         return None, f"{value or '(empty)'}: unknown kind {kind!r}"
+    if kind == "url":
+        value = trim_shell_tail(value)
     if not _valid_value(kind, value):
         return None, f"{value}: not a well-formed {kind}"
     if kind == "ipv4" and normalise(value) not in page:
