@@ -73,3 +73,28 @@ def test_container_and_cloud_evidence_detected() -> None:
     assert "Containers" in evidence.supported
     assert "Identity Provider" in evidence.supported
     assert "IaaS" in evidence.supported
+
+
+def test_an_appliance_report_is_network_devices_evidence() -> None:
+    """H-0830: the report named NetScaler ADC and Gateway throughout and matched
+    no marker, so one aside about SAML on another CVE scoped it to Identity Provider."""
+    text = (
+        "Attackers exploited NetScaler ADC and NetScaler Gateway to run commands. "
+        "ThreatLabz observed web shells written on compromised NetScaler appliances. "
+        "The second flaw affects appliances configured as SAML service provider or identity provider."
+    )
+    evidence = platform_evidence([text])
+    assert "Network Devices" in evidence.supported
+    assert len(evidence.markers["Network Devices"]) >= len(evidence.markers.get("Identity Provider", []))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The actor exploited FortiGate firewalls and planted a backdoor in FortiOS.",
+        "Ivanti Connect Secure gateways were breached; the implant persisted on the VPN appliance.",
+        "A Cisco ASA flaw let them modify ROMMON on edge devices.",
+    ],
+)
+def test_edge_appliance_products_are_network_devices(text: str) -> None:
+    assert platform_evidence([text]).supported == ["Network Devices"]
