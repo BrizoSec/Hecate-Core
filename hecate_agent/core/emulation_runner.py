@@ -16,6 +16,7 @@ Supported Execution Backends:
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -212,7 +213,10 @@ class SubprocessBackend(BaseSandboxBackend):
     """Fallback execution within an isolated temporary directory."""
 
     def __init__(self) -> None:
-        self.strace_bin = shutil.which("strace")
+        # A Git for Windows installation may expose an unrelated MSYS
+        # strace.exe on PATH; it does not accept the Linux syscall options
+        # used here, so syscall tracing is only enabled on POSIX hosts.
+        self.strace_bin = shutil.which("strace") if os.name == "posix" else None
 
     def name(self) -> str:
         return "subprocess"
