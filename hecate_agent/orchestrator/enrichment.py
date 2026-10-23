@@ -9,6 +9,7 @@ import uuid
 import yaml
 from datetime import datetime, timezone, date
 from typing import List, Dict, Set, Tuple, Any, Optional, cast
+from hecate_agent.core.provenance import is_valid_ipv4, trim_shell_tail
 from hecate_agent.core.sigma_semantics import semantic_problem
 
 
@@ -75,6 +76,8 @@ _KNOWN_PUBLISHER_DOMAINS: Set[str] = {
     "krebsonsecurity.com", "cisa.gov", "ncsc.gov.uk", "cert.europa.eu", "circl.lu",
     "socradar.io", "volexity.com", "huntress.com", "group-ib.com", "fortinet.com",
     "checkpoint.com", "blackberry.com", "qualys.com", "tenable.com", "snyk.io", "github.blog",
+    # Vulnerability databases a report cites for the CVE it covers
+    "nvd.nist.gov", "cve.org", "cve.mitre.org", "cvedetails.com", "first.org",
 }
 
 
@@ -107,10 +110,11 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
         "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE))),
         "cves": list(dict.fromkeys(cve.upper() for cve in re.findall(r'\b(?:CVE-\d{4}-\d{4,7}|GHSA-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4})\b', clean_text, re.IGNORECASE))),
     }
-    # Filter out common false positives and private IPs
+    # Filter out common false positives and private IPs. A dotted version
+    # number has an address's shape: H-0830's NetScaler build "13.1.37.283".
     indicators["ips"] = [
         ip for ip in indicators["ips"]
-        if not ip.startswith((
+        if is_valid_ipv4(ip) and not ip.startswith((
             "127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
             "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
             "172.28.", "172.29.", "172.30.", "172.31.", "0.0.0.0", "255.255.255.255"
@@ -150,6 +154,20 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
             dynamic_publishers.add(host)
             dynamic_publishers.add(_get_apex_domain(host))
 
+    # A host the text only ever mentions as a markdown link target is a
+    # citation, not infrastructure: reports hyperlink the advisories and
+    # databases they cite and defang the indicators they publish. H-0830's
+    # source linked nvd.nist.gov, www.cve.org and helpx.adobe.com, and all
+    # three became IOC rules.
+    link_targets = list(re.finditer(r"\]\((https?://[^\s)]+)\)", clean_text))
+    unlinked_text = clean_text
+    for link in reversed(link_targets):
+        unlinked_text = unlinked_text[: link.start(1)] + unlinked_text[link.end(1):]
+    for link in link_targets:
+        m_host = re.match(r"https?://([^/:\s)]+)", link.group(1), re.IGNORECASE)
+        if m_host and m_host.group(1).lower() not in unlinked_text.lower():
+            dynamic_publishers.add(m_host.group(1).lower())
+
     def _is_benign_or_publisher(d: str) -> bool:
         low = d.lower()
         if low.endswith(".local"):
@@ -169,7 +187,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     raw_urls = re.findall(r'https?://[^\s<>"\'\)\]`]+', clean_text)
     filtered_urls = []
     for u in raw_urls:
-        clean_u = u.rstrip(".,;:)")
+        clean_u = trim_shell_tail(u.rstrip(".,;:)"))
         m_u_host = re.match(r"https?://(?:www\.)?([^/:\s\)\],]+)", clean_u, re.IGNORECASE)
         if m_u_host:
             u_host = m_u_host.group(1).lower()

@@ -83,6 +83,21 @@ def test_extract_indicators_filters_publisher_and_reference_domains():
     assert "mandiant.com" not in inds["domains"]
     assert "paloaltonetworks.com" not in inds["domains"]
 
+
+def test_extract_indicators_treats_link_only_hosts_as_citations():
+    """H-0830: the advisories a report hyperlinks became DNS and proxy IOCs,
+    and a NetScaler build number became an address."""
+    text = (
+        "Fixed in 13.1.37.283 and later. See [NVD](https://nvd.nist.gov/vuln/detail/cve-1) and "
+        "[the vendor bulletin](https://helpx.adobe.com/security/apsb.html). The implant came from "
+        "hxxp://209.141.43[.]95/files/kw2;chmod${IFS}755 and beaconed to evil-c2[.]xyz, "
+        "whose panel is [linked here](https://evil-c2.xyz/panel)."
+    )
+    inds = extract_indicators(text)
+    assert inds["ips"] == ["209.141.43.95"]
+    assert inds["domains"] == ["evil-c2.xyz"]
+    assert sorted(inds["urls"]) == ["http://209.141.43.95/files/kw2", "https://evil-c2.xyz/panel"]
+
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 @patch("hecate_agent.orchestrator.enrichment.httpx.post")
 def test_generate_enrichment_summary(mock_post, mock_get):

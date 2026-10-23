@@ -2124,11 +2124,14 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             )
 
         dual = values_for("network_connection.dual_use")
-        if dual:
+        dual_ips = [r.value for r in dual if r.type in ("ipv4", "ipv6")]
+        dual_hosts = [r.value for r in dual if r.type in ("domain", "hostname")]
+        # Only addresses and hosts can select a connection. H-0830's dual-use
+        # set was four URL paths, and the rule shipped a condition naming
+        # selection_dest_* with no such selection in it.
+        if dual_ips or dual_hosts:
             candidate_procs = self._find_initiating_processes(input_data)
             dual_detection: Dict[str, Any] = {}
-            dual_ips = [r.value for r in dual if r.type in ("ipv4", "ipv6")]
-            dual_hosts = [r.value for r in dual if r.type in ("domain", "hostname")]
             if dual_ips:
                 dual_detection["selection_dest_ip"] = {"DestinationIp": dual_ips}
             if dual_hosts:
