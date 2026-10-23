@@ -30,7 +30,11 @@ HASH_ROLES = (
 #: actor attacked, scanned or tested against. It is a victim, not
 #: infrastructure, so a connection to it says nothing about the host making it.
 #: ``dual_use``: shared/public cloud storage or SaaS endpoints (AWS S3, Azure Blob, etc.).
-NETWORK_ROLES = ("c2", "staging", "download", "dual_use", "target", "historical", "unknown")
+#: ``inbound``: an address the actor connected *from* -- exploitation, scanning
+#: or login attempts against the victim. It appears as the source of inbound
+#: traffic, never as a destination: H-0830's report listed its exploitation
+#: "Source IPs", and an outbound-connection rule could never match them.
+NETWORK_ROLES = ("c2", "staging", "download", "dual_use", "target", "inbound", "historical", "unknown")
 STATUSES = ("active", "historical", "unknown")
 CONFIDENCES = ("high", "medium", "low", "unknown")
 
@@ -432,6 +436,10 @@ def placements(record: IndicatorRecord) -> List[str]:
             # "/vpn/index.html" -- and matching it alone matches every user.
             return ["proxy.c-uri"] if url_parts(record.value)[0].count(".") else []
         return ["network_connection.dual_use"]
+    if record.role == "inbound":
+        # Only an address can be seen as a connection's source; a scanner's
+        # hostname is a reverse lookup no inbound log records.
+        return ["webserver.c-ip", "network_connection.SourceIp"] if record.type in ("ipv4", "ipv6") else []
     if record.type in ("ipv4", "ipv6"):
         return ["network_connection.DestinationIp"]
     if record.type in ("domain", "hostname"):

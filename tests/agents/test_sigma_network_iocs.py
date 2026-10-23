@@ -201,3 +201,35 @@ def test_a_dual_use_set_of_url_paths_yields_no_connection_rule() -> None:
         if "selection_dest_*" in rule["detection"]["condition"]:
             assert any(n.startswith("selection_dest_") for n in names)
         assert not any(p in str(rule["detection"]) for p in paths)
+
+
+def test_attack_sources_get_inbound_rules_not_the_outbound_sweep() -> None:
+    """H-0830: the report's exploitation "Source IPs" were swept as outbound destinations."""
+    agent = SigmaGeneratorAgent(llm_enabled=True)
+    with (
+        patch.object(agent, "_call_llm_with_retry", return_value=json.dumps({"rules": []})),
+        patch.object(agent, "_get_provider") as provider,
+    ):
+        provider.return_value.provider_name = "test"
+        result = agent.execute(
+            SigmaGenerationInput(
+                hypothesis="h",
+                hunt_id="H-0014",
+                platforms=["Network Devices"],
+                indicators={"ipv4": ["45.153.212.101", "209.141.43.95"]},
+                indicator_records=[
+                    {"value": "45.153.212.101", "type": "ipv4", "role": "inbound", "status": "active"},
+                    {"value": "209.141.43.95", "type": "ipv4", "role": "download", "status": "active"},
+                ],
+                logsources=["process_creation"],
+            )
+        )
+    rules = {r.title: yaml.safe_load(r.rule_yaml) for r in (result.data.rules if result.data else [])}
+    web = rules["Web request from an address the source names as an attack source"]
+    assert web["logsource"] == {"category": "webserver"}
+    assert web["detection"]["selection"] == {"c-ip": ["45.153.212.101"]}
+    accepted = rules["Inbound connection from an address the source names as an attack source"]
+    assert accepted["detection"]["selection"] == {"SourceIp": ["45.153.212.101"], "Initiated": "false"}
+    outbound = rules["Connection to an address or host named in the source intelligence"]
+    assert "45.153.212.101" not in str(outbound["detection"])
+    assert "209.141.43.95" in str(outbound["detection"])

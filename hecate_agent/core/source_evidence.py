@@ -136,7 +136,8 @@ For each artifact return:
   memory_only = shellcode or a payload that only exists in memory;
   network_content = an encrypted or encoded download or stream;
   non_file = a token, key or certificate fingerprint that only looks like a hash.
-  Network roles: target = an address the actor attacked, scanned or tested against (a victim).
+  Network roles: target = an address the actor attacked, scanned or tested against (a victim);
+  inbound = an address the attack traffic came from (exploitation or scanning source).
   Use "historical" when the text says an indicator is old, unrelated, or not a campaign IOC.
 - "status": one of {list(STATUSES)} ("historical" when the text says so, else "active" if the
   text ties it to this campaign, else "unknown")
@@ -496,6 +497,10 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
     status = str(raw.get("status", "unknown")).strip().lower()
     if allowed_roles is not None and role not in allowed_roles:
         role = "unknown"
+    if role == "inbound" and not _INBOUND_WORDING.search(evidence):
+        # Inbound turns the address's rules around; a C2 misread as a source
+        # would lose its outbound rule. Only the passage's own wording decides.
+        role = "unknown"
     if status not in STATUSES:
         status = "unknown"
     if not evidence:
@@ -555,6 +560,15 @@ _IPV4_LINE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 _TARGET_WORDING = re.compile(
     r"\b(qa|test|probe|exploitation|scan|scanning|attack|spray|dev/qa|dev/test|reset-utility|brute[- ]force)[ /-](test )?targets?\b"
     r"|\btargets? (list|pool|host|ip|address)(es|s)?\b|\bvictim (ip|host|address)(es|s)?\b|\b(dev|qa)/(test|qa) pool\b",
+    re.IGNORECASE,
+)
+#: The source names the address as where attack traffic came from: "Source IPs:",
+#: "exploitation attempts from", "scanning originating from", "attacker IP".
+_INBOUND_WORDING = re.compile(
+    r"\b(source|attacker|attacking|scanner|scanning|exploitation|exploiting|threat actor) (ip|ips|ip address(es)?|address(es)?)\b"
+    r"|\b(exploitation|exploit|scan(ning)?|attack|brute[- ]force|(password )?spray(ing)?|login|probing|requests?|traffic|"
+    r"connections?)( attempts?)? (originat(ed|ing) )?from\b"
+    r"|\boriginat(ed|ing) from\b|\binbound (connections?|requests?|traffic) from\b",
     re.IGNORECASE,
 )
 #: The source gives the address a job victims would see it doing.
@@ -649,7 +663,11 @@ def network_role_from_context(text: str, value: str) -> Tuple[str, str, str]:
     contexts = _local_contexts(text, value)
     if any(_INFRASTRUCTURE_WORDING.search(c) and not _OTHER_OPERATION_WORDING.search(c) for c in contexts):
         return "", "", ""
-    for wording, role, status in ((_OTHER_OPERATION_WORDING, "historical", "historical"), (_TARGET_WORDING, "target", "")):
+    for wording, role, status in (
+        (_OTHER_OPERATION_WORDING, "historical", "historical"),
+        (_TARGET_WORDING, "target", ""),
+        (_INBOUND_WORDING, "inbound", ""),
+    ):
         for context in contexts:
             if wording.search(context):
                 return role, status, context[:300]

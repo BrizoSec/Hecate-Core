@@ -386,3 +386,32 @@ def test_the_models_usage_is_counted_across_both_passes(monkeypatch: pytest.Monk
 
 def test_a_caller_supplied_model_reports_no_usage() -> None:
     assert _extract().usage_metadata() == {}
+
+
+@pytest.mark.parametrize(
+    "text, value",
+    [
+        ("Source IPs: 45.153.212[.]101, 46.233.40[.]20", "45.153.212.101"),
+        ("Exploitation attempts originated from 198.51.100.7 over two days.", "198.51.100.7"),
+        ("We saw scanning from 203.0.113.9 against every exposed gateway.", "203.0.113.9"),
+    ],
+)
+def test_where_the_attack_came_from_is_inbound(text: str, value: str) -> None:
+    """H-0830 listed its exploitation "Source IPs"; typed unknown, they became
+    an outbound DestinationIp sweep that could never see them."""
+    assert se.network_role_from_context(text, value)[0] == "inbound"
+
+
+def test_a_download_host_stays_infrastructure() -> None:
+    text = "The implant was downloaded from 209.141.43[.]95 after exploitation from 45.153.212[.]101."
+    assert se.network_role_from_context(text, "209.141.43.95")[0] == ""
+
+
+def test_the_model_cannot_call_an_address_inbound_without_the_wording() -> None:
+    """Inbound turns an address's rules around; a C2 misread as a source would lose its outbound rule."""
+    from hecate_agent.core.source_evidence import _checked, _words, normalise
+
+    page = "The beacon reached its C2 at 185.196.8.44 every 60 seconds."
+    raw = {"value": "185.196.8.44", "kind": "ipv4", "role": "inbound", "status": "active", "evidence": page}
+    artifact, _ = _checked(raw, normalise(page), " ".join(_words(page)))
+    assert artifact is not None and artifact.role == "unknown"

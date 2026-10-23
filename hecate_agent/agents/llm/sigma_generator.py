@@ -2123,6 +2123,41 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 )
             )
 
+        # Addresses the source names as where the attack came from. H-0830's
+        # exploitation "Source IPs" went into an outbound DestinationIp sweep
+        # that could never see them: they are the client in web logs and the
+        # source of an inbound connection.
+        inbound = sorted({r.value for r in values_for("webserver.c-ip")})
+        if inbound:
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="webserver",
+                    label="inbound address IOC",
+                    title="Web request from an address the source names as an attack source",
+                    description="Matches a web or reverse-proxy access log entry whose client address the source "
+                    "published as the origin of exploitation or scanning. Indicators the source marks historical "
+                    "are excluded.",
+                    detection={"selection": {"c-ip": inbound}, "condition": "selection"},
+                    falsepositives="Addresses reassigned since the report, or shared egress (VPN, carrier NAT)",
+                )
+            )
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="network_connection",
+                    label="inbound address IOC",
+                    title="Inbound connection from an address the source names as an attack source",
+                    description="Matches a connection accepted from an address the source published as the "
+                    "origin of exploitation or scanning. Indicators the source marks historical are excluded.",
+                    detection={
+                        "selection": {"SourceIp": inbound, "Initiated": "false"},
+                        "condition": "selection",
+                    },
+                    falsepositives="Addresses reassigned since the report, or shared egress (VPN, carrier NAT)",
+                )
+            )
+
         dual = values_for("network_connection.dual_use")
         dual_ips = [r.value for r in dual if r.type in ("ipv4", "ipv6")]
         dual_hosts = [r.value for r in dual if r.type in ("domain", "hostname")]
