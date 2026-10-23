@@ -454,6 +454,13 @@ def test_an_implementation_language_is_not_a_family():
     assert _named_entities("A PowerShell dropper ran.") == []
 
 
+def test_an_attack_purpose_is_not_a_family():
+    """ "DDoS botnet" names what the botnet does. H-0829 graded `DDoS` an
+    unsupported malware name."""
+    assert _named_entities("Mirai payloads recruit hosts for DDoS botnet operations.") == []
+    assert _named_entities("A Spam botnet and a DoS trojan were deployed.") == []
+
+
 def test_a_based_suffix_is_a_description_not_a_name():
     assert _named_entities("A Rust-based loader dropped it.") == []
 
