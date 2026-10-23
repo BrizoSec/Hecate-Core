@@ -352,6 +352,11 @@ _ENTITY_STOPWORDS = frozenset(
         "golang",
         "rust",
         "java",
+        # What the malware is for, not what it is called: "DDoS botnet",
+        # "Spam botnet". H-0829 graded `DDoS` an unsupported malware name.
+        "ddos",
+        "dos",
+        "spam",
     }
 )
 
