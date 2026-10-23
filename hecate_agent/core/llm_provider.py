@@ -620,6 +620,9 @@ def create_provider(config: Optional[Dict[str, Any]] = None) -> LLMProvider:
     provider_name = effective.get("provider", "").lower()
     model = effective.get("model")
 
+    if provider_name in ("none", "disabled", "offline"):
+        raise RuntimeError("No LLM provider configured (offline mode enabled).")
+
     # --- Explicit provider requested ---
     if provider_name:
         return _build_provider(provider_name, model, effective)

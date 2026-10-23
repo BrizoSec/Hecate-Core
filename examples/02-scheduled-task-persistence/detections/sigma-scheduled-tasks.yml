@@ -1,0 +1,32 @@
+title: Scheduled Task Creation Executing from User Writable Directory
+id: 7e2f5b89-9a41-4c17-bf30-58c9735d419b
+status: test
+description: Detects the creation of scheduled tasks executing payloads or scripts from suspicious, user-writable directories.
+references:
+  - 'hecate://hunts/H-0002'
+  - 'https://attack.mitre.org/techniques/T1053/005/'
+author: sec-ops
+date: 2026/10/24
+tags:
+  - attack.persistence
+  - attack.execution
+  - attack.t1053.005
+logsource:
+  category: task_cache
+  product: windows
+detection:
+  selection:
+    EventID: 4698
+    TaskContent|contains:
+      - '\Users\Public\'
+      - '\ProgramData\'
+      - '\AppData\Local\Temp\'
+  filter_known:
+    TaskContent|contains:
+      - '\Google\Update\'
+      - '\Microsoft\OneDrive\'
+  condition: selection and not filter_known
+falsepositives:
+  - Legitimate per-user software updaters
+  - Approved administrative maintenance tasks
+level: high

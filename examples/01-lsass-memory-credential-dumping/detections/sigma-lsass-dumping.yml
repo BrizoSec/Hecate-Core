@@ -1,0 +1,31 @@
+title: LSASS Memory Credential Dumping via Suspicious Process Access
+id: 3c9d6402-23c2-4a0b-8d54-8e4dcfb6f932
+status: test
+description: Detects suspicious process access to lsass.exe requesting memory read permissions, characteristic of credential dumping tools.
+references:
+  - 'hecate://hunts/H-0001'
+  - 'https://attack.mitre.org/techniques/T1003/001/'
+author: sec-ops
+date: 2026/10/24
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  category: process_access
+  product: windows
+detection:
+  selection:
+    TargetImage|endswith: '\lsass.exe'
+    GrantedAccess|contains:
+      - '0x1010'
+      - '0x1FFFFF'
+      - '0x1410'
+  filter_legitimate:
+    SourceImage|endswith:
+      - '\MsMpEng.exe'
+      - '\csagent.exe'
+  condition: selection and not filter_legitimate
+falsepositives:
+  - Antivirus and EDR software
+  - Approved diagnostic dumps by system administrators
+level: high

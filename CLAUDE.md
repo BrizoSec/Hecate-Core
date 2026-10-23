@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **Hecate**, an agentic threat hunting framework — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is the `hecate-agent` Python package, installed from this checkout (it is not published on PyPI), with the `hecate-agent` entry point.
+This is **Hecate**, an agentic threat hunting framework — a Python CLI + MCP server that gives threat hunting programs structured documentation, AI-powered research, and hunt lifecycle management. It is the `hecate-agent` Python package (distributed via PyPI: `pip install hecate-agent`, GitHub Releases wheels, or installed in editable mode from this checkout), with the `hecate-agent` entry point.
 
 **This repository is dual-purpose:** it is both the framework's source (`hecate_agent/`, `tests/`) and a live, dogfooded hunting workspace. `hunts/`, `research/`, `knowledge/`, and `integrations/` contain real hunt (`H-XXXX.md`), research (`R-XXXX.md`), and environment content produced by using Hecate against this org's own data sources. Files in those directories are framework *output*, not source code — see `AGENTS.md` for the CLI-first rules that govern editing them (never hand-write hunt/research frontmatter; use the CLI).
 

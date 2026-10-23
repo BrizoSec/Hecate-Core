@@ -7,26 +7,52 @@ This guide covers installation methods and development setup for Hecate.
 The fastest way to get started:
 
 ```bash
-git clone https://github.com/BrizoSec/Hecate-Core.git
-cd Hecate-Core
-pip install -e .
-hecate-agent hunt new
+# Install from PyPI
+pip install hecate-agent
+
+# Quick-start a demo workspace with an end-to-end hunt
+hecate-agent demo init
+
+# Assess workspace maturity
+hecate-agent maturity assess
 ```
 
-Hecate is installed from source: the `hecate-agent` package is not published on
-PyPI. Optional features are extras, installed from your checkout with
-`pip install -e ".[extra]"`.
-
-That's it! You're ready to start threat hunting — there is no separate
-initialization step, and the workspace directories are created on first use.
+Hecate is distributed via PyPI (`pip install hecate-agent`), pre-built wheels on GitHub Releases, or from source. Optional features are installed as extras (e.g. `pip install "hecate-agent[all]"`).
 
 ---
 
 ## Installation Options
 
-### Option 1: Install from a clone (Recommended)
+### Option 1: Install from PyPI (Recommended for Users)
 
-**Best for**: Everyone. The checkout is also a working hunt workspace.
+**Best for**: Fast setup without checking out source code.
+
+```bash
+# Standard installation
+pip install hecate-agent
+
+# With all optional capabilities (AI, STIX, MCP, Splunk)
+pip install "hecate-agent[all]"
+
+# Verify installation
+hecate-agent --version
+```
+
+### Option 2: Install from GitHub Releases
+
+**Best for**: Environments without direct PyPI access or requiring fixed release artifacts.
+
+Download the latest `.whl` from [GitHub Releases](https://github.com/BrizoSec/Hecate-Core/releases):
+
+```bash
+pip install https://github.com/BrizoSec/Hecate-Core/releases/latest/download/hecate_agent-latest-py3-none-any.whl
+```
+
+---
+
+### Option 3: Install from a clone (Recommended for Contributors)
+
+**Best for**: Developers contributing to Hecate or dogfooding locally.
 
 ```bash
 git clone https://github.com/BrizoSec/Hecate-Core.git

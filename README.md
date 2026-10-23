@@ -5,21 +5,34 @@ Hecate provides structure and persistence for threat hunting programs. It's a ma
 ## 🚀 Quick Start
 
 ```bash
-# Install Hecate from source (it is not published on PyPI)
+# Install from PyPI
+pip install hecate-agent
+
+# Or install with all optional capabilities (AI, STIX, MCP)
+pip install "hecate-agent[all]"
+
+# Zero-configuration demo: initialize complete example hunt
+hecate-agent demo init
+
+# Assess your workspace maturity level
+hecate-agent maturity assess
+
+# Interactive AI configuration wizard (OpenAI / Anthropic / local Ollama)
+hecate-agent config ai
+
+# Export validated hunting logic to a Sigma detection rule
+hecate-agent hunt promote --hunt H-0001 --output sigma
+```
+
+Pre-built wheel and sdist distributions are also available on [GitHub Releases](https://github.com/BrizoSec/Hecate-Core/releases), or you can install from source for development:
+
+```bash
 git clone https://github.com/BrizoSec/Hecate-Core.git
 cd Hecate-Core
 pip install -e .
-
-# Conduct research before hunting
-hecate-agent research new --topic "LSASS dumping" --technique T1003.001
-
-# Create your first hunt
-hecate-agent hunt new --technique T1003.001 --title "LSASS Credential Dumping" --research R-0001
 ```
 
-There is no separate init step: `hunts/`, `research/` and `queries/` are created
-on first use. To check that a workspace has the optional dependencies its
-commands actually need, run `hecate-agent env check`.
+To check that a workspace has the optional dependencies its commands actually need, run `hecate-agent env check`.
 
 For more detailed instructions, see the [Getting Started Guide](docs/getting-started.md).
 
@@ -63,12 +76,28 @@ flowchart LR
 
 Most teams will live at Levels 1–2. Everything beyond that is optional maturity. For more details, see the [Maturity Model Guide](docs/maturity-model.md).
 
+## Division of Labor: Hecate-Core vs. Hecate-Runner
+
+Hecate is designed in clear modular layers:
+
+* **Hecate-Core** (`hecate-agent`): The foundational threat hunting engine, Markdown repository, LOCK lifecycle manager, detection rule exporter, and MCP tools.
+* **Hecate-Runner**: The autonomous orchestrator that continuously monitors CTI feeds, drives hypothesis generation, and drafts hunts into Hecate-Core workspaces.
+
+| Scenario | Recommended Component |
+|---|---|
+| **Manually write hunts and conduct research** | **Hecate-Core** |
+| **Automatically pull CTI and draft hunts** | **Hecate-Runner + Core** |
+| **Want a live monitoring dashboard** | **Core's monitor command** (`hecate-agent monitor`) |
+
+For version compatibility matrices and workspace stability guarantees, see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+
 ## Documentation
 
 * [Onboarding for new joiners](docs/ONBOARDING.md)
 * [Architecture and design diagrams](https://github.com/BrizoSec/Hecate-Runner/blob/main/docs/ARCHITECTURE.md)
 * [Getting Started](docs/getting-started.md)
 * [Installation](docs/INSTALL.md)
+* [Version Compatibility Policy](docs/COMPATIBILITY.md)
 * [CLI Reference](docs/CLI_REFERENCE.md)
 * [Configuration](docs/CONFIGURATION.md)
 * [LOCK Pattern](docs/lock-pattern.md)

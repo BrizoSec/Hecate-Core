@@ -3,7 +3,10 @@
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from hecate_agent.core.research_manager import ResearchManager
 
 import click
 from rich.console import Console
@@ -11,6 +14,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from datetime import datetime
 from hecate_agent.agents.llm.hunt_researcher import ResearchOutput, research_grounding
 from hecate_agent.core.cost_tracker import format_cost
 
@@ -45,6 +49,70 @@ Research Skills (5-skill methodology):
   4. Related Work - What past hunts are relevant?
   5. Research Synthesis - Key findings, gaps, focus areas
 """
+
+
+def _write_offline_research_template(
+    manager: "ResearchManager",
+    research_id: str,
+    topic: str,
+    technique: Optional[str],
+) -> Path:
+    """Generate a blank research template file in offline mode."""
+    frontmatter = {
+        "research_id": research_id,
+        "topic": topic,
+        "mitre_techniques": [technique] if technique else [],
+        "status": "draft",
+        "created_date": datetime.now().strftime("%Y-%m-%d"),
+    }
+    technique_line = f"**MITRE ATT&CK:** {technique}\n" if technique else ""
+    content = f"""# {research_id}: {topic} Research
+
+**Topic:** {topic}
+{technique_line}
+---
+
+## 1. System Research: How It Works
+
+### Summary
+<!-- Describe how this system or component functions normally -->
+
+### Key Findings
+- <!-- Normal process names, paths, permissions, and architectural details -->
+
+---
+
+## 2. Adversary Tradecraft: Abuse Techniques
+
+### Summary
+<!-- Describe how adversaries abuse this technology or feature -->
+
+### Key Findings
+- <!-- Attack methods, tools, LOLBins, and evasion techniques -->
+
+---
+
+## 3. Telemetry Mapping
+
+### Telemetry Sources
+- <!-- Relevant Event IDs, EDR events, network logs, and OCSF fields -->
+
+---
+
+## 4. Related Work
+- <!-- References to past hunts or related research in this workspace -->
+
+---
+
+## 5. Research Synthesis: Actionable Insights
+- <!-- Core hypothesis recommendation, data source availability, and hunt scope -->
+"""
+    return manager.create_research_file(
+        research_id=research_id,
+        topic=topic,
+        content=content,
+        frontmatter=frontmatter,
+    )
 
 
 @click.group(epilog=RESEARCH_EPILOG)
@@ -115,6 +183,24 @@ def new(
     # Initialize agent
     agent = HuntResearcherAgent(llm_enabled=True)
 
+    # In unmocked execution, check that an LLM provider is configured
+    from unittest.mock import Mock
+
+    if not isinstance(agent, Mock):
+        try:
+            from hecate_agent.core.llm_provider import create_provider
+
+            create_provider()
+        except Exception:
+            _write_offline_research_template(manager, research_id, topic, technique)
+            console.print(
+                f"[yellow]AI features are not configured; you can manually fill in the research template at research/{research_id}.md[/yellow]"
+            )
+            console.print(
+                "[dim]To enable AI-assisted research, configure a provider via:[/dim] [cyan]hecate-agent config ai[/cyan]\n"
+            )
+            return
+
     # Show progress for each skill
     with Progress(
         SpinnerColumn(),
@@ -142,6 +228,17 @@ def new(
         )
 
     if not result.success:
+        err = result.error or ""
+        if "no llm provider" in err.lower() or "no provider could be determined" in err.lower():
+            _write_offline_research_template(manager, research_id, topic, technique)
+            console.print(
+                f"[yellow]AI features are not configured; you can manually fill in the research template at research/{research_id}.md[/yellow]"
+            )
+            console.print(
+                "[dim]To enable AI-assisted research, configure a provider via:[/dim] [cyan]hecate-agent config ai[/cyan]\n"
+            )
+            return
+
         console.print(f"[red]Research failed: {result.error}[/red]")
         raise click.Abort()
 

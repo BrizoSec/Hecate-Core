@@ -852,53 +852,191 @@ level: medium
 
 
 @click.command(name="promote")
-@click.argument("hunt_id")
+@click.argument("hunt_id", required=False)
+@click.option("--hunt", "-h", "hunt_opt", default=None, help="Hunt ID (e.g., H-0001)")
+@click.option(
+    "--output",
+    "-o",
+    "output_format",
+    type=click.Choice(["sigma", "spl", "kql", "detection"], case_sensitive=False),
+    default=None,
+    help="Export validated hunting logic to detection rules or query snippets (sigma, spl, kql).",
+)
+@click.option(
+    "--query-index",
+    "query_index",
+    type=int,
+    default=1,
+    help="Index of query in CHECK section to use (1-based, default: 1).",
+)
+@click.option("--out", "out_file", type=click.Path(), default=None, help="Destination output file path.")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-def promote_hunt(hunt_id: str, yes: bool) -> None:
-    """Promote a hunt from test to production.
-
-    \b
-    Moves a hunt file from hunts/test/... to hunts/production/...
-    while preserving its hunt ID and updating the file path.
+def promote_hunt(
+    hunt_id: Optional[str],
+    hunt_opt: Optional[str],
+    output_format: Optional[str],
+    query_index: int,
+    out_file: Optional[str],
+    yes: bool,
+) -> None:
+    """Promote a hunt to a detection rule (Sigma, SPL, KQL) or from test to production.
 
     \b
     Examples:
-      # Promote a test hunt to production
-      hecate-agent hunt promote H-0042
+      # Export validated hunting logic to a Sigma detection rule
+      hecate-agent hunt promote --hunt H-0001 --output sigma
 
-      # Skip confirmation
+      # Export to Splunk SPL or Microsoft KQL query snippet
+      hecate-agent hunt promote --hunt H-0001 --output spl
+      hecate-agent hunt promote --hunt H-0001 --output kql
+
+      # Promote a test hunt to production directory
       hecate-agent hunt promote H-0042 --yes
-
-    \b
-    After promotion:
-      • Hunt file moved to production directory
-      • Original test file removed
-      • Hunt ID preserved (no renumbering)
     """
     import shutil
+    import uuid
+    from hecate_agent.core.hunt_parser import parse_hunt_file
 
-    if not validate_hunt_id(hunt_id):
-        console.print(f"[red]Error: Invalid hunt ID format: {hunt_id}[/red]")
+    effective_hunt_id = hunt_opt or hunt_id
+    if not effective_hunt_id:
+        console.print("[red]Error: Hunt ID required. Specify hunt ID as argument or via --hunt (e.g., --hunt H-0001)[/red]")
+        return
+
+    if not validate_hunt_id(effective_hunt_id):
+        console.print(f"[red]Error: Invalid hunt ID format: {effective_hunt_id}[/red]")
         console.print("[yellow]Expected format: H-0001[/yellow]")
         return
 
     manager = HuntManager()
-    hunt_file = manager.find_hunt_file(hunt_id)
+    hunt_file = manager.find_hunt_file(effective_hunt_id)
 
     if not hunt_file:
-        console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
+        console.print(f"[red]Error: Hunt not found: {effective_hunt_id}[/red]")
         return
 
+    # Branch 1: Exporting validated hunting logic to a detection rule / query snippet
+    if output_format:
+        fmt = output_format.lower()
+        hunt_data = parse_hunt_file(hunt_file)
+        frontmatter = hunt_data.get("frontmatter", {})
+        lock_sections = hunt_data.get("lock_sections", {})
+
+        check_section = lock_sections.get("check", "")
+        keep_section = lock_sections.get("keep", "")
+        observe_section = lock_sections.get("observe", "")
+
+        queries = _extract_check_queries(check_section)
+        queries = [q.strip() for q in queries if q.strip()]
+
+        chosen_query = ""
+        if queries:
+            idx = max(0, min(query_index - 1, len(queries) - 1))
+            chosen_query = queries[idx]
+        else:
+            chosen_query = check_section.strip()
+
+        title = frontmatter.get("title") or effective_hunt_id
+        hunter = frontmatter.get("hunter") or "security-team"
+        today = datetime.now().strftime("%Y/%m/%d")
+        tactics: List[str] = frontmatter.get("tactics") or []
+        techniques: List[str] = frontmatter.get("techniques") or []
+        platforms: List[str] = frontmatter.get("platform") or []
+        data_sources: List[str] = frontmatter.get("data_sources") or []
+
+        if fmt in ("sigma", "detection"):
+            logsource = _sigma_logsource(platforms, data_sources)
+            tags = _sigma_tags(tactics, techniques)
+            tags_yaml = "\n".join(f"  - {t}" for t in tags) if tags else "  - attack.unknown"
+
+            # Parse Keep section findings into false positives or comments
+            keep_notes = "\n".join(f"    # Keep finding: {line.strip()}" for line in keep_section.splitlines() if line.strip())
+            query_comment = (
+                "\n".join(f"    #   {line}" for line in chosen_query.splitlines())
+                if chosen_query
+                else "    # (No query extracted)"
+            )
+
+            sigma_yaml = f"""title: {title}
+id: {uuid.uuid4()}
+status: test
+description: >
+  Detection rule promoted from Hecate hunt {effective_hunt_id}.
+  Hypothesis: {observe_section.splitlines()[0] if observe_section else title}
+references:
+  - 'hecate://hunts/{effective_hunt_id}'
+author: {hunter}
+date: {today}
+tags:
+{tags_yaml}
+logsource:
+  category: {logsource['category']}
+  product: {logsource['product']}
+detection:
+  selection:
+    # Validated hunting logic from {effective_hunt_id} Check section:
+{query_comment}
+{keep_notes}
+  condition: selection
+falsepositives:
+  - Legitimate administrative activity matching baseline
+level: medium
+"""
+            dest = Path(out_file) if out_file else Path("detections") / f"{effective_hunt_id}.yml"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(sigma_yaml, encoding="utf-8")
+            _patch_detection_rule(hunt_file, effective_hunt_id, dest)
+
+            console.print(f"\n[bold green]✅ Promoted {effective_hunt_id} to Sigma Detection Rule[/bold green]")
+            console.print(f"  [cyan]Rule file:[/cyan] {dest}")
+            console.print(f"  [cyan]Logsource:[/cyan] {logsource['product']} / {logsource['category']}")
+            if tags:
+                console.print(f"  [cyan]Tags:     [/cyan] {', '.join(tags)}")
+            console.print("\n[bold]Next steps:[/bold]")
+            console.print(f"  • Validate rule: [cyan]sigma check {dest}[/cyan]")
+            console.print(f"  • Convert to SIEM target: [cyan]sigma convert -t splunk {dest}[/cyan]\n")
+            return
+
+        elif fmt == "spl":
+            dest = Path(out_file) if out_file else Path("queries") / f"{effective_hunt_id}.spl"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            spl_content = f"""# Promoted Splunk Query from {effective_hunt_id}: {title}
+# Techniques: {', '.join(techniques) if techniques else 'N/A'}
+# Hunter: {hunter} | Promoted: {today}
+#
+{chosen_query}
+"""
+            dest.write_text(spl_content, encoding="utf-8")
+            console.print(f"\n[bold green]✅ Promoted {effective_hunt_id} to Splunk Query Snippet[/bold green]")
+            console.print(f"  [cyan]Query file:[/cyan] {dest}\n")
+            return
+
+        elif fmt == "kql":
+            dest = Path(out_file) if out_file else Path("queries") / f"{effective_hunt_id}.kql"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            kql_content = f"""// Promoted KQL Query from {effective_hunt_id}: {title}
+// Techniques: {', '.join(techniques) if techniques else 'N/A'}
+// Hunter: {hunter} | Promoted: {today}
+//
+{chosen_query}
+"""
+            dest.write_text(kql_content, encoding="utf-8")
+            console.print(f"\n[bold green]✅ Promoted {effective_hunt_id} to KQL Query Snippet[/bold green]")
+            console.print(f"  [cyan]Query file:[/cyan] {dest}\n")
+            return
+
+    # Branch 2: Legacy promotion from test directory to production directory
     # Check hunt is in test directory
     if "test" not in hunt_file.parts:
-        console.print(f"[yellow]{hunt_id} is not in a test directory: {hunt_file}[/yellow]")
+        console.print(f"[yellow]{effective_hunt_id} is not in a test directory: {hunt_file}[/yellow]")
+        console.print("[dim]To promote this hunt to a detection rule (Sigma / SPL / KQL), use:[/dim]")
+        console.print(f"  [cyan]hecate-agent hunt promote --hunt {effective_hunt_id} --output sigma[/cyan]")
         return
 
     # Calculate production destination
     prod_dir = get_hunt_directory(is_test=False)
-    prod_file = prod_dir / f"{hunt_id}.md"
+    prod_file = prod_dir / f"{effective_hunt_id}.md"
 
-    console.print(f"\n[bold cyan]🔄 Promoting {hunt_id} to production[/bold cyan]\n")
+    console.print(f"\n[bold cyan]🔄 Promoting {effective_hunt_id} to production[/bold cyan]\n")
     console.print(f"  [dim]From:[/dim] {hunt_file}")
     console.print(f"  [dim]To:  [/dim] {prod_file}\n")
 
@@ -916,7 +1054,7 @@ def promote_hunt(hunt_id: str, yes: bool) -> None:
     prod_dir.mkdir(parents=True, exist_ok=True)
     shutil.move(str(hunt_file), str(prod_file))
 
-    console.print(f"[bold green]✅ Promoted {hunt_id} to production[/bold green]")
+    console.print(f"[bold green]✅ Promoted {effective_hunt_id} to production[/bold green]")
     console.print(f"  [dim]{prod_file}[/dim]\n")
 
 

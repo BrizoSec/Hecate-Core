@@ -11,7 +11,7 @@ from rich.console import Console
 load_dotenv()
 
 from hecate_agent.__version__ import __version__  # noqa: E402
-from hecate_agent.commands import attack, context, env, hunt, investigate, research, similar, splunk  # noqa: E402
+from hecate_agent.commands import attack, config, context, demo, env, hunt, investigate, maturity, research, similar, splunk  # noqa: E402
 from hecate_agent.commands.agent import agent  # noqa: E402
 from hecate_agent.commands.eval import eval_cmd, eval_gold_cmd  # noqa: E402
 from hecate_agent.commands.monitor import monitor  # noqa: E402
@@ -24,8 +24,17 @@ console = Console()
 EPILOG = """
 \b
 Examples:
-  # Create your first hunt
-  hecate-agent hunt new
+  # Quick start with complete demo hunt
+  hecate-agent demo init
+
+  # Assess workspace maturity level
+  hecate-agent maturity assess
+
+  # Configure AI providers
+  hecate-agent config ai
+
+  # Promote validated hunt logic to a Sigma detection rule
+  hecate-agent hunt promote --hunt H-0001 --output sigma
 
   # Search for credential dumping hunts
   hecate-agent hunt search "credential dumping"
@@ -38,9 +47,10 @@ Examples:
 
 \b
 Getting Started:
-  1. Run 'hecate-agent hunt new' to create your first hunt
-  2. Document using the LOCK pattern (Learn → Observe → Check → Keep)
-  3. Track findings and iterate
+  1. Run 'hecate-agent demo init' for a complete example hunt in LOCK format
+  2. Run 'hecate-agent maturity assess' to check your workspace maturity level
+  3. Run 'hecate-agent config ai' to configure AI research & hypothesis generation
+  4. Track findings and iterate
 
 \b
 Documentation:
@@ -71,10 +81,12 @@ def cli() -> None:
 
     \b
     Quick Start:
+      hecate-agent demo init      Initialize zero-config example workspace
       hecate-agent hunt new       Create a hunt from template
       hecate-agent hunt list      View all hunts
       hecate-agent hunt search    Find hunts by keyword
-      hecate-agent hunt stats     Show program metrics
+      hecate-agent maturity assess Assess program maturity level
+      hecate-agent config ai      Configure AI providers
     """
 
 
@@ -83,6 +95,9 @@ cli.add_command(hunt)
 cli.add_command(investigate)
 cli.add_command(research)
 cli.add_command(attack)
+cli.add_command(demo)
+cli.add_command(config)
+cli.add_command(maturity)
 
 # Phase 1 commands (env, context, similar)
 cli.add_command(env)
