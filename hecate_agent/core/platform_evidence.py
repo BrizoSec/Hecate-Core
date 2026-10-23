@@ -61,8 +61,17 @@ _MARKERS: Dict[str, Tuple[str, ...]] = {
     "ESXi": (
         r"\besxi\b", r"\bvcenter\b", r"\bvmware\b", r"\bvmx\b", r"\bvmdk\b",
     ),
+    # Edge and VPN appliances by product. H-0830's report named NetScaler ADC and
+    # Gateway throughout and matched nothing here, so a one-sentence aside about
+    # SAML on another CVE scoped the hunt to Identity Provider.
     "Network Devices": (
         r"\bfortios\b", r"\bcisco\b", r"\bpan-os\b", r"\bjuniper\b",
+        r"\bnetscaler(?: adc| gateway)?\b", r"\bcitrix (?:adc|gateway)\b",
+        r"\bforti(?:gate|web|proxy|manager|analyzer)\b", r"\bglobalprotect\b",
+        r"\b(?:ivanti|pulse) connect secure\b", r"\bpulse secure\b", r"\bbig-ip\b",
+        r"\bsonic(?:wall|os)\b", r"\bjunos\b", r"\bcisco (?:asa|ios xe|firepower)\b", r"\bios[- ]xe\b",
+        r"\bmikrotik\b", r"\brouteros\b", r"\bzyxel\b", r"\bwatchguard\b",
+        r"\b(?:vpn|network|edge|firewall|security|gateway|netscaler) appliances?\b", r"\bedge devices?\b",
     ),
     "Android": (
         r"\.apk\b", r"\.dex\b", r"\.aab\b", r"\bandroid\b", r"\bdalvik\b", r"\bart runtime\b",
