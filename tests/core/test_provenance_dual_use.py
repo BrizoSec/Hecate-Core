@@ -91,3 +91,9 @@ def test_shell_syntax_after_a_url_is_not_part_of_it():
         {"url": ["http://209.141.43[.]95/files/kw2-freebsd-x64-s11;chmod${IFS}755", "http://h.example/a?x=1&y=2"]}
     )
     assert [r.value for r in records] == ["http://209.141.43.95/files/kw2-freebsd-x64-s11", "http://h.example/a?x=1&y=2"]
+
+
+def test_an_inbound_address_is_a_source_never_a_destination():
+    inbound = IndicatorRecord(value="45.153.212.101", type="ipv4", role="inbound")
+    assert placements(inbound) == ["webserver.c-ip", "network_connection.SourceIp"]
+    assert placements(IndicatorRecord(value="scanner.example", type="domain", role="inbound")) == []
