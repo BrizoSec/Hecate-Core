@@ -64,6 +64,8 @@ VALID_LOGSOURCE_CATEGORIES = {
     # OAuth consent abuse, app registrations, and AWS STS role assumptions.
     "cloud_audit",
     "identity_audit",
+    # Container engine and runtime telemetry (e.g. Docker, Containerd, Kubernetes).
+    "container_runtime",
 }
 
 #: Field names each log source actually carries, so the prompt for one
@@ -89,6 +91,9 @@ _LOGSOURCE_FIELDS = {
     "cloud_audit": ("eventSource, eventName, userIdentity, sourceIPAddress, userAgent, awsRegion, requestParameters, action"),
     "identity_audit": (
         "eventName, operationType, appId, appDisplayName, targetResources, initiatedBy, roles, permissions, status"
+    ),
+    "container_runtime": (
+        "Image, ContainerId, ContainerName, CommandLine, VolumeMount, Privileged, HostPath, User, Namespace"
     ),
 }
 
@@ -125,7 +130,11 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     "T1547": {"registry_event", "process_creation", "file_event"},
     "T1543": {"registry_event", "process_creation"},
     "T1112": {"registry_event"},
-    "T1611": {"process_creation"},
+    "T1611": {"container_runtime", "process_creation"},
+    "T1610": {"container_runtime", "process_creation"},
+    "T1059.013": {"container_runtime", "process_creation"},
+    "T1612": {"container_runtime", "process_creation"},
+    "T1613": {"container_runtime", "process_creation"},
     "T1562": {"process_creation", "file_event"},
     "T1003": {"process_creation", "file_event"},
     "T1218": {"process_creation"},
@@ -251,7 +260,10 @@ def applicable_logsources(
 #: Log sources that exist on only some platforms. H-0004, scoped to macOS and
 #: Linux, was drafted a Windows registry rule because one of its (wrong)
 #: techniques mapped to registry persistence.
-_PLATFORM_ONLY_LOGSOURCES: Dict[str, str] = {"registry_event": "windows"}
+_PLATFORM_ONLY_LOGSOURCES: Dict[str, Any] = {
+    "registry_event": "windows",
+    "container_runtime": {"containers", "linux"},
+}
 
 #: Platforms that run no host sensor: a hunt scoped only to these cannot see
 #: process, file, registry or module-load events, only what the device logs
@@ -276,7 +288,15 @@ def _platform_consistent_logsources(logsources: List[str], platforms: List[str])
     known = {str(p).strip().lower() for p in platforms or [] if str(p).strip()}
     if not known:
         return logsources
-    kept = [ls for ls in logsources if _PLATFORM_ONLY_LOGSOURCES.get(ls, "") in known | {""}]
+    kept: List[str] = []
+    for ls in logsources:
+        req = _PLATFORM_ONLY_LOGSOURCES.get(ls, "")
+        if not req:
+            kept.append(ls)
+        elif isinstance(req, str) and req in known:
+            kept.append(ls)
+        elif isinstance(req, (set, list, tuple, frozenset)) and bool(set(req) & known):
+            kept.append(ls)
     if appliance_only(platforms):
         kept = [ls for ls in kept if ls not in HOST_SENSOR_LOGSOURCES]
     for dropped in sorted(set(logsources) - set(kept)):
@@ -2847,6 +2867,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         block: Dict[str, str] = {"category": category}
         if category in ("proxy", "webserver", "cloud_audit", "identity_audit"):
             return block  # network-appliance and cloud control-plane logs have no endpoint OS product
+        if category == "container_runtime":
+            block["product"] = "docker"
+            return block
         if rule_platform in ("linux", "unix"):
             block["product"] = "linux"
             return block
@@ -2930,6 +2953,52 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     break
         return relevant or techniques
 
+    @staticmethod
+    def _render_modifier_restrictions(logsource: str) -> str:
+        if logsource == "network_connection":
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to single-value scalar fields (such as DestinationIp, SourceIp, DestinationPort, SourcePort). "
+                "A single connection event only has one destination IP or port at a time; requiring all of them simultaneously is mathematically impossible.\n"
+                "  - WRONG (DO NOT USE): `DestinationIp|all: '198.51.100.1'`\n"
+                "  - WRONG (DO NOT USE): `DestinationIp|all: ['198.51.100.1', '203.0.113.5']`\n"
+                "  - CORRECT: `DestinationIp: '198.51.100.1'`\n"
+                "  - CORRECT: `DestinationIp: ['198.51.100.1', '203.0.113.5']` (in Sigma, a list on a scalar field matches ANY element via OR)\n"
+            )
+        elif logsource == "process_creation":
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to scalar fields without substring modifiers (e.g. `Image|all` is invalid).\n"
+                "- `|all` is ONLY valid when combined with substring modifiers on multi-match text fields, e.g. `CommandLine|contains|all: ['-enc', 'bypass']`.\n"
+            )
+        elif logsource == "dns_query":
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to scalar fields (such as QueryName).\n"
+                "  - WRONG (DO NOT USE): `QueryName|all: 'example.com'`\n"
+                "  - CORRECT: `QueryName: 'example.com'` or `QueryName: ['example.com', 'test.com']`\n"
+            )
+        elif logsource == "file_event":
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to scalar fields (such as TargetFilename).\n"
+                "  - WRONG (DO NOT USE): `TargetFilename|all: 'c:\\test.exe'`\n"
+                "  - CORRECT: `TargetFilename: 'c:\\test.exe'` or `TargetFilename|endswith: '.tmp'`\n"
+            )
+        elif logsource == "registry_event":
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to scalar fields (such as TargetObject).\n"
+                "  - WRONG (DO NOT USE): `TargetObject|all: 'HKLM\\...'`\n"
+                "  - CORRECT: `TargetObject: 'HKLM\\...'`\n"
+            )
+        else:
+            return (
+                "\nMODIFIER RESTRICTIONS & EXAMPLES:\n"
+                "- NEVER append `|all` to single-value scalar fields. A single event only has one value for that field.\n"
+                "- A list of values on a scalar field matches any element via logical OR.\n"
+            )
+
     def _build_prompt(self, input_data: SigmaGenerationInput, logsource: str) -> str:
         indicator_block = self._render_indicators(input_data.indicators)
         observable_block = "\n".join(f"  - {o}" for o in input_data.observables[:10]) or "(none)"
@@ -2989,13 +3058,14 @@ INDICATORS FROM THE SOURCE INTELLIGENCE:
 Write EXACTLY ONE rule, for this Sigma log source category and no other:
     {logsource}
 
-Fields available in {logsource}: {fields}\nStandard Sigma Modifiers available: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
-
+Fields available in {logsource}: {fields}
+Standard Sigma Modifiers: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
+{self._render_modifier_restrictions(logsource)}
 RULES OF THE TASK:
 1. Return JSON only. Do NOT write YAML - the caller renders it.
 2. IRONCLAD DETECTION LOGIC: Never use placeholder paths or exact threat tracking names inside registry keys or execution paths. Malware developers do not name their artifacts after their industry marketing names. Do NOT invent strings.
 3. STRICT LOG SOURCE MAPPING: File events are ONLY for disk writes. Do NOT put process arguments in file events. Process creation events are for executions. Do not mix them.
-4. Use only field names that exist in {logsource}. Match the value to the field's type: an address field (IpAddress, DestinationIp) takes an IP or CIDR, never a hostname, and a port field takes a number. Never place a file hash into a command-line or filename field; hashes belong ONLY in a `Hashes` field. If your only indicator is a domain and this log source has no name field for it, write a behavioural rule instead.
+4. Use only field names that exist in {logsource}. Match the value to the field's type: an address field takes an IP or CIDR, never a hostname, and a port field takes a number. Never place a file hash into a command-line or filename field; hashes belong ONLY in a `Hashes` field. Never use `|all` on scalar fields. If your only indicator is a domain and this log source has no name field for it, write a behavioural rule instead.
 5. Prioritize BEHAVIORAL rules (relationships and sequences) over simple indicator matches.
    For example, a rule that looks for `ParentImage|endswith: \\winword.exe` spawning
    `Image|endswith: \\cmd.exe` is a high-quality, generic behavioral rule that works

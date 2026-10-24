@@ -58,6 +58,11 @@ SIGMA_FIELDS: Dict[str, Tuple[str, ...]] = {
         "initiatedBy", "userPrincipalName", "roles", "permissions", "ipAddress",
         "status", "reason", "clientAppUsed", "correlationId",
     ),
+    "container_runtime": (
+        "Image", "ContainerId", "ContainerName", "CommandLine", "ImageId",
+        "Namespace", "PodName", "Repository", "Tag", "VolumeMount",
+        "Privileged", "Capabilities", "User", "HostPath",
+    ),
 }  # fmt: skip
 
 #: Fields naming the process an event belongs to.
