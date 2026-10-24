@@ -840,3 +840,55 @@ def test_values_a_rule_filters_out_are_not_indicator_claims() -> None:
     )
     report = audit_draft(draft_text=draft, cti_text="C2 at 38.207.178.192")
     assert [c.value for c in report.claims if c.kind == "indicator"] == ["38.207.178.192"]
+
+
+def test_cloud_service_endpoints_inferred_from_cited_apis() -> None:
+    """Standard cloud infrastructure endpoints are inferred when the CTI cites corresponding API actions."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: AWS STS AssumeRole Detection\n"
+        "logsource:\n  category: cloud_audit\n"
+        "detection:\n  selection:\n    eventSource: sts.amazonaws.com\n"
+        "    eventName: AssumeRole\n  condition: selection\n```\n"
+    )
+    cti = "The adversary executed an AWS STS API Call: sts:AssumeRole to pivot roles."
+    report = audit_draft(draft_text=draft, cti_text=cti)
+    assert report.is_clean
+    claim = next(c for c in report.claims if c.value == "sts.amazonaws.com")
+    assert claim.status == "derived"
+    assert "standard cloud service endpoint" in claim.note
+
+
+def test_cloud_service_endpoints_regional_inferred_from_cited_apis() -> None:
+    """Regional cloud endpoints (e.g. sts.us-east-1.amazonaws.com) resolve to base service mapping."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: AWS STS Regional\n"
+        "logsource:\n  category: cloud_audit\n"
+        "detection:\n  selection:\n    eventSource: sts.us-east-1.amazonaws.com\n"
+        "  condition: selection\n```\n"
+    )
+    cti = "Adversary called sts:AssumeRoleWithWebIdentity."
+    report = audit_draft(draft_text=draft, cti_text=cti)
+    assert report.is_clean
+    claim = next(c for c in report.claims if c.value == "sts.us-east-1.amazonaws.com")
+    assert claim.status == "derived"
+
+
+def test_cloud_service_endpoints_without_api_is_unsupported() -> None:
+    """When no corresponding cloud API or service is cited, endpoint remains unsupported."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: AWS STS\n"
+        "logsource:\n  category: cloud_audit\n"
+        "detection:\n  selection:\n    eventSource: sts.amazonaws.com\n"
+        "  condition: selection\n```\n"
+    )
+    cti = "Adversary dropped mimikatz on Windows host."
+    report = audit_draft(draft_text=draft, cti_text=cti)
+    assert not report.is_clean
+    assert "sts.amazonaws.com" in [c.value for c in report.unsupported]
+

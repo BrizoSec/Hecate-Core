@@ -81,6 +81,80 @@ _SCAFFOLDING = frozenset(
     }
 )
 
+#: Well-known canonical cloud service endpoints and the API calls / service names that corroborate them.
+#: When a draft's rule matches a standard endpoint (e.g. sts.amazonaws.com) and the source CTI
+#: cites the corresponding service or API actions (e.g. sts:AssumeRole), it is classified as derived
+#: rather than an unsupported / fabricated indicator.
+_CLOUD_SERVICE_ENDPOINTS: dict[str, frozenset[str]] = {
+    "sts.amazonaws.com": frozenset(
+        {
+            "sts:assumerole",
+            "sts:assumerolewithwebidentity",
+            "sts:assumerolewithsaml",
+            "sts:getcalleridentity",
+            "assumerole",
+            "assumerolewithwebidentity",
+            "aws sts",
+            "security token service",
+        }
+    ),
+    "s3.amazonaws.com": frozenset(
+        {
+            "aws s3",
+            "s3:getobject",
+            "s3:putobject",
+            "s3:listbucket",
+            "s3:listallmybuckets",
+            "s3:deleteobject",
+            "s3 sync",
+            "s3 cp",
+        }
+    ),
+    "iam.amazonaws.com": frozenset(
+        {
+            "aws iam",
+            "iam:createrole",
+            "iam:attachrolepolicy",
+            "iam:createuser",
+            "iam:createaccesskey",
+        }
+    ),
+    "login.microsoftonline.com": frozenset(
+        {
+            "microsoft entra",
+            "azure ad",
+            "entra id",
+            "login.microsoftonline.com",
+            "oauth",
+            "consent to application",
+        }
+    ),
+    "graph.microsoft.com": frozenset(
+        {
+            "microsoft graph",
+            "graph api",
+            "graph.microsoft.com",
+            "directory.readwrite.all",
+            "rolemanagement.readwrite.directory",
+            "mail.readwrite",
+        }
+    ),
+    "management.azure.com": frozenset(
+        {
+            "azure resource manager",
+            "management.azure.com",
+            "azure management",
+        }
+    ),
+    "oauth2.googleapis.com": frozenset(
+        {
+            "google oauth",
+            "oauth2.googleapis.com",
+            "google cloud",
+        }
+    ),
+}
+
 #: Suffixes that make a dotted token a filename, not a hostname. Without this
 #: the domain pattern reads "svchost.exe" as a domain in the ".exe" TLD, and a
 #: behavioural rule matching a process name would be reported as a fabricated
@@ -735,6 +809,19 @@ def audit_draft(
             return "asserted", "in the source CTI"
         if lowered in secondary:
             return "corroborated", "only in the research document, which is itself generated"
+        endpoint_key = lowered
+        if endpoint_key not in _CLOUD_SERVICE_ENDPOINTS:
+            parts = endpoint_key.split(".")
+            if len(parts) >= 3 and parts[-2] == "amazonaws" and parts[-1] == "com":
+                base_service = parts[0] + ".amazonaws.com"
+                if base_service in _CLOUD_SERVICE_ENDPOINTS:
+                    endpoint_key = base_service
+        if endpoint_key in _CLOUD_SERVICE_ENDPOINTS:
+            aliases = _CLOUD_SERVICE_ENDPOINTS[endpoint_key]
+            if any(alias in primary for alias in aliases):
+                return "derived", "standard cloud service endpoint inferred from cited API / service in source CTI"
+            if any(alias in secondary for alias in aliases):
+                return "corroborated", "standard cloud service endpoint inferred from research context"
         return "unsupported", "in no source"
 
     report = GroundingReport()
