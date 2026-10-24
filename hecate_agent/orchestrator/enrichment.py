@@ -13,8 +13,9 @@ from hecate_agent.core.provenance import is_valid_ipv4, trim_shell_tail
 from hecate_agent.core.sigma_semantics import semantic_problem
 
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+from hecate_agent.core.workspace import load_workspace_env
+
+load_workspace_env()
 
 def _setting(name: str, default: str = "") -> str:
     """Read a credential or endpoint from the environment (loaded from .env by the CLI).

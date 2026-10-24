@@ -54,3 +54,38 @@ def knowledge_file(filename: str, explicit: Optional[Path] = None) -> Path:
     means for their prompt.
     """
     return workspace_root(explicit) / "knowledge" / filename
+
+
+def load_workspace_env() -> None:
+    """Load .env files with workspace auto-discovery.
+
+    Precedence:
+    1. Existing environment variables (override=False)
+    2. Local directory .env (if present)
+    3. Workspace root .env (from HECATE_WORKSPACE, .hecateconfig.yaml discovery,
+       or default ~/betas/Hecate-Workspace/.env)
+    """
+    from dotenv import load_dotenv
+
+    had_ws = "HECATE_WORKSPACE" in os.environ
+
+    # 1. Local cwd .env (developer override)
+    load_dotenv(override=False)
+
+    # 2. Discovered workspace root .env
+    ws = workspace_root()
+    if (ws / ".env").is_file():
+        load_dotenv(ws / ".env", override=False)
+    else:
+        # 3. Default workspace location fallback if cwd wasn't inside the workspace
+        default_ws = Path.home() / "betas" / "Hecate-Workspace"
+        if (default_ws / ".env").is_file():
+            load_dotenv(default_ws / ".env", override=False)
+
+    # Preserve environment isolation: if HECATE_WORKSPACE was not set before
+    # loading .env, don't let .env define it in os.environ and break tests
+    # that verify dynamic cwd walk-up resolution.
+    if not had_ws and "HECATE_WORKSPACE" in os.environ:
+        del os.environ["HECATE_WORKSPACE"]
+
+

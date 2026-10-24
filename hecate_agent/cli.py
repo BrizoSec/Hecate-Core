@@ -4,11 +4,12 @@ import random
 import sys
 
 import click
-from dotenv import load_dotenv
 from rich.console import Console
 
-# Load .env file from current directory (if it exists)
-load_dotenv()
+from hecate_agent.core.workspace import load_workspace_env
+
+# Load .env file with workspace auto-discovery (local directory first, then workspace root)
+load_workspace_env()
 
 from hecate_agent.__version__ import __version__  # noqa: E402
 from hecate_agent.commands import attack, config, context, demo, env, hunt, investigate, maturity, research, similar, splunk  # noqa: E402
