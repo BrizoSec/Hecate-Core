@@ -3342,15 +3342,31 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
                 runner_check.installed
                 and runner_check.workspace
                 and runner_check.workspace.exists()
-                and (runner_check.workspace / "hunts").exists()
+                and (runner_check.workspace / "logs" / "orchestrator.log").exists()
             ):
                 workspace = runner_check.workspace
-            elif (default_root / "hunts").exists():
-                workspace = default_root
+            elif (
+                runner_check.installed
+                and runner_check.workspace
+                and (runner_check.workspace / "Hecate-Workspace" / "logs" / "orchestrator.log").exists()
+            ):
+                workspace = runner_check.workspace / "Hecate-Workspace"
+            elif (default_root / "Hecate-Workspace" / "logs" / "orchestrator.log").exists():
+                workspace = default_root / "Hecate-Workspace"
+            elif (
+                runner_check.installed
+                and runner_check.workspace
+                and runner_check.workspace.exists()
+                and (runner_check.workspace / "hunts").exists()
+                and any((runner_check.workspace / "hunts").glob("*.md"))
+            ):
+                workspace = runner_check.workspace
             elif (default_root / "Hecate-Workspace" / "hunts").exists():
                 workspace = default_root / "Hecate-Workspace"
             elif (Path.home() / "betas" / "Hecate-Workspace" / "hunts").exists():
                 workspace = Path.home() / "betas" / "Hecate-Workspace"
+            elif (default_root / "hunts").exists() and any((default_root / "hunts").glob("*.md")):
+                workspace = default_root
             elif active_eval and (active_eval / "logs" / "orchestrator.log").exists():
                 workspace = active_eval
             else:
@@ -3365,6 +3381,13 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
     try:
         with Live(console=console, screen=True, refresh_per_second=4, transient=False) as live:
             while True:
+                if not log_path.exists() and (root / "Hecate-Workspace" / "logs" / "orchestrator.log").exists():
+                    root = root / "Hecate-Workspace"
+                    log_path = root / "logs" / "orchestrator.log"
+                    metrics_path = root / "logs" / "stage_metrics.jsonl"
+                    call_log = root / "logs" / "llm_calls.jsonl"
+                    sampler = HostSampler(root)
+                    runner_sampler = RunnerStatusSampler(root)
                 events = _read_events(log_path)
                 recent_error = _read_recent_error(log_path)
                 metrics = _latest_metrics(metrics_path)
