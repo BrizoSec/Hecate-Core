@@ -273,6 +273,7 @@ def new(
         "grounding": research_grounding(output.web_searches_performed),
         **({"web_search_note": output.web_search_note} if output.web_search_note else {}),
         "llm_calls": output.llm_calls,
+        "threat_actors": [p["id"] for p in getattr(output, "threat_actor_profiles", []) if p.get("id")],
         "total_cost_usd": output.total_cost_usd,
         "cost_basis": output.cost_basis,
         "data_source_availability": output.data_source_availability,
@@ -519,6 +520,37 @@ def _generate_research_markdown(output: ResearchOutput) -> str:  # noqa: C901
     lines.append("### Summary")
     lines.append(skill.summary)
     lines.append("")
+    actor_profiles = getattr(output, "threat_actor_profiles", [])
+    if actor_profiles:
+        lines.append("### Threat Actor Profiles (MITRE ATT&CK STIX)")
+        lines.append("")
+        for profile in actor_profiles:
+            p_name = profile.get("name", "Unknown Group")
+            p_id = profile.get("id", "")
+            lines.append(f"#### {p_name} ({p_id})")
+            lines.append("")
+            aliases = profile.get("aliases", [])
+            if aliases:
+                lines.append(f"- **Aliases:** {', '.join(aliases)}")
+            if profile.get("url"):
+                lines.append(f"- **ATT&CK Reference:** [{p_id}]({profile.get('url')})")
+            desc = (profile.get("description") or "").strip()
+            if desc:
+                lines.append(f"- **Profile:** {desc}")
+            lines.append("")
+            soft = profile.get("software", [])
+            if soft:
+                lines.append("##### Known Associated Toolkits & Malware")
+                for s in soft[:10]:
+                    s_desc = f": {s['description']}" if s.get("description") else ""
+                    lines.append(f"- **{s.get('name')}** ({s.get('type', 'software').title()} - {s.get('id')}){s_desc}")
+                lines.append("")
+            techs = profile.get("techniques", [])
+            if techs:
+                lines.append("##### Key Observed Techniques")
+                for t in techs[:15]:
+                    lines.append(f"- `{t.get('id')}` - {t.get('name')}")
+                lines.append("")
     lines.append("### Key Findings")
     for finding in skill.key_findings:
         lines.append(f"- {finding}")

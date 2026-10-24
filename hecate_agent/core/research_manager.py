@@ -544,6 +544,8 @@ class ResearchManager:
         mitre_techniques = frontmatter.get("mitre_techniques", [])
         data_source_availability = frontmatter.get("data_source_availability", {})
         estimated_hunt_complexity = frontmatter.get("estimated_hunt_complexity", "unknown")
+        raw_actors = frontmatter.get("threat_actors", [])
+        threat_actors = [raw_actors] if isinstance(raw_actors, str) else list(raw_actors)
 
         # Extract from synthesis section
         synthesis = sections.get("synthesis", "")
@@ -579,6 +581,7 @@ class ResearchManager:
             system_research_summary=system_research_summary,
             adversary_tradecraft_summary=adversary_tradecraft_summary,
             telemetry_mapping_summary=telemetry_mapping_summary,
+            threat_actors=threat_actors,
         )
 
     def find_by_technique(self, technique_id: str) -> Optional[Dict[str, Any]]:

@@ -268,125 +268,177 @@ def link_research_to_hunt(
     manager = ResearchManager(workspace / "research") if workspace else ResearchManager()
     return manager.link_hunt_to_research(research_id, hunt_id)
 
+
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Enrich indicators found in threat intelligence using external OSINT sources.
-    
+
     Extracts hashes, IPs, and domains from the threat_intel text, concurrently queries
     configured OSINT platforms (VirusTotal, Shodan, Censys, ThreatFox, MISP, etc.),
     and returns a formatted markdown summary of the findings.
     """
     from hecate_agent.orchestrator.enrichment import generate_enrichment_summary as _enrich
+
     return _enrich(threat_intel)
 
 
 def extract_indicators(threat_intel: str) -> Dict[str, List[str]]:
     """Extract observable indicators (IPs, hashes, domains) from text."""
     from hecate_agent.orchestrator.enrichment import extract_indicators as _extract
+
     return _extract(threat_intel)
 
 
 def query_malwarebazaar(file_hash: str) -> str:
     """Query Abuse.ch MalwareBazaar for file hash metadata, family signature, and YARA rules."""
     from hecate_agent.orchestrator.enrichment import query_malwarebazaar as _q
+
     return _q(file_hash)
 
 
 def query_abuseipdb_ip(ip: str) -> str:
     """Query AbuseIPDB for IP reputation, reports, ISP, and abuse confidence score."""
     from hecate_agent.orchestrator.enrichment import query_abuseipdb_ip as _q
+
     return _q(ip)
 
 
 def query_rdap_domain(domain: str) -> str:
     """Query public RDAP registry for domain registration age and registrar."""
     from hecate_agent.orchestrator.enrichment import query_rdap_domain as _q
+
     return _q(domain)
 
 
 def query_epss(cve: str) -> str:
     """Query FIRST EPSS API for vulnerability exploit prediction probability and percentile."""
     from hecate_agent.orchestrator.enrichment import query_epss as _q
+
     return _q(cve)
 
 
 def query_epss_batch(cves: List[str]) -> Dict[str, str]:
     """Query FIRST EPSS API for multiple CVEs in a single HTTP request."""
     from hecate_agent.orchestrator.enrichment import query_epss_batch as _q
+
     return _q(cves)
 
 
 def query_otx_indicator(indicator_type: str, indicator: str) -> str:
     """Query AlienVault OTX Direct API for indicator metadata, pulses, adversaries, and passive DNS."""
     from hecate_agent.orchestrator.enrichment import query_otx_indicator as _q
+
     return _q(indicator_type, indicator)
 
 
 def query_otx_ip(ip: str) -> str:
     """Query AlienVault OTX Direct API for an IPv4 address."""
     from hecate_agent.orchestrator.enrichment import query_otx_ip as _q
+
     return _q(ip)
 
 
 def query_otx_domain(domain: str) -> str:
     """Query AlienVault OTX Direct API for a domain."""
     from hecate_agent.orchestrator.enrichment import query_otx_domain as _q
+
     return _q(domain)
 
 
 def query_otx_hash(file_hash: str) -> str:
     """Query AlienVault OTX Direct API for a file hash."""
     from hecate_agent.orchestrator.enrichment import query_otx_hash as _q
+
     return _q(file_hash)
 
 
 def query_otx_cve(cve: str) -> str:
     """Query AlienVault OTX Direct API for a CVE vulnerability."""
     from hecate_agent.orchestrator.enrichment import query_otx_cve as _q
+
     return _q(cve)
 
 
 def query_feodotracker_ip(ip: str) -> str:
     """Check if an IPv4 address is an active botnet C2 on abuse.ch Feodo Tracker."""
     from hecate_agent.orchestrator.enrichment import query_feodotracker_ip as _q
+
     return _q(ip)
 
 
 def query_sslbl_fingerprint(fingerprint: str) -> str:
     """Check if a SHA1 SSL certificate or JA3 MD5 hash is on abuse.ch SSL Blacklist."""
     from hecate_agent.orchestrator.enrichment import query_sslbl_fingerprint as _q
+
     return _q(fingerprint)
 
 
 def query_urlhaus_url(url: str) -> str:
     """Query abuse.ch URLhaus API for malicious URL status, threat classification, and payload info."""
     from hecate_agent.orchestrator.enrichment import query_urlhaus_url as _q
+
     return _q(url)
 
 
 def query_urlhaus_host(host: str) -> str:
     """Query abuse.ch URLhaus API for host (domain or IP) malware distribution history."""
     from hecate_agent.orchestrator.enrichment import query_urlhaus_host as _q
+
     return _q(host)
 
 
 def query_urlhaus_payload(file_hash: str) -> str:
     """Query abuse.ch URLhaus API for payload hash (MD5 or SHA256) distribution info."""
     from hecate_agent.orchestrator.enrichment import query_urlhaus_payload as _q
+
     return _q(file_hash)
 
 
 def query_hybrid_analysis(file_hash: str) -> str:
     """Query Hybrid Analysis (CrowdStrike Falcon Sandbox) API v2 for hash detonation results."""
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis as _q
+
     return _q(file_hash)
 
 
 def query_osv_vuln(vuln_id: str) -> str:
     """Query OSV.dev (Google / OpenSSF Open Source Vulnerabilities) API for advisory details, affected packages, and severity."""
     from hecate_agent.orchestrator.enrichment import query_osv_vuln as _q
+
     return _q(vuln_id)
 
 
+def query_triage_hash(file_hash: str) -> str:
+    """Query Hatching Triage (tria.ge) sandbox API for sample detonation overview and extracted config."""
+    from hecate_agent.orchestrator.enrichment import query_triage_hash as _q
+
+    return _q(file_hash)
 
 
+def get_groups() -> List[Dict[str, Any]]:
+    """Return all known threat actor groups."""
+    from hecate_agent.core.attack_matrix import get_groups as _gg
 
+    return [dict(g) for g in _gg()]
+
+
+def get_group(group_id: str) -> Optional[Dict[str, Any]]:
+    """Look up a threat actor group by ATT&CK ID."""
+    from hecate_agent.core.attack_matrix import get_group as _gg
+
+    res = _gg(group_id)
+    return dict(res) if res else None
+
+
+def find_group(name_or_alias: str) -> Optional[Dict[str, Any]]:
+    """Find a threat actor group by name or alias."""
+    from hecate_agent.core.attack_matrix import find_group as _fg
+
+    res = _fg(name_or_alias)
+    return dict(res) if res else None
+
+
+def search_groups_in_text(text: str) -> List[Dict[str, Any]]:
+    """Scan text for mentions of threat actor groups or their known aliases."""
+    from hecate_agent.core.attack_matrix import search_groups_in_text as _sg
+
+    return [dict(g) for g in _sg(text)]

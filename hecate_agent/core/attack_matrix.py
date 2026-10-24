@@ -12,6 +12,7 @@ functions continue to work identically via module-level __getattr__.
 import json
 import logging
 import os
+import re
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -45,6 +46,34 @@ class TechniqueInfo(TypedDict, total=False):
     is_subtechnique: bool
     parent_id: Optional[str]
     url: str
+
+
+class GroupSoftwareInfo(TypedDict, total=False):
+    """Type definition for software/tool/malware associated with an adversary group."""
+
+    id: str
+    name: str
+    type: str  # "tool", "malware", or "software"
+    description: str
+
+
+class GroupTechniqueInfo(TypedDict, total=False):
+    """Type definition for a technique used by an adversary group."""
+
+    id: str
+    name: str
+
+
+class GroupInfo(TypedDict, total=False):
+    """Type definition for adversary threat actor group profile from STIX data."""
+
+    id: str
+    name: str
+    aliases: List[str]
+    description: str
+    url: str
+    techniques: List[GroupTechniqueInfo]
+    software: List[GroupSoftwareInfo]
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +178,279 @@ _TACTIC_RENAMES: Dict[str, str] = {
     "defense-evasion": "stealth",
 }
 
+_FALLBACK_GROUPS: List[GroupInfo] = [
+    {
+        "id": "G0016",
+        "name": "APT29",
+        "aliases": [
+            "APT29",
+            "Cozy Bear",
+            "Midnight Blizzard",
+            "NOBELIUM",
+            "UNC2452",
+            "Dark Halo",
+            "The Dukes",
+            "IRON RITUAL",
+        ],
+        "description": (
+            "APT29 is a threat group that has been attributed to Russia's"
+            " Foreign Intelligence Service (SVR). They have conducted cyber"
+            " espionage campaigns against government, think-tank, and"
+            " technology organizations, including the SolarWinds supply chain"
+            " compromise and OAuth token abuse against cloud services."
+        ),
+        "url": "https://attack.mitre.org/groups/G0016",
+        "techniques": [
+            {"id": "T1078", "name": "Valid Accounts"},
+            {"id": "T1098", "name": "Account Manipulation"},
+            {"id": "T1566", "name": "Phishing"},
+            {"id": "T1190", "name": "Exploit Public-Facing Application"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1588", "name": "Obtain Capabilities"},
+        ],
+        "software": [
+            {
+                "id": "S0684",
+                "name": "ROADTools",
+                "type": "tool",
+                "description": "Azure AD / Entra ID exploration toolkit.",
+            },
+            {
+                "id": "S0514",
+                "name": "WellMess",
+                "type": "malware",
+                "description": "Golang/.NET RAT used for command execution.",
+            },
+            {
+                "id": "S0584",
+                "name": "GoldMax",
+                "type": "malware",
+                "description": "Second-stage C2 backdoor.",
+            },
+        ],
+    },
+    {
+        "id": "G0007",
+        "name": "APT28",
+        "aliases": [
+            "APT28",
+            "Fancy Bear",
+            "Strontium",
+            "Sednit",
+            "Sofacy",
+            "Pawn Storm",
+            "T-APT-07",
+        ],
+        "description": (
+            "APT28 is a threat group that has been attributed to Russia's"
+            " General Staff Main Intelligence Directorate (GRU) 85th Main"
+            " Special Service Center (GTsSS). Active since at least 2004."
+        ),
+        "url": "https://attack.mitre.org/groups/G0007",
+        "techniques": [
+            {"id": "T1566", "name": "Phishing"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1078", "name": "Valid Accounts"},
+            {"id": "T1003", "name": "OS Credential Dumping"},
+            {"id": "T1021", "name": "Remote Services"},
+        ],
+        "software": [
+            {
+                "id": "S0023",
+                "name": "CHOPSTICK",
+                "type": "malware",
+                "description": "Modular backdoor.",
+            },
+            {
+                "id": "S0148",
+                "name": "Zebrocy",
+                "type": "malware",
+                "description": "Trojan used to download payloads.",
+            },
+        ],
+    },
+    {
+        "id": "G0034",
+        "name": "Sandworm Team",
+        "aliases": [
+            "Sandworm Team",
+            "TeleBots",
+            "Voodoo Bear",
+            "BlackEnergy Group",
+            "ELECTRUM",
+            "UAC-0082",
+            "FROZENBARENTS",
+        ],
+        "description": (
+            "Sandworm Team is a Russian military cyber operations unit (GRU"
+            " Unit 74455). Responsible for attacks against Ukrainian electrical"
+            " substations, NotPetya, and industrial SCADA/OT disruptions."
+        ),
+        "url": "https://attack.mitre.org/groups/G0034",
+        "techniques": [
+            {"id": "T1485", "name": "Data Destruction"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1562", "name": "Impair Defenses"},
+            {"id": "T1078", "name": "Valid Accounts"},
+            {"id": "T1203", "name": "Exploitation for Client Execution"},
+        ],
+        "software": [
+            {
+                "id": "S0089",
+                "name": "BlackEnergy",
+                "type": "malware",
+                "description": "Modular malware targeting ICS/SCADA.",
+            },
+            {
+                "id": "S0688",
+                "name": "CaddyWiper",
+                "type": "malware",
+                "description": "Destructive wiper.",
+            },
+            {
+                "id": "S0176",
+                "name": "Industroyer",
+                "type": "malware",
+                "description": "Malware targeting electric substations.",
+            },
+        ],
+    },
+    {
+        "id": "G0096",
+        "name": "APT41",
+        "aliases": [
+            "APT41",
+            "Double Dragon",
+            "Wicked Panda",
+            "BARIUM",
+            "Brass Typhoon",
+        ],
+        "description": (
+            "APT41 is a prolific state-sponsored cyber espionage group based"
+            " in China that also conducts financially motivated operations."
+        ),
+        "url": "https://attack.mitre.org/groups/G0096",
+        "techniques": [
+            {"id": "T1190", "name": "Exploit Public-Facing Application"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1505", "name": "Server Software Component"},
+            {"id": "T1055", "name": "Process Injection"},
+        ],
+        "software": [
+            {
+                "id": "S0154",
+                "name": "Cobalt Strike",
+                "type": "tool",
+                "description": "Penetration testing and adversary simulation.",
+            },
+            {
+                "id": "S0013",
+                "name": "PlugX",
+                "type": "malware",
+                "description": "Modular remote access tool.",
+            },
+            {
+                "id": "S0537",
+                "name": "ShadowPad",
+                "type": "malware",
+                "description": "Modular backdoor.",
+            },
+        ],
+    },
+    {
+        "id": "G0061",
+        "name": "FIN8",
+        "aliases": ["FIN8", "Sentry Whirlpool", "ATK 113"],
+        "description": (
+            "FIN8 is a financially motivated cybercrime group known for"
+            " targeting retail, restaurant, and hospitality sectors using"
+            " POS-scraping malware and BYOVD driver exploits."
+        ),
+        "url": "https://attack.mitre.org/groups/G0061",
+        "techniques": [
+            {"id": "T1566", "name": "Phishing"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1068", "name": "Exploitation for Privilege Escalation"},
+            {"id": "T1562", "name": "Impair Defenses"},
+        ],
+        "software": [
+            {
+                "id": "S0616",
+                "name": "Sardonic",
+                "type": "malware",
+                "description": "C++ backdoor used for staging.",
+            },
+            {
+                "id": "S0197",
+                "name": "PUNCHTRACK",
+                "type": "malware",
+                "description": "POS memory scraper.",
+            },
+        ],
+    },
+    {
+        "id": "G0050",
+        "name": "Carbanak",
+        "aliases": ["Carbanak", "Anunak"],
+        "description": (
+            "Carbanak is a threat group that has targeted financial"
+            " institutions across the globe, stealing hundreds of millions"
+            " of dollars."
+        ),
+        "url": "https://attack.mitre.org/groups/G0050",
+        "techniques": [
+            {"id": "T1566", "name": "Phishing"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1055", "name": "Process Injection"},
+            {"id": "T1003", "name": "OS Credential Dumping"},
+        ],
+        "software": [
+            {
+                "id": "S0030",
+                "name": "Carbanak",
+                "type": "malware",
+                "description": "Backdoor targeting financial networks.",
+            }
+        ],
+    },
+    {
+        "id": "G0032",
+        "name": "Lazarus Group",
+        "aliases": [
+            "Lazarus Group",
+            "HIDDEN COBRA",
+            "Guardians of Peace",
+            "Zinc",
+            "Diamond Sleet",
+        ],
+        "description": (
+            "Lazarus Group is a North Korean state-sponsored cyber group"
+            " attributed to the Reconnaissance General Bureau (RGB)."
+        ),
+        "url": "https://attack.mitre.org/groups/G0032",
+        "techniques": [
+            {"id": "T1566", "name": "Phishing"},
+            {"id": "T1059", "name": "Command and Scripting Interpreter"},
+            {"id": "T1204", "name": "User Execution"},
+            {"id": "T1055", "name": "Process Injection"},
+        ],
+        "software": [
+            {
+                "id": "S0045",
+                "name": "Brambul",
+                "type": "malware",
+                "description": "SMB brute-force worm.",
+            },
+            {
+                "id": "S0151",
+                "name": "Fallchill",
+                "type": "malware",
+                "description": "Command and control RAT.",
+            },
+        ],
+    },
+]
+
 
 # ---------------------------------------------------------------------------
 # Provider abstraction
@@ -181,6 +483,18 @@ class AttackDataProvider(ABC):
     @abstractmethod
     def get_sub_techniques(self, parent_id: str) -> List[TechniqueInfo]:
         """Return sub-techniques for a parent technique ID (e.g., 'T1003')."""
+
+    @abstractmethod
+    def get_groups(self) -> List[GroupInfo]:
+        """Return all known threat actor groups."""
+
+    @abstractmethod
+    def get_group_by_id(self, group_id: str) -> Optional[GroupInfo]:
+        """Look up a threat actor group by ATT&CK ID (e.g. 'G0016')."""
+
+    @abstractmethod
+    def find_group(self, name_or_alias: str) -> Optional[GroupInfo]:
+        """Find a threat actor group by name or alias (case-insensitive)."""
 
     @abstractmethod
     def get_version(self) -> str:
@@ -226,6 +540,26 @@ class FallbackProvider(AttackDataProvider):
 
     def get_sub_techniques(self, parent_id: str) -> List[TechniqueInfo]:
         return []
+
+    def get_groups(self) -> List[GroupInfo]:
+        return list(_FALLBACK_GROUPS)
+
+    def get_group_by_id(self, group_id: str) -> Optional[GroupInfo]:
+        gid = group_id.strip().upper()
+        for g in _FALLBACK_GROUPS:
+            if g["id"].upper() == gid:
+                return g
+        return None
+
+    def find_group(self, name_or_alias: str) -> Optional[GroupInfo]:
+        target = name_or_alias.strip().lower()
+        for g in _FALLBACK_GROUPS:
+            if g["name"].lower() == target:
+                return g
+            for a in g.get("aliases", []):
+                if a.lower() == target:
+                    return g
+        return None
 
     def get_version(self) -> str:
         return "v14 (hardcoded fallback)"
@@ -320,6 +654,9 @@ class StixProvider(AttackDataProvider):
         self._technique_cache: Optional[Dict[str, TechniqueInfo]] = None
         self._tactic_techniques_cache: Dict[str, List[TechniqueInfo]] = {}
         self._revoked_cache: Optional[Dict[str, str]] = None
+        self._groups_cache: Optional[Dict[str, GroupInfo]] = None
+        self._alias_to_group_id: Optional[Dict[str, str]] = None
+        self._stix_groups_by_id: Optional[Dict[str, Any]] = None
 
     def _ensure_loaded(self) -> None:
         """Lazily load STIX data on first access."""
@@ -330,7 +667,7 @@ class StixProvider(AttackDataProvider):
 
         if not self._stix_path.exists():
             raise FileNotFoundError(
-                f"STIX data not found at {self._stix_path}. " "Run 'hecate-agent attack update' to download it."
+                f"STIX data not found at {self._stix_path}. Run 'hecate-agent attack update' to download it."
             )
 
         logger.debug("Loading STIX data from %s", self._stix_path)
@@ -547,6 +884,138 @@ class StixProvider(AttackDataProvider):
         age_days = int((time.time() - mtime) / 86400)
         return f"STIX (downloaded {age_days}d ago)"
 
+    def _ensure_groups_loaded(self) -> None:
+        """Lazily load threat actor groups from STIX data."""
+        if self._groups_cache is not None:
+            return
+
+        self._ensure_loaded()
+        stix_groups = self._attack_data.get_groups(remove_revoked_deprecated=True)
+        groups_cache: Dict[str, GroupInfo] = {}
+        alias_map: Dict[str, str] = {}
+        stix_by_id: Dict[str, Any] = {}
+
+        for sg in stix_groups:
+            attack_id = _extract_attack_id(sg)
+            if not attack_id:
+                continue
+
+            name = sg.get("name", "")
+            aliases = list(sg.get("aliases", []))
+            if name and name not in aliases:
+                aliases.insert(0, name)
+
+            url = ""
+            for ref in sg.get("external_references", []):
+                if ref.get("source_name") == "mitre-attack":
+                    url = ref.get("url", "")
+                    break
+
+            group_info: GroupInfo = {
+                "id": attack_id,
+                "name": name,
+                "aliases": aliases,
+                "description": sg.get("description", ""),
+                "url": url,
+                "techniques": [],
+                "software": [],
+            }
+            groups_cache[attack_id] = group_info
+            stix_by_id[attack_id] = sg
+
+            for alias in aliases:
+                clean_alias = alias.strip().lower()
+                if clean_alias:
+                    alias_map[clean_alias] = attack_id
+
+        self._groups_cache = groups_cache
+        self._alias_to_group_id = alias_map
+        self._stix_groups_by_id = stix_by_id
+
+    def _populate_group_details(self, attack_id: str) -> Optional[GroupInfo]:
+        """Populate techniques and software used by the group."""
+        self._ensure_groups_loaded()
+        assert self._groups_cache is not None
+        assert self._stix_groups_by_id is not None
+        group = self._groups_cache.get(attack_id)
+        if group is None:
+            return None
+        if group.get("techniques") or group.get("software"):
+            return group
+
+        sg = self._stix_groups_by_id.get(attack_id)
+        if not sg:
+            return group
+        stix_id = sg.get("id")
+        if not stix_id:
+            return group
+
+        raw_techs = self._attack_data.get_techniques_used_by_group(stix_id)
+        techniques: List[GroupTechniqueInfo] = []
+        seen_techs: Set[str] = set()
+        for entry in raw_techs:
+            t_obj = entry.get("object") if isinstance(entry, dict) else None
+            if not t_obj:
+                continue
+            t_id = _extract_attack_id(t_obj)
+            if t_id and t_id not in seen_techs:
+                seen_techs.add(t_id)
+                techniques.append(
+                    {
+                        "id": t_id,
+                        "name": t_obj.get("name", ""),
+                    }
+                )
+        techniques.sort(key=lambda t: t.get("id", ""))
+        group["techniques"] = techniques
+
+        raw_soft = self._attack_data.get_software_used_by_group(stix_id)
+        software: List[GroupSoftwareInfo] = []
+        seen_soft: Set[str] = set()
+        for entry in raw_soft:
+            s_obj = entry.get("object") if isinstance(entry, dict) else None
+            if not s_obj:
+                continue
+            s_id = _extract_attack_id(s_obj)
+            s_name = s_obj.get("name", "")
+            if s_id and s_id not in seen_soft:
+                seen_soft.add(s_id)
+                s_type = s_obj.get("type", "software")
+                kind = "malware" if s_type == "malware" else ("tool" if s_type == "tool" else "software")
+                software.append(
+                    {
+                        "id": s_id,
+                        "name": s_name,
+                        "type": kind,
+                        "description": s_obj.get("description", ""),
+                    }
+                )
+        software.sort(key=lambda s: s.get("name", ""))
+        group["software"] = software
+        return group
+
+    def get_groups(self) -> List[GroupInfo]:
+        self._ensure_groups_loaded()
+        assert self._groups_cache is not None
+        return list(self._groups_cache.values())
+
+    def get_group_by_id(self, group_id: str) -> Optional[GroupInfo]:
+        self._ensure_groups_loaded()
+        assert self._groups_cache is not None
+        gid = group_id.strip().upper()
+        if gid in self._groups_cache:
+            return self._populate_group_details(gid)
+        return None
+
+    def find_group(self, name_or_alias: str) -> Optional[GroupInfo]:
+        self._ensure_groups_loaded()
+        assert self._alias_to_group_id is not None
+        clean = name_or_alias.strip().lower()
+        gid = self._alias_to_group_id.get(clean)
+        if gid:
+            return self.get_group_by_id(gid)
+        return None
+
     def is_stix(self) -> bool:
         return True
 
@@ -742,6 +1211,100 @@ def is_using_stix() -> bool:
     return _get_provider().is_stix()
 
 
+_EXCLUDED_ALIAS_WORDS = {
+    "team",
+    "group",
+    "threat",
+    "spider",
+    "bear",
+    "chollima",
+    "temp",
+    "iron",
+    "sand",
+    "gang",
+    "dukes",
+    "kitsune",
+    "storm",
+    "tempest",
+    "halo",
+    "noble",
+    "laser",
+    "kitten",
+    "typhoon",
+    "blizzard",
+    "sleet",
+    "cyber",
+}
+
+
+def get_groups() -> List[GroupInfo]:
+    """Get all known threat actor groups."""
+    return _get_provider().get_groups()
+
+
+def get_group(group_id: str) -> Optional[GroupInfo]:
+    """Look up a threat actor group by ATT&CK ID (e.g., 'G0016')."""
+    return _get_provider().get_group_by_id(group_id)
+
+
+def find_group(name_or_alias: str) -> Optional[GroupInfo]:
+    """Find a threat actor group by name or alias (case-insensitive)."""
+    return _get_provider().find_group(name_or_alias)
+
+
+def search_groups_in_text(text: str) -> List[GroupInfo]:
+    """Scan text for mentions of threat actor groups or their known aliases."""
+    if not text or not isinstance(text, str):
+        return []
+
+    provider = _get_provider()
+    groups = provider.get_groups()
+    if not groups:
+        return []
+
+    alias_to_id: Dict[str, str] = {}
+    for g in groups:
+        gid = g.get("id")
+        if not gid:
+            continue
+        name = g.get("name")
+        if name and len(name) >= 3 and name.lower() not in _EXCLUDED_ALIAS_WORDS:
+            alias_to_id[name.lower()] = gid
+        for a in g.get("aliases", []):
+            a_clean = a.strip()
+            if (
+                len(a_clean) >= 3
+                and a_clean.lower() not in _EXCLUDED_ALIAS_WORDS
+                and not (len(a_clean) <= 4 and a_clean.isupper() and a_clean in ("THE",))
+            ):
+                alias_to_id[a_clean.lower()] = gid
+
+    if not alias_to_id:
+        return []
+
+    sorted_aliases = sorted(alias_to_id.keys(), key=len, reverse=True)
+    pattern = re.compile(r"\b(" + "|".join(re.escape(a) for a in sorted_aliases) + r")\b", re.IGNORECASE)
+
+    matches = pattern.findall(text)
+    if not matches:
+        return []
+
+    matched_gids: List[str] = []
+    seen_gids: Set[str] = set()
+    for m in matches:
+        gid = alias_to_id.get(m.lower())
+        if gid and gid not in seen_gids:
+            seen_gids.add(gid)
+            matched_gids.append(gid)
+
+    results: List[GroupInfo] = []
+    for gid in matched_gids:
+        g_info = provider.get_group_by_id(gid)
+        if g_info:
+            results.append(g_info)
+    return results
+
+
 _MOBILE_ICS_CACHE: Optional[Tuple[Dict[str, List[str]], Dict[str, List[str]]]] = None
 
 
@@ -778,12 +1341,13 @@ def _load_mobile_ics_mappings() -> Tuple[Dict[str, List[str]], Dict[str, List[st
             for obj in bundle.get("objects", []):
                 if obj.get("type") == "attack-pattern" and not obj.get("revoked", False):
                     for ref in obj.get("external_references", []):
-                        if ref.get("source_name") in ("mitre-attack", "mitre-mobile-attack", "mitre-ics-attack") and "external_id" in ref:
+                        if (
+                            ref.get("source_name") in ("mitre-attack", "mitre-mobile-attack", "mitre-ics-attack")
+                            and "external_id" in ref
+                        ):
                             t_id = ref["external_id"]
                             tactics = [
-                                str(kc.get("phase_name"))
-                                for kc in obj.get("kill_chain_phases", [])
-                                if kc.get("phase_name")
+                                str(kc.get("phase_name")) for kc in obj.get("kill_chain_phases", []) if kc.get("phase_name")
                             ]
                             target_map[t_id] = tactics
                             break

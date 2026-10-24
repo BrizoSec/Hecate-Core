@@ -17,6 +17,7 @@ from hecate_agent.core.workspace import load_workspace_env
 
 load_workspace_env()
 
+
 def _setting(name: str, default: str = "") -> str:
     """Read a credential or endpoint from the environment (loaded from .env by the CLI).
 
@@ -28,6 +29,7 @@ def _setting(name: str, default: str = "") -> str:
 def _misp_verify_tls() -> bool:
     """Verify MISP's certificate unless MISP_VERIFY_SSL=false (e.g. a local self-signed instance)."""
     return _setting("MISP_VERIFY_SSL", "true").lower() != "false"
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +49,27 @@ def _get_apex_domain(domain: str) -> str:
     if len(parts) <= 2:
         return domain
     two_part_tlds = {
-        "co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "co.nz",
-        "co.jp", "com.kg", "org.kg", "net.kg", "com.cn", "net.cn", "org.cn",
-        "gov.cn", "com.br", "co.in", "com.tr", "co.za", "com.mx", "com.ar",
+        "co.uk",
+        "gov.uk",
+        "ac.uk",
+        "org.uk",
+        "com.au",
+        "net.au",
+        "co.nz",
+        "co.jp",
+        "com.kg",
+        "org.kg",
+        "net.kg",
+        "com.cn",
+        "net.cn",
+        "org.cn",
+        "gov.cn",
+        "com.br",
+        "co.in",
+        "com.tr",
+        "co.za",
+        "com.mx",
+        "com.ar",
     }
     last_two = f"{parts[-2]}.{parts[-1]}"
     if last_two in two_part_tlds and len(parts) > 2:
@@ -59,26 +79,84 @@ def _get_apex_domain(domain: str) -> str:
 
 _KNOWN_PUBLISHER_DOMAINS: Set[str] = {
     # Platform / code / vendor repositories and schemas
-    "github.com", "schemas.microsoft.com", "microsoft.com", "google.com",
-    "raw.githubusercontent.com", "api.github.com", "docs.microsoft.com",
-    "learn.microsoft.com", "localhost",
+    "github.com",
+    "schemas.microsoft.com",
+    "microsoft.com",
+    "google.com",
+    "raw.githubusercontent.com",
+    "api.github.com",
+    "docs.microsoft.com",
+    "learn.microsoft.com",
+    "localhost",
     # Intelligence providers, sandboxes, OSINT & scanners
-    "virustotal.com", "alienvault.com", "abuse.ch", "mitre.org", "attack.mitre.org",
-    "shodan.io", "censys.io", "greynoise.io", "abuseipdb.com", "threatfox.abuse.ch",
-    "urlhaus.abuse.ch", "malwarebazaar.abuse.ch", "feodotracker.abuse.ch",
-    "hybrid-analysis.com", "payload-security.com", "osv.dev", "api.osv.dev",
+    "virustotal.com",
+    "alienvault.com",
+    "abuse.ch",
+    "mitre.org",
+    "attack.mitre.org",
+    "shodan.io",
+    "censys.io",
+    "greynoise.io",
+    "abuseipdb.com",
+    "threatfox.abuse.ch",
+    "urlhaus.abuse.ch",
+    "malwarebazaar.abuse.ch",
+    "feodotracker.abuse.ch",
+    "hybrid-analysis.com",
+    "payload-security.com",
+    "osv.dev",
+    "api.osv.dev",
     # Major cybersecurity vendors and threat research publishers
-    "blackpointcyber.com", "mandiant.com", "crowdstrike.com", "paloaltonetworks.com",
-    "sentinelone.com", "bleepingcomputer.com", "thehackernews.com", "recordedfuture.com",
-    "redcanary.com", "trendmicro.com", "trellix.com", "kaspersky.com", "securelist.com",
-    "talosintelligence.com", "cisco.com", "proofpoint.com", "symantec.com", "broadcom.com",
-    "sophos.com", "fireeye.com", "elastic.co", "rapid7.com", "cybereason.com", "dragos.com",
-    "welivesecurity.com", "eset.com", "darkreading.com", "securityweek.com",
-    "krebsonsecurity.com", "cisa.gov", "ncsc.gov.uk", "cert.europa.eu", "circl.lu",
-    "socradar.io", "volexity.com", "huntress.com", "group-ib.com", "fortinet.com",
-    "checkpoint.com", "blackberry.com", "qualys.com", "tenable.com", "snyk.io", "github.blog",
+    "blackpointcyber.com",
+    "mandiant.com",
+    "crowdstrike.com",
+    "paloaltonetworks.com",
+    "sentinelone.com",
+    "bleepingcomputer.com",
+    "thehackernews.com",
+    "recordedfuture.com",
+    "redcanary.com",
+    "trendmicro.com",
+    "trellix.com",
+    "kaspersky.com",
+    "securelist.com",
+    "talosintelligence.com",
+    "cisco.com",
+    "proofpoint.com",
+    "symantec.com",
+    "broadcom.com",
+    "sophos.com",
+    "fireeye.com",
+    "elastic.co",
+    "rapid7.com",
+    "cybereason.com",
+    "dragos.com",
+    "welivesecurity.com",
+    "eset.com",
+    "darkreading.com",
+    "securityweek.com",
+    "krebsonsecurity.com",
+    "cisa.gov",
+    "ncsc.gov.uk",
+    "cert.europa.eu",
+    "circl.lu",
+    "socradar.io",
+    "volexity.com",
+    "huntress.com",
+    "group-ib.com",
+    "fortinet.com",
+    "checkpoint.com",
+    "blackberry.com",
+    "qualys.com",
+    "tenable.com",
+    "snyk.io",
+    "github.blog",
     # Vulnerability databases a report cites for the CVE it covers
-    "nvd.nist.gov", "cve.org", "cve.mitre.org", "cvedetails.com", "first.org",
+    "nvd.nist.gov",
+    "cve.org",
+    "cve.mitre.org",
+    "cvedetails.com",
+    "first.org",
 }
 
 
@@ -88,38 +166,158 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
         return {"ips": [], "hashes": [], "domains": [], "cves": []}
     clean_text = refang(text)
     tlds_list = [
-        r"co\.uk", r"gov\.uk", r"ac\.uk", r"org\.uk", r"com\.au", r"net\.au",
-        r"co\.nz", r"co\.jp", r"com\.kg", r"org\.kg", r"net\.kg", r"com\.cn",
-        r"net\.cn", r"org\.cn", r"gov\.cn", r"com\.br", r"co\.in", r"com\.tr",
-        r"co\.za", r"com\.mx", r"com\.ar",
-        r"com", r"org", r"net", r"edu", r"gov", r"mil", r"info", r"biz",
-        r"shop", r"top", r"xyz", r"site", r"online", r"club", r"vip", r"live",
-        r"app", r"dev", r"pro", r"win", r"work", r"cloud", r"space", r"link", r"one",
-        r"click", r"tech", r"store", r"news", r"blog", r"icu", r"fun", r"digital",
-        r"security", r"agency", r"center",
-        r"io", r"ai", r"me", r"cc", r"tv", r"to", r"is", r"pw", r"ws",
-        r"uk", r"de", r"cn", r"ru", r"jp", r"kr", r"in", r"br", r"ca", r"au",
-        r"fr", r"nl", r"se", r"no", r"fi", r"es", r"it", r"pl", r"ch", r"at",
-        r"be", r"cz", r"ro", r"ua", r"za", r"mx", r"ar", r"cl", r"co", r"id",
-        r"my", r"th", r"vn", r"ph", r"sg", r"nz", r"kg"
+        r"co\.uk",
+        r"gov\.uk",
+        r"ac\.uk",
+        r"org\.uk",
+        r"com\.au",
+        r"net\.au",
+        r"co\.nz",
+        r"co\.jp",
+        r"com\.kg",
+        r"org\.kg",
+        r"net\.kg",
+        r"com\.cn",
+        r"net\.cn",
+        r"org\.cn",
+        r"gov\.cn",
+        r"com\.br",
+        r"co\.in",
+        r"com\.tr",
+        r"co\.za",
+        r"com\.mx",
+        r"com\.ar",
+        r"com",
+        r"org",
+        r"net",
+        r"edu",
+        r"gov",
+        r"mil",
+        r"info",
+        r"biz",
+        r"shop",
+        r"top",
+        r"xyz",
+        r"site",
+        r"online",
+        r"club",
+        r"vip",
+        r"live",
+        r"app",
+        r"dev",
+        r"pro",
+        r"win",
+        r"work",
+        r"cloud",
+        r"space",
+        r"link",
+        r"one",
+        r"click",
+        r"tech",
+        r"store",
+        r"news",
+        r"blog",
+        r"icu",
+        r"fun",
+        r"digital",
+        r"security",
+        r"agency",
+        r"center",
+        r"io",
+        r"ai",
+        r"me",
+        r"cc",
+        r"tv",
+        r"to",
+        r"is",
+        r"pw",
+        r"ws",
+        r"uk",
+        r"de",
+        r"cn",
+        r"ru",
+        r"jp",
+        r"kr",
+        r"in",
+        r"br",
+        r"ca",
+        r"au",
+        r"fr",
+        r"nl",
+        r"se",
+        r"no",
+        r"fi",
+        r"es",
+        r"it",
+        r"pl",
+        r"ch",
+        r"at",
+        r"be",
+        r"cz",
+        r"ro",
+        r"ua",
+        r"za",
+        r"mx",
+        r"ar",
+        r"cl",
+        r"co",
+        r"id",
+        r"my",
+        r"th",
+        r"vn",
+        r"ph",
+        r"sg",
+        r"nz",
+        r"kg",
     ]
     tlds = "|".join(tlds_list)
-    domain_re = rf'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{{0,61}}[a-zA-Z0-9])?\.)+(?:{tlds})\b(?!\.[a-zA-Z0-9])'
+    domain_re = rf"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{{0,61}}[a-zA-Z0-9])?\.)+(?:{tlds})\b(?!\.[a-zA-Z0-9])"
     indicators = {
-        "ips": list(set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', clean_text))),
-        "hashes": list(set(re.findall(r'\b[a-fA-F0-9]{32,64}\b', clean_text))),
+        "ips": list(set(re.findall(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", clean_text))),
+        "hashes": list(set(re.findall(r"\b[a-fA-F0-9]{32,64}\b", clean_text))),
         "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE))),
-        "cves": list(dict.fromkeys(cve.upper() for cve in re.findall(r'\b(?:CVE-\d{4}-\d{4,7}|GHSA-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4})\b', clean_text, re.IGNORECASE))),
+        "cves": list(
+            dict.fromkeys(
+                cve.upper()
+                for cve in re.findall(
+                    r"\b(?:CVE-\d{4}-\d{4,7}|GHSA-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4}-[2-9a-kmnp-z]{4})\b",
+                    clean_text,
+                    re.IGNORECASE,
+                )
+            )
+        ),
     }
     # Filter out common false positives and private IPs. A dotted version
     # number has an address's shape: H-0830's NetScaler build "13.1.37.283".
     indicators["ips"] = [
-        ip for ip in indicators["ips"]
-        if is_valid_ipv4(ip) and not ip.startswith((
-            "127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
-            "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
-            "172.28.", "172.29.", "172.30.", "172.31.", "0.0.0.0", "255.255.255.255"
-        ))
+        ip
+        for ip in indicators["ips"]
+        if is_valid_ipv4(ip)
+        and not ip.startswith(
+            (
+                "127.",
+                "10.",
+                "192.168.",
+                "172.16.",
+                "172.17.",
+                "172.18.",
+                "172.19.",
+                "172.20.",
+                "172.21.",
+                "172.22.",
+                "172.23.",
+                "172.24.",
+                "172.25.",
+                "172.26.",
+                "172.27.",
+                "172.28.",
+                "172.29.",
+                "172.30.",
+                "172.31.",
+                "0.0.0.0",
+                "255.255.255.255",
+            )
+        )
     ]
 
     # Dynamically extract domains cited in reference/source/citation URLs
@@ -163,7 +361,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     link_targets = list(re.finditer(r"\]\((https?://[^\s)]+)\)", clean_text))
     unlinked_text = clean_text
     for link in reversed(link_targets):
-        unlinked_text = unlinked_text[: link.start(1)] + unlinked_text[link.end(1):]
+        unlinked_text = unlinked_text[: link.start(1)] + unlinked_text[link.end(1) :]
     for link in link_targets:
         m_host = re.match(r"https?://([^/:\s)]+)", link.group(1), re.IGNORECASE)
         if m_host and m_host.group(1).lower() not in unlinked_text.lower():
@@ -180,10 +378,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
             return True
         return False
 
-    indicators["domains"] = [
-        d.lower() for d in indicators["domains"]
-        if not _is_benign_or_publisher(d)
-    ]
+    indicators["domains"] = [d.lower() for d in indicators["domains"] if not _is_benign_or_publisher(d)]
 
     raw_urls = re.findall(r'https?://[^\s<>"\'\)\]`]+', clean_text)
     filtered_urls = []
@@ -200,6 +395,7 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
 
     indicators["urls"] = list(dict.fromkeys(filtered_urls))
     return indicators
+
 
 def query_vt_hash(file_hash: str) -> str:
     api_key = _setting("VT_API_KEY")
@@ -219,6 +415,7 @@ def query_vt_hash(file_hash: str) -> str:
     except Exception as e:
         return f"Error querying VT: {e}"
 
+
 def query_vt_ip(ip: str) -> str:
     url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
     headers = {"x-apikey": _setting("VT_API_KEY")}
@@ -233,6 +430,7 @@ def query_vt_ip(ip: str) -> str:
         return "Not found or error."
     except Exception as e:
         return f"Error querying VT: {e}"
+
 
 def query_vt_domain(domain: str) -> str:
     url = f"https://www.virustotal.com/api/v3/domains/{domain}"
@@ -252,7 +450,6 @@ def query_vt_domain(domain: str) -> str:
         return f"HTTP {resp.status_code}"
     except Exception as e:
         return f"Error querying VT: {e}"
-
 
 
 def _format_rdap_date(date_str: str) -> str:
@@ -381,8 +578,6 @@ def query_greynoise_ip(ip: str) -> str:
         return f"Error querying GreyNoise: {e}"
 
 
-
-
 def query_shodan_ip(ip: str) -> str:
     url = f"https://api.shodan.io/shodan/host/{ip}?key={_setting('SHODAN_API_KEY')}"
     try:
@@ -393,7 +588,7 @@ def query_shodan_ip(ip: str) -> str:
             os_name = data.get("os", "Unknown OS")
             ports = data.get("ports", [])
             vulns = data.get("vulns", [])
-            
+
             summary = f"Org: {org} | OS: {os_name} | Open Ports: {ports}"
             if vulns:
                 summary += f" | Vulns: {', '.join(vulns[:5])}"
@@ -406,18 +601,10 @@ def query_shodan_ip(ip: str) -> str:
         return f"Error querying Shodan: {e}"
 
 
-
 def query_misp_indicator(indicator: str) -> str:
     url = f"{_setting('MISP_BASE_URL', 'https://localhost:8443')}/attributes/restSearch"
-    headers = {
-        "Authorization": _setting("MISP_API_KEY"),
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "value": indicator,
-        "limit": 5
-    }
+    headers = {"Authorization": _setting("MISP_API_KEY"), "Accept": "application/json", "Content-Type": "application/json"}
+    data = {"value": indicator, "limit": 5}
     try:
         resp = httpx.post(url, headers=headers, json=data, verify=_misp_verify_tls(), timeout=10.0)
         if resp.status_code == 200:
@@ -432,33 +619,34 @@ def query_misp_indicator(indicator: str) -> str:
 
 def expand_ttps(threat_intel: str) -> str:
     from hecate_agent.core.attack_matrix import _get_provider
+
     provider = _get_provider()
-    
+
     try:
         if hasattr(provider, "_ensure_loaded"):
             provider._ensure_loaded()
-            
+
         attack_data = getattr(provider, "_attack_data", None)
         if not attack_data:
             return ""
-            
+
         software_list = attack_data.get_software(remove_revoked_deprecated=True)
-        
+
         # Build a fast lookup of lowercase software names to their STIX objects
         software_map = {s.get("name", "").lower(): s for s in software_list if s.get("name")}
-        
+
         found_software = []
         for soft_name, soft_obj in software_map.items():
             if len(soft_name) > 3 and soft_name in threat_intel.lower():
                 found_software.append(soft_obj)
-                
+
         if not found_software:
             return ""
-            
+
         summary = ["\n### 🗺️ Automated TTP Expansion (MITRE ATT&CK STIX)"]
         for s in found_software[:3]:  # Limit to 3 to avoid massive context bloat
             techs = attack_data.get_techniques_used_by_software(s["id"])
-            
+
             # Get external ATT&CK IDs
             tech_ids = []
             for t in techs:
@@ -468,10 +656,12 @@ def expand_ttps(threat_intel: str) -> str:
                         if ref.get("source_name") == "mitre-attack":
                             tech_ids.append(ref["external_id"])
                             break
-                            
+
             if tech_ids:
-                summary.append(f"- **{s.get('name')}**: Commonly uses {len(tech_ids)} techniques (e.g., {', '.join(tech_ids[:5])})")
-                
+                summary.append(
+                    f"- **{s.get('name')}**: Commonly uses {len(tech_ids)} techniques (e.g., {', '.join(tech_ids[:5])})"
+                )
+
         if len(summary) > 1:
             return "\n".join(summary)
         return ""
@@ -480,12 +670,11 @@ def expand_ttps(threat_intel: str) -> str:
         return ""
 
 
-
 def query_censys_ip(ip: str) -> str:
     url = f"https://api.platform.censys.io/v3/global/asset/host/{ip}"
     headers = {
         "Accept": "application/vnd.censys.api.v3.host.v1+json",
-        "Authorization": f"Bearer {_setting('CENSYS_API_TOKEN')}"
+        "Authorization": f"Bearer {_setting('CENSYS_API_TOKEN')}",
     }
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
@@ -494,7 +683,7 @@ def query_censys_ip(ip: str) -> str:
             data = result.get("resource", result)
             services = data.get("services", [])
             ports = [str(s.get("port")) for s in services if s.get("port")]
-            
+
             # Extract software
             software_list = []
             for s in services:
@@ -503,7 +692,7 @@ def query_censys_ip(ip: str) -> str:
                         product = sw.get("product")
                         if product and product not in software_list:
                             software_list.append(product)
-                            
+
             summary = f"Open Ports: {ports}"
             if software_list:
                 summary += f" | Software: {', '.join(software_list[:5])}"
@@ -516,7 +705,6 @@ def query_censys_ip(ip: str) -> str:
             return f"Censys API error: {resp.status_code}"
     except Exception as e:
         return f"Error querying Censys: {e}"
-
 
 
 def query_abuseipdb_ip(ip: str) -> str:
@@ -684,14 +872,8 @@ def query_spur_ip(ip: str) -> str:
 
 def query_threatfox(indicator: str) -> str:
     url = "https://threatfox-api.abuse.ch/api/v1/"
-    headers = {
-        "Auth-Key": _setting("ABUSECH_API_KEY"),
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "query": "search_ioc",
-        "search_term": indicator
-    }
+    headers = {"Auth-Key": _setting("ABUSECH_API_KEY"), "Content-Type": "application/json"}
+    payload = {"query": "search_ioc", "search_term": indicator}
     try:
         resp = httpx.post(url, headers=headers, json=payload, timeout=10.0)
         if resp.status_code == 200:
@@ -702,7 +884,7 @@ def query_threatfox(indicator: str) -> str:
                 threat_type = hits[0].get("threat_type", "Unknown")
                 malware = hits[0].get("malware_printable", "Unknown Malware")
                 tags = hits[0].get("tags", [])
-                
+
                 summary = f"Type: {threat_type} | Malware: {malware}"
                 if tags:
                     summary += f" | Tags: {', '.join(tags[:3])}"
@@ -736,8 +918,7 @@ def query_malwarebazaar(file_hash: str) -> str:
                 delivery = item.get("delivery_method")
                 raw_yara = item.get("yara_rules") or []
                 yara_rules: List[str] = [
-                    str(y.get("rule_name")) for y in raw_yara
-                    if isinstance(y, dict) and y.get("rule_name")
+                    str(y.get("rule_name")) for y in raw_yara if isinstance(y, dict) and y.get("rule_name")
                 ]
                 tags: List[str] = [str(t) for t in (item.get("tags") or []) if t]
 
@@ -775,9 +956,7 @@ def _get_feodo_ip_map() -> Dict[str, Dict[str, Any]]:
         if resp.status_code == 200:
             entries = resp.json()
             ip_map: Dict[str, Dict[str, Any]] = {
-                str(item["ip_address"]): item
-                for item in entries
-                if isinstance(item, dict) and item.get("ip_address")
+                str(item["ip_address"]): item for item in entries if isinstance(item, dict) and item.get("ip_address")
             }
             _FEODO_CACHE["data"] = ip_map
             _FEODO_CACHE["ts"] = now
@@ -879,11 +1058,7 @@ def _get_tor_exit_nodes() -> Set[str]:
         url = "https://check.torproject.org/torbulkexitlist"
         resp = httpx.get(url, timeout=5.0)
         if resp.status_code == 200:
-            exit_ips: Set[str] = {
-                line.strip()
-                for line in resp.text.splitlines()
-                if line.strip() and not line.startswith("#")
-            }
+            exit_ips: Set[str] = {line.strip() for line in resp.text.splitlines() if line.strip() and not line.startswith("#")}
             if exit_ips:
                 _TOR_EXIT_CACHE["data"] = exit_ips
                 _TOR_EXIT_CACHE["ts"] = now
@@ -1043,7 +1218,12 @@ def query_anonymity_proxy_ip(ip: str) -> str:
         items.append("Tor Exit Node (Active)")
         sources.add("Tor Project")
 
-    if ipinfo_str and not ipinfo_str.startswith("Error") and not ipinfo_str.startswith("IPinfo HTTP") and not ipinfo_str.startswith("Private"):
+    if (
+        ipinfo_str
+        and not ipinfo_str.startswith("Error")
+        and not ipinfo_str.startswith("IPinfo HTTP")
+        and not ipinfo_str.startswith("Private")
+    ):
         items.append(ipinfo_str)
         sources.add("IPinfo")
 
@@ -1176,7 +1356,7 @@ def extract_web_lure_payloads(text: str) -> List[Dict[str, str]]:
         re.IGNORECASE | re.DOTALL,
     )
     for dm in direct_matches:
-        raw = dm.group(2).replace(r'\"', '"').replace(r"\'", "'").strip()
+        raw = dm.group(2).replace(r"\"", '"').replace(r"\'", "'").strip()
         if raw and len(raw) >= 4:
             results.append({"command": raw, "source": "clipboard_writeText", "lure": "direct_clipboard_injection"})
 
@@ -1195,9 +1375,11 @@ def extract_web_lure_payloads(text: str) -> List[Dict[str, str]]:
                 re.IGNORECASE | re.DOTALL,
             )
             if var_def:
-                raw = var_def.group(2).replace(r'\"', '"').replace(r"\'", "'").strip()
+                raw = var_def.group(2).replace(r"\"", '"').replace(r"\'", "'").strip()
                 if raw and len(raw) >= 4 and not any(r["command"] == raw for r in results):
-                    results.append({"command": raw, "source": f"clipboard_var({var_name})", "lure": "variable_clipboard_injection"})
+                    results.append(
+                        {"command": raw, "source": f"clipboard_var({var_name})", "lure": "variable_clipboard_injection"}
+                    )
 
     # 3. Fake CAPTCHA / Human verification prompt
     has_captcha_prompt = bool(
@@ -1210,8 +1392,20 @@ def extract_web_lure_payloads(text: str) -> List[Dict[str, str]]:
 
     # 4. Known command execution patterns in scripts
     cmd_patterns = [
-        ("powershell", re.compile(r"""(?:powershell(?:\.exe)?|pwsh)\s+(?:-[a-zA-Z0-9_\-]+\s+)*(?:-[eE](?:nc(?:odedcommand)?)?|iex|invoke-expression)\s+["'`]?([^"'`\n;]+)""", re.IGNORECASE)),
-        ("bash", re.compile(r"""(?:curl|wget)\s+-[sSfLkA-Za-z0-9\-_./:=?&]+\s+https?://[^\s;&"'`]+(?:\s*\|\s*(?:ba)?sh\b)?""", re.IGNORECASE)),
+        (
+            "powershell",
+            re.compile(
+                r"""(?:powershell(?:\.exe)?|pwsh)\s+(?:-[a-zA-Z0-9_\-]+\s+)*(?:-[eE](?:nc(?:odedcommand)?)?|iex|invoke-expression)\s+["'`]?([^"'`\n;]+)""",
+                re.IGNORECASE,
+            ),
+        ),
+        (
+            "bash",
+            re.compile(
+                r"""(?:curl|wget)\s+-[sSfLkA-Za-z0-9\-_./:=?&]+\s+https?://[^\s;&"'`]+(?:\s*\|\s*(?:ba)?sh\b)?""",
+                re.IGNORECASE,
+            ),
+        ),
         ("mshta", re.compile(r"""mshta(?:\.exe)?\s+https?://[^\s;&"'`]+""", re.IGNORECASE)),
         ("osascript", re.compile(r"""osascript\s+-e\s+["']([^"']+)["']""", re.IGNORECASE)),
     ]
@@ -1219,11 +1413,13 @@ def extract_web_lure_payloads(text: str) -> List[Dict[str, str]]:
         for match in pat.finditer(text):
             cmd = match.group(0).strip().rstrip("\\")
             if len(cmd) >= 8 and not any(r["command"] == cmd for r in results):
-                results.append({
-                    "command": cmd,
-                    "source": ctype,
-                    "lure": "fake_captcha_lure" if has_captcha_prompt else "embedded_script",
-                })
+                results.append(
+                    {
+                        "command": cmd,
+                        "source": ctype,
+                        "lure": "fake_captcha_lure" if has_captcha_prompt else "embedded_script",
+                    }
+                )
 
     return results
 
@@ -1487,9 +1683,26 @@ def extract_http_transactions(scan_result: Dict[str, Any]) -> List[Dict[str, Any
 
     transactions: List[Dict[str, Any]] = []
     payload_extensions = (
-        ".exe", ".dll", ".dmg", ".pkg", ".iso", ".zip", ".rar", ".7z",
-        ".tar.gz", ".ps1", ".bat", ".cmd", ".sh", ".vbs", ".js", ".msi",
-        ".scr", ".bin", ".app", ".apk",
+        ".exe",
+        ".dll",
+        ".dmg",
+        ".pkg",
+        ".iso",
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar.gz",
+        ".ps1",
+        ".bat",
+        ".cmd",
+        ".sh",
+        ".vbs",
+        ".js",
+        ".msi",
+        ".scr",
+        ".bin",
+        ".app",
+        ".apk",
     )
     payload_mime_types = (
         "application/octet-stream",
@@ -1533,10 +1746,7 @@ def extract_http_transactions(scan_result: Dict[str, Any]) -> List[Dict[str, Any
         resp_headers = resp_info.get("headers") or {}
         status = resp_info.get("status")
         mime_type = str(
-            resp_info.get("mimeType")
-            or resp_headers.get("content-type")
-            or resp_headers.get("Content-Type")
-            or ""
+            resp_info.get("mimeType") or resp_headers.get("content-type") or resp_headers.get("Content-Type") or ""
         )
         remote_ip = str(resp_info.get("remoteIPAddress") or item.get("ip") or "").strip()
         remote_port = resp_info.get("remotePort")
@@ -1555,18 +1765,20 @@ def extract_http_transactions(scan_result: Dict[str, Any]) -> List[Dict[str, Any
         elif any(pm in mime_type.lower() for pm in payload_mime_types):
             is_payload = True
 
-        transactions.append({
-            "url": req_url,
-            "method": method,
-            "host": host,
-            "path": path,
-            "status": status,
-            "mime_type": mime_type,
-            "remote_ip": remote_ip,
-            "remote_port": int(remote_port) if remote_port else 80,
-            "headers": {"request": req_headers, "response": resp_headers},
-            "is_payload": is_payload,
-        })
+        transactions.append(
+            {
+                "url": req_url,
+                "method": method,
+                "host": host,
+                "path": path,
+                "status": status,
+                "mime_type": mime_type,
+                "remote_ip": remote_ip,
+                "remote_port": int(remote_port) if remote_port else 80,
+                "headers": {"request": req_headers, "response": resp_headers},
+                "is_payload": is_payload,
+            }
+        )
 
     return transactions
 
@@ -1595,13 +1807,14 @@ def generate_transaction_sigma_rules(
         if hosts:
             proxy_selection["cs-host"] = hosts if len(hosts) > 1 else hosts[0]
         if paths:
-            payload_exts = sorted({
-                f".{p.split('.')[-1].lower()}"
-                for p in paths
-                if "." in p and p.split(".")[-1].lower() in (
-                    "exe", "dll", "dmg", "pkg", "zip", "iso", "ps1", "sh", "bat", "vbs", "js"
-                )
-            })
+            payload_exts = sorted(
+                {
+                    f".{p.split('.')[-1].lower()}"
+                    for p in paths
+                    if "." in p
+                    and p.split(".")[-1].lower() in ("exe", "dll", "dmg", "pkg", "zip", "iso", "ps1", "sh", "bat", "vbs", "js")
+                }
+            )
             if payload_exts:
                 proxy_selection["c-uri-stem|endswith"] = payload_exts if len(payload_exts) > 1 else payload_exts[0]
             else:
@@ -1633,10 +1846,13 @@ def generate_transaction_sigma_rules(
             rules.append(proxy_doc)
 
     # 2. Network Connection Rule
-    ips = sorted({
-        tx["remote_ip"] for tx in target_txs
-        if tx.get("remote_ip") and not tx["remote_ip"].startswith(("127.", "10.", "192.168.", "172.16.", "0.0.0.0"))
-    })
+    ips = sorted(
+        {
+            tx["remote_ip"]
+            for tx in target_txs
+            if tx.get("remote_ip") and not tx["remote_ip"].startswith(("127.", "10.", "192.168.", "172.16.", "0.0.0.0"))
+        }
+    )
     ports = sorted({tx["remote_port"] for tx in target_txs if tx.get("remote_port")})
 
     if ips:
@@ -1676,9 +1892,20 @@ _CRTSH_CACHE: Dict[str, Tuple[float, str, List[str]]] = {}
 _CRTSH_CACHE_TTL: float = 86400.0  # 24-hour cache TTL
 
 _SHARED_HOSTING_SUFFIXES: Set[str] = {
-    "pages.dev", "github.io", "gitlab.io", "workers.dev", "herokuapp.com",
-    "azurewebsites.net", "s3.amazonaws.com", "cloudfront.net", "ngrok-free.app",
-    "trycloudflare.com", "duckdns.org", "no-ip.com", "ddns.net", "firebaseapp.com",
+    "pages.dev",
+    "github.io",
+    "gitlab.io",
+    "workers.dev",
+    "herokuapp.com",
+    "azurewebsites.net",
+    "s3.amazonaws.com",
+    "cloudfront.net",
+    "ngrok-free.app",
+    "trycloudflare.com",
+    "duckdns.org",
+    "no-ip.com",
+    "ddns.net",
+    "firebaseapp.com",
 }
 
 
@@ -1895,10 +2122,7 @@ def query_epss(cve: str) -> str:
                 else:
                     severity = "MODERATE/LOW EXPLOIT PROBABILITY"
                 date_str = f" · Date: {date_val}" if date_val else ""
-                return (
-                    f"EPSS: {epss_pct:.2f}% ({severity}) · "
-                    f"{perc_pct:.1f}th percentile{date_str}"
-                )
+                return f"EPSS: {epss_pct:.2f}% ({severity}) · {perc_pct:.1f}th percentile{date_str}"
             return f"No EPSS score published for {clean_cve}."
         return f"EPSS API HTTP {resp.status_code}"
     except Exception as e:
@@ -1935,10 +2159,7 @@ def query_epss_batch(cves: List[str]) -> Dict[str, str]:
                 else:
                     severity = "MODERATE/LOW EXPLOIT PROBABILITY"
                 date_str = f" · Date: {date_val}" if date_val else ""
-                results[cve_id] = (
-                    f"EPSS: {epss_pct:.2f}% ({severity}) · "
-                    f"{perc_pct:.1f}th percentile{date_str}"
-                )
+                results[cve_id] = f"EPSS: {epss_pct:.2f}% ({severity}) · {perc_pct:.1f}th percentile{date_str}"
         for c in chunk:
             if c not in results:
                 results[c] = f"No EPSS score published for {c}."
@@ -1991,7 +2212,7 @@ def query_osv_vuln(vuln_id: str) -> str:
             if packages:
                 pkg_str = ", ".join(packages[:3])
                 if len(packages) > 3:
-                    pkg_str += f" (+{len(packages)-3} more)"
+                    pkg_str += f" (+{len(packages) - 3} more)"
                 parts.append(f"Affected: {pkg_str}")
             if aliases:
                 parts.append(f"Aliases: {', '.join(aliases[:3])}")
@@ -2051,11 +2272,7 @@ def query_otx_indicator(indicator_type: str, indicator: str) -> str:
                     if adv_clean and adv_clean.lower() != "unknown" and adv_clean not in adversaries:
                         adversaries.append(adv_clean)
 
-            titles: List[str] = [
-                str(p.get("name")).strip()
-                for p in pulses
-                if p.get("name") and str(p.get("name")).strip()
-            ]
+            titles: List[str] = [str(p.get("name")).strip() for p in pulses if p.get("name") and str(p.get("name")).strip()]
 
             tags: List[str] = []
             for p in pulses:
@@ -2352,11 +2569,7 @@ def query_passive_dns_domain(domain: str, max_results: int = 8) -> str:
 
 def query_hybrid_analysis(file_hash: str) -> str:
     """Query Hybrid Analysis (CrowdStrike Falcon Sandbox) API v2 for hash detonation results, threat score, and MITRE techniques."""
-    key = (
-        _setting("HYBRID_ANALYSIS_API_KEY")
-        or _setting("HA_API_KEY")
-        or _setting("FALCON_SANDBOX_API_KEY")
-    )
+    key = _setting("HYBRID_ANALYSIS_API_KEY") or _setting("HA_API_KEY") or _setting("FALCON_SANDBOX_API_KEY")
     if not key:
         return "HYBRID_ANALYSIS_API_KEY not configured."
 
@@ -2439,13 +2652,123 @@ def query_hybrid_analysis(file_hash: str) -> str:
         return f"Error querying Hybrid Analysis: {e}"
 
 
+def query_triage_hash(file_hash: str) -> str:
+    """Query Hatching Triage (tria.ge) sandbox API for sample detonation overview and extracted config."""
+    key = _setting("TRIAGE_API_KEY") or _setting("HATCHING_TRIAGE_KEY") or _setting("TRIA_GE_API_KEY")
+    if not key:
+        return "TRIAGE_API_KEY not configured."
+
+    clean_hash = file_hash.strip().lower()
+    if not re.match(r"^[a-f0-9]{32,64}$", clean_hash):
+        return f"Invalid hash format '{file_hash}'."
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "User-Agent": "Hecate-Agent/1.0",
+    }
+
+    try:
+        search_url = f"https://api.tria.ge/v0/search?query={clean_hash}"
+        resp = httpx.get(search_url, headers=headers, timeout=5.0)
+        if resp.status_code == 404:
+            return "No records on tria.ge."
+        elif resp.status_code in (401, 403):
+            return "tria.ge Auth Error (check TRIAGE_API_KEY)."
+        elif resp.status_code == 429:
+            return "tria.ge rate limit exceeded."
+        elif resp.status_code != 200:
+            return f"tria.ge error: HTTP {resp.status_code}"
+
+        search_data = resp.json()
+        samples = search_data.get("data") or []
+        if not samples:
+            return "No records on tria.ge."
+
+        sample_id = samples[0].get("id")
+        if not sample_id:
+            return "Sample found on tria.ge without ID."
+
+        overview_url = f"https://api.tria.ge/v0/samples/{sample_id}/overview.json"
+        ov_resp = httpx.get(overview_url, headers=headers, timeout=5.0)
+        if ov_resp.status_code != 200:
+            return f"tria.ge sample {sample_id} status HTTP {ov_resp.status_code}"
+
+        ov_data = ov_resp.json()
+        analysis = ov_data.get("analysis") or {}
+        sample_info = ov_data.get("sample") or {}
+
+        score = analysis.get("score")
+        if score is None:
+            score = sample_info.get("score")
+
+        families_raw = analysis.get("family") or []
+        families = [families_raw] if isinstance(families_raw, str) else list(families_raw)
+        tags_raw = analysis.get("tags") or []
+        tags = [tags_raw] if isinstance(tags_raw, str) else list(tags_raw)
+
+        extracted = ov_data.get("extracted") or []
+        c2_list: List[str] = []
+        botnets: List[str] = []
+        mutexes: List[str] = []
+        cfg_families: List[str] = []
+
+        for item in extracted:
+            if not isinstance(item, dict):
+                continue
+            cfg = item.get("config")
+            if not isinstance(cfg, dict):
+                continue
+
+            f_name = cfg.get("family")
+            if f_name and str(f_name) not in cfg_families:
+                cfg_families.append(str(f_name))
+
+            c2_raw = cfg.get("c2") or cfg.get("c2_urls") or cfg.get("urls") or []
+            if isinstance(c2_raw, str):
+                c2_raw = [c2_raw]
+            for c in c2_raw:
+                c_str = str(c).strip()
+                if c_str and c_str not in c2_list:
+                    c2_list.append(c_str)
+
+            bot_id = cfg.get("botnet") or cfg.get("bot_id") or cfg.get("campaign")
+            if bot_id and str(bot_id) not in botnets:
+                botnets.append(str(bot_id))
+
+            mutex = cfg.get("mutex")
+            if mutex and str(mutex) not in mutexes:
+                mutexes.append(str(mutex))
+
+        parts = []
+        all_families = list(dict.fromkeys(families + cfg_families))
+        if all_families:
+            parts.append(f"Family: {', '.join(all_families)}")
+        if score is not None:
+            parts.append(f"Score: {score}/10")
+        if c2_list:
+            parts.append(f"Extracted C2: {', '.join(c2_list[:3])}")
+        if botnets:
+            parts.append(f"Botnet: {', '.join(botnets[:2])}")
+        if mutexes:
+            parts.append(f"Mutex: {', '.join(mutexes[:2])}")
+        if tags:
+            parts.append(f"Tags: {', '.join(tags[:4])}")
+
+        return " | ".join(parts) if parts else "Sample analyzed on tria.ge."
+    except Exception as e:
+        return f"Error querying tria.ge: {e}"
+
+
 def generate_enrichment_summary(threat_intel: str) -> str:
     """Extracts indicators and queries OSINT platforms, returning a markdown summary."""
     indicators = extract_indicators(threat_intel)
     if not any(indicators.values()):
         return ""
 
-    summary = ["\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"]
+    summary = [
+        "\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Hatching Triage, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"
+    ]
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -2453,6 +2776,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         res = query_vt_hash(h)
         otx_res = query_otx_hash(h)
         ha_res = query_hybrid_analysis(h)
+        triage_res = query_triage_hash(h)
         mb_res = query_malwarebazaar(h)
         sslbl_res = query_sslbl_fingerprint(h)
         urlhaus_res = query_urlhaus_payload(h)
@@ -2463,6 +2787,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             f"  - *VirusTotal:* {res}\n"
             f"  - *AlienVault OTX:* {otx_res}\n"
             f"  - *Hybrid Analysis (Falcon Sandbox):* {ha_res}\n"
+            f"  - *Hatching Triage (tria.ge Sandbox):* {triage_res}\n"
             f"  - *Abuse.ch (MalwareBazaar):* {mb_res}"
         ]
         if len(h) in (32, 40):
@@ -2499,13 +2824,15 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             lines.append(f"  - *Spur.us (Proxy & Infrastructure):* {spur_res}")
         if not pdns_res.startswith("No passive DNS records found"):
             lines.append(f"  - *Passive DNS (Historical Correlated Hostnames):* {pdns_res}")
-        lines.extend([
-            f"  - *GreyNoise:* {gn_res}",
-            f"  - *Shodan:* {shodan_res}",
-            f"  - *Censys:* {censys_res}",
-            f"  - *Abuse.ch (ThreatFox):* {threatfox_res}",
-            f"  - *Internal MISP:* {misp_res}"
-        ])
+        lines.extend(
+            [
+                f"  - *GreyNoise:* {gn_res}",
+                f"  - *Shodan:* {shodan_res}",
+                f"  - *Censys:* {censys_res}",
+                f"  - *Abuse.ch (ThreatFox):* {threatfox_res}",
+                f"  - *Internal MISP:* {misp_res}",
+            ]
+        )
         return "\n".join(lines)
 
     def process_domain(d: str) -> str:

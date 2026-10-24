@@ -29,6 +29,7 @@ class ResearchContext:
     system_research_summary: str
     adversary_tradecraft_summary: str
     telemetry_mapping_summary: str
+    threat_actors: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -734,9 +735,16 @@ class HypothesisGeneratorAgent(LLMAgent[HypothesisGenerationInput, HypothesisGen
             "- Research ID: {}".format(research.research_id),
             "- Topic: {}".format(research.topic),
             "- Techniques: {}".format(", ".join(research.mitre_techniques)),
-            "",
-            "Adversary Tradecraft: {}".format(research.adversary_tradecraft_summary),
         ]
+        if getattr(research, "threat_actors", None):
+            lines.append("- Threat Actors: {}".format(", ".join(research.threat_actors)))
+
+        lines.extend(
+            [
+                "",
+                "Adversary Tradecraft: {}".format(research.adversary_tradecraft_summary),
+            ]
+        )
 
         lines.extend(_bullet_block("Key findings:", research.adversary_tradecraft_findings))
 

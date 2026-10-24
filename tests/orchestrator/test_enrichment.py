@@ -98,31 +98,39 @@ def test_extract_indicators_treats_link_only_hosts_as_citations():
     assert inds["domains"] == ["evil-c2.xyz"]
     assert sorted(inds["urls"]) == ["http://209.141.43.95/files/kw2", "https://evil-c2.xyz/panel"]
 
+
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 @patch("hecate_agent.orchestrator.enrichment.httpx.post")
 def test_generate_enrichment_summary(mock_post, mock_get):
     mock_vt = MagicMock()
     mock_vt.status_code = 200
-    mock_vt.json.return_value = {"data": {"attributes": {"last_analysis_stats": {"malicious": 5, "suspicious": 1, "harmless": 50}}}}
-    
+    mock_vt.json.return_value = {
+        "data": {"attributes": {"last_analysis_stats": {"malicious": 5, "suspicious": 1, "harmless": 50}}}
+    }
+
     mock_shodan = MagicMock()
     mock_shodan.status_code = 200
     mock_shodan.json.return_value = {"ports": [80, 443], "vulns": ["CVE-2023-1234"]}
-    
+
     mock_tf = MagicMock()
     mock_tf.status_code = 200
-    mock_tf.json.return_value = {"query_status": "ok", "data": [{"threat_type": "botnet", "malware_printable": "Mirai", "tags": ["IoT"]}]}
-    
+    mock_tf.json.return_value = {
+        "query_status": "ok",
+        "data": [{"threat_type": "botnet", "malware_printable": "Mirai", "tags": ["IoT"]}],
+    }
+
     mock_mb = MagicMock()
     mock_mb.status_code = 200
     mock_mb.json.return_value = {
         "query_status": "ok",
-        "data": [{
-            "signature": "Mirai",
-            "file_type": "elf",
-            "delivery_method": "exploit",
-            "yara_rules": [{"rule_name": "Mirai_Botnet"}],
-        }]
+        "data": [
+            {
+                "signature": "Mirai",
+                "file_type": "elf",
+                "delivery_method": "exploit",
+                "yara_rules": [{"rule_name": "Mirai_Botnet"}],
+            }
+        ],
     }
 
     mock_abuseipdb = MagicMock()
@@ -133,7 +141,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             "totalReports": 34,
             "isp": "DigitalOcean, LLC",
             "usageType": "Data Center/Web Hosting/Transit",
-            "countryCode": "US"
+            "countryCode": "US",
         }
     }
 
@@ -141,16 +149,13 @@ def test_generate_enrichment_summary(mock_post, mock_get):
     mock_rdap.status_code = 200
     mock_rdap.json.return_value = {
         "events": [{"eventAction": "registration", "eventDate": "2024-01-15T00:00:00Z"}],
-        "entities": [{
-            "roles": ["registrar"],
-            "vcardArray": ["vcard", [["fn", {}, "text", "Namecheap Inc."]]]
-        }]
+        "entities": [{"roles": ["registrar"], "vcardArray": ["vcard", [["fn", {}, "text", "Namecheap Inc."]]]}],
     }
 
     mock_misp = MagicMock()
     mock_misp.status_code = 200
     mock_misp.json.return_value = {"response": [{"Event": {"info": "Test Event"}}]}
-    
+
     def get_side_effect(*args, **kwargs):
         url = args[0]
         if "virustotal" in url:
@@ -159,12 +164,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             return mock_shodan
         if "greynoise" in url:
             mock_gn = MagicMock(status_code=200)
-            mock_gn.json.return_value = {
-                "noise": False,
-                "riot": True,
-                "classification": "benign",
-                "name": "Google Public DNS"
-            }
+            mock_gn.json.return_value = {"noise": False, "riot": True, "classification": "benign", "name": "Google Public DNS"}
             return mock_gn
         if "abuseipdb" in url:
             return mock_abuseipdb
@@ -174,12 +174,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             mock_epss = MagicMock(status_code=200)
             mock_epss.json.return_value = {
                 "status": "OK",
-                "data": [{
-                    "cve": "CVE-2023-1234",
-                    "epss": "0.92500",
-                    "percentile": "0.98500",
-                    "date": "2026-10-16"
-                }]
+                "data": [{"cve": "CVE-2023-1234", "epss": "0.92500", "percentile": "0.98500", "date": "2026-10-16"}],
             }
             return mock_epss
         if "alienvault.com" in url or "otx" in url:
@@ -187,9 +182,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             mock_otx.json.return_value = {
                 "pulse_info": {
                     "count": 2,
-                    "pulses": [
-                        {"name": "Mirai C2 Infrastructure", "adversary": "ThreatGroup-1", "tags": ["botnet", "iot"]}
-                    ]
+                    "pulses": [{"name": "Mirai C2 Infrastructure", "adversary": "ThreatGroup-1", "tags": ["botnet", "iot"]}],
                 }
             }
             return mock_otx
@@ -200,7 +193,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
                 "verdict": "malicious",
                 "vx_family": "Mirai",
                 "type_short": "elf",
-                "reports": []
+                "reports": [],
             }
             return mock_ha
         if "censys" in url:
@@ -218,7 +211,7 @@ def test_generate_enrichment_summary(mock_post, mock_get):
             }
             return mock_osv
         return MagicMock(status_code=404)
-        
+
     def post_side_effect(*args, **kwargs):
         url = args[0]
         if "threatfox" in url:
@@ -228,15 +221,15 @@ def test_generate_enrichment_summary(mock_post, mock_get):
         if "misp" in url:
             return mock_misp
         return MagicMock(status_code=404)
-        
+
     mock_get.side_effect = get_side_effect
     mock_post.side_effect = post_side_effect
-    
+
     with patch("hecate_agent.orchestrator.enrichment._setting") as mock_set:
         mock_set.side_effect = lambda k, d="": "test-key" if "KEY" in k or "TOKEN" in k else d
         text = "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc and IP 8.8.8.8 and domain c2.evil.xyz and vuln CVE-2023-1234"
         summary = generate_enrichment_summary(text)
-    
+
     assert "🛡️ Automated Threat Enrichment" in summary
     assert "Hash 35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc" in summary
     assert "IP 8.8.8.8" in summary
@@ -265,6 +258,7 @@ def test_query_vt_hash_no_api_key(monkeypatch):
 
 def test_query_vt_domain(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_vt_domain
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
@@ -272,7 +266,7 @@ def test_query_vt_domain(monkeypatch):
                 "attributes": {
                     "last_analysis_stats": {"malicious": 8},
                     "registrar": "NameCheap",
-                    "categories": {"Forcepoint": "malicious"}
+                    "categories": {"Forcepoint": "malicious"},
                 }
             }
         }
@@ -285,6 +279,7 @@ def test_query_vt_domain(monkeypatch):
 
 def test_query_greynoise_ip(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_greynoise_ip
+
     monkeypatch.delenv("GREYNOISE_API_KEY", raising=False)
     assert query_greynoise_ip("8.8.8.8") == "GREYNOISE_API_KEY not configured."
 
@@ -296,7 +291,7 @@ def test_query_greynoise_ip(monkeypatch):
             "riot": False,
             "classification": "malicious",
             "actor": "Mirai",
-            "tags": ["Mirai", "Telnet Bruteforce"]
+            "tags": ["Mirai", "Telnet Bruteforce"],
         }
         mock_get.return_value = mock_resp
         monkeypatch.setenv("GREYNOISE_API_KEY", "gn-test-key")
@@ -313,8 +308,8 @@ def test_query_greynoise_ip(monkeypatch):
                 "found": True,
                 "classification": "benign",
                 "actor": "Cortex Xpanse",
-                "tags": [{"name": "F5 BIG-IP Crawler"}, {"name": "Well-Known Scanner"}]
-            }
+                "tags": [{"name": "F5 BIG-IP Crawler"}, {"name": "Well-Known Scanner"}],
+            },
         }
         mock_get.return_value = mock_resp_v3
         res_v3 = query_greynoise_ip("198.235.24.237")
@@ -331,6 +326,7 @@ def test_query_greynoise_ip(monkeypatch):
 
 def test_query_malwarebazaar(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_malwarebazaar
+
     monkeypatch.delenv("ABUSECH_API_KEY", raising=False)
     assert query_malwarebazaar("hash123") == "ABUSECH_API_KEY not configured."
 
@@ -340,12 +336,14 @@ def test_query_malwarebazaar(monkeypatch):
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "query_status": "ok",
-            "data": [{
-                "signature": "CobaltStrike",
-                "file_type": "exe",
-                "delivery_method": "phishing",
-                "yara_rules": [{"rule_name": "Cobalt_Strike_Beacon"}]
-            }]
+            "data": [
+                {
+                    "signature": "CobaltStrike",
+                    "file_type": "exe",
+                    "delivery_method": "phishing",
+                    "yara_rules": [{"rule_name": "Cobalt_Strike_Beacon"}],
+                }
+            ],
         }
         mock_post.return_value = mock_resp
         res = query_malwarebazaar("hash123")
@@ -364,6 +362,7 @@ def test_query_malwarebazaar(monkeypatch):
 
 def test_query_abuseipdb_ip(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_abuseipdb_ip
+
     monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
     assert query_abuseipdb_ip("1.2.3.4") == "ABUSEIPDB_API_KEY not configured."
 
@@ -376,7 +375,7 @@ def test_query_abuseipdb_ip(monkeypatch):
                 "totalReports": 52,
                 "isp": "OVH SAS",
                 "usageType": "Data Center/Web Hosting/Transit",
-                "countryCode": "FR"
+                "countryCode": "FR",
             }
         }
         mock_get.return_value = mock_resp
@@ -393,17 +392,15 @@ def test_query_abuseipdb_ip(monkeypatch):
 
 def test_query_rdap_domain():
     from hecate_agent.orchestrator.enrichment import query_rdap_domain
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "events": [
                 {"eventAction": "registration", "eventDate": "2020-05-10T12:00:00Z"},
-                {"eventAction": "expiration", "eventDate": "2028-05-10T12:00:00Z"}
+                {"eventAction": "expiration", "eventDate": "2028-05-10T12:00:00Z"},
             ],
-            "entities": [{
-                "roles": ["registrar"],
-                "vcardArray": ["vcard", [["fn", {}, "text", "GoDaddy.com, LLC"]]]
-            }]
+            "entities": [{"roles": ["registrar"], "vcardArray": ["vcard", [["fn", {}, "text", "GoDaddy.com, LLC"]]]}],
         }
         mock_get.return_value = mock_resp
         res = query_rdap_domain("subdomain.evil-target.com")
@@ -418,17 +415,13 @@ def test_query_rdap_domain():
 
 def test_query_epss():
     from hecate_agent.orchestrator.enrichment import query_epss
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         # Happy path - critical probability
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "status": "OK",
-            "data": [{
-                "cve": "CVE-2024-3272",
-                "epss": "0.98038",
-                "percentile": "0.99911",
-                "date": "2026-10-16"
-            }]
+            "data": [{"cve": "CVE-2024-3272", "epss": "0.98038", "percentile": "0.99911", "date": "2026-10-16"}],
         }
         mock_get.return_value = mock_resp
         res = query_epss("CVE-2024-3272")
@@ -449,6 +442,7 @@ def test_query_epss():
 
 def test_query_epss_batch():
     from hecate_agent.orchestrator.enrichment import query_epss_batch
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
@@ -456,7 +450,7 @@ def test_query_epss_batch():
             "data": [
                 {"cve": "CVE-2024-3272", "epss": "0.98038", "percentile": "0.99911", "date": "2026-10-16"},
                 {"cve": "CVE-2021-44228", "epss": "0.15000", "percentile": "0.85000", "date": "2026-10-16"},
-            ]
+            ],
         }
         mock_get.return_value = mock_resp
         results = query_epss_batch(["CVE-2024-3272", "CVE-2021-44228", "CVE-2099-1111"])
@@ -469,15 +463,17 @@ def test_query_epss_batch():
 
 def test_query_otx_ip_with_pulses_and_pdns():
     from hecate_agent.orchestrator.enrichment import query_otx_ip
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
         with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+
             def side_effect(url, **kwargs):
                 if "passive_dns" in url:
                     mock_pdns = MagicMock(status_code=200)
                     mock_pdns.json.return_value = {
                         "passive_dns": [
                             {"hostname": "c2-node.malicious.net", "record_type": "A"},
-                            {"hostname": "backup-relay.xyz", "record_type": "A"}
+                            {"hostname": "backup-relay.xyz", "record_type": "A"},
                         ]
                     }
                     return mock_pdns
@@ -487,8 +483,8 @@ def test_query_otx_ip_with_pulses_and_pdns():
                         "count": 5,
                         "pulses": [
                             {"name": "Cobalt Strike Infrastructure", "adversary": "APT29", "tags": ["c2", "cobalt strike"]},
-                            {"name": "Red Team Operations", "adversary": "APT29", "tags": ["beacon"]}
-                        ]
+                            {"name": "Red Team Operations", "adversary": "APT29", "tags": ["beacon"]},
+                        ],
                     }
                 }
                 return mock_gen
@@ -504,15 +500,14 @@ def test_query_otx_ip_with_pulses_and_pdns():
 
 def test_query_otx_domain():
     from hecate_agent.orchestrator.enrichment import query_otx_domain
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
         with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
             mock_resp = MagicMock(status_code=200)
             mock_resp.json.return_value = {
                 "pulse_info": {
                     "count": 1,
-                    "pulses": [
-                        {"name": "Lazarus FakeJob Campaign", "adversary": "Lazarus Group", "tags": ["phishing"]}
-                    ]
+                    "pulses": [{"name": "Lazarus FakeJob Campaign", "adversary": "Lazarus Group", "tags": ["phishing"]}],
                 }
             }
             mock_get.return_value = mock_resp
@@ -524,6 +519,7 @@ def test_query_otx_domain():
 
 def test_query_otx_hash():
     from hecate_agent.orchestrator.enrichment import query_otx_hash
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
         with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
             mock_resp = MagicMock(status_code=200)
@@ -532,7 +528,7 @@ def test_query_otx_hash():
                     "count": 12,
                     "pulses": [
                         {"name": "AsyncRAT Payload Distribution", "adversary": "UAC-0050", "tags": ["rat", "asyncrat"]}
-                    ]
+                    ],
                 }
             }
             mock_get.return_value = mock_resp
@@ -544,6 +540,7 @@ def test_query_otx_hash():
 
 def test_query_otx_cve():
     from hecate_agent.orchestrator.enrichment import query_otx_cve
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
         with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
             mock_resp = MagicMock(status_code=200)
@@ -552,7 +549,7 @@ def test_query_otx_cve():
                     "count": 4,
                     "pulses": [
                         {"name": "skynox7: Proxyjacking Edge Devices", "adversary": "skynox7", "tags": ["proxyjacking"]}
-                    ]
+                    ],
                 }
             }
             mock_get.return_value = mock_resp
@@ -564,6 +561,7 @@ def test_query_otx_cve():
 
 def test_query_otx_no_api_key():
     from hecate_agent.orchestrator.enrichment import query_otx_indicator
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
         res = query_otx_indicator("IPv4", "198.51.100.1")
         assert res == "OTX_API_KEY not configured."
@@ -571,6 +569,7 @@ def test_query_otx_no_api_key():
 
 def test_query_otx_not_found():
     from hecate_agent.orchestrator.enrichment import query_otx_indicator
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="otx-key"):
         with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
             mock_resp = MagicMock(status_code=404)
@@ -582,6 +581,7 @@ def test_query_otx_not_found():
 def test_query_feodotracker_ip_found():
     import time
     from hecate_agent.orchestrator.enrichment import _FEODO_CACHE, query_feodotracker_ip
+
     mock_data = {
         "198.51.100.1": {
             "ip_address": "198.51.100.1",
@@ -605,6 +605,7 @@ def test_query_feodotracker_ip_found():
 def test_query_feodotracker_ip_clean():
     import time
     from hecate_agent.orchestrator.enrichment import _FEODO_CACHE, query_feodotracker_ip
+
     _FEODO_CACHE["data"] = {"198.51.100.1": {"malware": "Emotet"}}
     _FEODO_CACHE["ts"] = time.time()
     res = query_feodotracker_ip("8.8.8.8")
@@ -614,6 +615,7 @@ def test_query_feodotracker_ip_clean():
 def test_query_sslbl_fingerprint_found():
     import time
     from hecate_agent.orchestrator.enrichment import _SSLBL_CACHE, query_sslbl_fingerprint
+
     _SSLBL_CACHE["data"] = {
         "d83515431690184ba48f4be8be3e9594b2ee718d": ("Vidar C&C SSL Cert", "2026-10-10"),
         "65230654877f2fedd6a066928e08d6d8": ("JA3 AsyncRAT C2", "2026-10-12"),
@@ -631,6 +633,7 @@ def test_query_sslbl_fingerprint_found():
 def test_query_sslbl_fingerprint_clean():
     import time
     from hecate_agent.orchestrator.enrichment import _SSLBL_CACHE, query_sslbl_fingerprint
+
     _SSLBL_CACHE["data"] = {"d83515431690184ba48f4be8be3e9594b2ee718d": ("Vidar", "2026-10-10")}
     _SSLBL_CACHE["ts"] = time.time()
     res = query_sslbl_fingerprint("e3b0c44298fc1c149afbf4c8996fb92427ae41e4")
@@ -639,6 +642,7 @@ def test_query_sslbl_fingerprint_clean():
 
 def test_query_urlhaus_url(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_urlhaus_url
+
     monkeypatch.delenv("ABUSECH_API_KEY", raising=False)
     assert query_urlhaus_url("http://bad.com/exe") == "ABUSECH_API_KEY not configured."
 
@@ -676,6 +680,7 @@ def test_query_urlhaus_url(monkeypatch):
 
 def test_query_urlhaus_host(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_urlhaus_host
+
     monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
     with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
         mock_resp = MagicMock(status_code=200)
@@ -697,6 +702,7 @@ def test_query_urlhaus_host(monkeypatch):
 
 def test_query_urlhaus_payload(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_urlhaus_payload
+
     monkeypatch.setenv("ABUSECH_API_KEY", "test-key")
     with patch("hecate_agent.orchestrator.enrichment.httpx.post") as mock_post:
         mock_resp = MagicMock(status_code=200)
@@ -719,6 +725,7 @@ def test_query_urlhaus_payload(monkeypatch):
 
 def test_extract_indicators_extracts_urls_and_filters_publishers():
     from hecate_agent.orchestrator.enrichment import extract_indicators
+
     text = (
         "Adversary downloaded malware from hxxp://evil-download.com/payload.exe and http://198.51.100.5/stage2.bin. "
         "Reference: https://www.mandiant.com/resources/blog/apt41-malware. "
@@ -736,14 +743,19 @@ def test_extract_indicators_extracts_urls_and_filters_publishers():
 
 def test_query_hybrid_analysis_no_key(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+
     monkeypatch.delenv("HYBRID_ANALYSIS_API_KEY", raising=False)
     monkeypatch.delenv("HA_API_KEY", raising=False)
     monkeypatch.delenv("FALCON_SANDBOX_API_KEY", raising=False)
-    assert query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc") == "HYBRID_ANALYSIS_API_KEY not configured."
+    assert (
+        query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+        == "HYBRID_ANALYSIS_API_KEY not configured."
+    )
 
 
 def test_query_hybrid_analysis_invalid_hash(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
     res = query_hybrid_analysis("invalid-hash!")
     assert "Invalid hash format" in res
@@ -751,8 +763,10 @@ def test_query_hybrid_analysis_invalid_hash(monkeypatch):
 
 def test_query_hybrid_analysis_success(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+
         def get_side_effect(url, *args, **kwargs):
             if "overview" in url and "report" not in url:
                 mock_ov = MagicMock(status_code=200)
@@ -763,7 +777,7 @@ def test_query_hybrid_analysis_success(monkeypatch):
                     "vx_family": "AsyncRAT",
                     "type_short": "peexe",
                     "multiscan_result": 92,
-                    "reports": ["rep-12345"]
+                    "reports": ["rep-12345"],
                 }
                 return mock_ov
             elif "report/rep-12345/summary" in url:
@@ -772,8 +786,8 @@ def test_query_hybrid_analysis_success(monkeypatch):
                     "environment_description": "Windows 10 64-bit",
                     "mitre_attcks": [
                         {"attck_id": "T1547", "technique": "Boot or Logon Autostart Execution"},
-                        {"attck_id": "T1059.001", "technique": "PowerShell"}
-                    ]
+                        {"attck_id": "T1059.001", "technique": "PowerShell"},
+                    ],
                 }
                 return mock_rep
             return MagicMock(status_code=404)
@@ -790,6 +804,7 @@ def test_query_hybrid_analysis_success(monkeypatch):
 
 def test_query_hybrid_analysis_not_found(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
@@ -800,11 +815,15 @@ def test_query_hybrid_analysis_not_found(monkeypatch):
 
         mock_resp_404 = MagicMock(status_code=404)
         mock_get.return_value = mock_resp_404
-        assert query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc") == "No records on Hybrid Analysis."
+        assert (
+            query_hybrid_analysis("35dd164a7f5d8b42b9870c7009f7425b1c8cb771280c9e6c525e09f3dd13c2cc")
+            == "No records on Hybrid Analysis."
+        )
 
 
 def test_query_hybrid_analysis_auth_and_rate_limits(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_hybrid_analysis
+
     monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-test-key")
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp_401 = MagicMock(status_code=401)
@@ -820,6 +839,7 @@ def test_query_hybrid_analysis_auth_and_rate_limits(monkeypatch):
 
 def test_query_osv_vuln_success():
     from hecate_agent.orchestrator.enrichment import query_osv_vuln
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
@@ -839,6 +859,7 @@ def test_query_osv_vuln_success():
 
 def test_query_osv_vuln_details_fallback():
     from hecate_agent.orchestrator.enrichment import query_osv_vuln
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
@@ -855,6 +876,7 @@ def test_query_osv_vuln_details_fallback():
 
 def test_query_osv_vuln_not_found():
     from hecate_agent.orchestrator.enrichment import query_osv_vuln
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_resp = MagicMock(status_code=404)
         mock_get.return_value = mock_resp
@@ -863,6 +885,7 @@ def test_query_osv_vuln_not_found():
 
 def test_query_osv_vuln_error():
     from hecate_agent.orchestrator.enrichment import query_osv_vuln
+
     with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
         mock_get.side_effect = Exception("Connection timed out")
         res = query_osv_vuln("CVE-2024-3094")
@@ -1373,8 +1396,10 @@ def test_spur_ip_parsing_residential_proxy():
         "location": {"city": "Philadelphia", "country": "US"},
     }
 
-    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"), \
-         patch("httpx.get", return_value=mock_resp):
+    with (
+        patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"),
+        patch("httpx.get", return_value=mock_resp),
+    ):
         res = query_spur_ip("139.180.203.104")
         assert "Infra: RESIDENTIAL" in res
         assert "AS: AS7922 (Comcast Cable Communications, LLC)" in res
@@ -1398,8 +1423,10 @@ def test_spur_ip_caching():
         "location": {"city": "Mountain View", "country": "US"},
     }
 
-    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"), \
-         patch("httpx.get", return_value=mock_resp) as mock_get:
+    with (
+        patch("hecate_agent.orchestrator.enrichment._setting", return_value="test_key"),
+        patch("httpx.get", return_value=mock_resp) as mock_get,
+    ):
         res1 = query_spur_ip("8.8.8.8")
         res2 = query_spur_ip("8.8.8.8")
         assert res1 == res2
@@ -1478,8 +1505,10 @@ def test_query_passive_dns_ip_aggregation_and_deduplication():
             return mock_otx_resp
         return MagicMock(status_code=404)
 
-    with patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d), \
-         patch("httpx.get", side_effect=fake_get):
+    with (
+        patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d),
+        patch("httpx.get", side_effect=fake_get),
+    ):
         res = query_passive_dns("139.180.203.104")
         assert "Passive DNS:" in res
         assert "addio1987.com" in res
@@ -1516,8 +1545,10 @@ def test_query_passive_dns_domain_aggregation():
             return mock_mn_resp
         return MagicMock(status_code=404)
 
-    with patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d), \
-         patch("httpx.get", side_effect=fake_get):
+    with (
+        patch("hecate_agent.orchestrator.enrichment._setting", side_effect=lambda k, d="": "dummy_key" if "KEY" in k else d),
+        patch("httpx.get", side_effect=fake_get),
+    ):
         res = query_passive_dns_domain("drivinguber.com")
         assert "Passive DNS:" in res
         assert "104.21.54.21" in res
@@ -1531,8 +1562,16 @@ def test_generate_enrichment_summary_includes_spur_and_pdns():
 
     threat_intel = "The adversary operated from IP 45.142.214.88 and domain evil-landing.org"
 
-    with patch("hecate_agent.orchestrator.enrichment.query_spur_ip", return_value="Infra: RESIDENTIAL | Tunnels: ProtonVPN (Anonymous)"), \
-         patch("hecate_agent.orchestrator.enrichment.query_passive_dns", return_value="Passive DNS: sibling.evil-landing.org (2026-10) [via Mnemonic]"):
+    with (
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_spur_ip",
+            return_value="Infra: RESIDENTIAL | Tunnels: ProtonVPN (Anonymous)",
+        ),
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_passive_dns",
+            return_value="Passive DNS: sibling.evil-landing.org (2026-10) [via Mnemonic]",
+        ),
+    ):
         summary = generate_enrichment_summary(threat_intel)
         assert "Spur.us (Proxy & Infrastructure):" in summary
         assert "Infra: RESIDENTIAL" in summary
@@ -1632,21 +1671,113 @@ def test_generate_enrichment_summary_includes_anonymity_proxy():
 
     threat_intel = "The attacker used IP 185.220.101.5 for staging."
 
-    with patch("hecate_agent.orchestrator.enrichment.query_anonymity_proxy_ip", return_value="Tor Exit Node (Active) | Org: AS24940 [IPinfo, Tor Project]"):
+    with patch(
+        "hecate_agent.orchestrator.enrichment.query_anonymity_proxy_ip",
+        return_value="Tor Exit Node (Active) | Org: AS24940 [IPinfo, Tor Project]",
+    ):
         summary = generate_enrichment_summary(threat_intel)
         assert "Anonymity & Proxy (Tor / Hosting / VPN):" in summary
         assert "Tor Exit Node (Active)" in summary
         assert "Org: AS24940" in summary
 
 
+def test_query_triage_hash_no_key(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_triage_hash
+
+    monkeypatch.delenv("TRIAGE_API_KEY", raising=False)
+    monkeypatch.delenv("HATCHING_TRIAGE_KEY", raising=False)
+    monkeypatch.delenv("TRIA_GE_API_KEY", raising=False)
+
+    res = query_triage_hash("44d88612fea8a8f36de82e1278abb02f")
+    assert res == "TRIAGE_API_KEY not configured."
 
 
+def test_query_triage_hash_invalid_hash(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_triage_hash
+
+    monkeypatch.setenv("TRIAGE_API_KEY", "fake_key_123")
+    res = query_triage_hash("not_a_valid_hash")
+    assert "Invalid hash format" in res
 
 
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_triage_hash_not_found(mock_get, monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_triage_hash
+
+    monkeypatch.setenv("TRIAGE_API_KEY", "fake_key_123")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"data": []}
+    mock_get.return_value = mock_resp
+
+    res = query_triage_hash("44d88612fea8a8f36de82e1278abb02f")
+    assert res == "No records on tria.ge."
 
 
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_triage_hash_auth_and_rate_limits(mock_get, monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_triage_hash
+
+    monkeypatch.setenv("TRIAGE_API_KEY", "fake_key_123")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 401
+    mock_get.return_value = mock_resp
+
+    res = query_triage_hash("44d88612fea8a8f36de82e1278abb02f")
+    assert "tria.ge Auth Error" in res
+
+    mock_resp.status_code = 429
+    res = query_triage_hash("44d88612fea8a8f36de82e1278abb02f")
+    assert "tria.ge rate limit exceeded" in res
 
 
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_triage_hash_success_with_config(mock_get, monkeypatch):
+    from hecate_agent.orchestrator.enrichment import query_triage_hash
+
+    monkeypatch.setenv("TRIAGE_API_KEY", "fake_key_123")
+
+    search_resp = MagicMock()
+    search_resp.status_code = 200
+    search_resp.json.return_value = {"data": [{"id": "241024-stealc123"}]}
+
+    overview_resp = MagicMock()
+    overview_resp.status_code = 200
+    overview_resp.json.return_value = {
+        "sample": {"id": "241024-stealc123", "score": 10},
+        "analysis": {"score": 10, "family": ["stealc"], "tags": ["stealer", "trojan"]},
+        "extracted": [
+            {
+                "config": {
+                    "family": "stealc",
+                    "c2": ["185.196.8.121:80", "http://c2.stealer.io/gate.php"],
+                    "botnet": "build_v2",
+                    "mutex": "StealcMutex1",
+                }
+            }
+        ],
+    }
+
+    mock_get.side_effect = [search_resp, overview_resp]
+
+    res = query_triage_hash("44d88612fea8a8f36de82e1278abb02f")
+    assert "Family: stealc" in res
+    assert "Score: 10/10" in res
+    assert "Extracted C2: 185.196.8.121:80" in res
+    assert "Botnet: build_v2" in res
+    assert "Mutex: StealcMutex1" in res
+    assert "Tags: stealer, trojan" in res
 
 
-
+def test_generate_enrichment_summary_includes_triage():
+    threat_intel = "Malware sample with MD5 44d88612fea8a8f36de82e1278abb02f observed."
+    with patch(
+        "hecate_agent.orchestrator.enrichment.query_triage_hash",
+        return_value="Family: LummaC2 | Score: 10/10 | Extracted C2: 194.26.29.111",
+    ):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "Hatching Triage" in summary
+        assert "Hatching Triage (tria.ge Sandbox):" in summary
+        assert "Family: LummaC2" in summary

@@ -237,6 +237,7 @@ class ResearchOutput:
 
     # Cost tracking
     total_duration_ms: int = 0
+    threat_actor_profiles: List[Dict[str, Any]] = field(default_factory=list)
     web_searches_performed: int = 0
     #: Whether this run asked for web search, and when none succeeded, why:
     #: disabled for the item, no key, client unavailable, or searches failed.
@@ -406,7 +407,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         name = info.get("name", technique)
         description = (info.get("description") or "").strip()[:400]
-        return f'MITRE ATT&CK ground truth for {technique}: officially named "{name}". ' f"{description}\n\n"
+        return f'MITRE ATT&CK ground truth for {technique}: officially named "{name}". {description}\n\n'
 
     def execute(
         self,
@@ -425,6 +426,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         self._web_searches = 0
         # Read by every skill's prompt; set once before the skills fan out.
         self._source_context = (input_data.source_context or "").strip()[:_SOURCE_CONTEXT_MAX_CHARS]
+
+        from hecate_agent.core.attack_matrix import search_groups_in_text
+
+        actor_profiles = [dict(p) for p in search_groups_in_text(f"{input_data.topic} {self._source_context}")]
+        self._actor_profiles = actor_profiles
 
         try:
             # Get next research ID
@@ -512,6 +518,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 ),
                 gaps_identified=self._extract_gaps(skill_5),
                 total_duration_ms=total_duration_ms,
+                threat_actor_profiles=actor_profiles,
                 web_searches_performed=self._web_searches,
                 web_search_requested=input_data.web_search_enabled,
                 web_search_note=self._web_search_note(input_data.web_search_enabled),
@@ -607,7 +614,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 search_results,
             )
         else:
-            summary = "System research for {} - requires LLM for detailed" " analysis".format(topic)
+            summary = "System research for {} - requires LLM for detailed analysis".format(topic)
             key_findings = ["LLM disabled - manual research required"]
 
         duration_ms = int((time.time() - start_time) * 1000)
@@ -681,7 +688,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 search_results,
             )
         else:
-            summary = "Adversary tradecraft for {} - requires LLM for" " detailed analysis".format(topic)
+            summary = "Adversary tradecraft for {} - requires LLM for detailed analysis".format(topic)
             key_findings = ["LLM disabled - manual research required"]
 
         duration_ms = int((time.time() - start_time) * 1000)
@@ -730,7 +737,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 environment_data,
             )
         else:
-            summary = "Telemetry mapping for {} - requires LLM for" " detailed analysis".format(topic)
+            summary = "Telemetry mapping for {} - requires LLM for detailed analysis".format(topic)
             key_findings = [
                 "Common fields: process.name, process.cmd_line, actor.user.name",
                 # Not "population rates": the prompt forbids stating them,
@@ -851,7 +858,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             topic,
         )
         if not sources:
-            summary = "No related hunts found for {} - this may be a new" " research area".format(topic)
+            summary = "No related hunts found for {} - this may be a new research area".format(topic)
 
         duration_ms = int((time.time() - start_time) * 1000)
 
@@ -985,6 +992,31 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 [_LLM_ERROR_KEY_FINDING],
             )
 
+    def _actor_grounding(self) -> str:
+        profiles = getattr(self, "_actor_profiles", [])
+        if not profiles:
+            return ""
+        lines = []
+        for a in profiles:
+            soft_names = [
+                f"{s.get('name')} ({s.get('type', 'software').title()} - {s.get('id')})"
+                for s in a.get("software", [])
+                if s.get("name")
+            ]
+            tech_names = [f"{t.get('id')} ({t.get('name')})" for t in a.get("techniques", []) if t.get("id")]
+            desc = (a.get("description") or "").strip()[:400]
+            block = (
+                f"Adversary Threat Actor Profile ({a.get('name')} - {a.get('id')}):\n"
+                f"- Aliases: {', '.join(a.get('aliases', []))}\n"
+                f"- Background: {desc}\n"
+            )
+            if soft_names:
+                block += f"- Known Associated Software & Toolkits: {', '.join(soft_names[:12])}\n"
+            if tech_names:
+                block += f"- Observed ATT&CK Techniques: {', '.join(tech_names[:15])}\n"
+            lines.append(block)
+        return "Authoritative MITRE ATT&CK STIX Threat Actor Grounding:\n" + "\n".join(lines) + "\n\n"
+
     def _llm_summarize_tradecraft(
         self,
         topic: str,
@@ -1016,10 +1048,12 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
             technique_str = " ({})".format(technique) if technique else ""
             grounding = self._technique_grounding(technique)
+            actor_grounding = self._actor_grounding()
 
             prompt = (
                 "You are a threat intelligence analyst studying"
                 " adversary techniques.\n\n"
+                "{actor_grounding}"
                 "{grounding}"
                 "Topic: {topic}{technique_str}\n\n"
                 "{source}"
@@ -1035,6 +1069,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
                 '  "key_findings": ["finding1", "finding2",'
                 ' "finding3", "finding4"]\n}}'
             ).format(
+                actor_grounding=actor_grounding,
                 grounding=grounding,
                 anti_hallucination=_GROUNDING_INSTRUCTION,
                 topic=topic,

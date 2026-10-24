@@ -484,3 +484,72 @@ class TestCategorizeTechniquesByMatrix:
         assert "mobile" in res
         assert "ics" in res
         assert res["ics_total"] >= 1 or res["ics"]["impact"] >= 0
+
+
+@pytest.mark.unit
+class TestThreatActorGroups:
+    """Test MITRE ATT&CK STIX Threat Actor Profiles in attack_matrix."""
+
+    def test_fallback_provider_groups(self):
+        from hecate_agent.core.attack_matrix import FallbackProvider
+
+        provider = FallbackProvider()
+        groups = provider.get_groups()
+        assert len(groups) >= 5
+        ids = {g["id"] for g in groups}
+        assert "G0016" in ids  # APT29
+        assert "G0034" in ids  # Sandworm
+
+        apt29 = provider.get_group_by_id("G0016")
+        assert apt29 is not None
+        assert apt29["name"] == "APT29"
+        assert "Midnight Blizzard" in apt29["aliases"]
+        assert len(apt29["techniques"]) > 0
+        assert len(apt29["software"]) > 0
+
+        found = provider.find_group("Midnight Blizzard")
+        assert found is not None
+        assert found["id"] == "G0016"
+
+        found_lower = provider.find_group("cozy bear")
+        assert found_lower is not None
+        assert found_lower["id"] == "G0016"
+
+        assert provider.find_group("NonexistentGroup123") is None
+        assert provider.get_group_by_id("G9999") is None
+
+    def test_module_level_group_functions(self):
+        from hecate_agent.core.attack_matrix import (
+            find_group,
+            get_group,
+            get_groups,
+            search_groups_in_text,
+        )
+
+        all_groups = get_groups()
+        assert len(all_groups) >= 5
+
+        g = get_group("G0016")
+        assert g is not None
+        assert g["name"] == "APT29"
+
+        g_alias = find_group("Midnight Blizzard")
+        assert g_alias is not None
+        assert g_alias["id"] == "G0016"
+
+        # Search in text with single actor
+        matches1 = search_groups_in_text("Adversary activity attributed to Midnight Blizzard using Entra ID tokens.")
+        assert len(matches1) == 1
+        assert matches1[0]["id"] == "G0016"
+
+        # Search in text with multiple actors
+        matches2 = search_groups_in_text(
+            "Report tracking Sandworm Team targeting SCADA substations while FIN8 targets retail POS."
+        )
+        matched_ids = {m["id"] for m in matches2}
+        assert "G0034" in matched_ids
+        assert "G0061" in matched_ids
+
+        # Search in text with no actor mentions
+        assert search_groups_in_text("Generic PowerShell execution observed.") == []
+        assert search_groups_in_text("") == []
