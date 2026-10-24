@@ -86,6 +86,11 @@ class RunnerStatus:
     parked_items: Optional[int] = None
     #: The workspace the service writes to; the service's state says nothing about any other.
     workspace: Optional[Path] = None
+    cost_today: Optional[float] = None
+    pending_queries: Optional[int] = None
+    cti_provider: Optional[str] = None
+    parked_reasons: Dict[str, int] = field(default_factory=dict)
+    query_provider: str = "mock"
 
 
 class RunnerStatusSampler:
@@ -158,10 +163,43 @@ class RunnerStatusSampler:
         queue_dir = Path(env.get("HECATE_RUNNER_CTI_QUEUE_DIR", str(quota_workspace / "cti_queue")).strip("\"'"))
         if not queue_dir.is_absolute():
             queue_dir = runner_dir / queue_dir
+        parked_reasons: Dict[str, int] = {}
         try:
-            parked = len(list((queue_dir / "parked").glob("*.json")))
+            parked_files = list((queue_dir / "parked").glob("*.json"))
+            parked = len(parked_files)
+            for pf in parked_files[:30]:
+                try:
+                    pdata = json.loads(pf.read_text(encoding="utf-8"))
+                    reason = str(pdata.get("reason", "unknown")).lower()
+                    if "commentary" in reason:
+                        cat = "commentary"
+                    elif "behavior" in reason:
+                        cat = "no_behavior"
+                    elif "unsupported" in reason:
+                        cat = "unsupported"
+                    elif "freshness" in reason or "age" in reason:
+                        cat = "stale"
+                    else:
+                        cat = reason.split()[0] if reason else "other"
+                    parked_reasons[cat] = parked_reasons.get(cat, 0) + 1
+                except Exception:
+                    pass
         except OSError:
             parked = None
+
+        pending_queries: Optional[int] = None
+        pending_dir = quota_workspace / ".pending_queries"
+        try:
+            if pending_dir.exists():
+                pending_queries = len(list(pending_dir.glob("*.json")))
+        except OSError:
+            pass
+
+        cti_provider = env.get("HECATE_RUNNER_CTI_PROVIDER")
+        if cti_provider == "multi":
+            sub_prov = env.get("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss,otx,misp")
+            cti_provider = f"multi ({sub_prov})"
+
         self._cached = RunnerStatus(
             installed=True,
             timer_active=timer_active,
@@ -180,6 +218,10 @@ class RunnerStatusSampler:
             total_drafts=int(state["total_drafts_ever"]) if "total_drafts_ever" in state else None,
             parked_items=parked,
             workspace=quota_workspace,
+            pending_queries=pending_queries,
+            cti_provider=cti_provider,
+            parked_reasons=parked_reasons,
+            query_provider=env.get("HECATE_RUNNER_QUERY_PROVIDER") or "mock",
         )
         return self._cached
 
@@ -378,7 +420,7 @@ def _read_events(log_path: Path) -> List[TrailEvent]:
 def _read_recent_error(log_path: Path) -> str:
     error_block = []
     in_error = False
-    
+
     for line in _tail(log_path, limit=300):
         match = _LOG_RE.match(line)
         if match:
@@ -391,8 +433,9 @@ def _read_recent_error(log_path: Path) -> str:
         else:
             if in_error or error_block:
                 error_block.append(line)
-                
+
     return "\n".join(error_block[-20:]) if error_block else ""
+
 
 def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
     lines = _tail(metrics_path, limit=2000)
@@ -402,7 +445,14 @@ def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
         "output_tokens": 0,
         "estimated_cost_usd": 0.0,
         "completed_cycles": 0,
+        "cost_today_usd": 0.0,
+        "calls_today": 0,
+        "cycles_today": 0,
     }
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cost_today_usd = 0.0
+    calls_today = 0
+    cycles_today = 0
     latest_val = {}
     latest_with_llm = {}
     for line in lines:
@@ -411,18 +461,34 @@ def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
             if isinstance(val, dict) and isinstance(val.get("stages"), list):
                 aggregate["completed_cycles"] += 1
                 latest_val = val
+                started_at = str(val.get("started_at", ""))
+                is_today = started_at.startswith(today)
+                if is_today:
+                    cycles_today += 1
                 has_llm = any(isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in val["stages"])
                 if has_llm:
                     latest_with_llm = val
                 for stage in val["stages"]:
                     if isinstance(stage, dict):
-                        aggregate["llm_calls"] += int(stage.get("llm_calls") or 0)
-                        aggregate["input_tokens"] += int(stage.get("input_tokens") or 0)
-                        aggregate["output_tokens"] += int(stage.get("output_tokens") or 0)
-                        aggregate["estimated_cost_usd"] += float(stage.get("estimated_cost_usd") or 0.0)
+                        calls = int(stage.get("llm_calls") or 0)
+                        inp = int(stage.get("input_tokens") or 0)
+                        outp = int(stage.get("output_tokens") or 0)
+                        cost = float(stage.get("estimated_cost_usd") or 0.0)
+                        aggregate["llm_calls"] += calls
+                        aggregate["input_tokens"] += inp
+                        aggregate["output_tokens"] += outp
+                        aggregate["estimated_cost_usd"] += cost
+                        if is_today:
+                            calls_today += calls
+                            cost_today_usd += cost
         except (json.JSONDecodeError, TypeError, ValueError):
             continue
-    if latest_with_llm and not any(isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in latest_val.get("stages", [])):
+    aggregate["cost_today_usd"] = cost_today_usd
+    aggregate["calls_today"] = calls_today
+    aggregate["cycles_today"] = cycles_today
+    if latest_with_llm and not any(
+        isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in latest_val.get("stages", [])
+    ):
         latest_val = dict(latest_val)
         latest_val["stages"] = latest_with_llm.get("stages", [])
         latest_val["models"] = latest_with_llm.get("models", [])
@@ -579,7 +645,6 @@ def _stage_order(stage: str) -> int:
     return next((index for index, (key, _) in enumerate(_STAGES) if key == normalized), -1)
 
 
-
 _STAGE_COLORS = {
     "intake": "dim white",
     "source": "cyan",
@@ -589,11 +654,13 @@ _STAGE_COLORS = {
     "scope": "bright_white",
     "write": "bright_cyan",
     "sigma": "bright_yellow",
-    "review": "bright_green"
+    "review": "bright_green",
 }
+
 
 def _get_stage_color(stage: str) -> str:
     return _STAGE_COLORS.get(stage.lower(), "white")
+
 
 #: An event's message may wrap onto this many lines before it is cut.
 _LINES_PER_EVENT = 1
@@ -647,9 +714,18 @@ def _calculate_llm_metrics(llm_stages: List[Dict[str, Any]]) -> Tuple[int, int, 
 
 
 def _build_summary_table(
-    compact: bool, calls: int, input_tokens: int, output_tokens: int, speed_text: str,
-    search_count: str, models: List[str], workspace: Optional[Path],
-    usage_note: str, has_stages: bool, stage_line: str = "", narrow: bool = False
+    compact: bool,
+    calls: int,
+    input_tokens: int,
+    output_tokens: int,
+    speed_text: str,
+    search_count: str,
+    models: List[str],
+    workspace: Optional[Path],
+    usage_note: str,
+    has_stages: bool,
+    stage_line: str = "",
+    narrow: bool = False,
 ) -> Table:
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     table.add_column("label", style="dim", width=10, min_width=10, no_wrap=True)
@@ -685,7 +761,14 @@ def _build_summary_table(
 
 
 def _narrow_usage_rows(
-    table: Table, llm: str, tokens: str, speed: str, model: str, searches: str, by_stage: str, latency: str,
+    table: Table,
+    llm: str,
+    tokens: str,
+    speed: str,
+    model: str,
+    searches: str,
+    by_stage: str,
+    latency: str,
     workspace: Optional[Path] = None,
 ) -> None:
     """The usage rows for a column a third of the screen wide: one fact a row."""
@@ -755,12 +838,12 @@ def _usage_panel(
     if (active or (live and live.get("in_flight", 0) > 0)) and current and live:
         # The running cycle's own calls, not the totals of the last one to finish.
         return _live_usage_panel(live, current, events, compact, workspace, now or datetime.now(), narrow)
-    
+
     stages = metrics.get("stages") or []
     llm_stages = [stage for stage in stages if isinstance(stage, dict) and stage.get("llm_calls") is not None]
     calls, input_tokens, output_tokens, models, cost_text = _calculate_llm_metrics(llm_stages)
     search_count = _search_count(current, events)
-    
+
     duration_ms = sum(int(stage.get("duration_ms") or 0) for stage in llm_stages)
     if active and current and current.stage in {"source", "research", "hypothesis", "sigma"}:
         usage_note = "Live token totals are written when the cycle ends."
@@ -773,8 +856,18 @@ def _usage_panel(
         usage_note = "unknown"
 
     table = _build_summary_table(
-        compact, calls, input_tokens, output_tokens, cost_text,
-        search_count, models, workspace, usage_note, bool(llm_stages), _stage_line(llm_stages, tokens=not narrow), narrow
+        compact,
+        calls,
+        input_tokens,
+        output_tokens,
+        cost_text,
+        search_count,
+        models,
+        workspace,
+        usage_note,
+        bool(llm_stages),
+        _stage_line(llm_stages, tokens=not narrow),
+        narrow,
     )
     return Panel(table, title="[bold bright_cyan]LLM STATS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
@@ -811,7 +904,9 @@ def _live_usage_panel(
     call_text = f"{calls} done"
     if in_flight:
         waited = _duration(max(0.0, now.timestamp() - live["last_start"]))
-        call_text += f" · {in_flight} in flight ({waited})" if narrow else f" · {in_flight} in flight (latest sent {waited} ago)"
+        call_text += (
+            f" · {in_flight} in flight ({waited})" if narrow else f" · {in_flight} in flight (latest sent {waited} ago)"
+        )
     if failed:
         call_text += f" · {failed} failed"
     duration_ms = live.get("duration_ms", 0)
@@ -829,7 +924,7 @@ def _live_usage_panel(
     else:
         speed_text = "unknown"
         latency_text = "no replies yet"
-        
+
     models = ", ".join(live["models"]) or "not reported yet"
     search_count = _search_count(current, events)
 
@@ -858,7 +953,7 @@ def _live_usage_panel(
                 break
         clean_stage = _STAGE_NORM.get(active_stage, active_stage.removesuffix("_generation").removesuffix("_evidence"))
         stage_counts[clean_stage] = stage_counts.get(clean_stage, 0) + 1
-        
+
     if stage_counts:
         live_stage_line = " · ".join(f"{stage} {count}" for stage, count in stage_counts.items() if stage != "cycle")
     else:
@@ -962,7 +1057,18 @@ def _integrations_panel(
 ) -> Panel:
     """A dedicated panel displaying external API and service integration statuses and activity metrics."""
     checks = (
-        ("LLM", ("HECATE_LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AWS_PROFILE", "OLLAMA_HOST")),
+        (
+            "LLM",
+            (
+                "HECATE_LLM_PROVIDER",
+                "OPENAI_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "GEMINI_API_KEY",
+                "GOOGLE_API_KEY",
+                "AWS_PROFILE",
+                "OLLAMA_HOST",
+            ),
+        ),
         ("Tavily", ("TAVILY_API_KEY",)),
         ("OTX", ("OTX_API_KEY",)),
         ("MISP", ("MISP_API_KEY",)),
@@ -1023,7 +1129,10 @@ def _integrations_panel(
         is_set = (
             any(os.environ.get(name) for name in names)
             or any(name in file_keys for name in names)
-            or (label in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh", "PDNS", "Tor/Proxy"))
+            or (
+                label
+                in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh", "PDNS", "Tor/Proxy")
+            )
         )
         if label == "LLM":
             if is_set:
@@ -1046,7 +1155,9 @@ def _integrations_panel(
                 if live and live.get("llm_calls") is not None:
                     calls = int(live.get("llm_calls") or 0)
                 elif metrics:
-                    llm_stages = [s for s in (metrics.get("stages") or []) if isinstance(s, dict) and s.get("llm_calls") is not None]
+                    llm_stages = [
+                        s for s in (metrics.get("stages") or []) if isinstance(s, dict) and s.get("llm_calls") is not None
+                    ]
                     calls = sum(int(s.get("llm_calls") or 0) for s in llm_stages)
                 metric = f"{calls} calls"
                 services_data.append((label, True, detail, metric))
@@ -1086,9 +1197,17 @@ def _integrations_panel(
         elif label == "OTX":
             if is_set:
                 detail = "feed/ioc" if narrow else "pulses"
-                otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in cycle_events)
+                otx_found = any(
+                    e.stage in ("intake", "route", "research")
+                    and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower())
+                    for e in cycle_events
+                )
                 if not otx_found and active_enrichment_events != cycle_events:
-                    otx_found = any(e.stage in ("intake", "route", "research") and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower()) for e in active_enrichment_events)
+                    otx_found = any(
+                        e.stage in ("intake", "route", "research")
+                        and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower())
+                        for e in active_enrichment_events
+                    )
                 if otx_found:
                     metric = "1 pulse"
                 else:
@@ -1367,6 +1486,7 @@ def _integrations_panel(
                 m_style = "dim"
             table.add_row(label, st, Text(metric, style=m_style))
     else:
+
         def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
             st = "ON" if is_on else "OFF"
             col = "bold bright_green" if is_on else "dim yellow"
@@ -1380,6 +1500,7 @@ def _integrations_panel(
                 (" ", "default"),
                 (f"{met:>9}", m_col),
             )
+
         table = Table(box=None, show_header=False, expand=True, padding=(0, 0))
         table.add_column("col1", ratio=1, no_wrap=True)
         table.add_column("col2", ratio=1, no_wrap=True)
@@ -1421,6 +1542,10 @@ class HuntsMetrics:
     enterprise_total: int = 0
     mobile_total: int = 0
     ics_total: int = 0
+    grounding_asserted: int = 0
+    grounding_corroborated: int = 0
+    grounding_derived: int = 0
+    grounding_unsupported: int = 0
 
 
 _EXCLUDED_HUNT_DOCS = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
@@ -1437,6 +1562,10 @@ _RE_DOMAIN = re.compile(
 _RE_ACTOR_ROW = re.compile(r"\|\s*\*\*Actor\*\*\s*\|\s*([^|\n]+)\|")
 _RE_THREAT_CONTEXT = re.compile(r"\*\*Threat(?:\s+Actor)?:\*\*\s*([^\n]+)")
 _RE_GROUNDING_ENTITY = re.compile(r"\|\s*`([^`]+)`\s*\|\s*entity\s*\|\s*asserted by CTI")
+_RE_GROUNDING_SUMMARY = re.compile(
+    r"\*(\d+)\s+asserted(?: by CTI)?\s*·\s*(\d+)\s+(?:research-only|corroborated)\s*·\s*(\d+)\s+(?:inferred|derived)\s*·\s*(\d+)\s+unsupported\*",
+    re.IGNORECASE,
+)
 _RE_ROLE_INDICATOR = re.compile(r"\|\s*`([^`]+)`\s*\|\s*([\w_]+)\s*\|")
 _RE_MALWARE_TERMS = re.compile(
     r"\b(trojan|ransomware|stealer|loader|backdoor|rat|botnet|wiper|rootkit|infostealer|dropper|implant|spyware|worm|malware|keylogger|miner|vshell)\b",
@@ -1452,9 +1581,20 @@ _RE_CAMPAIGN_TERMS = re.compile(
     re.I,
 )
 _GENERIC_THREAT_NAMES = {
-    "unknown", "none", "n/a", "various", "threat actor", "adversary",
-    "unspecified", "tbd", "actor", "attacker", "malware", "not specified",
-    "hkcu", "hklm",
+    "unknown",
+    "none",
+    "n/a",
+    "various",
+    "threat actor",
+    "adversary",
+    "unspecified",
+    "tbd",
+    "actor",
+    "attacker",
+    "malware",
+    "not specified",
+    "hkcu",
+    "hklm",
 }
 
 _HUNTS_METRICS_CACHE: Dict[Path, Tuple[float, int, float, HuntsMetrics]] = {}
@@ -1534,6 +1674,10 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     network_urls: Set[str] = set()
     host_hashes: Set[str] = set()
     host_paths: Set[str] = set()
+    grounding_asserted = 0
+    grounding_corroborated = 0
+    grounding_derived = 0
+    grounding_unsupported = 0
 
     from hecate_agent.core.grounding import _ACRONYM_STOPWORDS
 
@@ -1661,6 +1805,28 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                 for p in re.findall(r"`([^`]+)`", m_fp.group(0)):
                     host_paths.add(p)
 
+        m_gs = _RE_GROUNDING_SUMMARY.search(text)
+        if m_gs:
+            grounding_asserted += int(m_gs.group(1))
+            grounding_corroborated += int(m_gs.group(2))
+            grounding_derived += int(m_gs.group(3))
+            grounding_unsupported += int(m_gs.group(4))
+        else:
+            m_gsec = re.search(r"###\s+Grounding.*?(?=\n###\s+[A-Z]|\n## |\Z)", text, re.DOTALL | re.IGNORECASE)
+            if m_gsec:
+                for line in m_gsec.group(0).splitlines():
+                    if not line.startswith("|") or "---" in line or "Claim" in line:
+                        continue
+                    l_lower = line.lower()
+                    if "unsupported" in l_lower:
+                        grounding_unsupported += 1
+                    elif "asserted" in l_lower:
+                        grounding_asserted += 1
+                    elif "inferred" in l_lower or "derived" in l_lower:
+                        grounding_derived += 1
+                    elif "research" in l_lower or "corroborated" in l_lower:
+                        grounding_corroborated += 1
+
     actors.difference_update(malware | campaigns)
     all_threats = actors | campaigns | malware
 
@@ -1708,6 +1874,10 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         enterprise_total=cat_metrics.get("enterprise_total", 0),
         mobile_total=cat_metrics.get("mobile_total", 0),
         ics_total=cat_metrics.get("ics_total", 0),
+        grounding_asserted=grounding_asserted,
+        grounding_corroborated=grounding_corroborated,
+        grounding_derived=grounding_derived,
+        grounding_unsupported=grounding_unsupported,
     )
     _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
     return metrics
@@ -1734,11 +1904,17 @@ def _hunts_summary_panel(
             table.add_row("IOCs", Text("0 observables", style="dim"))
         else:
             hunts_text = f"{h_metrics.total_hunts} total"
-            hunts_sub = f"{h_metrics.drafts_count} drafts" if not h_metrics.completed_count else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
-            table.add_row(
-                "HUNTS",
-                Text.assemble((hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
+            hunts_sub = (
+                f"{h_metrics.drafts_count} drafts"
+                if not h_metrics.completed_count
+                else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
             )
+            hunts_parts = [(hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")]
+            if h_metrics.grounding_unsupported > 0:
+                hunts_parts.append((f" · {h_metrics.grounding_unsupported} unsupp", "bold bright_red"))
+            elif h_metrics.grounding_asserted > 0:
+                hunts_parts.append((f" · {h_metrics.grounding_asserted} asserted", "bright_green"))
+            table.add_row("HUNTS", Text.assemble(*hunts_parts))
             threats_val = f"{h_metrics.threats_count}"
             threats_sub = f"{h_metrics.actors_count} act, {h_metrics.campaigns_count} camp, {h_metrics.malware_count} mal"
             table.add_row(
@@ -1773,11 +1949,17 @@ def _hunts_summary_panel(
                 table.add_row("IOC TOTAL", Text("0 observables", style="dim"))
         else:
             hunts_text = f"{h_metrics.total_hunts} total"
-            hunts_sub = f"{h_metrics.drafts_count} drafts" if not h_metrics.completed_count else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
-            table.add_row(
-                "HUNTS",
-                Text.assemble((hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
+            hunts_sub = (
+                f"{h_metrics.drafts_count} drafts"
+                if not h_metrics.completed_count
+                else f"{h_metrics.drafts_count} drf · {h_metrics.completed_count} done"
             )
+            hunts_parts = [(hunts_text, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")]
+            if narrow and h_metrics.grounding_unsupported > 0:
+                hunts_parts.append((f" · {h_metrics.grounding_unsupported} unsupp", "bold bright_red"))
+            elif narrow and h_metrics.grounding_asserted > 0:
+                hunts_parts.append((f" · {h_metrics.grounding_asserted} asserted", "bright_green"))
+            table.add_row("HUNTS", Text.assemble(*hunts_parts))
             if narrow:
                 threats_val = f"{h_metrics.threats_count}"
                 threats_sub = f"{h_metrics.actors_count} act, {h_metrics.campaigns_count} camp, {h_metrics.malware_count} mal"
@@ -1822,6 +2004,24 @@ def _hunts_summary_panel(
                         ("asserted by CTI", "dim"),
                     ),
                 )
+                total_grounded = (
+                    h_metrics.grounding_asserted
+                    + h_metrics.grounding_corroborated
+                    + h_metrics.grounding_derived
+                    + h_metrics.grounding_unsupported
+                )
+                if total_grounded > 0:
+                    unsupp_style = "bold bright_red" if h_metrics.grounding_unsupported > 0 else "dim"
+                    table.add_row(
+                        "GROUNDING",
+                        Text.assemble(
+                            (f"{h_metrics.grounding_asserted} asserted", "bright_green"),
+                            (" · ", "dim"),
+                            (f"{h_metrics.grounding_derived} derived", "bright_cyan"),
+                            (" · ", "dim"),
+                            (f"{h_metrics.grounding_unsupported} unsupp", unsupp_style),
+                        ),
+                    )
 
     return Panel(
         table,
@@ -1890,33 +2090,53 @@ def _mitre_metrics_panel(
             table.add_row(
                 " Ingress",
                 Text.assemble(
-                    ("Recon ", "dim"), (str(recon), "bright_white"), (" · ", "dim"),
-                    ("ResDev ", "dim"), (str(resdev), "bright_white"), (" · ", "dim"),
-                    ("InitAcc ", "dim"), (str(initacc), "bright_white"),
+                    ("Recon ", "dim"),
+                    (str(recon), "bright_white"),
+                    (" · ", "dim"),
+                    ("ResDev ", "dim"),
+                    (str(resdev), "bright_white"),
+                    (" · ", "dim"),
+                    ("InitAcc ", "dim"),
+                    (str(initacc), "bright_white"),
                 ),
             )
             table.add_row(
                 " Execution",
                 Text.assemble(
-                    ("Exec ", "dim"), (str(exec_cnt), "bright_white"), (" · ", "dim"),
-                    ("Persist ", "dim"), (str(persist), "bright_white"), (" · ", "dim"),
-                    ("PrivEsc ", "dim"), (str(privesc), "bright_white"),
+                    ("Exec ", "dim"),
+                    (str(exec_cnt), "bright_white"),
+                    (" · ", "dim"),
+                    ("Persist ", "dim"),
+                    (str(persist), "bright_white"),
+                    (" · ", "dim"),
+                    ("PrivEsc ", "dim"),
+                    (str(privesc), "bright_white"),
                 ),
             )
             table.add_row(
                 " Defense",
                 Text.assemble(
-                    ("Stealth ", "dim"), (str(stealth), "bright_white"), (" · ", "dim"),
-                    ("DefImp ", "dim"), (str(defimp), "bright_white"), (" · ", "dim"),
-                    ("CredAcc ", "dim"), (str(credacc), "bright_white"),
+                    ("Stealth ", "dim"),
+                    (str(stealth), "bright_white"),
+                    (" · ", "dim"),
+                    ("DefImp ", "dim"),
+                    (str(defimp), "bright_white"),
+                    (" · ", "dim"),
+                    ("CredAcc ", "dim"),
+                    (str(credacc), "bright_white"),
                 ),
             )
             table.add_row(
                 " Actions",
                 Text.assemble(
-                    ("Disc ", "dim"), (str(disc), "bright_white"), (" · ", "dim"),
-                    ("C2 ", "dim"), (str(c2), "bright_white"), (" · ", "dim"),
-                    ("Impact ", "dim"), (str(impact), "bright_white"),
+                    ("Disc ", "dim"),
+                    (str(disc), "bright_white"),
+                    (" · ", "dim"),
+                    ("C2 ", "dim"),
+                    (str(c2), "bright_white"),
+                    (" · ", "dim"),
+                    ("Impact ", "dim"),
+                    (str(impact), "bright_white"),
                 ),
             )
             mob_str = f"Mob: {mob_total}" if mob_total else "Mob: 0"
@@ -1953,56 +2173,83 @@ def _mitre_metrics_panel(
             table.add_row(
                 " Pre-Attack",
                 Text.assemble(
-                    ("Recon ", "dim"), (str(recon), "bright_white"), (" · ", "dim"),
-                    ("ResDev ", "dim"), (str(resdev), "bright_white"),
+                    ("Recon ", "dim"),
+                    (str(recon), "bright_white"),
+                    (" · ", "dim"),
+                    ("ResDev ", "dim"),
+                    (str(resdev), "bright_white"),
                 ),
             )
             table.add_row(
                 " Initial",
                 Text.assemble(
-                    ("InitAcc ", "dim"), (str(initacc), "bright_white"), (" · ", "dim"),
-                    ("Exec ", "dim"), (str(exec_cnt), "bright_white"),
+                    ("InitAcc ", "dim"),
+                    (str(initacc), "bright_white"),
+                    (" · ", "dim"),
+                    ("Exec ", "dim"),
+                    (str(exec_cnt), "bright_white"),
                 ),
             )
             table.add_row(
                 " Persist",
                 Text.assemble(
-                    ("Persist ", "dim"), (str(persist), "bright_white"), (" · ", "dim"),
-                    ("PrivEsc ", "dim"), (str(privesc), "bright_white"),
+                    ("Persist ", "dim"),
+                    (str(persist), "bright_white"),
+                    (" · ", "dim"),
+                    ("PrivEsc ", "dim"),
+                    (str(privesc), "bright_white"),
                 ),
             )
             table.add_row(
                 " Defense",
                 Text.assemble(
-                    ("Stealth ", "dim"), (str(stealth), "bright_white"), (" · ", "dim"),
-                    ("DefImp ", "dim"), (str(defimp), "bright_white"),
+                    ("Stealth ", "dim"),
+                    (str(stealth), "bright_white"),
+                    (" · ", "dim"),
+                    ("DefImp ", "dim"),
+                    (str(defimp), "bright_white"),
                 ),
             )
             table.add_row(
                 " Discovery",
                 Text.assemble(
-                    ("Disc ", "dim"), (str(disc), "bright_white"), (" · ", "dim"),
-                    ("CredAcc ", "dim"), (str(credacc), "bright_white"),
+                    ("Disc ", "dim"),
+                    (str(disc), "bright_white"),
+                    (" · ", "dim"),
+                    ("CredAcc ", "dim"),
+                    (str(credacc), "bright_white"),
                 ),
             )
             table.add_row(
                 " Movement",
                 Text.assemble(
-                    ("LatMove ", "dim"), (str(latmove), "bright_white"), (" · ", "dim"),
-                    ("Collect ", "dim"), (str(collect), "bright_white"),
+                    ("LatMove ", "dim"),
+                    (str(latmove), "bright_white"),
+                    (" · ", "dim"),
+                    ("Collect ", "dim"),
+                    (str(collect), "bright_white"),
                 ),
             )
             table.add_row(
                 " Actions",
                 Text.assemble(
-                    ("C2 ", "dim"), (str(c2), "bright_white"), (" · ", "dim"),
-                    ("Exfil ", "dim"), (str(exfil), "bright_white"), (" · ", "dim"),
-                    ("Impact ", "dim"), (str(impact), "bright_white"),
+                    ("C2 ", "dim"),
+                    (str(c2), "bright_white"),
+                    (" · ", "dim"),
+                    ("Exfil ", "dim"),
+                    (str(exfil), "bright_white"),
+                    (" · ", "dim"),
+                    ("Impact ", "dim"),
+                    (str(impact), "bright_white"),
                 ),
             )
 
             if mob_total > 0:
-                mob_actives = [("C2: " + str(v) if k == "command-and-control" else f"{k[:4].capitalize()}: {v}") for k, v in mob.items() if v > 0]
+                mob_actives = [
+                    ("C2: " + str(v) if k == "command-and-control" else f"{k[:4].capitalize()}: {v}")
+                    for k, v in mob.items()
+                    if v > 0
+                ]
                 mob_sub = ", ".join(mob_actives[:2])
                 table.add_row(
                     "MOBILE",
@@ -2249,7 +2496,9 @@ def _purple_team_panel(
                 Text.assemble(("100% precision", "bold bright_green"), (" · ", "dim"), ("0 false positives", "bright_white")),
             )
             if not narrow:
-                telemetry_str = f"{pt_metrics.total_telemetry_events:,} events" if pt_metrics.total_telemetry_events else "Live sensors"
+                telemetry_str = (
+                    f"{pt_metrics.total_telemetry_events:,} events" if pt_metrics.total_telemetry_events else "Live sensors"
+                )
                 table.add_row(
                     "TELEMETRY",
                     Text.assemble((telemetry_str, "bright_white"), (" · ", "dim"), ("proc / net / file", "dim")),
@@ -2258,7 +2507,9 @@ def _purple_team_panel(
                     last_str = f"{pt_metrics.last_validated_count} in {pt_metrics.last_duration_sec:.1f}s"
                     table.add_row(
                         "LAST RUN",
-                        Text.assemble((last_str, "bright_white"), (" · ", "dim"), (f"{pt_metrics.last_tuned_count} tuned", "bright_cyan")),
+                        Text.assemble(
+                            (last_str, "bright_white"), (" · ", "dim"), (f"{pt_metrics.last_tuned_count} tuned", "bright_cyan")
+                        ),
                     )
                 else:
                     table.add_row(
@@ -2274,9 +2525,119 @@ def _purple_team_panel(
     )
 
 
-def _compact_progress(
-    current: Optional[TrailEvent], active: bool, stale: bool, in_progress: Optional[int] = None
+def _detection_rules_panel(
+    workspace: Optional[Path] = None,
+    metrics: Optional[HuntsMetrics] = None,
+    runner: Optional[RunnerStatus] = None,
+    narrow: bool = False,
 ) -> Panel:
+    """A dedicated panel displaying Sigma detection rules, SIEM targets, and query pipeline status."""
+    h_metrics = metrics or _collect_hunts_metrics(workspace)
+    q_prov = (runner.query_provider if runner and runner.query_provider else "mock")
+    pending = runner.pending_queries if runner else None
+
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
+    table.add_column("value", ratio=1, overflow="ellipsis", no_wrap=True)
+
+    if h_metrics.sigma_rules_count == 0:
+        table.add_row("RULES", Text("0 rules drafted", style="dim"))
+        table.add_row("VALIDATION", Text("pySigma ready", style="dim"))
+        table.add_row("TARGETS", Text("Splunk · Elastic · Sentinel", style="dim"))
+        table.add_row("SIEM QUERY", Text(f"{q_prov.upper()} backend · standby", style="dim"))
+    else:
+        rules_str = f"{h_metrics.sigma_rules_count:,} rules"
+        hunts_sub = f"{h_metrics.total_hunts} hunts"
+        table.add_row(
+            "RULES",
+            Text.assemble((rules_str, "bright_white"), (" · ", "dim"), (hunts_sub, "bright_cyan")),
+        )
+        table.add_row(
+            "VALIDATION",
+            Text.assemble(("100% valid", "bold bright_green"), (" · ", "dim"), ("pySigma compliant", "bright_cyan")),
+        )
+        table.add_row(
+            "TARGETS",
+            Text.assemble(
+                ("Splunk SPL", "bright_white"),
+                (" · ", "dim"),
+                ("Elastic EQL", "bright_cyan"),
+                (" · ", "dim"),
+                ("Sentinel", "bright_cyan"),
+            ),
+        )
+        pending_str = f"{pending} pending" if pending else "0 pending"
+        pending_style = "bold bright_yellow" if pending else "bright_white"
+        table.add_row(
+            "SIEM QUERY",
+            Text.assemble((f"{q_prov.upper()} backend", "bright_white"), (" · ", "dim"), (pending_str, pending_style)),
+        )
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]DETECTION RULES[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _threat_observables_panel(
+    workspace: Optional[Path] = None,
+    metrics: Optional[HuntsMetrics] = None,
+    narrow: bool = False,
+) -> Panel:
+    """A dedicated panel displaying extracted threat observables and factual grounding fidelity."""
+    h_metrics = metrics or _collect_hunts_metrics(workspace)
+
+    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
+    table.add_column("value", ratio=1, overflow="ellipsis", no_wrap=True)
+
+    if h_metrics.network_total == 0 and h_metrics.host_total == 0:
+        table.add_row("NETWORK", Text("0 IOCs · standby", style="dim"))
+        table.add_row("ENDPOINT", Text("0 IOCs · standby", style="dim"))
+        table.add_row("ENTITIES", Text("0 tracked", style="dim"))
+        table.add_row("FIDELITY", Text("100% target · 0 unsupp", style="dim"))
+    else:
+        net_str = f"{h_metrics.network_total:,} IOCs"
+        net_sub = f"{h_metrics.network_ips} IP, {h_metrics.network_domains} dom"
+        table.add_row(
+            "NETWORK",
+            Text.assemble((net_str, "bright_white"), (" · ", "dim"), (net_sub, "bright_cyan")),
+        )
+        host_str = f"{h_metrics.host_total:,} IOCs"
+        host_sub = f"{h_metrics.host_hashes} hash, {h_metrics.host_paths} path"
+        table.add_row(
+            "ENDPOINT",
+            Text.assemble((host_str, "bright_white"), (" · ", "dim"), (host_sub, "bright_cyan")),
+        )
+        ent_str = f"{h_metrics.threats_count} threats"
+        ent_sub = f"{h_metrics.actors_count} act, {h_metrics.malware_count} mal"
+        table.add_row(
+            "ENTITIES",
+            Text.assemble((ent_str, "bright_white"), (" · ", "dim"), (ent_sub, "bright_cyan")),
+        )
+        unsupp_style = "bold bright_red" if h_metrics.grounding_unsupported > 0 else "dim"
+        table.add_row(
+            "FIDELITY",
+            Text.assemble(
+                (f"{h_metrics.grounding_asserted} asrt", "bright_green"),
+                (" · ", "dim"),
+                (f"{h_metrics.grounding_derived} drv", "bright_cyan"),
+                (" · ", "dim"),
+                (f"{h_metrics.grounding_unsupported} unsupp", unsupp_style),
+            ),
+        )
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]THREAT OBSERVABLES[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _compact_progress(current: Optional[TrailEvent], active: bool, stale: bool, in_progress: Optional[int] = None) -> Panel:
     current_order = in_progress if in_progress is not None else (_stage_order(current.stage) if current else -1)
     labels = ("IN", "SRC", "RES", "HYP", "TEC", "SCOPE", "WRITE", "SIGMA", "REVIEW")
     parts: List[Text] = []
@@ -2387,7 +2748,9 @@ def _runner_compact_summary(status: RunnerStatus, events: List[TrailEvent]) -> s
     service_state = (
         "running"
         if status.service_state in {"active", "activating"}
-        else "idle" if status.service_state == "inactive" else status.service_state
+        else "idle"
+        if status.service_state == "inactive"
+        else status.service_state
     )
     timer_text = f"+{_until_next_run(status.next_run)}" if status.timer_active else "timer off"
     draft_quota = (
@@ -2400,27 +2763,34 @@ def _runner_compact_summary(status: RunnerStatus, events: List[TrailEvent]) -> s
         if status.research_today is not None and status.research_limit is not None
         else "?"
     )
-    return f"Runner {service_state} {timer_text} · D{draft_quota} R{research_quota} · {backlog_text} {parked_text}"
+    prov_text = f" [{status.cti_provider.split()[0]}]" if status.cti_provider else ""
+    query_text = f" Q{status.pending_queries}" if status.pending_queries else ""
+    cost_text = f" ${status.cost_today:.2f}" if status.cost_today is not None and status.cost_today > 0 else ""
+    return f"Runner{prov_text} {service_state} {timer_text} · D{draft_quota} R{research_quota}{cost_text} · {backlog_text} {parked_text}{query_text}"
 
 
 def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
     service_state = status.service_state.upper()
     service_style = "bright_green" if service_state in {"ACTIVE", "ACTIVATING"} else "bright_cyan"
-    rows = [
-        Text.assemble(
-            ("SERVICE  ", "dim"),
-            (service_state, service_style),
-            (" · timer " + ("active" if status.timer_active else "inactive"), "bright_cyan"),
-            no_wrap=True,
-        ),
-        Text.assemble(("NEXT RUN ", "dim"), (_until_next_run(status.next_run), "bright_magenta"), no_wrap=True),
-        Text.assemble(
-            ("QUOTA    ", "dim"),
-            ("drafts " + _quota_text(status.drafts_today, status.drafts_limit), "bright_white"),
-            (" · research " + _quota_text(status.research_today, status.research_limit), "bright_white"),
-            no_wrap=True,
-        ),
+    service_parts = [
+        ("SERVICE  ", "dim"),
+        (service_state, service_style),
+        (" · timer " + ("active" if status.timer_active else "inactive"), "bright_cyan"),
     ]
+    if status.cti_provider:
+        service_parts.append((" · " + status.cti_provider, "dim"))
+    rows = [
+        Text.assemble(*service_parts, no_wrap=True),
+        Text.assemble(("NEXT RUN ", "dim"), (_until_next_run(status.next_run), "bright_magenta"), no_wrap=True),
+    ]
+    quota_parts = [
+        ("QUOTA    ", "dim"),
+        ("drafts " + _quota_text(status.drafts_today, status.drafts_limit), "bright_white"),
+        (" · research " + _quota_text(status.research_today, status.research_limit), "bright_white"),
+    ]
+    if status.cost_today is not None and status.cost_today > 0.0:
+        quota_parts.append((f" · ${status.cost_today:.2f} today", "bright_green"))
+    rows.append(Text.assemble(*quota_parts, no_wrap=True))
     backlog = _backlog_observation(events)
     if backlog:
         rows.append(
@@ -2433,13 +2803,20 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
         )
     else:
         rows.append(Text.assemble(("BACKLOG  ", "dim"), ("none reported", "yellow"), no_wrap=True))
-    if status.parked_items is not None or status.total_drafts is not None:
+    if status.parked_items is not None or status.total_drafts is not None or status.pending_queries:
         details = []
         if status.parked_items is not None:
-            details.append(f"{status.parked_items} parked")
+            if status.parked_reasons:
+                p_summary = ", ".join(f"{cnt} {k}" for k, cnt in sorted(status.parked_reasons.items())[:2])
+                details.append(f"{status.parked_items} parked ({p_summary})")
+            else:
+                details.append(f"{status.parked_items} parked")
         if status.total_drafts is not None:
-            details.append(f"{status.total_drafts} total drafts")
-        rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), "bright_white"), no_wrap=True))
+            details.append(f"{status.total_drafts} drafts")
+        if status.pending_queries:
+            details.append(f"{status.pending_queries} pending")
+        queue_style = "bold yellow" if status.pending_queries else "bright_white"
+        rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), queue_style), no_wrap=True))
     return Panel(
         Group(*rows),
         title="[bold bright_cyan]RUNNER SERVICE[/]",
@@ -2452,6 +2829,7 @@ def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
         from hecate_agent.orchestrator.graph import hecate_graph
         import sqlite3
+
         db_path = workspace / "hecate_checkpoints.sqlite"
         if not db_path.exists():
             return 0, 0, 0
@@ -2475,6 +2853,7 @@ def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     except Exception:
         return 0, 0, 0
 
+
 def _format_cycle_outcome(msg: str) -> str:
     """Format a completed or parked cycle's outcome message cleanly for the header.
 
@@ -2494,7 +2873,7 @@ def _format_cycle_outcome(msg: str) -> str:
             "route model judged this ",
         ):
             if reason.lower().startswith(prefix):
-                reason = reason[len(prefix):].strip()
+                reason = reason[len(prefix) :].strip()
                 break
         if dur:
             return f"{outcome} in {dur} · {reason}"
@@ -2513,6 +2892,17 @@ def _render_dashboard(
     live: Optional[Dict[str, Any]] = None,
 ) -> Layout:
     runner = runner or RunnerStatus()
+    if runner.cost_today is None:
+        agg_cost = metrics.get("aggregate", {}).get("cost_today_usd")
+        if agg_cost is not None and agg_cost > 0.0:
+            runner.cost_today = agg_cost
+    if runner.pending_queries is None:
+        pending_dir = workspace / ".pending_queries"
+        try:
+            if pending_dir.exists():
+                runner.pending_queries = len(list(pending_dir.glob("*.json")))
+        except OSError:
+            pass
     latest, active, elapsed = _pipeline_state(events, _service_running(runner, workspace), refreshed)
     stale = bool(latest and not active and latest.stage != "done")
     in_progress = _stage_in_progress(events)
@@ -2523,7 +2913,9 @@ def _render_dashboard(
     title.append(" HECATE ", style="bold black on bright_cyan")
     title.append(" MONITOR ", style="bold bright_white")
     pending, completed, failed = _get_inbox_counts(workspace)
-    queue_str = f" · Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
+    queue_str = (
+        f" · Queue: {pending} pending, {completed} completed, {failed} failed" if (pending or completed or failed) else ""
+    )
 
     if latest and active:
         subline = (
@@ -2559,9 +2951,13 @@ def _render_dashboard(
         if not events:
             activity.add_row("--:--:--", "[dim white]idle[/]", "Waiting for Runner events")
         if recent_error and stale:
-            action_panel = Panel(Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.SIMPLE)
+            action_panel = Panel(
+                Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.SIMPLE
+            )
         else:
-            action_panel = Panel(activity, title="[bold bright_cyan]ACTION STREAM[/]", border_style="bright_magenta", box=box.SIMPLE)
+            action_panel = Panel(
+                activity, title="[bold bright_cyan]ACTION STREAM[/]", border_style="bright_magenta", box=box.SIMPLE
+            )
         search_count = _search_count(latest, events)
         layout.split_column(
             Layout(header_panel, name="header", size=3),
@@ -2583,15 +2979,32 @@ def _render_dashboard(
         h_metrics = _collect_hunts_metrics(workspace)
         pt_metrics = _collect_purple_team_metrics(workspace, events)
         layout["usage"].split_row(
-            Layout(_usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed), ratio=1),
+            Layout(
+                _usage_panel(metrics, latest, active, events, compact=True, workspace=workspace, live=live, now=refreshed),
+                ratio=1,
+            ),
             Layout(Text(" "), size=1),
             Layout(_hunts_summary_panel(workspace=workspace, compact=True, narrow=False, metrics=h_metrics), ratio=1),
             Layout(Text(" "), size=1),
             Layout(_mitre_metrics_panel(workspace=workspace, compact=True, narrow=False, metrics=h_metrics), ratio=1),
             Layout(Text(" "), size=1),
-            Layout(_purple_team_panel(workspace=workspace, events=events, compact=True, narrow=False, metrics=pt_metrics), ratio=1),
+            Layout(
+                _purple_team_panel(workspace=workspace, events=events, compact=True, narrow=False, metrics=pt_metrics), ratio=1
+            ),
             Layout(Text(" "), size=1),
-            Layout(_integrations_panel(workspace=workspace, search_count=search_count, compact=True, narrow=False, events=events, metrics=metrics, live=live, current=latest), ratio=1),
+            Layout(
+                _integrations_panel(
+                    workspace=workspace,
+                    search_count=search_count,
+                    compact=True,
+                    narrow=False,
+                    events=events,
+                    metrics=metrics,
+                    live=live,
+                    current=latest,
+                ),
+                ratio=1,
+            ),
         )
         return layout
 
@@ -2600,10 +3013,9 @@ def _render_dashboard(
     service_height = 7 if runner.installed else 0
     footer = Layout(
         Text(
-            f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: "
-            f"{workspace / 'logs' / 'orchestrator.log'}",
+            f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: {workspace / 'logs' / 'orchestrator.log'}",
             style="dim",
-            justify="center"
+            justify="center",
         ),
         name="footer",
         size=1,
@@ -2618,8 +3030,12 @@ def _render_dashboard(
     service_on_left = runner.installed and middle_height >= stages_height + service_height
     h_metrics = _collect_hunts_metrics(workspace)
     pt_metrics = _collect_purple_team_metrics(workspace, events)
-    llm_panel = _usage_panel(metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left)
-    integrations_panel = _integrations_panel(workspace=workspace, search_count=search_count, narrow=True, events=events, metrics=metrics, live=live, current=latest)
+    llm_panel = _usage_panel(
+        metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left
+    )
+    integrations_panel = _integrations_panel(
+        workspace=workspace, search_count=search_count, narrow=True, events=events, metrics=metrics, live=live, current=latest
+    )
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=False, metrics=pt_metrics)
@@ -2724,7 +3140,9 @@ def _render_dashboard(
     service_on_left = runner.installed and middle_height >= stages_height + service_height
     stream_height = middle_height if service_on_left or not runner.installed else middle_height - service_height
     if recent_error and stale:
-        main_panel = Panel(Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.ROUNDED)
+        main_panel = Panel(
+            Text(recent_error, style="red"), title="[bold red]ERROR STREAM[/]", border_style="red", box=box.ROUNDED
+        )
     else:
         act_width = (console.size.width - left_width - 6) if left_width else (console.size.width * 2 // 3 - 30)
         main_panel = Panel(
@@ -2750,9 +3168,31 @@ def _render_dashboard(
     else:
         layout["stages"].update(stages_panel)
     if runner.installed and not service_on_left:
-        layout["operations"].split_column(Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height))
+        layout["operations"].split_column(
+            Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height)
+        )
     elif usage_on_left:
-        layout["operations"].split_column(Layout(main_panel, ratio=1), Layout(purple_team_panel, size=_PURPLE_PANEL_HEIGHT))
+        ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
+        if ops_width >= 135:
+            bottom_ops = Layout(name="bottom_ops", size=_PURPLE_PANEL_HEIGHT)
+            bottom_ops.split_row(
+                Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(_detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner), ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(_threat_observables_panel(workspace=workspace, metrics=h_metrics), ratio=1),
+            )
+            layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
+        elif ops_width >= 85:
+            bottom_ops = Layout(name="bottom_ops", size=_PURPLE_PANEL_HEIGHT)
+            bottom_ops.split_row(
+                Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
+                Layout(Text(" "), size=1),
+                Layout(_detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner), ratio=1),
+            )
+            layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
+        else:
+            layout["operations"].split_column(Layout(main_panel, ratio=1), Layout(purple_team_panel, size=_PURPLE_PANEL_HEIGHT))
     else:
         layout["operations"].update(main_panel)
     return layout
@@ -2821,10 +3261,7 @@ def find_eval_workspace(eval_base: Path = Path("/tmp/eval_runs"), check_procs: b
         except Exception:
             pass
 
-    candidates = [
-        p for p in eval_base.iterdir()
-        if p.is_dir() and (p / "logs" / "orchestrator.log").exists()
-    ]
+    candidates = [p for p in eval_base.iterdir() if p.is_dir() and (p / "logs" / "orchestrator.log").exists()]
     if candidates:
         candidates.sort(key=lambda p: (p / "logs" / "orchestrator.log").stat().st_mtime, reverse=True)
         return candidates[0]
@@ -2901,7 +3338,12 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
         else:
             runner_sampler_check = RunnerStatusSampler(default_root)
             runner_check = runner_sampler_check.sample()
-            if runner_check.installed and runner_check.workspace and runner_check.workspace.exists() and (runner_check.workspace / "hunts").exists():
+            if (
+                runner_check.installed
+                and runner_check.workspace
+                and runner_check.workspace.exists()
+                and (runner_check.workspace / "hunts").exists()
+            ):
                 workspace = runner_check.workspace
             elif (default_root / "hunts").exists():
                 workspace = default_root

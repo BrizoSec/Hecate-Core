@@ -1,7 +1,7 @@
 """The pipeline monitor: what it reports about a cycle, from the Runner's trail lines."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -176,8 +176,22 @@ def test_a_running_cycle_shows_its_own_calls_as_they_happen() -> None:
 
 def test_a_finished_cycle_shows_its_recorded_totals_not_the_call_log() -> None:
     events = _events("route: narrative", "done: draft_created")
-    live = {"llm_calls": 9, "in_flight": 0, "failed": 0, "input_tokens": 1, "output_tokens": 1, "cost_usd": 0.0, "models": [], "last_start": 0.0, "last_end": 0.0}
-    metrics = {"cycle_id": "54ac42", "outcome": "draft_created", "stages": [{"stage": "research", "llm_calls": 4, "input_tokens": 5000, "output_tokens": 600, "models": ["m"]}]}
+    live = {
+        "llm_calls": 9,
+        "in_flight": 0,
+        "failed": 0,
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "cost_usd": 0.0,
+        "models": [],
+        "last_start": 0.0,
+        "last_end": 0.0,
+    }
+    metrics = {
+        "cycle_id": "54ac42",
+        "outcome": "draft_created",
+        "stages": [{"stage": "research", "llm_calls": 4, "input_tokens": 5000, "output_tokens": 600, "models": ["m"]}],
+    }
     m.console = Console(width=140, height=30, record=True, force_terminal=False)
     m.console.print(m._usage_panel(metrics, events[-1], False, events, live=live))
     text = m.console.export_text()
@@ -222,7 +236,11 @@ def test_the_side_usage_panel_shows_every_stage() -> None:
     ]
     events = _events("route: narrative", "done: draft_created")
     m.console = Console(width=54, record=True, force_terminal=False)
-    m.console.print(m._usage_panel({"cycle_id": "54ac42", "outcome": "draft_created", "stages": stages}, events[-1], False, events, narrow=True))
+    m.console.print(
+        m._usage_panel(
+            {"cycle_id": "54ac42", "outcome": "draft_created", "stages": stages}, events[-1], False, events, narrow=True
+        )
+    )
     text = m.console.export_text()
     assert len(text.splitlines()) == m._NARROW_USAGE_PANEL_HEIGHT
     for part in ("25 calls", "source 4", "research 4", "hypothesis 1", "sigma 16"):
@@ -268,7 +286,7 @@ def test_integrations_panel_shows_metrics_to_the_right_in_narrow_mode(tmp_path: 
     monkeypatch.delenv("HECATE_RUNNER_SLACK_WEBHOOK_URL", raising=False)
 
     events = _events(
-        "intake: otx: \"Pulse report\" (indicators: IPv4 1, FileHash-SHA256 7)",
+        'intake: otx: "Pulse report" (indicators: IPv4 1, FileHash-SHA256 7)',
         "route: narrative",
         "enrichment: 3 observable(s) (1 ip, 0 hash, 2 domain) checked via VT, GreyNoise, Shodan, Censys, ThreatFox",
         "research: R-0001 done in 30s; grounding: independent research, 2 web search(es);",
@@ -323,7 +341,7 @@ def test_integrations_panel_shows_metrics_in_wide_mode(tmp_path: Path, monkeypat
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
 
     events = _events(
-        "intake: misp: \"Threat Event\" (indicators: none)",
+        'intake: misp: "Threat Event" (indicators: none)',
         "done: draft_created -> H-0002 in 120s",
     )
     live = {"llm_calls": 8, "in_flight": 0}
@@ -373,7 +391,7 @@ def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
 
     # Cycle 1: active enrichment and draft creation
     active_events = _events(
-        "intake: otx: \"Active threat campaign\" (indicators: IPv4 2, FileHash-SHA256 1)",
+        'intake: otx: "Active threat campaign" (indicators: IPv4 2, FileHash-SHA256 1)',
         "enrichment: 6 observable(s) (2 ip, 1 hash, 1 domain, 1 url, 1 cve) checked via VT, GreyNoise, AbuseIPDB, Shodan, Censys, Abuse.ch (ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus), RDAP, EPSS, OTX",
         "research: grounding: independent research, 4 web search(es);",
         "sigma: done in 100s: 2 rule(s) kept",
@@ -421,7 +439,6 @@ def test_integrations_panel_preserves_enrichment_metrics_across_idle_cycles(
     assert "ready" not in text
 
 
-
 def test_format_cycle_outcome_handles_parking_and_duration() -> None:
     msg = (
         "parked_after_hypothesis (hypothesis model judged this NOT a threat report: "
@@ -438,7 +455,7 @@ def test_format_cycle_outcome_handles_parking_and_duration() -> None:
 def test_header_panel_does_not_abruptly_truncate_or_wrap() -> None:
     events = _events(
         "route: narrative",
-        "done: parked_after_hypothesis (hypothesis model judged this NOT a threat report: The source is a vendor-published risk management guidance document) in 170s"
+        "done: parked_after_hypothesis (hypothesis model judged this NOT a threat report: The source is a vendor-published risk management guidance document) in 170s",
     )
     m.console = Console(width=160, height=48, record=True, force_terminal=False)
     m.console.print(m._render_dashboard(Path("/nonexistent/workspace"), events, {}, _host(), refreshed=datetime.now()))
@@ -452,7 +469,16 @@ def test_latest_metrics_preserves_llm_stages_across_zero_call_cycles(tmp_path: P
     cycle1 = {
         "cycle_id": "c1",
         "hunt_id": "H-0001",
-        "stages": [{"stage": "research", "llm_calls": 3, "input_tokens": 1000, "output_tokens": 200, "duration_ms": 15000, "models": ["test-model"]}],
+        "stages": [
+            {
+                "stage": "research",
+                "llm_calls": 3,
+                "input_tokens": 1000,
+                "output_tokens": 200,
+                "duration_ms": 15000,
+                "models": ["test-model"],
+            }
+        ],
     }
     # Cycle 2 is a quota check with no LLM calls
     cycle2 = {
@@ -782,6 +808,178 @@ def test_collect_purple_team_metrics_from_trail_events() -> None:
     assert metrics.last_status == "COMPLETED"
 
 
+def test_collect_hunts_metrics_grounding(tmp_path: Path) -> None:
+    hunts_dir = tmp_path / "hunts" / "2026" / "Q4"
+    hunts_dir.mkdir(parents=True)
+
+    hunt_text = """---
+hunt_id: H-0002
+title: "Test Grounding Hunt"
+status: planning
+techniques: ["T1003.001"]
+---
+
+### Grounding
+*12 asserted by CTI · 0 research-only · 3 inferred · 1 unsupported*
+
+| Claim | Type | Grounding |
+|---|---|---|
+| `LSASS` | entity | asserted by CTI |
+"""
+    (hunts_dir / "H-0002.md").write_text(hunt_text, encoding="utf-8")
+    metrics = m._collect_hunts_metrics(tmp_path)
+    assert metrics.grounding_asserted == 12
+    assert metrics.grounding_corroborated == 0
+    assert metrics.grounding_derived == 3
+    assert metrics.grounding_unsupported == 1
 
 
+def test_hunts_summary_panel_grounding_rendering(tmp_path: Path) -> None:
+    mock_metrics = m.HuntsMetrics(
+        total_hunts=10,
+        drafts_count=10,
+        grounding_asserted=25,
+        grounding_derived=5,
+        grounding_unsupported=2,
+    )
+    # Wide mode displays dedicated GROUNDING row
+    c_wide = Console(width=80, record=True, force_terminal=False)
+    panel_wide = m._hunts_summary_panel(workspace=tmp_path, narrow=False, metrics=mock_metrics)
+    c_wide.print(panel_wide)
+    text_wide = c_wide.export_text()
+    assert "GROUNDING" in text_wide
+    assert "25 asserted" in text_wide
+    assert "5 derived" in text_wide
+    assert "2 unsupp" in text_wide
 
+    # Narrow mode tags HUNTS row
+    c_narrow = Console(width=48, record=True, force_terminal=False)
+    panel_narrow = m._hunts_summary_panel(workspace=tmp_path, narrow=True, metrics=mock_metrics)
+    c_narrow.print(panel_narrow)
+    text_narrow = c_narrow.export_text()
+    assert "2 unsupp" in text_narrow
+
+
+def test_latest_metrics_tracks_today_spend(tmp_path: Path) -> None:
+    metrics_file = tmp_path / "stage_metrics.jsonl"
+    today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT12:00:00+00:00")
+    yesterday_iso = "2020-01-01T12:00:00+00:00"
+
+    cycle_today = {
+        "cycle_id": "c_today",
+        "started_at": today_iso,
+        "stages": [{"stage": "research", "llm_calls": 2, "estimated_cost_usd": 0.35}],
+    }
+    cycle_old = {
+        "cycle_id": "c_old",
+        "started_at": yesterday_iso,
+        "stages": [{"stage": "research", "llm_calls": 5, "estimated_cost_usd": 1.50}],
+    }
+    metrics_file.write_text(json.dumps(cycle_old) + "\n" + json.dumps(cycle_today) + "\n")
+    latest = m._latest_metrics(metrics_file)
+    agg = latest.get("aggregate", {})
+    assert agg.get("cost_today_usd") == 0.35
+    assert agg.get("calls_today") == 2
+    assert agg.get("estimated_cost_usd") == 1.85
+
+
+def test_runner_panel_shows_cost_provider_and_pending_queries() -> None:
+    runner = m.RunnerStatus(
+        installed=True,
+        service_state="active",
+        timer_active=True,
+        drafts_today=2,
+        drafts_limit=4,
+        research_today=1,
+        research_limit=7,
+        total_drafts=15,
+        parked_items=3,
+        parked_reasons={"commentary": 2, "no_behavior": 1},
+        pending_queries=2,
+        cti_provider="multi (rss, otx)",
+        cost_today=0.45,
+    )
+    events = [
+        m.TrailEvent(
+            stage="done",
+            message="done: draft_created",
+            cycle_id="abcdef",
+            timestamp="12:00:00",
+            elapsed=10.0,
+        )
+    ]
+    c = Console(width=80, record=True, force_terminal=False)
+    panel = m._runner_panel(runner, events)
+    c.print(panel)
+    text = c.export_text()
+    assert "SERVICE" in text and "multi (rss, otx)" in text
+    assert "$0.45 today" in text
+    assert "2 pending" in text
+    assert "3 parked (2 commentary, 1 no_behavior)" in text
+
+
+def test_detection_rules_panel_rendering() -> None:
+    mock_metrics = m.HuntsMetrics(
+        total_hunts=832,
+        sigma_rules_count=1382,
+    )
+    runner = m.RunnerStatus(
+        query_provider="splunk",
+        pending_queries=3,
+    )
+    c = Console(width=50, record=True, force_terminal=False)
+    panel = m._detection_rules_panel(metrics=mock_metrics, runner=runner)
+    c.print(panel)
+    text = c.export_text()
+    assert "DETECTION RULES" in text
+    assert "1,382 rules" in text
+    assert "832 hunts" in text
+    assert "100% valid" in text
+    assert "Splunk SPL" in text
+    assert "SPLUNK backend" in text
+    assert "3 pending" in text
+
+
+def test_threat_observables_panel_rendering() -> None:
+    mock_metrics = m.HuntsMetrics(
+        network_total=1420,
+        network_ips=680,
+        network_domains=740,
+        host_total=890,
+        host_hashes=420,
+        host_paths=470,
+        threats_count=150,
+        actors_count=42,
+        malware_count=68,
+        grounding_asserted=420,
+        grounding_derived=310,
+        grounding_unsupported=0,
+    )
+    c = Console(width=50, record=True, force_terminal=False)
+    panel = m._threat_observables_panel(metrics=mock_metrics)
+    c.print(panel)
+    text = c.export_text()
+    assert "THREAT OBSERVABLES" in text
+    assert "1,420 IOCs" in text
+    assert "680 IP, 740 dom" in text
+    assert "890 IOCs" in text
+    assert "420 hash, 470 path" in text
+    assert "150 threats" in text
+    assert "42 act, 68 mal" in text
+    assert "420 asrt" in text
+    assert "310 drv" in text
+    assert "0 unsupp" in text
+
+
+def test_dashboard_wide_screen_bottom_ribbon() -> None:
+    events = _events("route: narrative", "done: draft_created")
+    runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
+
+    # Width=200, Height=60: Very wide screen splits operations bottom into Purple Team, Detection Rules, Threat Observables
+    m.console = Console(width=200, height=60, record=True, force_terminal=False)
+    now = START + timedelta(minutes=10)
+    m.console.print(m._render_dashboard(Path("/nonexistent/workspace"), events, {}, _host(), now, runner, ""))
+    wide_text = m.console.export_text()
+    assert "PURPLE TEAM ENGINE" in wide_text
+    assert "DETECTION RULES" in wide_text
+    assert "THREAT OBSERVABLES" in wide_text
