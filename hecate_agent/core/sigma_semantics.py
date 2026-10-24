@@ -48,6 +48,16 @@ SIGMA_FIELDS: Dict[str, Tuple[str, ...]] = {
         "cs-host", "cs-method", "cs-referrer", "cs-version", "r-dns", "sc-bytes", "sc-status", "src_ip", "dst_ip",
     ),
     "webserver": ("cs-uri-query", "cs-uri-stem", "cs-method", "cs-referrer", "cs-user-agent", "sc-status", "c-ip"),
+    "cloud_audit": (
+        "eventSource", "eventName", "userIdentity", "sourceIPAddress", "userAgent",
+        "awsRegion", "requestParameters", "responseElements", "errorCode", "errorMessage",
+        "serviceName", "action", "recipientAccountId", "resources",
+    ),
+    "identity_audit": (
+        "eventName", "operationType", "appId", "appDisplayName", "targetResources",
+        "initiatedBy", "userPrincipalName", "roles", "permissions", "ipAddress",
+        "status", "reason", "clientAppUsed", "correlationId",
+    ),
 }  # fmt: skip
 
 #: Fields naming the process an event belongs to.
@@ -86,6 +96,72 @@ _SINGLE_VALUED = frozenset(
         "destinationport", "destinationhostname", "queryname", "targetobject", "sourceip",
     }
 )  # fmt: skip
+_SCALAR_FIELDS = _SINGLE_VALUED | frozenset({"ipaddress", "sourcehostname", "sourceport", "user", "username", "computername"})
+
+
+def repair_sigma_semantics(detection: Any) -> Tuple[Dict[str, Any], List[str]]:
+    """Self-healing rewriter for Sigma detection blocks.
+
+    Auto-repairs mathematically impossible modifier combinations, such as '|all'
+    on single-valued scalar fields (e.g. DestinationIp|all, Image|all, CommandLine|all
+    without substring modifiers). Strips '|all' to restore standard Sigma OR-list matching.
+
+    Returns:
+        (repaired_detection_dict, list_of_repair_descriptions)
+    """
+    if not isinstance(detection, dict):
+        return {}, []
+
+    repairs: List[str] = []
+
+    def _repair_block(block: Dict[str, Any]) -> Dict[str, Any]:
+        new_block: Dict[str, Any] = {}
+        for key, val in block.items():
+            if not isinstance(key, str) or "|" not in key:
+                new_block[key] = val
+                continue
+
+            parts = [p.strip() for p in key.split("|")]
+            base = parts[0]
+            base_lower = base.lower()
+            modifiers = [m.lower() for m in parts[1:]]
+
+            if "all" in modifiers:
+                has_sub = any(m in ("contains", "startswith", "endswith", "re") for m in modifiers)
+                is_scalar_exact = base_lower in _SCALAR_FIELDS and not has_sub
+                is_net_field = base_lower in ("destinationip", "sourceip", "destinationport", "sourceport", "ipaddress")
+                is_cmd_exact = base_lower in ("commandline", "parentcommandline") and not has_sub
+
+                if is_scalar_exact or is_net_field or is_cmd_exact:
+                    filtered_mods = [m for m in parts[1:] if m.strip().lower() != "all"]
+                    new_key = "|".join([base] + filtered_mods) if filtered_mods else base
+                    repairs.append(f"Stripped impossible '|all' modifier from '{key}' -> '{new_key}' on scalar field {base!r}")
+                    if new_key in new_block:
+                        existing = new_block[new_key]
+                        combined = _values(existing) + [v for v in _values(val) if v not in _values(existing)]
+                        new_block[new_key] = combined
+                    else:
+                        new_block[new_key] = val
+                    continue
+
+            new_block[key] = val
+        return new_block
+
+    new_detection: Dict[str, Any] = {}
+    for name, item in detection.items():
+        if name in ("condition", "timeframe"):
+            new_detection[name] = item
+        elif isinstance(item, dict):
+            new_detection[name] = _repair_block(item)
+        elif isinstance(item, list):
+            new_detection[name] = [_repair_block(sub_item) if isinstance(sub_item, dict) else sub_item for sub_item in item]
+        else:
+            new_detection[name] = item
+
+    return new_detection, repairs
+
+
+repair_scalar_all_modifiers = repair_sigma_semantics
 
 
 def base_field(key: Any) -> str:

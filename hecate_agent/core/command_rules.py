@@ -47,6 +47,10 @@ _WINDOWS: Dict[str, str] = {
 _STOP_RE = re.compile(r"^(;|&&?|\|\|?|>|>>|2>|:|\)|->|—)$|^:")
 _PLACEHOLDER_RE = re.compile(r"^\[.*\]$|^<.*>$|^\$\(|^\$\{?\w+\}?$|^\.\.\.$|^\[|\]$")
 _VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
+#: Explicit indicators of Linux / Unix tools or paths in CTI text, used for multi-platform fallback.
+LINUX_MARKERS = re.compile(
+    r"(?i)\b(nsenter|bpftool|ebpf|kprobe|cgroup|auditd|syslog|sys/fs/bpf|/bin/(?:bash|sh|zsh)|/usr/bin/|systemctl|journalctl)\b"
+)
 #: Programs whose first argument is a plain-word subcommand ("launchctl bootstrap").
 _SUBCOMMANDS = frozenset(
     {"launchctl", "systemctl", "defaults", "dscl", "net", "sc", "reg", "schtasks", "wmic", "bcdedit", "vssadmin",
@@ -167,8 +171,9 @@ def observed_commands(
 ) -> List[ObservedCommand]:
     """Commands of known programs in the observed sentences of ``text``, one per program and argument."""
     wanted = {p.lower() for p in platforms}
+    has_linux_markers = bool(LINUX_MARKERS.search(text))
     catalogs: List[Tuple[str, Dict[str, str]]] = []
-    if not wanted or wanted & {"macos", "linux", "containers"}:
+    if not wanted or wanted & {"macos", "linux", "containers"} or has_linux_markers:
         catalogs.append(("unix", _UNIX))
     if not wanted or "windows" in wanted:
         catalogs.append(("windows", _WINDOWS))
@@ -233,6 +238,7 @@ def command_candidates(text: str, platforms: Sequence[str] = (), primary_actor: 
         out.append(
             {
                 "category": "process_creation",
+                "platform": cmd.platform,
                 "title": f"{cmd.program} {cmd.argument}"[:100],
                 "detection": {
                     "selection": {"Image|endswith": image, "CommandLine|contains": cmd.argument},

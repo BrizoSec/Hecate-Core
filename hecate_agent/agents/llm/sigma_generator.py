@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import yaml
 
 from hecate_agent.agents.base import AgentResult, LLMAgent
-from hecate_agent.core.sigma_semantics import semantic_problem
+from hecate_agent.core.sigma_semantics import base_field, blocks, repair_sigma_semantics, semantic_problem
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,10 @@ VALID_LOGSOURCE_CATEGORIES = {
     # edge appliance actually produces. Without it H-0830 (NetScaler RCE via
     # User-Agent log poisoning) could only be drafted as process_creation.
     "webserver",
+    # Cloud control-plane and identity provider audit logs: capture Stage 1
+    # OAuth consent abuse, app registrations, and AWS STS role assumptions.
+    "cloud_audit",
+    "identity_audit",
 }
 
 #: Field names each log source actually carries, so the prompt for one
@@ -82,6 +86,10 @@ _LOGSOURCE_FIELDS = {
         "c-uri, c-uri-stem, c-uri-query, c-uri-extension, c-useragent, cs-host, cs-method, cs-referrer, sc-status, src_ip, dst_ip"
     ),
     "webserver": "cs-method, cs-uri-stem, cs-uri-query, cs-user-agent, cs-referrer, sc-status, c-ip",
+    "cloud_audit": ("eventSource, eventName, userIdentity, sourceIPAddress, userAgent, awsRegion, requestParameters, action"),
+    "identity_audit": (
+        "eventName, operationType, appId, appDisplayName, targetResources, initiatedBy, roles, permissions, status"
+    ),
 }
 
 #: Sigma aggregation grammar: ``<func>(<field>?) [by <field>] <op> <number>``.
@@ -132,9 +140,16 @@ _TECHNIQUE_LOGSOURCES: Dict[str, Set[str]] = {
     # nothing is what forced them into process_creation.
     "T1110": {"authentication"},
     "T1078": {"authentication"},
+    "T1078.004": {"authentication", "identity_audit", "cloud_audit"},
     "T1098": {"authentication"},
+    "T1098.003": {"authentication", "identity_audit", "cloud_audit"},
     "T1621": {"authentication"},
     "T1550": {"authentication"},
+    "T1550.001": {"authentication", "identity_audit"},
+    "T1528": {"identity_audit", "cloud_audit"},
+    "T1538": {"cloud_audit"},
+    "T1580": {"cloud_audit"},
+    "T1530": {"cloud_audit"},
     "T1556": {"authentication", "registry_event"},
     "T1187": {"authentication", "network_connection"},
     # Added from the fallback warning's own output: these fell through to
@@ -874,7 +889,9 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
                         f"on {text!r}; a hostname in an address field never matches"
                     )
                 if base == "targetobject" and "/" in text and "\\" not in text:
-                    return f"{field_name} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
+                    return (
+                        f"{field_name} holds a Windows registry path, but the detection matches on {text!r}, a Unix file path"
+                    )
                 if base in _PORT_FIELDS and not text.strip().lstrip("-").isdigit():
                     return f"{field_name} holds a port number, but the detection matches on {text!r}"
                 if base in _FILENAME_FIELDS and _SWITCH_RE.search(text):
@@ -1442,12 +1459,24 @@ def _modifier_in_value_problem(detection: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-_SCALAR_EVENT_FIELDS = frozenset({
-    "destinationip", "sourceip", "ipaddress", "destinationhostname",
-    "sourcehostname", "destinationport", "sourceport", "image",
-    "parentimage", "originalfilename", "targetfilename", "user",
-    "username", "computername",
-})
+_SCALAR_EVENT_FIELDS = frozenset(
+    {
+        "destinationip",
+        "sourceip",
+        "ipaddress",
+        "destinationhostname",
+        "sourcehostname",
+        "destinationport",
+        "sourceport",
+        "image",
+        "parentimage",
+        "originalfilename",
+        "targetfilename",
+        "user",
+        "username",
+        "computername",
+    }
+)
 
 
 def _impossible_modifier_problem(detection: Dict[str, Any]) -> Optional[str]:
@@ -1550,23 +1579,44 @@ def _platform_legit_filters(platforms: Optional[List[str]]) -> List[str]:
 
     filters: List[str] = []
     if is_win:
-        filters.extend([
-            "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
-            "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
-        ])
+        filters.extend(
+            [
+                "\\chrome.exe",
+                "\\msedge.exe",
+                "\\firefox.exe",
+                "\\brave.exe",
+                "\\AWSCLIV2.exe",
+                "\\amazon-ssm-agent.exe",
+            ]
+        )
     if is_linux:
-        filters.extend([
-            "/chrome", "/google-chrome", "/firefox", "/brave",
-            "/aws", "/amazon-ssm-agent",
-        ])
+        filters.extend(
+            [
+                "/chrome",
+                "/google-chrome",
+                "/firefox",
+                "/brave",
+                "/aws",
+                "/amazon-ssm-agent",
+            ]
+        )
     if is_mac:
-        filters.extend([
-            "/Google Chrome", "/Microsoft Edge", "/Firefox", "/Brave Browser",
-            "/aws",
-        ])
+        filters.extend(
+            [
+                "/Google Chrome",
+                "/Microsoft Edge",
+                "/Firefox",
+                "/Brave Browser",
+                "/aws",
+            ]
+        )
     return filters or [
-        "\\chrome.exe", "\\msedge.exe", "\\firefox.exe", "\\brave.exe",
-        "\\AWSCLIV2.exe", "\\amazon-ssm-agent.exe",
+        "\\chrome.exe",
+        "\\msedge.exe",
+        "\\firefox.exe",
+        "\\brave.exe",
+        "\\AWSCLIV2.exe",
+        "\\amazon-ssm-agent.exe",
     ]
 
 
@@ -1576,11 +1626,17 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
     def execute(self, input_data: SigmaGenerationInput) -> AgentResult[SigmaGenerationOutput]:
         start = time.monotonic()
         self._reset_llm_usage()
+        platforms = list(input_data.platforms)
+        from hecate_agent.core.command_rules import LINUX_MARKERS
+
+        if LINUX_MARKERS.search(input_data.threat_intel or "") and "linux" not in [p.lower() for p in platforms]:
+            platforms.append("linux")
+
         logsources = input_data.logsources or applicable_logsources(
             input_data.techniques,
             list(input_data.indicators.keys()),
         )
-        logsources = _platform_consistent_logsources(logsources, input_data.platforms)
+        logsources = _platform_consistent_logsources(logsources, platforms)
 
         if not self.llm_enabled:
             return AgentResult(
@@ -1637,6 +1693,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             *self._command_rules(input_data),
             *self._guidance_rules(input_data),
             *self._ioc_rules(input_data),
+            *self._cloud_control_plane_rules(input_data),
         ]:
             if ioc_rule is not None:
                 rules.append(ioc_rule)
@@ -1776,6 +1833,16 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         for candidate in input_data.observed_commands:
             cat = str(candidate.get("category", "process_creation"))
             title = str(candidate.get("title", ""))
+            cand_platform = candidate.get("platform")
+            if not cand_platform:
+                det = candidate.get("detection") or {}
+                sel = det.get("selection") or {}
+                img = str(sel.get("Image|endswith", ""))
+                cmd_str = str(candidate.get("command", ""))
+                if img.startswith("/") or any(
+                    u in cmd_str or u in img for u in ("nsenter", "bpftool", "bash", "sh", "kprobe")
+                ):
+                    cand_platform = "linux"
             if not title.startswith(("Command", "File", "Scheduled")):
                 title = (
                     f"Command the source shows being run: {title}"
@@ -1802,6 +1869,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     behaviour=str(
                         candidate.get("behaviour") or f"{candidate.get('title', '')} {candidate.get('command', '')}"
                     ),
+                    rule_platform=cand_platform,
                 )
             )
         return results
@@ -1897,6 +1965,109 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 )
         return results
 
+    def _cloud_control_plane_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
+        """Deterministic control plane detection rules for cloud/identity intrusions.
+
+        Identifies OAuth application consent abuse, illicit app registrations, and
+        AWS STS role assumptions described in the threat intelligence or hypothesis.
+        """
+        results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
+        text = f"{input_data.threat_intel or ''} {input_data.hypothesis or ''} {input_data.justification or ''}"
+
+        # 1. OAuth consent grants & illicit app role assignment (Stage 1 / Entra ID)
+        oauth_match = re.search(
+            r"(?i)\b(consent|oauth|approleassignment|service\s*principal|app\s*registration|directory\.readwrite\.all|mail\.readwrite)\b",
+            text,
+        )
+        has_oauth_technique = any(t.upper().startswith(("T1550.001", "T1098.003", "T1528")) for t in input_data.techniques)
+        if oauth_match or has_oauth_technique:
+            detection: Dict[str, Any] = {
+                "selection": {
+                    "eventName": [
+                        "Consent to application",
+                        "Add app role assignment to service principal",
+                        "Add service principal",
+                        "Add service principal credentials",
+                    ]
+                },
+                "condition": "selection",
+            }
+            perms = []
+            for perm in (
+                "Directory.ReadWrite.All",
+                "Mail.ReadWrite",
+                "User.ReadWrite.All",
+                "RoleManagement.ReadWrite.Directory",
+            ):
+                if perm.lower() in text.lower():
+                    perms.append(perm)
+            if perms:
+                detection["selection"]["permissions|contains"] = perms
+
+            # Extract specific app worker/diagnostics name if mentioned
+            app_matches = re.findall(r"\b([A-Za-z0-9_\-\.]+Worker|[A-Za-z0-9_\-\.]+Diagnostics[A-Za-z0-9_\-\.]*)\b", text)
+            if app_matches:
+                detection["selection"]["appDisplayName|contains"] = list(dict.fromkeys(app_matches[:3]))
+
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="identity_audit",
+                    label="cloud identity OAuth consent abuse",
+                    title="Suspicious OAuth application consent grant or app role assignment",
+                    description=(
+                        "Detects application consent grants or high-privilege service principal role assignments "
+                        "commonly abused during initial access and persistence in cloud identity tenants."
+                    ),
+                    detection=detection,
+                    falsepositives="Legitimate tenant administrator consenting to enterprise applications or configuring service principals",
+                    preamble="Deterministic cloud identity rule built for control-plane tradecraft, with no model involvement. ",
+                    level="high",
+                    behaviour="OAuth consent grant and service principal role assignment",
+                    techniques=["T1550.001", "T1098.003"],
+                )
+            )
+
+        # 2. AWS STS AssumeRole / cloud privilege escalation
+        sts_match = re.search(
+            r"(?i)\b(assumerole|sts:assumerole|assumerolewithsaml|assumerolewithwebidentity|aws\s+sts)\b", text
+        )
+        has_sts_technique = (
+            any(t.upper().startswith(("T1078.004", "T1550")) for t in input_data.techniques) and "aws" in text.lower()
+        )
+        if sts_match or has_sts_technique:
+            detection_sts: Dict[str, Any] = {
+                "selection": {
+                    "eventSource": "sts.amazonaws.com",
+                    "eventName": [
+                        "AssumeRole",
+                        "AssumeRoleWithSAML",
+                        "AssumeRoleWithWebIdentity",
+                    ],
+                },
+                "condition": "selection",
+            }
+            results.append(
+                self._ioc_rule(
+                    input_data,
+                    category="cloud_audit",
+                    label="cloud audit AWS STS AssumeRole",
+                    title="Suspicious AWS STS AssumeRole or cross-account role assumption",
+                    description=(
+                        "Detects AWS Security Token Service (STS) AssumeRole API calls indicative of cross-account "
+                        "access or temporary credential acquisition by an adversary."
+                    ),
+                    detection=detection_sts,
+                    falsepositives="Legitimate cross-account administration, CI/CD pipelines, or federated IAM access",
+                    preamble="Deterministic cloud audit rule built for control-plane tradecraft, with no model involvement. ",
+                    level="medium",
+                    behaviour="AWS STS AssumeRole credential acquisition",
+                    techniques=["T1078.004", "T1550"],
+                )
+            )
+
+        return results
+
     def _ioc_rules(self, input_data: SigmaGenerationInput) -> List[Tuple[Optional[SigmaRule], Optional[str]]]:
         """Rules built from the supplied indicators alone, with no model call.
 
@@ -1988,11 +2159,13 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 dual_detection["selection_process"] = {"Image|endswith": candidate_procs}
                 dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
             else:
-                dual_detection["filter_legit"] = {
-                    "Image|endswith": _platform_legit_filters(input_data.platforms)
-                }
+                dual_detection["filter_legit"] = {"Image|endswith": _platform_legit_filters(input_data.platforms)}
                 dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
-            techs = [t for t in ("T1567.002", "T1567", "T1071.001", "T1071") if any(t.lower() == it.lower() for it in input_data.techniques)]
+            techs = [
+                t
+                for t in ("T1567.002", "T1567", "T1071.001", "T1071")
+                if any(t.lower() == it.lower() for it in input_data.techniques)
+            ]
             results.append(
                 self._ioc_rule(
                     input_data,
@@ -2076,14 +2249,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
 
         records = [IndicatorRecord.from_dict(r) for r in input_data.indicator_records]
         historical_values = {
-            str(r.value).strip().lower()
-            for r in records
-            if r.status == "historical" or r.role in ("historical", "target")
+            str(r.value).strip().lower() for r in records if r.status == "historical" or r.role in ("historical", "target")
         }
-        placed = [
-            (r, [] if str(r.value).strip().lower() in historical_values else placements(r))
-            for r in records
-        ]
+        placed = [(r, [] if str(r.value).strip().lower() in historical_values else placements(r)) for r in records]
 
         def values_for(placement: str) -> List[IndicatorRecord]:
             return [r for r, where in placed if placement in where]
@@ -2202,12 +2370,14 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 dual_detection["selection_process"] = {"Image|endswith": candidate_procs}
                 dual_detection["condition"] = "(1 of selection_dest_*) and selection_process"
             else:
-                dual_detection["filter_legit"] = {
-                    "Image|endswith": _platform_legit_filters(input_data.platforms)
-                }
+                dual_detection["filter_legit"] = {"Image|endswith": _platform_legit_filters(input_data.platforms)}
                 dual_detection["condition"] = "(1 of selection_dest_*) and not filter_legit"
 
-            techs = [t for t in ("T1567.002", "T1567", "T1071.001", "T1071") if any(t.lower() == it.lower() for it in input_data.techniques)]
+            techs = [
+                t
+                for t in ("T1567.002", "T1567", "T1071.001", "T1071")
+                if any(t.lower() == it.lower() for it in input_data.techniques)
+            ]
             results.append(
                 self._ioc_rule(
                     input_data,
@@ -2262,8 +2432,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         references: Optional[List[str]] = None,
         behaviour: str = "",
         techniques: Optional[List[str]] = None,
+        rule_platform: Optional[str] = None,
     ) -> Tuple[Optional[SigmaRule], Optional[str]]:
         """Render and validate one deterministic rule: IOC sweeps and the source's own detection guidance."""
+        detection, _ = repair_sigma_semantics(detection)
         # The same semantic gate as a model rule: a template change that put a
         # field in the wrong category would otherwise ship on every hunt.
         problem = semantic_problem(detection, category, description)
@@ -2286,7 +2458,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "author": author,
             "date": date.today().isoformat(),
             "tags": [f"attack.{t.lower()}" for t in rule_techniques],
-            "logsource": self._logsource_block(category, input_data.platforms),
+            "logsource": self._logsource_block(category, input_data.platforms, rule_platform=rule_platform),
             "detection": detection,
             "falsepositives": [falsepositives],
             "level": level,
@@ -2427,6 +2599,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             return None, f"{category}: {problem}"
         detection = _anchor_bare_filenames(_strip_empty_filters(detection))
         detection = _complete_indicator_lists(detection, input_data.indicators)
+        detection, _ = repair_sigma_semantics(detection)
         problem = self._validate_detection(detection)
         if problem:
             return None, f"{category}: {problem}"
@@ -2479,6 +2652,21 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             level = "medium"
 
         techniques = self._rule_techniques(raw, input_data, category)
+        rule_platform: Optional[str] = raw.get("logsource_product")
+        if not rule_platform:
+            for _, block in blocks(detection):
+                for k, v in block.items():
+                    if base_field(k).lower() in ("image", "parentimage", "commandline"):
+                        raw_vals = v if isinstance(v, list) else [v]
+                        if any(
+                            str(x).startswith("/") or any(u in str(x) for u in ("/bin/", "/usr/", "nsenter", "bpftool"))
+                            for x in raw_vals
+                        ):
+                            rule_platform = "linux"
+                            break
+                if rule_platform:
+                    break
+
         document: Dict[str, Any] = {
             "title": title[:120],
             "id": str(uuid.uuid4()),
@@ -2489,7 +2677,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             "author": "hecate (auto-generated draft - requires analyst review)",
             "date": date.today().isoformat(),
             "tags": [f"attack.{t.lower()}" for t in techniques],
-            "logsource": self._logsource_block(category, input_data.platforms),
+            "logsource": self._logsource_block(category, input_data.platforms, rule_platform=rule_platform),
             "detection": detection,
             "falsepositives": self._falsepositives(raw),
             "level": level,
@@ -2565,6 +2753,9 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                         f"{len(blocks)} selection blocks, so the intended "
                         "operator between them is unknowable"
                     )
+        detection, repairs = repair_sigma_semantics(detection)
+        if repairs:
+            logger.info("Repaired Sigma detection semantics: %s", "; ".join(repairs))
         return detection, None
 
     @staticmethod
@@ -2652,10 +2843,16 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         return None
 
     @staticmethod
-    def _logsource_block(category: str, platforms: List[str]) -> Dict[str, str]:
+    def _logsource_block(category: str, platforms: List[str], rule_platform: Optional[str] = None) -> Dict[str, str]:
         block: Dict[str, str] = {"category": category}
-        if category in ("proxy", "webserver"):
-            return block  # network-appliance logs have no endpoint OS
+        if category in ("proxy", "webserver", "cloud_audit", "identity_audit"):
+            return block  # network-appliance and cloud control-plane logs have no endpoint OS product
+        if rule_platform in ("linux", "unix"):
+            block["product"] = "linux"
+            return block
+        if rule_platform == "windows":
+            block["product"] = "windows"
+            return block
         # Sigma's `product` is an OS, not a vendor. Only set it when the hunt
         # is genuinely single-platform; a multi-platform hunt pinned to one
         # product would silently stop matching the others.

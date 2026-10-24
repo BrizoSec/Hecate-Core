@@ -125,3 +125,38 @@ def test_schtasks_task_creation_generates_process_and_file_rules() -> None:
     categories = {rule.logsource_category for rule, _ in built if rule}
     assert categories == {"process_creation", "file_event"}
 
+
+def test_linux_markers_fallback_includes_unix_on_windows_hunt() -> None:
+    text = (
+        "Adversaries obtained initial access and executed nsenter -t 1 -m -u -i -n -p /bin/bash "
+        "to escape container namespaces. They subsequently executed bpftool prog load /tmp/.kprobe_filter.o "
+        "to deploy an eBPF stealth rootkit."
+    )
+    # platforms only specifies Windows, but text contains Linux markers
+    cmds = observed_commands(text, platforms=["Windows"])
+    progs = {c.program for c in cmds}
+    assert "nsenter" in progs
+    assert "bpftool" in progs
+
+    candidates = command_candidates(text, platforms=["Windows"])
+    nsenter_cand = next(c for c in candidates if "nsenter" in c["title"])
+    assert nsenter_cand["platform"] == "unix"
+    assert nsenter_cand["detection"]["selection"]["Image|endswith"] == "/nsenter"
+
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    input_data = SigmaGenerationInput(
+        hypothesis="Container escape to Linux host",
+        platforms=["Windows"],
+        hunt_id="H-0833",
+        observed_commands=candidates,
+    )
+    built = agent._command_rules(input_data)
+    assert len(built) >= 2
+    import yaml
+
+    for rule, prob in built:
+        assert prob is None
+        assert rule is not None
+        doc = yaml.safe_load(rule.rule_yaml)
+        if "/nsenter" in rule.rule_yaml or "/bpftool" in rule.rule_yaml:
+            assert doc["logsource"]["product"] == "linux"

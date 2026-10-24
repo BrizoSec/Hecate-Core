@@ -994,6 +994,12 @@ class TestAuthenticationLogSource:
         )
         assert _pysigma_problem(rule) is None
 
+    def test_cloud_techniques_map_to_cloud_and_identity_audit(self):
+        assert "cloud_audit" in applicable_logsources(["T1078.004"], [])
+        assert "identity_audit" in applicable_logsources(["T1078.004"], [])
+        assert "identity_audit" in applicable_logsources(["T1550.001"], [])
+        assert applicable_logsources(["T1538"], []) == ["cloud_audit"]
+
 
 @pytest.mark.unit
 class TestLogSourceFallbackIsReported:
@@ -1417,3 +1423,32 @@ def test_unsupported_logsources_are_omitted_not_rejected():
     assert result.data.omitted == ["authentication: no rule returned"]
     assert not any("authentication" in w for w in result.warnings)
 
+
+def test_cloud_control_plane_rules_generates_identity_and_cloud_audit():
+    agent = SigmaGeneratorAgent(llm_enabled=False)
+    input_data = _input(
+        hypothesis="Adversary abused OAuth application consent grants and performed STS AssumeRole",
+        threat_intel=(
+            "Threat actor UNC-3882 created an illicit application registration MSFT-Health-Diagnostics-Worker "
+            "and requested Directory.ReadWrite.All permission via Consent to application. Subsequently they "
+            "called sts:AssumeRole to move laterally across accounts."
+        ),
+        techniques=["T1550.001", "T1078.004"],
+    )
+    rules = agent._cloud_control_plane_rules(input_data)
+    assert len(rules) == 2
+    cats = {rule.logsource_category for rule, prob in rules if rule}
+    assert cats == {"identity_audit", "cloud_audit"}
+    assert all(prob is None for _, prob in rules)
+
+    import yaml
+
+    id_rule = next(rule for rule, _ in rules if rule.logsource_category == "identity_audit")
+    id_doc = yaml.safe_load(id_rule.rule_yaml)
+    assert "Directory.ReadWrite.All" in id_doc["detection"]["selection"]["permissions|contains"]
+    assert id_doc["logsource"] == {"category": "identity_audit"}
+
+    cloud_rule = next(rule for rule, _ in rules if rule.logsource_category == "cloud_audit")
+    cloud_doc = yaml.safe_load(cloud_rule.rule_yaml)
+    assert cloud_doc["detection"]["selection"]["eventSource"] == "sts.amazonaws.com"
+    assert cloud_doc["logsource"] == {"category": "cloud_audit"}

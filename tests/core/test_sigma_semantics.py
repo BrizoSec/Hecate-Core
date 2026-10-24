@@ -325,3 +325,69 @@ def test_dual_use_destination_with_browser_filter_passes() -> None:
     }
     assert semantic_problem(detection, "network_connection", "Sync to S3") is None
 
+
+def test_repair_sigma_semantics_strips_all_modifier_on_scalar_ip() -> None:
+    from hecate_agent.core.sigma_semantics import repair_sigma_semantics
+
+    detection = {
+        "selection": {"DestinationIp|all": ["194.26.29.112", "185.196.8.44"]},
+        "condition": "selection",
+    }
+    repaired, actions = repair_sigma_semantics(detection)
+    assert "DestinationIp" in repaired["selection"]
+    assert "DestinationIp|all" not in repaired["selection"]
+    assert repaired["selection"]["DestinationIp"] == ["194.26.29.112", "185.196.8.44"]
+    assert len(actions) == 1
+    assert "Stripped impossible '|all' modifier" in actions[0]
+    assert semantic_problem(repaired, "network_connection") is None
+
+
+def test_repair_sigma_semantics_strips_all_on_scalar_commandline_and_image() -> None:
+    from hecate_agent.core.sigma_semantics import repair_sigma_semantics
+
+    detection = {
+        "selection": {
+            "CommandLine|all": ["whoami.exe", "net.exe"],
+            "Image|all": ["\\cmd.exe", "\\powershell.exe"],
+        },
+        "condition": "selection",
+    }
+    repaired, actions = repair_sigma_semantics(detection)
+    assert "CommandLine" in repaired["selection"]
+    assert "Image" in repaired["selection"]
+    assert "CommandLine|all" not in repaired["selection"]
+    assert "Image|all" not in repaired["selection"]
+    assert len(actions) == 2
+
+
+def test_repair_sigma_semantics_preserves_valid_contains_all() -> None:
+    from hecate_agent.core.sigma_semantics import repair_sigma_semantics
+
+    detection = {
+        "selection": {"CommandLine|contains|all": ["certutil.exe", "-urlcache", "-f"]},
+        "condition": "selection",
+    }
+    repaired, actions = repair_sigma_semantics(detection)
+    assert "CommandLine|contains|all" in repaired["selection"]
+    assert len(actions) == 0
+
+
+def test_cloud_audit_and_identity_audit_categories_accepted() -> None:
+    cloud_detection = {
+        "selection": {
+            "eventSource": "sts.amazonaws.com",
+            "eventName": ["AssumeRole", "AssumeRoleWithSAML"],
+        },
+        "condition": "selection",
+    }
+    assert semantic_problem(cloud_detection, "cloud_audit") is None
+
+    identity_detection = {
+        "selection": {
+            "eventName": "Consent to application",
+            "appId": "00000003-0000-0000-c000-000000000000",
+            "permissions|contains": ["Directory.ReadWrite.All"],
+        },
+        "condition": "selection",
+    }
+    assert semantic_problem(identity_detection, "identity_audit") is None
