@@ -149,7 +149,24 @@ class RunnerStatusSampler:
         timer_active = timer.get("ActiveState") == "active"
         next_run = self._next_timer_run() if timer_active else None
         runner_dir = Path(service.get("WorkingDirectory") or self.workspace.parent / "Hecate-Runner")
-        env = _read_env_file(runner_dir / ".env")
+        env: Dict[str, str] = {}
+        # Unified environment discovery: loads workspace .env first, then runner .env as local override
+        candidate_files = [
+            self.workspace / ".env",
+            self.workspace / "Hecate-Workspace" / ".env",
+            Path.home() / "betas" / "Hecate-Workspace" / ".env",
+            runner_dir / ".env",
+        ]
+        seen_paths = set()
+        for cand in candidate_files:
+            try:
+                resolved = cand.resolve()
+            except OSError:
+                continue
+            if resolved not in seen_paths and cand.is_file():
+                seen_paths.add(resolved)
+                for k, v in _read_env_file(cand).items():
+                    env[k] = v
         quota_workspace = Path(env.get("HECATE_WORKSPACE", str(self.workspace))).expanduser()
         if not quota_workspace.is_absolute():
             quota_workspace = runner_dir / quota_workspace
