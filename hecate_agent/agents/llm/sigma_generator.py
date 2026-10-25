@@ -1649,7 +1649,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         platforms = list(input_data.platforms)
         from hecate_agent.core.command_rules import LINUX_MARKERS
 
-        if LINUX_MARKERS.search(input_data.threat_intel or "") and "linux" not in [p.lower() for p in platforms]:
+        if not platforms and LINUX_MARKERS.search(input_data.threat_intel or ""):
             platforms.append("linux")
 
         logsources = input_data.logsources or applicable_logsources(
@@ -1831,9 +1831,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 kept.append(rule)
                 continue
             if rev.verdict == "reject" and rev.verified:
-                rejected.append(
-                    f'{rule.logsource_category}: reviewer: {rev.contradiction} (source: "{rev.quote[:160]}")'
-                )
+                rejected.append(f'{rule.logsource_category}: reviewer: {rev.contradiction} (source: "{rev.quote[:160]}")')
                 continue
             document = yaml.safe_load(rule.rule_yaml)
             note: Dict[str, Any] = {"verdict": rev.verdict}
@@ -3118,7 +3116,7 @@ RULES OF THE TASK:
    indicator from above, or a real path, process or registry key.
 12. HYPOTHESIS AND ATTACK CHAIN ALIGNMENT: Your detection logic MUST hunt for the specific behaviors described in the HUNT HYPOTHESIS, ATT&CK TECHNIQUES, or the broader attack lifecycle in the SOURCE INTELLIGENCE (e.g. initial access, container breakouts, defense evasion, privilege escalation, execution, lateral movement, or exfiltration). Do not invent unrelated TTPs not present in the intelligence or techniques list. If neither the hypothesis, techniques, nor intelligence contain observable behaviors for {logsource}, return an empty rules array: {{"rules": []}}.
 13. PREVENT TTP CONFLATION: If the hypothesis or intelligence mentions multiple distinct behaviors (e.g., Scheduled Tasks AND Registry Run Keys), ensure your rule focuses ONLY on the behavior that matches the current log source category. Do not mix the names, titles, or logic of distinct TTPs into a single rule.
-14. RESPECT THE PLATFORMS: If the PLATFORMS above are strictly non-Windows (e.g., Linux or macOS), you MUST NOT use Windows file paths (like C:\\ or System32) and you MUST NOT assume Windows-specific process names. Ensure your conditions fit the actual OS.
+14. STRICT PLATFORM ALIGNMENT: Your detection rule MUST target ONLY the platform(s) listed in PLATFORMS: {platforms}. If PLATFORMS is strictly Windows, you MUST NOT emit Linux/Unix paths (/bin/sh, /usr/bin, /tmp) or product: linux rules. If PLATFORMS is strictly non-Windows, you MUST NOT use Windows paths (like C:\\ or System32) or .exe names. Ensure your conditions fit the actual OS.
 15. HANDLING ELISIONS: If the source intelligence gives you a partial or redacted string (e.g., `powershell -e JAB...`, `[REDACTED]`, or `C:\\temp\\...\\malware.exe`), DO NOT include the literal ellipsis `...` or `[REDACTED]` in your match value. Instead, use a substring match modifier (like `|contains` or `|startswith`) on the specific known portion of the string.
 16. NO EXTERNAL THREAT-ACTOR KNOWLEDGE: Do NOT use or extrapolate from pre-trained knowledge about named threat groups, campaigns, or malware families (e.g., "SocGholish", "APT28"). You must strictly restrict detection logic to behaviors, mechanisms, and indicators explicitly given in the HUNT HYPOTHESIS, INDICATORS, and SOURCE PASSAGES. If a behavior, domain, IP, or file artifact is not explicitly stated in the prompt, assume it does not exist.
 17. DUAL-USE CLOUD/SAAS DESTINATIONS: If writing a network connection or DNS query rule involving public cloud storage or SaaS endpoints (e.g. AWS S3 amazonaws.com, Azure Blob blob.core.windows.net, Google Drive, Discord, Telegram), NEVER match the destination as a bare standalone indicator: it causes severe alert storms in enterprise environments. You MUST bind the network connection to the specific initiating process or utility (e.g., Image|endswith: \\svchost_sync.exe or \\rclone.exe) using a combined condition: "(1 of selection_dest_*) and selection_process", or filter legitimate software/browsers.

