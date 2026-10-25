@@ -1035,6 +1035,8 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("VulnCheck", ("VULNCHECK_API_KEY",)),
         ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
         ("Shadowserver", ("SHADOWSERVER_API_KEY",)),
+        ("ANY.RUN", ("ANYRUN_API_KEY",)),
+        ("OpenCTI", ("OPENCTI_TOKEN", "OPENCTI_URL")),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -1118,6 +1120,9 @@ def _integrations_panel(
         ("MSRC", ()),
         ("CloudThrt", ()),
         ("DFIR Rept", ()),
+        ("FIRST.org", ()),
+        ("ANY.RUN", ("ANYRUN_API_KEY",)),
+        ("OpenCTI", ("OPENCTI_TOKEN", "OPENCTI_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
     if workspace:
@@ -1171,6 +1176,9 @@ def _integrations_panel(
                     "MSRC",
                     "CloudThrt",
                     "DFIR Rept",
+                    "FIRST.org",
+                    "ANY.RUN",
+                    "OpenCTI",
                 )
             )
         )
@@ -1553,6 +1561,18 @@ def _integrations_panel(
         elif label == "DFIR Rept":
             detail = "reports"
             metric = "feed"
+            services_data.append((label, True, detail, metric))
+        elif label == "FIRST.org":
+            detail = "epss spike"
+            metric = "active"
+            services_data.append((label, True, detail, metric))
+        elif label == "ANY.RUN":
+            detail = "sandbox"
+            metric = "active"
+            services_data.append((label, True, detail, metric))
+        elif label == "OpenCTI":
+            detail = "stix/intel"
+            metric = "active"
             services_data.append((label, True, detail, metric))
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
