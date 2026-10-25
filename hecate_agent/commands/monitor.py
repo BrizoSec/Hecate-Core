@@ -2844,7 +2844,8 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
-        from hecate_agent.orchestrator.graph import hecate_graph  # type: ignore[import-not-found]
+        import importlib
+        hecate_graph = importlib.import_module("hecate_agent.orchestrator.graph").hecate_graph
         import sqlite3
 
         db_path = workspace / "hecate_checkpoints.sqlite"
