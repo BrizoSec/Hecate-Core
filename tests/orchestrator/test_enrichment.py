@@ -1965,3 +1965,66 @@ def test_generate_enrichment_summary_includes_shadowserver():
         assert "AV Detections: 14 hits" in summary
 
 
+def test_query_msrc_cve_invalid():
+    from hecate_agent.orchestrator.enrichment import query_msrc_cve
+
+    res = query_msrc_cve("invalid-cve")
+    assert "Invalid CVE identifier" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_msrc_cve_success(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_msrc_cve, _fetch_msrc_document
+    _fetch_msrc_document.cache_clear()
+
+    updates_resp = MagicMock()
+    updates_resp.status_code = 200
+    updates_resp.json.return_value = {
+        "value": [{"ID": "2024-Aug"}]
+    }
+
+    doc_resp = MagicMock()
+    doc_resp.status_code = 200
+    doc_resp.json.return_value = {
+        "Vulnerability": [
+            {
+                "CVE": "CVE-2024-38063",
+                "Title": {"Value": "Windows TCP/IP Remote Code Execution Vulnerability"},
+                "CVSSScoreSets": [{"BaseScore": 9.8}],
+                "Threats": [
+                    {"Type": 3, "Description": {"Value": "Critical"}},
+                    {"Type": 1, "Description": {"Value": "Exploitation More Likely"}},
+                ],
+            }
+        ]
+    }
+
+    def side_effect(url, **kwargs):
+        if "updates" in url:
+            return updates_resp
+        return doc_resp
+
+    mock_get.side_effect = side_effect
+
+    res = query_msrc_cve("CVE-2024-38063")
+    assert "MSRC: Windows TCP/IP Remote Code Execution Vulnerability" in res
+    assert "Severity: Critical" in res
+    assert "CVSS: 9.8" in res
+    assert "Exploitability: Exploitation More Likely" in res
+
+
+def test_generate_enrichment_summary_includes_msrc():
+    threat_intel = "Active exploitation of CVE-2024-38063 observed in corporate Windows servers."
+    with patch(
+        "hecate_agent.orchestrator.enrichment.query_msrc_cve",
+        return_value="MSRC: Windows TCP/IP RCE · Severity: Critical · CVSS: 9.8",
+    ), patch(
+        "hecate_agent.orchestrator.enrichment.query_epss_batch",
+        return_value={"CVE-2024-38063": "EPSS: 94.2% (CRITICAL)"},
+    ):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "Microsoft MSRC (Security Guidance):" in summary
+        assert "MSRC: Windows TCP/IP RCE · Severity: Critical · CVSS: 9.8" in summary
+
+
+

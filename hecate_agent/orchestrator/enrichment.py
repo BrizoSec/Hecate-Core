@@ -1,3 +1,4 @@
+import functools
 import os
 import re
 import time
@@ -2396,6 +2397,63 @@ def query_vulncheck_cve(cve: str) -> str:
         return f"Error querying VulnCheck: {e}"
 
 
+@functools.lru_cache(maxsize=16)
+def _fetch_msrc_document(doc_id: str) -> Dict[str, Any]:
+    url = f"https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/{doc_id}"
+    resp = httpx.get(url, headers={"Accept": "application/json"}, timeout=8.0)
+    if resp.status_code == 200:
+        data = resp.json()
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def query_msrc_cve(cve: str) -> str:
+    """Query Microsoft Security Response Center (MSRC) for vulnerability severity, exploitability, and impact."""
+    clean_cve = cve.strip().upper()
+    m = re.match(r"^CVE-(\d{4})-\d{4,7}$", clean_cve)
+    if not m:
+        return f"Invalid CVE identifier '{cve}'."
+    year = m.group(1)
+
+    try:
+        updates_url = "https://api.msrc.microsoft.com/cvrf/v2.0/updates"
+        resp = httpx.get(updates_url, headers={"Accept": "application/json"}, timeout=6.0)
+        if resp.status_code != 200:
+            return f"MSRC API error (HTTP {resp.status_code})"
+        updates = resp.json().get("value") or []
+        matching_docs = [u["ID"] for u in updates if isinstance(u, dict) and u.get("ID", "").startswith(year)]
+        for doc_id in matching_docs[:12]:
+            doc = _fetch_msrc_document(doc_id)
+            for vuln in doc.get("Vulnerability", []):
+                if vuln.get("CVE") == clean_cve:
+                    title = vuln.get("Title", {}).get("Value", "")
+                    cvss = ""
+                    for s in vuln.get("CVSSScoreSets", []):
+                        if s.get("BaseScore"):
+                            cvss = str(s.get("BaseScore"))
+                            break
+                    severity = ""
+                    exploitability = ""
+                    for t in vuln.get("Threats", []):
+                        desc = t.get("Description", {}).get("Value", "")
+                        if t.get("Type") == 3 and not severity:
+                            severity = desc
+                        if "Exploited:" in desc or "Exploitation" in desc:
+                            exploitability = desc
+                    parts = [f"MSRC: {title}"]
+                    if severity:
+                        parts.append(f"Severity: {severity}")
+                    if cvss:
+                        parts.append(f"CVSS: {cvss}")
+                    if exploitability:
+                        parts.append(f"Exploitability: {exploitability}")
+                    return " · ".join(parts)
+        return f"Not listed in Microsoft Security Updates ({clean_cve})."
+    except Exception as e:
+        return f"Error querying MSRC: {e}"
+
+
 def query_otx_indicator(indicator_type: str, indicator: str) -> str:
     """Query AlienVault OTX Direct API for indicator general metadata, pulse associations, adversaries, and passive DNS.
 
@@ -3095,10 +3153,12 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             misp_res = query_misp_indicator(cve)
             osv_res = query_osv_vuln(cve)
             vulncheck_res = query_vulncheck_cve(cve)
+            msrc_res = query_msrc_cve(cve)
             summary.append(
                 f"- **Vulnerability {cve}**:\n"
                 f"  - *FIRST EPSS (Exploit Prediction):* {epss_res}\n"
                 f"  - *VulnCheck KEV (Active Exploitation):* {vulncheck_res}\n"
+                f"  - *Microsoft MSRC (Security Guidance):* {msrc_res}\n"
                 f"  - *OSV.dev (Open Source Supply Chain):* {osv_res}\n"
                 f"  - *AlienVault OTX:* {otx_res}\n"
                 f"  - *Internal MISP:* {misp_res}"

@@ -127,6 +127,11 @@ FIELD_ALIASES: Dict[str, Tuple[str, ...]] = {
     "ja4s": ("ja4s", "ssl.ja4s", "tls.ja4s", "network.tls.ja4s"),
     "jarm": ("jarm", "ssl.jarm", "tls.jarm", "network.tls.jarm"),
     "ja3": ("ja3", "ssl.ja3", "tls.ja3", "network.tls.ja3"),
+    "eventname": ("eventname", "event_name", "eventName", "operationName", "api_operation"),
+    "eventsource": ("eventsource", "event_source", "eventSource", "serviceName"),
+    "useridentity": ("useridentity", "user_identity", "userIdentity", "caller_identity", "user.name"),
+    "rolearn": ("rolearn", "role_arn", "roleArn", "resource_arn"),
+    "targetservice": ("targetservice", "target_service", "service_name", "target_app"),
 }
 
 #: Category normalization
@@ -138,6 +143,9 @@ CATEGORY_ALIASES: Dict[str, Tuple[str, ...]] = {
     "registry_event": ("registry_event", "registry_key_activity", "registry_value_activity", "registry"),
     "image_load": ("image_load", "module_activity", "module_load"),
     "authentication": ("authentication", "logon", "auth"),
+    "cloud_audit": ("cloud_audit", "cloud_trail", "cloud", "aws_cloudtrail", "gcp_audit", "azure_activity", "management_activity"),
+    "identity_audit": ("identity_audit", "identity_directory", "azure_signin", "entra_id", "active_directory", "directory_service"),
+    "container_activity": ("container_activity", "kubernetes_audit", "k8s_audit", "container_runtime"),
 }
 
 
