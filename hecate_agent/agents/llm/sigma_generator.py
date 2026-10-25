@@ -1801,27 +1801,46 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         kept: List[SigmaRule] = []
         rejected: List[str] = []
         warnings: List[str] = []
+
+        model_rules = [r for r in rules if r.origin == "model"]
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _review_one(rule: SigmaRule) -> Tuple[SigmaRule, Optional[Any], Optional[Exception]]:
+            try:
+                rev = reviewer.review(rule.rule_yaml, input_data.hypothesis, passages)
+                return rule, rev, None
+            except Exception as exc:  # noqa: BLE001 - a failed review keeps the rule, unreviewed
+                return rule, None, exc
+
+        review_map: Dict[int, Any] = {}
+        if model_rules:
+            with ThreadPoolExecutor(max_workers=min(len(model_rules), 6)) as executor:
+                for rule, rev, exc in executor.map(_review_one, model_rules):
+                    review_map[id(rule)] = (rev, exc)
+
         for rule in rules:
             if rule.origin != "model":
                 kept.append(rule)
                 continue
-            try:
-                review = reviewer.review(rule.rule_yaml, input_data.hypothesis, passages)
-            except Exception as exc:  # noqa: BLE001 - a failed review keeps the rule, unreviewed
+            rev, exc = review_map.get(id(rule), (None, None))
+            if exc is not None:
                 warnings.append(f"rule review failed for {rule.title!r}: {exc}")
                 kept.append(rule)
                 continue
-            if review.verdict == "reject" and review.verified:
+            if rev is None:
+                kept.append(rule)
+                continue
+            if rev.verdict == "reject" and rev.verified:
                 rejected.append(
-                    f'{rule.logsource_category}: reviewer: {review.contradiction} (source: "{review.quote[:160]}")'
+                    f'{rule.logsource_category}: reviewer: {rev.contradiction} (source: "{rev.quote[:160]}")'
                 )
                 continue
             document = yaml.safe_load(rule.rule_yaml)
-            note: Dict[str, Any] = {"verdict": review.verdict}
-            if review.issues:
-                note["issues"] = review.issues
-            if review.contradiction:
-                note["unverified_contradiction"] = review.contradiction
+            note: Dict[str, Any] = {"verdict": rev.verdict}
+            if rev.issues:
+                note["issues"] = rev.issues
+            if rev.contradiction:
+                note["unverified_contradiction"] = rev.contradiction
             document["hecate_review"] = note
             rule.rule_yaml = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
             kept.append(rule)

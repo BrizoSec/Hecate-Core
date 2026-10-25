@@ -225,7 +225,16 @@ def records_from_cti(indicators: Mapping[str, Iterable[str]], source: str = "cti
             if rtype == "ipv4" and not is_valid_ipv4(value):
                 continue
             if value and not any(r.value == value and r.type == rtype for r in records):
-                role = "dual_use" if is_dual_use(value) else "unknown"
+                try:
+                    is_priv = rtype in ("ipv4", "ipv6") and ipaddress.ip_address(value).is_private
+                except ValueError:
+                    is_priv = False
+                if is_priv:
+                    role = "target"
+                elif is_dual_use(value):
+                    role = "dual_use"
+                else:
+                    role = "unknown"
                 records.append(IndicatorRecord(value=value, type=rtype, role=role, source=source))
     return records
 
@@ -283,6 +292,12 @@ def merge_records(cti: List[IndicatorRecord], extracted: List[IndicatorRecord]) 
     for r in by_key.values():
         if r.role == "unknown" and is_dual_use(r.value, r.evidence):
             r.role = "dual_use"
+        elif r.role == "unknown" and r.type in ("ipv4", "ipv6"):
+            try:
+                if ipaddress.ip_address(r.value).is_private:
+                    r.role = "target"
+            except ValueError:
+                pass
     return list(by_key.values())
 
 

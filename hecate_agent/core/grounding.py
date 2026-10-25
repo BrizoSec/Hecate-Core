@@ -139,6 +139,17 @@ _CLOUD_SERVICE_ENDPOINTS: dict[str, frozenset[str]] = {
             "mail.readwrite",
         }
     ),
+    "graph.windows.net": frozenset(
+        {
+            "microsoft entra",
+            "azure ad",
+            "entra id",
+            "azure ad graph",
+            "graph api",
+            "aad graph",
+            "graph.windows.net",
+        }
+    ),
     "management.azure.com": frozenset(
         {
             "azure resource manager",
@@ -627,6 +638,16 @@ def _looks_like_a_filename(value: str) -> bool:
     return value.rsplit(".", 1)[-1].lower() in _FILE_SUFFIXES
 
 
+_PERMISSION_SCOPE_RE = re.compile(
+    r"^(?:[A-Za-z0-9_-]+)\.(?:(?:Read|ReadWrite|Write|Manage|Send|Access)(?:\.[A-Za-z0-9_-]+)?|All|Directory|Selected)$",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_permission_scope(value: str) -> bool:
+    return bool(_PERMISSION_SCOPE_RE.match(value))
+
+
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 #: Words in ATT&CK technique names that say nothing about *which* behaviour is
@@ -966,7 +987,9 @@ def audit_draft(
                 if _scaffolding(value):
                     continue
                 if label == "domain" and (
-                    _looks_like_a_filename(value) or _is_path_component(detection, match.start())
+                    _looks_like_a_filename(value)
+                    or _is_path_component(detection, match.start())
+                    or _looks_like_permission_scope(value)
                 ):
                     continue
                 status, note = grade(value)

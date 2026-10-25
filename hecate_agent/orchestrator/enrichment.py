@@ -275,7 +275,15 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     indicators = {
         "ips": list(set(re.findall(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", clean_text))),
         "hashes": list(set(re.findall(r"\b[a-fA-F0-9]{32,64}\b", clean_text))),
-        "domains": list(set(re.findall(domain_re, clean_text, re.IGNORECASE))),
+        "domains": [
+            d
+            for d in set(re.findall(domain_re, clean_text, re.IGNORECASE))
+            if not re.match(
+                r"^(?:[A-Za-z0-9_-]+)\.(?:(?:Read|ReadWrite|Write|Manage|Send|Access)(?:\.[A-Za-z0-9_-]+)?|All|Directory|Selected)$",
+                d,
+                re.IGNORECASE,
+            )
+        ],
         "cves": list(
             dict.fromkeys(
                 cve.upper()

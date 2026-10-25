@@ -892,3 +892,42 @@ def test_cloud_service_endpoints_without_api_is_unsupported() -> None:
     assert not report.is_clean
     assert "sts.amazonaws.com" in [c.value for c in report.unsupported]
 
+
+def test_permission_scopes_not_audited_as_domains() -> None:
+    """Cloud permission scopes in Sigma rule detections must not be treated as DNS domains."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: Azure AD OAuth Abuse\n"
+        "logsource:\n  category: identity_audit\n"
+        "detection:\n  selection:\n"
+        "    roles|all:\n"
+        "      - User.ReadWrite.All\n"
+        "      - RoleManagement.ReadWrite.Directory\n"
+        "      - AppRoleAssignment.ReadWrite.All\n"
+        "  condition: selection\n```\n"
+    )
+    cti = "Threat actor granted excessive permissions to OAuth application."
+    report = audit_draft(draft_text=draft, cti_text=cti)
+    assert report.is_clean
+    assert not any(c.value in ("User.ReadWrite.All", "RoleManagement.ReadWrite.Directory") for c in report.claims)
+
+
+def test_graph_windows_net_cloud_service_endpoint() -> None:
+    """Legacy Azure AD Graph endpoint graph.windows.net resolves to derived when Entra/Azure AD is cited."""
+    from hecate_agent.core.grounding import audit_draft
+
+    draft = (
+        "```yaml\ntitle: Azure AD Graph Access\n"
+        "logsource:\n  category: network_connection\n"
+        "detection:\n  selection:\n"
+        "    DestinationHostname: graph.windows.net\n"
+        "  condition: selection\n```\n"
+    )
+    cti = "Actor abused Azure AD administrative rights and queried Microsoft Entra directory."
+    report = audit_draft(draft_text=draft, cti_text=cti)
+    assert report.is_clean
+    claim = next(c for c in report.claims if c.value == "graph.windows.net")
+    assert claim.status == "derived"
+
+

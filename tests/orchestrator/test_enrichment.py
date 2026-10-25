@@ -61,6 +61,20 @@ def test_extract_indicators_defanged_and_cctlds():
     assert "malicious.co.uk" in inds["domains"]
 
 
+def test_extract_indicators_excludes_permission_scopes():
+    text = (
+        "Attacker registered an application with permissions: User.ReadWrite.All, "
+        "RoleManagement.ReadWrite.Directory, Directory.Read.All and Mail.Send. "
+        "Real domain: adversary-c2.shop"
+    )
+    inds = extract_indicators(text)
+    assert "adversary-c2.shop" in inds["domains"]
+    assert "User.ReadWrite.All" not in inds["domains"]
+    assert "RoleManagement.ReadWrite.Directory" not in inds["domains"]
+    assert "Directory.Read.All" not in inds["domains"]
+    assert "Mail.Send" not in inds["domains"]
+
+
 def test_get_apex_domain():
     assert _get_apex_domain("hub.zoom.com.kg") == "zoom.com.kg"
     assert _get_apex_domain("c2.evil.co.uk") == "evil.co.uk"

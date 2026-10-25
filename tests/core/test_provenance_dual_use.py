@@ -97,3 +97,29 @@ def test_an_inbound_address_is_a_source_never_a_destination():
     inbound = IndicatorRecord(value="45.153.212.101", type="ipv4", role="inbound")
     assert placements(inbound) == ["webserver.c-ip", "network_connection.SourceIp"]
     assert placements(IndicatorRecord(value="scanner.example", type="domain", role="inbound")) == []
+
+
+def test_private_ips_classified_as_target_with_no_outbound_placements():
+    """RFC 1918 private IPs are internal lateral movement targets, never outbound C2 destinations."""
+    from hecate_agent.core.provenance import merge_records
+
+    records = records_from_cti({
+        "ipv4": ["10.0.0.45", "192.168.1.100", "172.16.5.20", "194.26.29.112"],
+    })
+    roles = {r.value: r.role for r in records}
+    assert roles["10.0.0.45"] == "target"
+    assert roles["192.168.1.100"] == "target"
+    assert roles["172.16.5.20"] == "target"
+    assert roles["194.26.29.112"] == "unknown"
+
+    # Verify placements: private IPs get no outbound destination rules
+    assert placements(records[0]) == []
+    assert placements(records[1]) == []
+    assert placements(records[2]) == []
+    assert placements(records[3]) == ["network_connection.DestinationIp"]
+
+    # Verify merge_records maintains target role for private IPs
+    merged = merge_records([], [IndicatorRecord(value="10.0.0.45", type="ipv4")])
+    assert merged[0].role == "target"
+    assert placements(merged[0]) == []
+
