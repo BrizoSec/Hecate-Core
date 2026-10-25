@@ -1037,7 +1037,7 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("Shadowserver", ("SHADOWSERVER_API_KEY",)),
         ("ANY.RUN", ("ANYRUN_API_KEY",)),
         ("OpenCTI", ("OPENCTI_TOKEN", "OPENCTI_URL")),
-        ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
+        ("Slack", ("SLACK_BOT_TOKEN", "HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
     if workspace:
@@ -1113,7 +1113,7 @@ def _integrations_panel(
         ("Tor/Proxy", ("IPINFO_TOKEN", "IPINFO_API_KEY")),
         ("EPSS", ()),
         ("OSV.dev", ()),
-        ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
+        ("Slack", ("SLACK_BOT_TOKEN", "HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
         ("VulnCheck", ("VULNCHECK_API_KEY",)),
         ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
         ("Shadowsrv", ("SHADOWSERVER_API_KEY",)),
