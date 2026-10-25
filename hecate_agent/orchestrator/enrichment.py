@@ -2235,6 +2235,53 @@ def query_osv_vuln(vuln_id: str) -> str:
         return f"Error querying OSV.dev: {e}"
 
 
+def query_vulncheck_cve(cve: str) -> str:
+    """Query VulnCheck KEV API for weaponization status, in-the-wild exploitation, and threat actors."""
+    key = _setting("VULNCHECK_API_KEY")
+    if not key:
+        return "VULNCHECK_API_KEY not configured."
+
+    clean_cve = cve.strip().upper()
+    if not re.match(r"^CVE-\d{4}-\d{4,7}$", clean_cve):
+        return f"Invalid CVE identifier '{cve}'."
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "User-Agent": "Hecate-Agent/1.0",
+    }
+    try:
+        url = f"https://api.vulncheck.com/v3/index/vulncheck-kev?cve={clean_cve}"
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json().get("data") or []
+            if not data:
+                return f"Not listed in VulnCheck KEV ({clean_cve})."
+            item = data[0] if isinstance(data, list) else data
+            exploit_type = item.get("exploit_type") or "Actively Exploited"
+            actors = item.get("threat_actors") or []
+            in_the_wild = bool(item.get("vulncheck_reported_exploitation", True))
+            vendor = item.get("vendor") or ""
+            product = item.get("product") or ""
+            target = f"{vendor} {product}".strip()
+
+            parts = [f"Status: {exploit_type} (in-the-wild: {in_the_wild})"]
+            if target:
+                parts.append(f"Target: {target}")
+            if actors:
+                parts.append(f"Threat Actors: {', '.join(actors[:3])}")
+            return " · ".join(parts)
+        elif resp.status_code == 404:
+            return f"Not listed in VulnCheck KEV ({clean_cve})."
+        elif resp.status_code in (401, 403):
+            return "VulnCheck Auth Error (check VULNCHECK_API_KEY)."
+        elif resp.status_code == 429:
+            return "VulnCheck rate limit reached."
+        return f"VulnCheck error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying VulnCheck: {e}"
+
+
 def query_otx_indicator(indicator_type: str, indicator: str) -> str:
     """Query AlienVault OTX Direct API for indicator general metadata, pulse associations, adversaries, and passive DNS.
 
@@ -2775,7 +2822,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         return ""
 
     summary = [
-        "\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Hatching Triage, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, OSV.dev & MISP)"
+        "\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Hatching Triage, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, VulnCheck KEV, OSV.dev & MISP)"
     ]
 
     from concurrent.futures import ThreadPoolExecutor
@@ -2927,9 +2974,11 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             otx_res = query_otx_cve(cve)
             misp_res = query_misp_indicator(cve)
             osv_res = query_osv_vuln(cve)
+            vulncheck_res = query_vulncheck_cve(cve)
             summary.append(
                 f"- **Vulnerability {cve}**:\n"
                 f"  - *FIRST EPSS (Exploit Prediction):* {epss_res}\n"
+                f"  - *VulnCheck KEV (Active Exploitation):* {vulncheck_res}\n"
                 f"  - *OSV.dev (Open Source Supply Chain):* {osv_res}\n"
                 f"  - *AlienVault OTX:* {otx_res}\n"
                 f"  - *Internal MISP:* {misp_res}"

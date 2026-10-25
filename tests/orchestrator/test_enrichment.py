@@ -1795,3 +1795,72 @@ def test_generate_enrichment_summary_includes_triage():
         assert "Hatching Triage" in summary
         assert "Hatching Triage (tria.ge Sandbox):" in summary
         assert "Family: LummaC2" in summary
+
+
+def test_query_vulncheck_cve_unconfigured():
+    from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
+        res = query_vulncheck_cve("CVE-2024-3400")
+        assert res == "VULNCHECK_API_KEY not configured."
+
+
+def test_query_vulncheck_cve_invalid():
+    from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test-key"):
+        res = query_vulncheck_cve("not-a-cve")
+        assert "Invalid CVE identifier" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_vulncheck_cve_success(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "data": [
+            {
+                "cve": ["CVE-2024-3400"],
+                "name": "PAN-OS Command Injection",
+                "vendor": "Palo Alto Networks",
+                "product": "PAN-OS GlobalProtect",
+                "exploit_type": "weaponized",
+                "vulncheck_reported_exploitation": True,
+                "threat_actors": ["UTA0218"],
+            }
+        ]
+    }
+    mock_get.return_value = mock_resp
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test-key"):
+        res = query_vulncheck_cve("CVE-2024-3400")
+        assert "weaponized" in res
+        assert "in-the-wild: True" in res
+        assert "Palo Alto Networks PAN-OS GlobalProtect" in res
+        assert "UTA0218" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_vulncheck_cve_not_found(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_get.return_value = mock_resp
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test-key"):
+        res = query_vulncheck_cve("CVE-2024-99999")
+        assert "Not listed in VulnCheck KEV" in res
+
+
+def test_generate_enrichment_summary_includes_vulncheck():
+    threat_intel = "Active zero-day exploitation of CVE-2024-3400 reported in network gateway."
+    with patch(
+        "hecate_agent.orchestrator.enrichment.query_vulncheck_cve",
+        return_value="Status: weaponized (in-the-wild: True) · Target: Palo Alto Networks PAN-OS",
+    ), patch(
+        "hecate_agent.orchestrator.enrichment.query_epss_batch",
+        return_value={"CVE-2024-3400": "EPSS: 92.5% (CRITICAL)"},
+    ):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "VulnCheck KEV (Active Exploitation):" in summary
+        assert "Status: weaponized (in-the-wild: True)" in summary
+
