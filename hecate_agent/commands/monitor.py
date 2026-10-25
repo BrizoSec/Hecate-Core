@@ -1032,6 +1032,9 @@ def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], Lis
         ("Censys", ("CENSYS_API_TOKEN",)),
         ("ThreatFox", ("ABUSECH_API_KEY",)),
         ("MalBazaar", ("ABUSECH_API_KEY",)),
+        ("VulnCheck", ("VULNCHECK_API_KEY",)),
+        ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
+        ("Shadowserver", ("SHADOWSERVER_API_KEY",)),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
     )
     env_files = [workspace / ".env"] if workspace else []
@@ -1109,6 +1112,12 @@ def _integrations_panel(
         ("EPSS", ()),
         ("OSV.dev", ()),
         ("Slack", ("HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
+        ("VulnCheck", ("VULNCHECK_API_KEY",)),
+        ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
+        ("Shadowsrv", ("SHADOWSERVER_API_KEY",)),
+        ("MSRC", ()),
+        ("CloudThrt", ()),
+        ("DFIR Rept", ()),
     )
     env_files = [workspace / ".env"] if workspace else []
     if workspace:
@@ -1148,7 +1157,21 @@ def _integrations_panel(
             or any(name in file_keys for name in names)
             or (
                 label
-                in ("RDAP", "EPSS", "OSV.dev", "Feodo C2", "SSLBL", "Feodo/SSLBL", "URLScan", "crt.sh", "PDNS", "Tor/Proxy")
+                in (
+                    "RDAP",
+                    "EPSS",
+                    "OSV.dev",
+                    "Feodo C2",
+                    "SSLBL",
+                    "Feodo/SSLBL",
+                    "URLScan",
+                    "crt.sh",
+                    "PDNS",
+                    "Tor/Proxy",
+                    "MSRC",
+                    "CloudThrt",
+                    "DFIR Rept",
+                )
             )
         )
         if label == "LLM":
@@ -1488,6 +1511,49 @@ def _integrations_panel(
                 services_data.append((label, True, detail, metric))
             else:
                 services_data.append((label, False, "unconfigured", "--"))
+        elif label == "VulnCheck":
+            if is_set:
+                detail = "kev/cve" if narrow else "kev exploit"
+                cve_count = 0
+                for e in active_enrichment_events:
+                    m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
+                    if m:
+                        cve_count = max(cve_count, int(m.group(1)))
+                metric = f"{cve_count} KEVs" if cve_count > 0 else "active"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Triage":
+            if is_set:
+                detail = "sandbox"
+                metric = "active"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "Shadowsrv":
+            if is_set:
+                detail = "c2/botnet"
+                metric = "active"
+                services_data.append((label, True, detail, metric))
+            else:
+                services_data.append((label, False, "unconfigured", "--"))
+        elif label == "MSRC":
+            detail = "cvrf/cve"
+            cve_count = 0
+            for e in active_enrichment_events:
+                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
+                if m:
+                    cve_count = max(cve_count, int(m.group(1)))
+            metric = f"{cve_count} CVEs" if cve_count > 0 else "advisories"
+            services_data.append((label, True, detail, metric))
+        elif label == "CloudThrt":
+            detail = "iam/cloud"
+            metric = "3 feeds"
+            services_data.append((label, True, detail, metric))
+        elif label == "DFIR Rept":
+            detail = "reports"
+            metric = "feed"
+            services_data.append((label, True, detail, metric))
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     if narrow:
@@ -1563,6 +1629,8 @@ class HuntsMetrics:
     grounding_corroborated: int = 0
     grounding_derived: int = 0
     grounding_unsupported: int = 0
+    fingerprints_count: int = 0
+    cloud_ops_count: int = 0
 
 
 _EXCLUDED_HUNT_DOCS = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
@@ -1691,6 +1759,8 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     network_urls: Set[str] = set()
     host_hashes: Set[str] = set()
     host_paths: Set[str] = set()
+    fingerprints: Set[str] = set()
+    cloud_ops: Set[str] = set()
     grounding_asserted = 0
     grounding_corroborated = 0
     grounding_derived = 0
@@ -1803,6 +1873,10 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                 host_hashes.add(val.lower())
             elif itype in {"file_path", "path", "file", "registry", "process"}:
                 host_paths.add(val)
+            elif itype in {"ja4", "jarm", "ssl_fingerprint", "tls_hash", "fingerprint"}:
+                fingerprints.add(val.lower())
+            elif itype in {"iam_operation", "cloud_role", "k8s_action", "cloud_action"}:
+                cloud_ops.add(val)
 
         m_ioc = re.search(r"###\s+Indicators of Compromise.*?(?=\n###\s+[A-Z]|\n## |\Z)", text, re.DOTALL | re.IGNORECASE)
         if m_ioc:
@@ -1895,6 +1969,8 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         grounding_corroborated=grounding_corroborated,
         grounding_derived=grounding_derived,
         grounding_unsupported=grounding_unsupported,
+        fingerprints_count=len(fingerprints),
+        cloud_ops_count=len(cloud_ops),
     )
     _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
     return metrics
@@ -2478,7 +2554,7 @@ def _purple_team_panel(
             )
             table.add_row(
                 "TELEMETRY",
-                Text.assemble(("Live sensors", "bright_white"), (" · ", "dim"), ("proc/net/file", "dim")),
+                Text.assemble(("Live sensors", "bright_white"), (" · ", "dim"), ("proc/net/file/k8s", "dim")),
             )
     else:
         if pt_metrics.validated_rules == 0:
@@ -2490,7 +2566,7 @@ def _purple_team_panel(
             table.add_row("SELF-TUNING", Text("0 tuned · 0 FP noise", style="dim"))
             table.add_row("PRECISION", Text("100% target · 0 FP", style="dim"))
             if not narrow:
-                table.add_row("TELEMETRY", Text("process, network, file events", style="dim"))
+                table.add_row("TELEMETRY", Text("proc, net, file, cloud, k8s events", style="dim"))
                 table.add_row("SANDBOX", Text("ephemeral execution runner", style="dim"))
         else:
             table.add_row(
@@ -2518,7 +2594,7 @@ def _purple_team_panel(
                 )
                 table.add_row(
                     "TELEMETRY",
-                    Text.assemble((telemetry_str, "bright_white"), (" · ", "dim"), ("proc / net / file", "dim")),
+                    Text.assemble((telemetry_str, "bright_white"), (" · ", "dim"), ("proc / net / file / cloud / k8s", "dim")),
                 )
                 if pt_metrics.last_duration_sec > 0:
                     last_str = f"{pt_metrics.last_validated_count} in {pt_metrics.last_duration_sec:.1f}s"
@@ -2634,6 +2710,13 @@ def _threat_observables_panel(
             "ENTITIES",
             Text.assemble((ent_str, "bright_white"), (" · ", "dim"), (ent_sub, "bright_cyan")),
         )
+        if h_metrics.fingerprints_count > 0 or h_metrics.cloud_ops_count > 0:
+            infra_str = f"{h_metrics.fingerprints_count} JA4/JARM" if h_metrics.fingerprints_count else "JA4 standby"
+            cloud_sub = f"{h_metrics.cloud_ops_count} cloud/k8s" if h_metrics.cloud_ops_count else "cloud ready"
+            table.add_row(
+                "INFRA/CLOUD",
+                Text.assemble((infra_str, "bright_white"), (" · ", "dim"), (cloud_sub, "bright_cyan")),
+            )
         unsupp_style = "bold bright_red" if h_metrics.grounding_unsupported > 0 else "dim"
         table.add_row(
             "FIDELITY",
