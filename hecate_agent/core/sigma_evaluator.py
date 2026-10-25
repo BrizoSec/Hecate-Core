@@ -123,6 +123,10 @@ FIELD_ALIASES: Dict[str, Tuple[str, ...]] = {
     "details": ("details", "reg_value", "value_data", "registry.value"),
     "processid": ("processid", "process_id", "pid", "process.pid"),
     "parentprocessid": ("parentprocessid", "parent_process_id", "ppid", "process.parent_process.pid"),
+    "ja4": ("ja4", "ssl.ja4", "tls.ja4", "network.tls.ja4"),
+    "ja4s": ("ja4s", "ssl.ja4s", "tls.ja4s", "network.tls.ja4s"),
+    "jarm": ("jarm", "ssl.jarm", "tls.jarm", "network.tls.jarm"),
+    "ja3": ("ja3", "ssl.ja3", "tls.ja3", "network.tls.ja3"),
 }
 
 #: Category normalization

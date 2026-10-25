@@ -1864,3 +1864,104 @@ def test_generate_enrichment_summary_includes_vulncheck():
         assert "VulnCheck KEV (Active Exploitation):" in summary
         assert "Status: weaponized (in-the-wild: True)" in summary
 
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_censys_ip_with_fingerprints(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_censys_ip
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "result": {
+            "services": [
+                {
+                    "port": 443,
+                    "service_name": "HTTPS",
+                    "tls": {
+                        "jarm": "07d14d16d21d21d07c42d41407d41d4ae3d3e5896041892ff5da154584d1c4",
+                        "ja4": "t13d1516h2_8daaf6152771_019a76b17a1d",
+                        "certificate": {
+                            "subject_dn": "CN=evil-c2.com, O=Malware Corp",
+                        },
+                    },
+                }
+            ]
+        }
+    }
+    mock_get.return_value = mock_resp
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="censys-token"):
+        res = query_censys_ip("198.51.100.22")
+        assert "Open Ports: ['443']" in res
+        assert "JARM: 07d14d16d21d" in res
+        assert "JA4: t13d1516h2" in res
+        assert "TLS Cert: CN=evil-c2.com" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_censys_ip_balance_and_errors(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_censys_ip
+    mock_resp_422 = MagicMock()
+    mock_resp_422.status_code = 422
+    mock_get.return_value = mock_resp_422
+
+    with patch("hecate_agent.orchestrator.enrichment._setting", return_value="censys-token"):
+        res = query_censys_ip("198.51.100.22")
+        assert "insufficient credits/balance" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_shadowserver_ip(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_shadowserver_ip
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "asn": 15169,
+        "asn_name": "Google LLC",
+        "prefix": "8.8.8.0/24",
+        "isp_name": "A2B IP",
+    }
+    mock_get.return_value = mock_resp
+
+    res = query_shadowserver_ip("8.8.8.8")
+    assert "ASN: AS15169 (Google LLC)" in res
+    assert "Prefix: 8.8.8.0/24" in res
+    assert "ISP: A2B IP" in res
+
+
+@patch("hecate_agent.orchestrator.enrichment.httpx.get")
+def test_query_shadowserver_hash(mock_get):
+    from hecate_agent.orchestrator.enrichment import query_shadowserver_hash
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = [
+        {
+            "import_hash": "68f013d7437aa653a8a98a05807afeb1",
+            "anti_virus": [
+                {"vendor": "K7", "signature": "Trojan.Generic"},
+                {"vendor": "Eset", "signature": "Win32/Spy.Shiz.NBX"},
+            ],
+        }
+    ]
+    mock_get.return_value = mock_resp
+
+    res = query_shadowserver_hash("84c82835a5d21bbcf75a61706d8ab549")
+    assert "AV Detections: 2 hits" in res
+    assert "Win32/Spy.Shiz.NBX" in res
+    assert "imphash: 68f013d7437aa653a8a98a05807afeb1" in res
+
+
+def test_generate_enrichment_summary_includes_shadowserver():
+    threat_intel = "C2 node observed at 198.51.100.33 and hash 84c82835a5d21bbcf75a61706d8ab549."
+    with patch(
+        "hecate_agent.orchestrator.enrichment.query_shadowserver_ip",
+        return_value="ASN: AS12345 (Adversary ASN) · Prefix: 198.51.100.0/24",
+    ), patch(
+        "hecate_agent.orchestrator.enrichment.query_shadowserver_hash",
+        return_value="AV Detections: 14 hits (Trojan.C2) · imphash: 68f013d7437aa653a8a98a05807afeb1",
+    ):
+        summary = generate_enrichment_summary(threat_intel)
+        assert "Shadowserver Foundation" in summary
+        assert "ASN: AS12345 (Adversary ASN)" in summary
+        assert "AV Detections: 14 hits" in summary
+
+

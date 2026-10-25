@@ -679,10 +679,15 @@ def expand_ttps(threat_intel: str) -> str:
 
 
 def query_censys_ip(ip: str) -> str:
+    """Query Censys for open ports, services, TLS certificates, and JARM/JA4 fingerprints."""
+    token = _setting("CENSYS_API_TOKEN")
+    if not token:
+        return "CENSYS_API_TOKEN not configured."
+
     url = f"https://api.platform.censys.io/v3/global/asset/host/{ip}"
     headers = {
         "Accept": "application/vnd.censys.api.v3.host.v1+json",
-        "Authorization": f"Bearer {_setting('CENSYS_API_TOKEN')}",
+        "Authorization": f"Bearer {token}",
     }
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0)
@@ -694,6 +699,10 @@ def query_censys_ip(ip: str) -> str:
 
             # Extract software
             software_list = []
+            jarm_hashes = []
+            ja4_hashes = []
+            cert_subjects = []
+
             for s in services:
                 if s.get("software"):
                     for sw in s["software"]:
@@ -701,18 +710,123 @@ def query_censys_ip(ip: str) -> str:
                         if product and product not in software_list:
                             software_list.append(product)
 
-            summary = f"Open Ports: {ports}"
+                tls = s.get("tls") or {}
+                jarm = tls.get("jarm") or s.get("jarm")
+                if jarm and str(jarm) not in jarm_hashes:
+                    jarm_hashes.append(str(jarm))
+                ja4 = tls.get("ja4") or s.get("ja4")
+                if ja4 and str(ja4) not in ja4_hashes:
+                    ja4_hashes.append(str(ja4))
+                ja4s = tls.get("ja4s") or s.get("ja4s")
+                if ja4s and str(ja4s) not in ja4_hashes:
+                    ja4_hashes.append(str(ja4s))
+
+                cert = tls.get("certificate") or {}
+                subj = (
+                    cert.get("parsed", {}).get("subject_dn")
+                    or cert.get("subject_dn")
+                    or cert.get("subject", {}).get("common_name")
+                )
+                if subj and str(subj) not in cert_subjects:
+                    cert_subjects.append(str(subj))
+
+            parts = [f"Open Ports: {ports}"]
             if software_list:
-                summary += f" | Software: {', '.join(software_list[:5])}"
-            return summary
-        elif resp.status_code == 401:
-            return "Censys Auth Error (check token format)."
+                parts.append(f"Software: {', '.join(software_list[:4])}")
+            if jarm_hashes:
+                parts.append(f"JARM: {', '.join(jarm_hashes[:2])}")
+            if ja4_hashes:
+                parts.append(f"JA4: {', '.join(ja4_hashes[:2])}")
+            if cert_subjects:
+                parts.append(f"TLS Cert: {', '.join(cert_subjects[:2])}")
+            return " | ".join(parts)
+        elif resp.status_code in (401, 403):
+            return "Censys Auth Error (check CENSYS_API_TOKEN)."
+        elif resp.status_code == 422:
+            return "Censys API limit reached (insufficient credits/balance)."
+        elif resp.status_code == 429:
+            return "Censys rate limit exceeded."
         elif resp.status_code == 404:
             return "No data on Censys."
         else:
             return f"Censys API error: {resp.status_code}"
     except Exception as e:
         return f"Error querying Censys: {e}"
+
+
+def query_shadowserver_ip(ip: str) -> str:
+    """Query Shadowserver Foundation free public API for network origin, BGP ASN, and prefix."""
+    clean_ip = refang(ip).strip()
+    if not clean_ip:
+        return "Invalid IP address."
+    try:
+        addr = ipaddress.ip_address(clean_ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_reserved:
+            return "Private/internal IP address."
+    except ValueError:
+        return f"Invalid IP address: {clean_ip}"
+
+    try:
+        url = f"https://api.shadowserver.org/net/asn?query={clean_ip}"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            if not data or not isinstance(data, dict):
+                return f"No ASN record on Shadowserver for {clean_ip}."
+            asn = data.get("asn") or data.get("origin")
+            asn_name = data.get("asn_name") or "Unknown"
+            prefix = data.get("prefix") or ""
+            isp = data.get("isp_name")
+            parts = [f"ASN: AS{asn} ({asn_name})"]
+            if prefix:
+                parts.append(f"Prefix: {prefix}")
+            if isp and isp != asn_name:
+                parts.append(f"ISP: {isp}")
+            return " · ".join(parts)
+        elif resp.status_code == 404:
+            return f"No record on Shadowserver ({clean_ip})."
+        return f"Shadowserver error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying Shadowserver: {e}"
+
+
+def query_shadowserver_hash(file_hash: str) -> str:
+    """Query Shadowserver Foundation free malware API for known sample signatures and imphash."""
+    clean_hash = file_hash.strip().lower()
+    if not re.match(r"^[a-f0-9]{32,64}$", clean_hash):
+        return f"Invalid hash format '{file_hash}'."
+
+    try:
+        url = f"https://api.shadowserver.org/malware/info?sample={clean_hash}"
+        resp = httpx.get(url, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            if not data or not isinstance(data, list):
+                return f"No record on Shadowserver for {clean_hash}."
+            item = data[0] if isinstance(data[0], dict) else {}
+            av_list = item.get("anti_virus") or []
+            imphash = item.get("import_hash") or item.get("imphash")
+            sigs = []
+            for av in av_list:
+                if isinstance(av, dict) and av.get("signature"):
+                    sig = str(av["signature"]).strip()
+                    if sig and sig not in sigs:
+                        sigs.append(sig)
+            parts = []
+            if sigs:
+                parts.append(f"AV Detections: {len(av_list)} hits ({', '.join(sigs[:3])})")
+            elif av_list:
+                parts.append(f"AV Detections: {len(av_list)} vendor hits")
+            else:
+                parts.append("Sample recorded in Shadowserver repository")
+            if imphash:
+                parts.append(f"imphash: {imphash}")
+            return " · ".join(parts)
+        elif resp.status_code == 404:
+            return f"No record on Shadowserver ({clean_hash})."
+        return f"Shadowserver error: HTTP {resp.status_code}"
+    except Exception as e:
+        return f"Error querying Shadowserver: {e}"
 
 
 def query_abuseipdb_ip(ip: str) -> str:
@@ -2822,7 +2936,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         return ""
 
     summary = [
-        "\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Hatching Triage, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys, RDAP, EPSS, VulnCheck KEV, OSV.dev & MISP)"
+        "\n\n### 🛡️ Automated Threat Enrichment (VT, AlienVault OTX, URLScan.io, crt.sh, Passive DNS, Tor Project, IPinfo, Hybrid Analysis, Hatching Triage, Abuse.ch [ThreatFox, MalwareBazaar, Feodo, SSLBL, URLhaus], GreyNoise, AbuseIPDB, Shodan, Censys [JARM/JA4], Shadowserver Foundation, RDAP, EPSS, VulnCheck KEV, OSV.dev & MISP)"
     ]
 
     from concurrent.futures import ThreadPoolExecutor
@@ -2833,6 +2947,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         ha_res = query_hybrid_analysis(h)
         triage_res = query_triage_hash(h)
         mb_res = query_malwarebazaar(h)
+        ss_hash_res = query_shadowserver_hash(h)
         sslbl_res = query_sslbl_fingerprint(h)
         urlhaus_res = query_urlhaus_payload(h)
         threatfox_res = query_threatfox(h)
@@ -2845,6 +2960,8 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             f"  - *Hatching Triage (tria.ge Sandbox):* {triage_res}\n"
             f"  - *Abuse.ch (MalwareBazaar):* {mb_res}"
         ]
+        if not ss_hash_res.startswith("No record on Shadowserver") and not ss_hash_res.startswith("Invalid hash"):
+            lines.append(f"  - *Shadowserver Foundation (Malware Analysis):* {ss_hash_res}")
         if len(h) in (32, 40):
             lines.append(f"  - *Abuse.ch (SSLBL Fingerprint):* {sslbl_res}")
         if not urlhaus_res.startswith("No payload on URLhaus"):
@@ -2864,6 +2981,7 @@ def generate_enrichment_summary(threat_intel: str) -> str:
         gn_res = query_greynoise_ip(ip)
         shodan_res = query_shodan_ip(ip)
         censys_res = query_censys_ip(ip)
+        ss_ip_res = query_shadowserver_ip(ip)
         threatfox_res = query_threatfox(ip)
         misp_res = query_misp_indicator(ip)
         lines = [
@@ -2879,6 +2997,8 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             lines.append(f"  - *Spur.us (Proxy & Infrastructure):* {spur_res}")
         if not pdns_res.startswith("No passive DNS records found"):
             lines.append(f"  - *Passive DNS (Historical Correlated Hostnames):* {pdns_res}")
+        if not ss_ip_res.startswith("No ASN record") and not ss_ip_res.startswith("Private") and not ss_ip_res.startswith("Invalid"):
+            lines.append(f"  - *Shadowserver Foundation (Network Origin):* {ss_ip_res}")
         lines.extend(
             [
                 f"  - *GreyNoise:* {gn_res}",
