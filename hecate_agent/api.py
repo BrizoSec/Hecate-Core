@@ -456,3 +456,48 @@ def extract_greynoise_context(ip: str) -> Dict[str, Any]:
     from hecate_agent.orchestrator.enrichment import extract_greynoise_context as _egc
 
     return _egc(ip)
+
+
+def get_atomic_tests(
+    technique_id: str,
+    workspace: Optional[Any] = None,
+    platforms: Optional[List[str]] = None,
+) -> List[Dict[str, str]]:
+    """Return matching Atomic Red Team test descriptors for an ATT&CK technique."""
+    from hecate_agent.core.atomic_red_team import get_atomic_tests as _gat
+
+    return _gat(technique_id, workspace=workspace, platforms=platforms)
+
+
+def format_atomic_tests_markdown(
+    techniques: List[str],
+    workspace: Optional[Any] = None,
+    platforms: Optional[List[str]] = None,
+) -> str:
+    """Format matching Atomic Red Team tests as markdown table for hunt briefs."""
+    from hecate_agent.core.atomic_red_team import format_atomic_tests_markdown as _fatm
+
+    return _fatm(techniques, workspace=workspace, platforms=platforms)
+
+
+def synthesize_atomic_telemetry(
+    technique_id: str,
+    workspace: Optional[Any] = None,
+    platforms: Optional[List[str]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Synthesize structured, high-fidelity Sigma telemetry events from Atomic Red Team tests."""
+    from hecate_agent.core.atomic_red_team import synthesize_atomic_telemetry as _sat
+
+    return _sat(technique_id, workspace=workspace, platforms=platforms)
+
+
+def run_dynamic_atomic_emulation(
+    technique_id: str,
+    backend: str = "simulation",
+    platforms: Optional[List[str]] = None,
+) -> Any:
+    """Execute dynamic adversary emulation for a technique and return an EmulationResult."""
+    from hecate_agent.core.emulation_runner import EmulationRunner
+
+    runner = EmulationRunner(backend=backend)
+    return runner.run_technique(technique_id, platforms=platforms)

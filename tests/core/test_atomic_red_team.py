@@ -62,13 +62,15 @@ class TestAtomicRedTeam:
         # Mock get_technique to isolate unit test from external STIX dependency on CI
         monkeypatch.setattr(
             "hecate_agent.core.attack_matrix.get_technique",
-            lambda tid: {
-                "name": "Brute Force",
-                "platforms": ["Linux", "Windows"],
-                "data_sources": ["Logon Session: Logon Session Creation"],
-            }
-            if "T1110" in tid
-            else None,
+            lambda tid: (
+                {
+                    "name": "Brute Force",
+                    "platforms": ["Linux", "Windows"],
+                    "data_sources": ["Logon Session: Logon Session Creation"],
+                }
+                if "T1110" in tid
+                else None
+            ),
         )
         tests = get_atomic_tests("T1110")
         assert len(tests) >= 1
@@ -101,3 +103,46 @@ class TestAtomicRedTeam:
         assert len(tests) == 1
         assert tests[0]["name"] == "Custom In-House Test"
         assert tests[0]["test_id"] == "ORG-T9998-01"
+
+    def test_synthesize_atomic_telemetry_powershell_and_service(self):
+        from hecate_agent.core.atomic_red_team import synthesize_atomic_telemetry
+
+        # T1059.001 - PowerShell
+        ps_events = synthesize_atomic_telemetry("T1059.001")
+        assert "process_creation" in ps_events
+        assert any("powershell.exe" in e.get("Image", "").lower() for e in ps_events["process_creation"])
+        assert any("Invoke-WebRequest" in e.get("CommandLine", "") for e in ps_events["process_creation"])
+        assert "file_event" in ps_events
+        assert any("p.ps1" in e.get("TargetFilename", "") for e in ps_events["file_event"])
+        assert "network_connection" in ps_events
+
+        # T1543.003 - Windows Service Creation
+        srv_events = synthesize_atomic_telemetry("T1543.003")
+        assert "process_creation" in srv_events
+        assert any("sc.exe" in e.get("Image", "") for e in srv_events["process_creation"])
+        assert "registry_set" in srv_events
+        assert any("Services" in e.get("TargetObject", "") for e in srv_events["registry_set"])
+        assert "file_event" in srv_events
+
+    def test_synthesize_atomic_telemetry_cron_and_containers(self):
+        from hecate_agent.core.atomic_red_team import synthesize_atomic_telemetry
+
+        # T1053.003 - Linux Cron
+        cron_events = synthesize_atomic_telemetry("T1053.003")
+        assert "file_event" in cron_events
+        assert any("cron" in e.get("TargetFilename", "") for e in cron_events["file_event"])
+
+        # T1610 - Container deployment / escape
+        k8s_events = synthesize_atomic_telemetry("T1610")
+        assert "container_runtime" in k8s_events
+        assert any(e.get("Privileged") == "true" for e in k8s_events["container_runtime"])
+        assert "kubernetes_audit" in k8s_events
+
+    def test_run_dynamic_atomic_emulation(self):
+        from hecate_agent.api import run_dynamic_atomic_emulation
+
+        res = run_dynamic_atomic_emulation("T1059.001", backend="simulation")
+        assert res.success is True
+        assert res.backend == "simulation"
+        assert len(res.events) > 0
+        assert any(e.get("category") == "process_creation" for e in res.events)

