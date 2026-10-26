@@ -111,7 +111,7 @@ class InsightIDRBackend(TextQueryBackend):
     wildcard_single: ClassVar[str] = "*"
     re_expression: ClassVar[str] = "{field}=/{regex}/i"
     re_escape_char: ClassVar[str] = "\\"
-    re_escape: ClassVar[Tuple[str, ...]] = ("/",)
+    re_escape: ClassVar[List[str]] = ["/"]
 
     def __init__(self, processing_pipeline: Optional[Any] = None):
         if processing_pipeline is None and PYSIGMA_AVAILABLE:
@@ -169,7 +169,7 @@ class SigmaTranspiler:
         },
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not PYSIGMA_AVAILABLE:
             logger.warning("pySigma and required backends not installed; transpilation will fail open.")
 
@@ -280,23 +280,23 @@ class SigmaTranspiler:
 
         if target == self.TARGET_MDE:
             pipeline = microsoft_365_defender_pipeline()
-            backend = KustoBackend(processing_pipeline=pipeline)
-            queries = backend.convert(col)
+            kusto_backend: Any = KustoBackend(processing_pipeline=pipeline)  # type: ignore[arg-type]
+            queries = kusto_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Kusto/MDE backend")
             return "\n\n".join(queries)
 
         if target == self.TARGET_CROWDSTRIKE:
-            pipeline = crowdstrike_fdr_pipeline()
-            backend = LogScaleBackend(processing_pipeline=pipeline)
-            queries = backend.convert(col)
+            cs_pipeline = crowdstrike_fdr_pipeline()
+            cs_backend: Any = LogScaleBackend(processing_pipeline=cs_pipeline)
+            queries = cs_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from CrowdStrike backend")
             return "\n\n".join(queries)
 
         if target == self.TARGET_RAPID7:
-            backend = InsightIDRBackend()
-            queries = backend.convert(col)
+            idr_backend: Any = InsightIDRBackend()
+            queries = idr_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Rapid7 InsightIDR backend")
             return "\n\n".join(queries)
