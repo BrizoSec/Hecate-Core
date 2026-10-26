@@ -249,7 +249,10 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = "hecate_agent.commands"
+module = [
+    "hecate_agent.commands",
+    "hecate_agent.core.sigma_transpiler",
+]
 warn_unused_ignores = false
 
 # Ignore missing imports for optional dependencies
@@ -260,6 +263,8 @@ module = [
     "tavily",
     "tavily.*",
     "sklearn.*",
+    "sigma",
+    "sigma.*",
     # Reached through other packages' stubs. numpy 2.5+ (Python 3.12+) ships
     # stubs in 3.12-only syntax, which mypy cannot parse while targeting 3.11.
     "numpy",
