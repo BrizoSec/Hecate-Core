@@ -17,12 +17,18 @@ import yaml
 
 try:
     from sigma.backends.crowdstrike import LogScaleBackend
+    from sigma.backends.elasticsearch import EqlBackend
     from sigma.backends.kusto import KustoBackend
+    from sigma.backends.sentinelone import SentinelOneBackend
+    from sigma.backends.splunk import SplunkBackend
     from sigma.collection import SigmaCollection
     from sigma.conversion.base import TextQueryBackend
     from sigma.conversion.state import ConversionState
     from sigma.pipelines.crowdstrike import crowdstrike_fdr_pipeline
+    from sigma.pipelines.elasticsearch import ecs_windows
     from sigma.pipelines.microsoft365defender import microsoft_365_defender_pipeline
+    from sigma.pipelines.sentinelone import sentinelone_pipeline
+    from sigma.pipelines.splunk import splunk_windows_pipeline
     from sigma.processing.conditions import IncludeFieldCondition, LogsourceCondition
     from sigma.processing.pipeline import ProcessingItem, ProcessingPipeline
     from sigma.processing.transformations import FieldMappingTransformation
@@ -33,6 +39,9 @@ except ImportError:
     PYSIGMA_AVAILABLE = False
     LogScaleBackend = None  # type: ignore
     KustoBackend = None  # type: ignore
+    SplunkBackend = None  # type: ignore
+    EqlBackend = None  # type: ignore
+    SentinelOneBackend = None  # type: ignore
     SigmaCollection = None  # type: ignore
     TextQueryBackend = object  # type: ignore
     ConversionState = Any  # type: ignore
@@ -87,6 +96,24 @@ def build_insight_idr_pipeline() -> Optional[Any]:
             )
         ]
     )
+
+
+def build_sentinelone_pipeline() -> Optional[Any]:
+    """Build a SentinelOne processing pipeline patched for EndpointOS detection item compatibility."""
+    if not PYSIGMA_AVAILABLE or sentinelone_pipeline is None:
+        return None
+    try:
+        pipeline = sentinelone_pipeline()
+        for item in pipeline.items:
+            if getattr(item, "identifier", None) == "s1_fail_field_not_supported":
+                for cond in getattr(item, "field_name_conditions", []):
+                    fields = getattr(cond, "fields", None)
+                    if isinstance(fields, list) and "EndpointOS" not in fields:
+                        fields.append("EndpointOS")
+        return pipeline
+    except Exception as exc:
+        logger.debug("Failed to build SentinelOne pipeline: %s", exc)
+        return None
 
 
 class InsightIDRBackend(TextQueryBackend):
@@ -144,11 +171,17 @@ class SigmaTranspiler:
     TARGET_MDE = "sentinel_kql"
     TARGET_CROWDSTRIKE = "crowdstrike_cql"
     TARGET_RAPID7 = "rapid7_leql"
+    TARGET_SENTINELONE = "sentinelone_s1ql"
+    TARGET_SPLUNK = "splunk_spl"
+    TARGET_ELASTIC = "elastic_eql"
 
     SUPPORTED_TARGETS = [
         TARGET_MDE,
         TARGET_CROWDSTRIKE,
         TARGET_RAPID7,
+        TARGET_SENTINELONE,
+        TARGET_SPLUNK,
+        TARGET_ELASTIC,
     ]
 
     TARGET_METADATA = {
@@ -166,6 +199,21 @@ class SigmaTranspiler:
             "name": "Rapid7 InsightIDR",
             "dialect": "leql",
             "extension": ".leql",
+        },
+        TARGET_SENTINELONE: {
+            "name": "SentinelOne (S1QL / Deep Visibility)",
+            "dialect": "s1ql",
+            "extension": ".s1ql",
+        },
+        TARGET_SPLUNK: {
+            "name": "Splunk Enterprise / Cloud (SPL)",
+            "dialect": "spl",
+            "extension": ".spl",
+        },
+        TARGET_ELASTIC: {
+            "name": "Elastic Security (EQL)",
+            "dialect": "eql",
+            "extension": ".eql",
         },
     }
 
@@ -327,6 +375,30 @@ class SigmaTranspiler:
             queries = idr_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Rapid7 InsightIDR backend")
+            return "\n\n".join(queries)
+
+        if target == self.TARGET_SENTINELONE:
+            s1_pipeline = build_sentinelone_pipeline()
+            s1_backend: Any = SentinelOneBackend(processing_pipeline=s1_pipeline)  # type: ignore[arg-type]
+            queries = s1_backend.convert(col)
+            if not queries:
+                raise ValueError("No query returned from SentinelOne backend")
+            return "\n\n".join(queries)
+
+        if target == self.TARGET_SPLUNK:
+            sp_pipeline = splunk_windows_pipeline()
+            sp_backend: Any = SplunkBackend(processing_pipeline=sp_pipeline)
+            queries = sp_backend.convert(col)
+            if not queries:
+                raise ValueError("No query returned from Splunk backend")
+            return "\n\n".join(queries)
+
+        if target == self.TARGET_ELASTIC:
+            es_pipeline = ecs_windows()
+            es_backend: Any = EqlBackend(processing_pipeline=es_pipeline)
+            queries = es_backend.convert(col)
+            if not queries:
+                raise ValueError("No query returned from Elastic EQL backend")
             return "\n\n".join(queries)
 
         raise ValueError(f"Unsupported transpilation target: {target}")

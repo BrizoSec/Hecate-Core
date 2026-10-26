@@ -62,6 +62,9 @@ class TestSigmaTranspiler:
         assert SigmaTranspiler.TARGET_MDE in results
         assert SigmaTranspiler.TARGET_CROWDSTRIKE in results
         assert SigmaTranspiler.TARGET_RAPID7 in results
+        assert SigmaTranspiler.TARGET_SENTINELONE in results
+        assert SigmaTranspiler.TARGET_SPLUNK in results
+        assert SigmaTranspiler.TARGET_ELASTIC in results
 
         # 1. Microsoft Defender / Sentinel KQL
         mde = results[SigmaTranspiler.TARGET_MDE]
@@ -86,6 +89,29 @@ class TestSigmaTranspiler:
         assert r7.query.startswith("where(")
         assert "DTHelper.exe" in r7.query
 
+        # 4. SentinelOne S1QL
+        s1 = results[SigmaTranspiler.TARGET_SENTINELONE]
+        assert s1.success is True
+        assert s1.dialect == "s1ql"
+        assert s1.file_extension == ".s1ql"
+        assert "Process Creation" in s1.query
+        assert "DTHelper.exe" in s1.query
+
+        # 5. Splunk SPL
+        sp = results[SigmaTranspiler.TARGET_SPLUNK]
+        assert sp.success is True
+        assert sp.dialect == "spl"
+        assert sp.file_extension == ".spl"
+        assert "DTHelper.exe" in sp.query
+
+        # 6. Elastic EQL
+        eq = results[SigmaTranspiler.TARGET_ELASTIC]
+        assert eq.success is True
+        assert eq.dialect == "eql"
+        assert eq.file_extension == ".eql"
+        assert "process.executable.caseless" in eq.query
+        assert "DTHelper.exe" in eq.query
+
     def test_transpile_network_connection(self, sample_network_rule):
         transpiler = SigmaTranspiler()
         results = transpiler.transpile(sample_network_rule)
@@ -101,6 +127,22 @@ class TestSigmaTranspiler:
         assert r7.success is True
         assert "where(" in r7.query
         assert "168.138.40.244" in r7.query
+
+        # SentinelOne should query DstIP / DstPort
+        s1 = results[SigmaTranspiler.TARGET_SENTINELONE]
+        assert s1.success is True
+        assert "168.138.40.244" in s1.query
+        assert "443" in s1.query
+
+        # Splunk should query DestinationIp / DestinationPort
+        sp = results[SigmaTranspiler.TARGET_SPLUNK]
+        assert sp.success is True
+        assert "168.138.40.244" in sp.query
+
+        # Elastic should query destination.ip / destination.port
+        eq = results[SigmaTranspiler.TARGET_ELASTIC]
+        assert eq.success is True
+        assert "168.138.40.244" in eq.query
 
     def test_normalize_rule_adds_windows_product_if_missing(self):
         rule_without_product = """
@@ -133,8 +175,13 @@ detection:
         assert "Microsoft Defender / Microsoft Sentinel (KQL)" in markdown
         assert "CrowdStrike Falcon" in markdown
         assert "Rapid7 InsightIDR" in markdown
+        assert "SentinelOne" in markdown
+        assert "Splunk" in markdown
+        assert "Elastic Security" in markdown
         assert "```kql" in markdown
         assert "```cql" in markdown
+        assert "```spl" in markdown
+        assert "```eql" in markdown
         assert "```text" in markdown
         assert "where(" in markdown
 
@@ -172,3 +219,14 @@ level: medium
         cs = results[SigmaTranspiler.TARGET_CROWDSTRIKE]
         assert cs.success is True
         assert "api" in cs.query and "admin" in cs.query
+        sp = results[SigmaTranspiler.TARGET_SPLUNK]
+        assert sp.success is True
+        assert "/api/v1/admin" in sp.query
+        eq = results[SigmaTranspiler.TARGET_ELASTIC]
+        assert eq.success is True
+        assert "/api/v1/admin" in eq.query
+        # SentinelOne is endpoint-focused and gracefully reports conversion error for webserver
+        s1 = results[SigmaTranspiler.TARGET_SENTINELONE]
+        assert s1.success is False
+        assert s1.query is None
+        assert s1.error_message is not None
