@@ -442,3 +442,17 @@ def search_groups_in_text(text: str) -> List[Dict[str, Any]]:
     from hecate_agent.core.attack_matrix import search_groups_in_text as _sg
 
     return [dict(g) for g in _sg(text)]
+
+
+def extract_vt_behavior_graph(file_hash: str) -> Dict[str, Any]:
+    """Query VirusTotal v3 behaviour_summary for sandbox execution graph and MITRE techniques."""
+    from hecate_agent.orchestrator.enrichment import extract_vt_behavior_graph as _evb
+
+    return _evb(file_hash)
+
+
+def extract_greynoise_context(ip: str) -> Dict[str, Any]:
+    """Return structured GreyNoise intelligence (noise, riot, classification, actor, tags)."""
+    from hecate_agent.orchestrator.enrichment import extract_greynoise_context as _egc
+
+    return _egc(ip)

@@ -270,6 +270,65 @@ def test_query_vt_hash_no_api_key(monkeypatch):
     assert query_vt_hash("hash") == "Not found or error."
 
 
+def test_extract_vt_behavior_graph(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import extract_vt_behavior_graph
+
+    monkeypatch.delenv("VT_API_KEY", raising=False)
+    assert extract_vt_behavior_graph("samplehash") == {}
+
+    monkeypatch.setenv("VT_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "data": {
+                "tags": ["PERSISTENCE", "OBFUSCATED"],
+                "mitre_attack_techniques": [
+                    {"id": "T1059.001", "signature_description": "PowerShell Execution"},
+                    {"id": "T1543.003", "signature_description": "Windows Service"},
+                ],
+                "ip_traffic": [{"destination_ip": "198.51.100.22", "destination_port": 8443}],
+                "dns_lookups": [{"hostname": "c2-sync-domain.top"}],
+                "files_dropped": [{"path": "C:\\Windows\\Temp\\beacon.exe"}],
+            }
+        }
+        mock_get.return_value = mock_resp
+
+        bg = extract_vt_behavior_graph("samplehash")
+        assert "PERSISTENCE" in bg["tags"]
+        assert bg["mitre_techniques"][0]["id"] == "T1059.001"
+        assert bg["contacted_ips"] == ["198.51.100.22"]
+        assert bg["contacted_domains"] == ["c2-sync-domain.top"]
+        assert "C:\\Windows\\Temp\\beacon.exe" in bg["dropped_files"]
+
+
+def test_extract_greynoise_context(monkeypatch):
+    from hecate_agent.orchestrator.enrichment import extract_greynoise_context
+
+    monkeypatch.delenv("GREYNOISE_API_KEY", raising=False)
+    res = extract_greynoise_context("8.8.8.8")
+    assert res["classification"] == "unknown"
+
+    monkeypatch.setenv("GREYNOISE_API_KEY", "test-key")
+    with patch("hecate_agent.orchestrator.enrichment.httpx.get") as mock_get:
+        # Mock benign scanner
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "business_service_intelligence": {"found": False},
+            "internet_scanner_intelligence": {
+                "found": True,
+                "classification": "benign",
+                "actor": "ShadowServer.org",
+                "tags": [{"name": "Ping Scanner"}],
+            },
+        }
+        mock_get.return_value = mock_resp
+        ctx = extract_greynoise_context("65.49.20.70")
+        assert ctx["noise"] is True
+        assert ctx["classification"] == "benign"
+        assert ctx["actor"] == "ShadowServer.org"
+        assert "Ping Scanner" in ctx["tags"]
+
+
 def test_query_vt_domain(monkeypatch):
     from hecate_agent.orchestrator.enrichment import query_vt_domain
 
@@ -1799,6 +1858,7 @@ def test_generate_enrichment_summary_includes_triage():
 
 def test_query_vulncheck_cve_unconfigured():
     from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value=""):
         res = query_vulncheck_cve("CVE-2024-3400")
         assert res == "VULNCHECK_API_KEY not configured."
@@ -1806,6 +1866,7 @@ def test_query_vulncheck_cve_unconfigured():
 
 def test_query_vulncheck_cve_invalid():
     from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+
     with patch("hecate_agent.orchestrator.enrichment._setting", return_value="test-key"):
         res = query_vulncheck_cve("not-a-cve")
         assert "Invalid CVE identifier" in res
@@ -1814,6 +1875,7 @@ def test_query_vulncheck_cve_invalid():
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_vulncheck_cve_success(mock_get):
     from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
@@ -1842,6 +1904,7 @@ def test_query_vulncheck_cve_success(mock_get):
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_vulncheck_cve_not_found(mock_get):
     from hecate_agent.orchestrator.enrichment import query_vulncheck_cve
+
     mock_resp = MagicMock()
     mock_resp.status_code = 404
     mock_get.return_value = mock_resp
@@ -1853,12 +1916,15 @@ def test_query_vulncheck_cve_not_found(mock_get):
 
 def test_generate_enrichment_summary_includes_vulncheck():
     threat_intel = "Active zero-day exploitation of CVE-2024-3400 reported in network gateway."
-    with patch(
-        "hecate_agent.orchestrator.enrichment.query_vulncheck_cve",
-        return_value="Status: weaponized (in-the-wild: True) · Target: Palo Alto Networks PAN-OS",
-    ), patch(
-        "hecate_agent.orchestrator.enrichment.query_epss_batch",
-        return_value={"CVE-2024-3400": "EPSS: 92.5% (CRITICAL)"},
+    with (
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_vulncheck_cve",
+            return_value="Status: weaponized (in-the-wild: True) · Target: Palo Alto Networks PAN-OS",
+        ),
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_epss_batch",
+            return_value={"CVE-2024-3400": "EPSS: 92.5% (CRITICAL)"},
+        ),
     ):
         summary = generate_enrichment_summary(threat_intel)
         assert "VulnCheck KEV (Active Exploitation):" in summary
@@ -1868,6 +1934,7 @@ def test_generate_enrichment_summary_includes_vulncheck():
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_censys_ip_with_fingerprints(mock_get):
     from hecate_agent.orchestrator.enrichment import query_censys_ip
+
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
@@ -1900,6 +1967,7 @@ def test_query_censys_ip_with_fingerprints(mock_get):
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_censys_ip_balance_and_errors(mock_get):
     from hecate_agent.orchestrator.enrichment import query_censys_ip
+
     mock_resp_422 = MagicMock()
     mock_resp_422.status_code = 422
     mock_get.return_value = mock_resp_422
@@ -1912,6 +1980,7 @@ def test_query_censys_ip_balance_and_errors(mock_get):
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_shadowserver_ip(mock_get):
     from hecate_agent.orchestrator.enrichment import query_shadowserver_ip
+
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
@@ -1931,6 +2000,7 @@ def test_query_shadowserver_ip(mock_get):
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_shadowserver_hash(mock_get):
     from hecate_agent.orchestrator.enrichment import query_shadowserver_hash
+
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = [
@@ -1952,12 +2022,15 @@ def test_query_shadowserver_hash(mock_get):
 
 def test_generate_enrichment_summary_includes_shadowserver():
     threat_intel = "C2 node observed at 198.51.100.33 and hash 84c82835a5d21bbcf75a61706d8ab549."
-    with patch(
-        "hecate_agent.orchestrator.enrichment.query_shadowserver_ip",
-        return_value="ASN: AS12345 (Adversary ASN) · Prefix: 198.51.100.0/24",
-    ), patch(
-        "hecate_agent.orchestrator.enrichment.query_shadowserver_hash",
-        return_value="AV Detections: 14 hits (Trojan.C2) · imphash: 68f013d7437aa653a8a98a05807afeb1",
+    with (
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_shadowserver_ip",
+            return_value="ASN: AS12345 (Adversary ASN) · Prefix: 198.51.100.0/24",
+        ),
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_shadowserver_hash",
+            return_value="AV Detections: 14 hits (Trojan.C2) · imphash: 68f013d7437aa653a8a98a05807afeb1",
+        ),
     ):
         summary = generate_enrichment_summary(threat_intel)
         assert "Shadowserver Foundation" in summary
@@ -1975,13 +2048,12 @@ def test_query_msrc_cve_invalid():
 @patch("hecate_agent.orchestrator.enrichment.httpx.get")
 def test_query_msrc_cve_success(mock_get):
     from hecate_agent.orchestrator.enrichment import query_msrc_cve, _fetch_msrc_document
+
     _fetch_msrc_document.cache_clear()
 
     updates_resp = MagicMock()
     updates_resp.status_code = 200
-    updates_resp.json.return_value = {
-        "value": [{"ID": "2024-Aug"}]
-    }
+    updates_resp.json.return_value = {"value": [{"ID": "2024-Aug"}]}
 
     doc_resp = MagicMock()
     doc_resp.status_code = 200
@@ -2015,16 +2087,16 @@ def test_query_msrc_cve_success(mock_get):
 
 def test_generate_enrichment_summary_includes_msrc():
     threat_intel = "Active exploitation of CVE-2024-38063 observed in corporate Windows servers."
-    with patch(
-        "hecate_agent.orchestrator.enrichment.query_msrc_cve",
-        return_value="MSRC: Windows TCP/IP RCE · Severity: Critical · CVSS: 9.8",
-    ), patch(
-        "hecate_agent.orchestrator.enrichment.query_epss_batch",
-        return_value={"CVE-2024-38063": "EPSS: 94.2% (CRITICAL)"},
+    with (
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_msrc_cve",
+            return_value="MSRC: Windows TCP/IP RCE · Severity: Critical · CVSS: 9.8",
+        ),
+        patch(
+            "hecate_agent.orchestrator.enrichment.query_epss_batch",
+            return_value={"CVE-2024-38063": "EPSS: 94.2% (CRITICAL)"},
+        ),
     ):
         summary = generate_enrichment_summary(threat_intel)
         assert "Microsoft MSRC (Security Guidance):" in summary
         assert "MSRC: Windows TCP/IP RCE · Severity: Critical · CVSS: 9.8" in summary
-
-
-

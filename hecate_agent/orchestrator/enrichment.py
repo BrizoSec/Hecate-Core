@@ -406,6 +406,65 @@ def extract_indicators(text: str) -> Dict[str, List[str]]:
     return indicators
 
 
+def extract_vt_behavior_graph(file_hash: str) -> Dict[str, Any]:
+    """Query VirusTotal v3 behaviour_summary endpoint for execution graph and sandbox techniques."""
+    api_key = _setting("VT_API_KEY")
+    if not api_key:
+        return {}
+    url = f"https://www.virustotal.com/api/v3/files/{file_hash}/behaviour_summary"
+    headers = {"x-apikey": api_key, "Accept": "application/json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=12.0)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json().get("data", {})
+        if not isinstance(data, dict):
+            return {}
+
+        tags = [str(t).upper() for t in data.get("tags", []) if t]
+
+        techniques: List[Dict[str, str]] = []
+        seen_techs: Set[str] = set()
+        for item in data.get("mitre_attack_techniques", []):
+            if isinstance(item, dict) and item.get("id"):
+                tid = str(item["id"]).strip().upper()
+                if tid and tid not in seen_techs:
+                    seen_techs.add(tid)
+                    techniques.append({"id": tid, "name": str(item.get("signature_description") or "")})
+
+        contacted_ips: List[str] = []
+        for traffic in data.get("ip_traffic", []):
+            if isinstance(traffic, dict) and traffic.get("destination_ip"):
+                cip = str(traffic["destination_ip"]).strip()
+                if cip and is_valid_ipv4(cip) and cip not in contacted_ips:
+                    contacted_ips.append(cip)
+
+        contacted_domains: List[str] = []
+        for d in data.get("dns_lookups", []):
+            if isinstance(d, dict) and d.get("hostname"):
+                dom = str(d["hostname"]).strip().lower()
+                if dom and dom not in _KNOWN_PUBLISHER_DOMAINS and dom not in contacted_domains:
+                    contacted_domains.append(dom)
+
+        dropped_files: List[str] = []
+        for f in data.get("files_dropped", []):
+            if isinstance(f, dict) and f.get("path"):
+                p = str(f["path"]).strip()
+                if p and p not in dropped_files:
+                    dropped_files.append(p)
+
+        return {
+            "tags": tags,
+            "mitre_techniques": techniques,
+            "contacted_ips": contacted_ips,
+            "contacted_domains": contacted_domains,
+            "dropped_files": dropped_files,
+        }
+    except Exception as exc:
+        logger.debug("Failed to query VT behaviour_summary for %s: %s", file_hash, exc)
+        return {}
+
+
 def query_vt_hash(file_hash: str) -> str:
     api_key = _setting("VT_API_KEY")
     if not api_key:
@@ -419,7 +478,20 @@ def query_vt_hash(file_hash: str) -> str:
             names = data.get("names", [])
             malicious = data.get("last_analysis_stats", {}).get("malicious", 0)
             threat_label = data.get("popular_threat_classification", {}).get("suggested_threat_label", "Unknown")
-            return f"Malicious hits: {malicious} | Threat Label: {threat_label} | Known Filenames: {', '.join(names[:3])}"
+            base = f"Malicious hits: {malicious} | Threat Label: {threat_label} | Known Filenames: {', '.join(names[:3])}"
+
+            bg = extract_vt_behavior_graph(file_hash)
+            extras = []
+            if bg.get("tags"):
+                extras.append(f"Capabilities: {', '.join(bg['tags'][:4])}")
+            if bg.get("mitre_techniques"):
+                t_ids = [t["id"] for t in bg["mitre_techniques"][:4]]
+                extras.append(f"MITRE: {', '.join(t_ids)}")
+            if bg.get("contacted_ips"):
+                extras.append(f"C2 IPs: {', '.join(bg['contacted_ips'][:3])}")
+            if extras:
+                return f"{base} | {' | '.join(extras)}"
+            return base
         return "Not found or error."
     except Exception as e:
         return f"Error querying VT: {e}"
@@ -534,27 +606,72 @@ def query_rdap_domain(domain: str) -> str:
         return f"Error querying RDAP: {e}"
 
 
-def query_greynoise_ip(ip: str) -> str:
+def extract_greynoise_context(ip: str) -> Dict[str, Any]:
+    """Return structured GreyNoise intelligence for an IP.
+
+    Returns:
+    - noise: bool (True if observed scanning the internet)
+    - riot: bool (True if benign enterprise service)
+    - classification: "benign" | "malicious" | "unknown" | "unseen" | "error"
+    - actor: str (e.g. "ShadowServer.org", "Shodan.io", "Mirai")
+    - tags: list[str]
+    - raw_status: int (HTTP status code)
+    """
     key = _setting("GREYNOISE_API_KEY")
     if not key:
-        return "GREYNOISE_API_KEY not configured."
+        return {
+            "noise": False,
+            "riot": False,
+            "classification": "unknown",
+            "actor": "",
+            "tags": [],
+            "raw_status": 0,
+        }
+
     headers = {"key": key, "Accept": "application/json"}
     try:
-        # Try v3 IP lookup endpoint first, fallback to v3 community endpoint
         url = f"https://api.greynoise.io/v3/ip/{ip}"
         resp = httpx.get(url, headers=headers, timeout=10.0)
         if resp.status_code == 404:
-            return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
-        elif resp.status_code in (401, 403):
-            # Fallback to community endpoint for free-tier community keys
+            return {
+                "noise": False,
+                "riot": False,
+                "classification": "unseen",
+                "actor": "",
+                "tags": [],
+                "raw_status": 404,
+            }
+        if resp.status_code in (401, 403):
             comm_url = f"https://api.greynoise.io/v3/community/{ip}"
             resp = httpx.get(comm_url, headers=headers, timeout=10.0)
             if resp.status_code == 404:
-                return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
-            elif resp.status_code != 200:
-                return f"GreyNoise Auth/API Error: {resp.status_code}"
-        elif resp.status_code != 200:
-            return f"GreyNoise API Error: {resp.status_code}"
+                return {
+                    "noise": False,
+                    "riot": False,
+                    "classification": "unseen",
+                    "actor": "",
+                    "tags": [],
+                    "raw_status": 404,
+                }
+            if resp.status_code != 200:
+                return {
+                    "noise": False,
+                    "riot": False,
+                    "classification": "error",
+                    "actor": "",
+                    "tags": [],
+                    "raw_status": resp.status_code,
+                }
+
+        if resp.status_code != 200:
+            return {
+                "noise": False,
+                "riot": False,
+                "classification": "error",
+                "actor": "",
+                "tags": [],
+                "raw_status": resp.status_code,
+            }
 
         data = resp.json()
         bsi = data.get("business_service_intelligence") or {}
@@ -565,26 +682,56 @@ def query_greynoise_ip(ip: str) -> str:
         actor = isi.get("actor") or bsi.get("name") or data.get("actor") or data.get("name") or "Unknown"
 
         raw_tags = isi.get("tags") or data.get("tags") or []
-        tags = []
+        tags: List[str] = []
         for t in raw_tags:
             if isinstance(t, str):
                 tags.append(t)
             elif isinstance(t, dict) and t.get("name"):
                 tags.append(t["name"])
-        tag_str = f" | Tags: {', '.join(tags[:3])}" if tags else ""
 
-        if riot:
-            name = bsi.get("name") or actor
-            trust = bsi.get("trust_level", "")
-            trust_str = f" ({trust})" if trust else ""
-            return f"RIOT: Benign Enterprise Service ({name}){trust_str} | Class: {classification}{tag_str}"
-        elif noise:
-            return f"Mass Internet Scanner ({classification}) | Actor: {actor}{tag_str}"
-        elif classification and classification != "unknown":
-            return f"Observed ({classification}) | Actor: {actor}{tag_str}"
-        return "Not observed as scanner noise (Targeted or Inactive)."
-    except Exception as e:
-        return f"Error querying GreyNoise: {e}"
+        return {
+            "noise": bool(noise),
+            "riot": bool(riot),
+            "classification": str(classification).lower(),
+            "actor": str(actor),
+            "tags": tags,
+            "raw_status": resp.status_code,
+        }
+    except Exception as exc:
+        logger.debug("Failed to query GreyNoise for %s: %s", ip, exc)
+        return {
+            "noise": False,
+            "riot": False,
+            "classification": "error",
+            "actor": "",
+            "tags": [],
+            "raw_status": -1,
+        }
+
+
+def query_greynoise_ip(ip: str) -> str:
+    key = _setting("GREYNOISE_API_KEY")
+    if not key:
+        return "GREYNOISE_API_KEY not configured."
+    gn = extract_greynoise_context(ip)
+    if gn["raw_status"] in (401, 403):
+        return f"GreyNoise Auth/API Error: {gn['raw_status']}"
+    if gn["classification"] == "error":
+        return f"GreyNoise API Error: {gn['raw_status']}"
+    if gn["classification"] == "unseen":
+        return "No mass-internet scanning observed on GreyNoise (Unseen / Targeted)."
+
+    tag_str = f" | Tags: {', '.join(gn['tags'][:3])}" if gn.get("tags") else ""
+    actor = gn.get("actor") or "Unknown"
+    classification = gn.get("classification") or "unknown"
+
+    if gn.get("riot"):
+        return f"RIOT: Benign Enterprise Service ({actor}) | Class: {classification}{tag_str}"
+    if gn.get("noise"):
+        return f"Mass Internet Scanner ({classification}) | Actor: {actor}{tag_str}"
+    if classification != "unknown":
+        return f"Observed ({classification}) | Actor: {actor}{tag_str}"
+    return "Not observed as scanner noise (Targeted or Inactive)."
 
 
 def query_shodan_ip(ip: str) -> str:
@@ -3055,7 +3202,11 @@ def generate_enrichment_summary(threat_intel: str) -> str:
             lines.append(f"  - *Spur.us (Proxy & Infrastructure):* {spur_res}")
         if not pdns_res.startswith("No passive DNS records found"):
             lines.append(f"  - *Passive DNS (Historical Correlated Hostnames):* {pdns_res}")
-        if not ss_ip_res.startswith("No ASN record") and not ss_ip_res.startswith("Private") and not ss_ip_res.startswith("Invalid"):
+        if (
+            not ss_ip_res.startswith("No ASN record")
+            and not ss_ip_res.startswith("Private")
+            and not ss_ip_res.startswith("Invalid")
+        ):
             lines.append(f"  - *Shadowserver Foundation (Network Origin):* {ss_ip_res}")
         lines.extend(
             [
