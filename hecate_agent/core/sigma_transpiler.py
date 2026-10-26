@@ -15,6 +15,11 @@ from typing import Any, ClassVar, Dict, List, Optional
 
 import yaml
 
+from hecate_agent.core.query_validator import (
+    QueryValidationResult,
+    QueryValidator,
+)
+
 try:
     from sigma.backends.crowdstrike import LogScaleBackend
     from sigma.backends.elasticsearch import EqlBackend
@@ -163,6 +168,7 @@ class TranspiledQuery:
     query: Optional[str]
     success: bool
     error_message: Optional[str] = None
+    validation: Optional[QueryValidationResult] = None
 
 
 class SigmaTranspiler:
@@ -218,8 +224,13 @@ class SigmaTranspiler:
     }
 
     def __init__(self) -> None:
+        self.validator = QueryValidator()
         if not PYSIGMA_AVAILABLE:
             logger.warning("pySigma and required backends not installed; transpilation will fail open.")
+
+    def validate_query(self, target: str, query: str) -> QueryValidationResult:
+        """Validate an arbitrary query against the target platform dialect rules."""
+        return self.validator.validate(target, query)
 
     @classmethod
     def normalize_rule_for_backends(cls, rule_yaml: str) -> str:
@@ -299,14 +310,28 @@ class SigmaTranspiler:
             normalized_yaml = self.normalize_rule_for_backend(rule_yaml, target)
             try:
                 query = self._transpile_single_target(normalized_yaml, target)
-                results[target] = TranspiledQuery(
-                    target=target,
-                    platform_name=meta["name"],
-                    dialect=meta["dialect"],
-                    file_extension=meta["extension"],
-                    query=query,
-                    success=True,
-                )
+                val_res = self.validator.validate(target, query)
+                if not val_res.is_valid:
+                    results[target] = TranspiledQuery(
+                        target=target,
+                        platform_name=meta["name"],
+                        dialect=meta["dialect"],
+                        file_extension=meta["extension"],
+                        query=query,
+                        success=False,
+                        error_message=f"Syntax validation failed: {'; '.join(val_res.error_messages)}",
+                        validation=val_res,
+                    )
+                else:
+                    results[target] = TranspiledQuery(
+                        target=target,
+                        platform_name=meta["name"],
+                        dialect=meta["dialect"],
+                        file_extension=meta["extension"],
+                        query=query,
+                        success=True,
+                        validation=val_res,
+                    )
             except Exception as exc:
                 logger.debug("Transpilation failed for target %s: %s", target, exc)
                 results[target] = TranspiledQuery(

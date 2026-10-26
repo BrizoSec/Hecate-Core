@@ -516,8 +516,37 @@ def transpile_sigma_rule(
     rule_yaml: str,
     targets: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Transpile a Sigma YAML rule into native search queries for MDE/Sentinel (KQL), CrowdStrike (CQL), and Rapid7 InsightIDR (LEQL)."""
+    """Transpile a Sigma YAML rule into native search queries for all supported SIEM/EDR targets."""
     from hecate_agent.core.sigma_transpiler import SigmaTranspiler
 
     transpiler = SigmaTranspiler()
     return transpiler.transpile(rule_yaml, targets=targets)
+
+
+def validate_transpiled_query(
+    target: str,
+    query: str,
+) -> Dict[str, Any]:
+    """Validate a transpiled query string against universal and dialect-specific syntax rules."""
+    from hecate_agent.core.query_validator import QueryValidator
+
+    validator = QueryValidator()
+    res = validator.validate(target, query)
+    return {
+        "target": res.target,
+        "dialect": res.dialect,
+        "query": res.query,
+        "is_valid": res.is_valid,
+        "sanity_score": res.sanity_score,
+        "summary": res.summary(),
+        "error_messages": res.error_messages,
+        "issues": [
+            {
+                "severity": i.severity,
+                "code": i.code,
+                "message": i.message,
+                "line_number": i.line_number,
+            }
+            for i in res.issues
+        ],
+    }
