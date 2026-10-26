@@ -57,13 +57,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-sigma = ["pysigma>=0.11"]
+sigma = [
+    "pysigma>=1.0.1,<2.0.0",
+    "pysigma-backend-kusto>=1.0.0",
+    "pysigma-backend-crowdstrike>=3.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     # Exercised by the Sigma validation tests. In [dev] rather than only
     # [sigma] so CI actually runs them -- a validator whose tests silently
     # skip is the same failure it exists to prevent.
-    "pysigma>=0.11",
+    "pysigma>=1.0.1,<2.0.0",
+    "pysigma-backend-kusto>=1.0.0",
+    "pysigma-backend-crowdstrike>=3.0.0",
     "pytest-cov>=4.0.0",
     "flake8>=6.0.0",
     "flake8-pyproject>=1.2.0",
@@ -125,7 +131,9 @@ mcp = [
     "mcp[cli]>=1.0.0,<2.0.0",  # 2.0.0 removed mcp.server.fastmcp (hecate_agent/mcp/server.py's import path); unverified against it
 ]
 all = [
-    "pysigma>=0.11",
+    "pysigma>=1.0.1,<2.0.0",
+    "pysigma-backend-kusto>=1.0.0",
+    "pysigma-backend-crowdstrike>=3.0.0",
     "litellm>=1.30.0",
     "scikit-learn>=1.0.0",
     "requests>=2.25.0",

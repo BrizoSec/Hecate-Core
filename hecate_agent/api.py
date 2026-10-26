@@ -501,3 +501,15 @@ def run_dynamic_atomic_emulation(
 
     runner = EmulationRunner(backend=backend)
     return runner.run_technique(technique_id, platforms=platforms)
+
+
+def transpile_sigma_rule(
+    rule_yaml: str,
+    targets: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Transpile a Sigma YAML rule into native search queries for MDE/Sentinel (KQL), CrowdStrike (CQL), and Rapid7 InsightIDR (LEQL)."""
+    from hecate_agent.core.sigma_transpiler import SigmaTranspiler
+
+    transpiler = SigmaTranspiler()
+    return transpiler.transpile(rule_yaml, targets=targets)
+
