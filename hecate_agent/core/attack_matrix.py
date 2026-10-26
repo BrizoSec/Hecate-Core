@@ -453,8 +453,20 @@ _FALLBACK_GROUPS: List[GroupInfo] = [
 
 
 # ---------------------------------------------------------------------------
-# Provider abstraction
+# Provider abstraction & Deprecated Technique Mappings
 # ---------------------------------------------------------------------------
+
+#: Well-known legacy / deprecated ATT&CK techniques replaced in ATT&CK v7+
+#: whose STIX entries were marked deprecated rather than revoked-by.
+_DEPRECATED_TECHNIQUE_MAP: Dict[str, str] = {
+    "T1064": "T1059",      # Scripting -> Command and Scripting Interpreter
+    "T1086": "T1059.001",  # PowerShell -> Command and Scripting Interpreter: PowerShell
+    "T1067": "T1542.003",  # Bootkit -> Firmware Corruption: Bootkit
+    "T1093": "T1055.012",  # Process Hollowing -> Process Injection: Process Hollowing
+    "T1175": "T1021.003",  # Component Object Model and Distributed COM -> Remote Services: Distributed COM
+    "T1076": "T1021.001",  # Remote Desktop Protocol -> Remote Services: Remote Desktop Protocol
+    "T1077": "T1021.002",  # Windows Admin Shares -> Remote Services: SMB/Windows Admin Shares
+}
 
 
 class AttackDataProvider(ABC):
@@ -505,14 +517,12 @@ class AttackDataProvider(ABC):
         """Return True if backed by live STIX data."""
 
     def get_superseding_technique_id(self, technique_id: str) -> Optional[str]:
-        """Return the current ATT&CK ID that replaced a revoked one.
+        """Return the current ATT&CK ID that replaced a revoked or deprecated one.
 
         Deliberately concrete rather than abstract: resolving this needs
-        ATT&CK's revoked-by relationship, which only real STIX data carries.
-        A provider without it isn't broken -- it just can't answer, so the
-        honest default is "no known replacement".
+        ATT&CK's revoked-by relationship or deprecated mappings.
         """
-        return None
+        return _DEPRECATED_TECHNIQUE_MAP.get(technique_id.upper())
 
 
 # ---------------------------------------------------------------------------
@@ -836,7 +846,10 @@ class StixProvider(AttackDataProvider):
     def get_superseding_technique_id(self, technique_id: str) -> Optional[str]:
         if self._revoked_cache is None:
             self._revoked_cache = self._build_revoked_index()
-        return self._revoked_cache.get(technique_id.upper())
+        target = self._revoked_cache.get(technique_id.upper())
+        if target:
+            return target
+        return _DEPRECATED_TECHNIQUE_MAP.get(technique_id.upper())
 
     def get_technique_by_id(self, technique_id: str) -> Optional[TechniqueInfo]:
         if self._technique_cache is None:

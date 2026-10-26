@@ -336,6 +336,16 @@ def test_a_generic_backdoor_claim_is_not_an_entity():
     assert not any(c.kind == "entity" for c in report.claims)
 
 
+def test_tactics_and_remote_access_are_not_extracted_as_malware_names():
+    """Phrases like 'Remote Access Trojan' or 'Credential Access stealer' must not isolate
+    'Access' as an unsupported malware name."""
+    report = audit_draft(
+        draft_text="Adversaries deploy a Remote Access Trojan to perform Credential Access stealer actions.",
+        cti_text=CTI,
+    )
+    assert not any(c.value.lower() == "access" for c in report.claims)
+
+
 def test_all_caps_words_are_not_mistaken_for_camelcase_families():
     report = audit_draft(draft_text="This is a GREAT and THOROUGH analysis.", cti_text=CTI)
     assert report.claims == []

@@ -667,6 +667,49 @@ def _documentation_address(value: str) -> bool:
 #: added after a live run produced "signed_binary_path" past the denylist.
 _SNAKE_PLACEHOLDER_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$")
 
+_GENERIC_DESCRIPTOR_WORDS = frozenset(
+    {
+        "signed", "binary", "path", "target", "process", "name", "bad", "command",
+        "cmd", "image", "file", "filename", "folder", "directory", "dir", "parent",
+        "child", "host", "hostname", "ip", "address", "port", "url", "domain",
+        "user", "username", "account", "group", "hash", "md5", "sha1", "sha256",
+        "imphash", "payload", "malware", "malicious", "c2", "attacker", "victim",
+        "endpoint", "server", "client", "agent", "tool", "script", "executable",
+        "exe", "dll", "argument", "parameter", "param", "value", "string",
+        "placeholder", "variable", "var", "data", "sample", "example", "test",
+        "dummy", "suspicious", "unknown", "arbitrary", "random", "temporary", "temp",
+    }
+)
+
+
+def _is_snake_placeholder(value: str) -> bool:
+    """Whether value looks like a generic description invented by the model.
+
+    Real values in web applications, RPC endpoints, and code hooks (e.g.
+    'wp_ajax_nopriv_fusion_form_submit_ajax', 'admin_post_action', 'api_v1_auth')
+    are authentic programmatic identifiers, not placeholder descriptions.
+    """
+    if not _SNAKE_PLACEHOLDER_RE.match(value):
+        return False
+    lowered = value.lower()
+    _PROGRAMMATIC_PREFIXES = (
+        "wp_", "wp_ajax_", "admin_", "action_", "api_", "hook_", "mod_",
+        "plugin_", "route_", "func_", "get_", "set_", "do_", "on_", "handle_",
+        "dispatch_", "sys_", "proc_",
+    )
+    if any(lowered.startswith(prefix) for prefix in _PROGRAMMATIC_PREFIXES):
+        return False
+    parts = lowered.split("_")
+    if len(parts) >= 4 and len(lowered) >= 20:
+        return False
+    if all(p in _GENERIC_DESCRIPTOR_WORDS for p in parts):
+        return True
+    if len(parts) <= 3 and any(p in _GENERIC_DESCRIPTOR_WORDS for p in parts):
+        non_generic = [p for p in parts if p not in _GENERIC_DESCRIPTOR_WORDS]
+        if not non_generic or all(len(p) <= 3 for p in non_generic):
+            return True
+    return False
+
 
 #: Set once, the first time pySigma is found missing, so the warning is
 #: emitted a single time per process rather than per rule.
@@ -871,8 +914,8 @@ _FILENAME_FIELDS = frozenset({"targetfilename", "image", "parentimage", "imagelo
 _SWITCH_RE = re.compile(r"(?:^|\s)(?:--?[A-Za-z][\w-]*|/[A-Za-z]{1,3})(?=\s|$)")
 
 
-def _looks_like_address(value: str) -> bool:
-    """Whether `value` could be part of an IP address or CIDR range.
+def _looks_like_address(value: str, is_regex: bool = False) -> bool:
+    """Whether `value` could be part of an IP address, CIDR range, or address regex.
 
     Deliberately permissive about fragments: `192.168.` and `.133` are
     legitimate `contains`/`endswith` idioms and this module already treats
@@ -881,6 +924,19 @@ def _looks_like_address(value: str) -> bool:
     cleaned = value.strip()
     if not cleaned:
         return False
+
+    if is_regex:
+        try:
+            re.compile(cleaned)
+        except re.error:
+            return False
+        stripped = re.sub(r"[\^$\\()\[\]?*+{}\-|\s]", "", cleaned)
+        if not stripped:
+            return True
+        if ":" in stripped:
+            return all(c in "0123456789abcdefABCDEF:./" for c in stripped)
+        return all(c in "0123456789./" for c in stripped)
+
     if ":" in cleaned:
         # IPv6, which is the only form allowed to carry letters.
         return all(c in "0123456789abcdefABCDEF:./" for c in cleaned)
@@ -899,11 +955,15 @@ def _field_type_problem(detection: Dict[str, Any]) -> Optional[str]:
         if block_name == "condition" or not isinstance(block, dict):
             continue
         for field_name, raw_value in block.items():
-            base = str(field_name).split("|")[0].strip().lower()
+            field_str = str(field_name)
+            parts = field_str.split("|")
+            base = parts[0].strip().lower()
+            modifiers = [p.strip().lower() for p in parts[1:]]
+            is_regex = "re" in modifiers
             values = raw_value if isinstance(raw_value, list) else [raw_value]
             for value in values:
                 text = str(value)
-                if base in _IP_FIELDS and not _looks_like_address(text):
+                if base in _IP_FIELDS and not _looks_like_address(text, is_regex=is_regex):
                     return (
                         f"{field_name} holds a network address, but the detection matches "
                         f"on {text!r}; a hostname in an address field never matches"
@@ -1445,7 +1505,7 @@ def _placeholder_problem(detection: Dict[str, Any], supplied: Dict[str, List[str
             return f"detection matches on {cleaned!r}, which is not a valid IPv4 address"
         if _documentation_address(cleaned):
             return f"detection matches on {cleaned!r}, a range reserved for documentation examples"
-        if _SNAKE_PLACEHOLDER_RE.match(cleaned):
+        if _is_snake_placeholder(cleaned):
             return f"detection matches on {cleaned!r}, which describes a value rather than being one"
         if _PLACEHOLDER_FILE_RE.search(cleaned):
             return f"detection matches on {cleaned!r}, a stand-in file name rather than one the intel names"

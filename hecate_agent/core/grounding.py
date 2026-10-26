@@ -442,6 +442,27 @@ _ENTITY_STOPWORDS = frozenset(
         "ddos",
         "dos",
         "spam",
+        # MITRE ATT&CK tactics, objectives and security qualifiers.
+        # Without these, phrases like "Remote Access Trojan" or "Credential Access stealer"
+        # mistakenly isolated the bare word "Access" as a named malware family.
+        "access",
+        "initial",
+        "credential",
+        "execution",
+        "persistence",
+        "privilege",
+        "escalation",
+        "defense",
+        "evasion",
+        "discovery",
+        "lateral",
+        "movement",
+        "collection",
+        "exfiltration",
+        "command",
+        "control",
+        "impact",
+        "reconnaissance",
     }
 )
 

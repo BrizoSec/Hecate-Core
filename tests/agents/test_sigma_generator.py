@@ -653,6 +653,20 @@ class TestPlaceholderGuard:
         separates them from a snake_case description."""
         assert _placeholder_problem(self._det("Image|contains", value), {}) is None
 
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "wp_ajax_nopriv_fusion_form_submit_ajax",
+            "admin_post_action",
+            "fusion_form_submit",
+            "api_v1_user_login",
+        ],
+    )
+    def test_programmatic_identifiers_and_hooks_are_not_rejected(self, value):
+        """Web application hooks, RPC endpoints, and action parameters are authentic
+        programmatic identifiers rather than model-invented placeholder descriptions."""
+        assert _placeholder_problem(self._det("cs-uri-query|contains", value), {}) is None
+
 
 # --- Rendered rules are validated as Sigma, not just as YAML ---------------
 
@@ -1054,11 +1068,12 @@ class TestFieldTypeMismatch:
             ("DestinationIp", "10.0.0.1"),
             ("DestinationIp", "2001:db8::1"),
             ("DestinationIp", "10.0.0.0/8"),
+            ("IpAddress|re", r"^104\.194\.150\.21$|^144\.172\.64\.(60|99|128)$|^167\.88\.172\.97$"),
         ],
     )
     def test_address_values_and_fragments_pass(self, field, value):
-        """`192.168.` and `.133` are legitimate contains/endswith idioms and
-        this module already treats partial addresses as valid."""
+        """`192.168.` and `.133` are legitimate contains/endswith idioms, and
+        address regex patterns with alternations are valid when matched with |re."""
         assert _field_type_problem(self._det(field, value)) is None
 
     def test_a_domain_in_a_name_field_is_fine(self):
