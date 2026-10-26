@@ -512,4 +512,3 @@ def transpile_sigma_rule(
 
     transpiler = SigmaTranspiler()
     return transpiler.transpile(rule_yaml, targets=targets)
-

@@ -118,14 +118,10 @@ class InsightIDRBackend(TextQueryBackend):
             processing_pipeline = build_insight_idr_pipeline()
         super().__init__(processing_pipeline=processing_pipeline)
 
-    def finalize_query_default(
-        self, rule: Any, query: str, index: int, state: Any
-    ) -> str:
+    def finalize_query_default(self, rule: Any, query: str, index: int, state: Any) -> str:
         return f"where({query})"
 
-    def finalize_query_leql_advanced_search(
-        self, rule: Any, query: str, index: int, state: Any
-    ) -> str:
+    def finalize_query_leql_advanced_search(self, rule: Any, query: str, index: int, state: Any) -> str:
         return f"where({query})"
 
 
@@ -175,9 +171,7 @@ class SigmaTranspiler:
 
     def __init__(self):
         if not PYSIGMA_AVAILABLE:
-            logger.warning(
-                "pySigma and required backends not installed; transpilation will fail open."
-            )
+            logger.warning("pySigma and required backends not installed; transpilation will fail open.")
 
     @classmethod
     def normalize_rule_for_backends(cls, rule_yaml: str) -> str:
@@ -253,9 +247,7 @@ class SigmaTranspiler:
             return results
 
         for target in targets:
-            meta = self.TARGET_METADATA.get(
-                target, {"name": target, "dialect": "txt", "extension": ".txt"}
-            )
+            meta = self.TARGET_METADATA.get(target, {"name": target, "dialect": "txt", "extension": ".txt"})
             normalized_yaml = self.normalize_rule_for_backend(rule_yaml, target)
             try:
                 query = self._transpile_single_target(normalized_yaml, target)
