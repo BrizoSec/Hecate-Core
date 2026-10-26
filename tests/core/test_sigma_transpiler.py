@@ -4,9 +4,7 @@ import pytest
 
 from hecate_agent.core.sigma_transpiler import (
     PYSIGMA_AVAILABLE,
-    InsightIDRBackend,
     SigmaTranspiler,
-    TranspiledQuery,
 )
 
 
