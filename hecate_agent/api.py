@@ -550,3 +550,33 @@ def validate_transpiled_query(
             for i in res.issues
         ],
     }
+
+
+def deploy_transpiled_query(
+    target: str,
+    query: str,
+    hunt_id: str,
+    title: str,
+    description: str = "",
+    severity: str = "high",
+    techniques: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    dry_run: bool = True,
+) -> Dict[str, Any]:
+    """Deploy a transpiled search query to its target SIEM or EDR platform via REST API."""
+    from hecate_agent.core.query_deployer import DeploymentPayload, QueryDeployer
+
+    payload = DeploymentPayload(
+        hunt_id=hunt_id,
+        rule_title=title,
+        target=target,
+        dialect=target.split("_")[-1] if "_" in target else "txt",
+        query=query,
+        description=description,
+        severity=severity,
+        techniques=techniques or [],
+        tags=tags or [],
+    )
+    deployer = QueryDeployer()
+    result = deployer.deploy(payload, dry_run=dry_run)
+    return result.to_dict()

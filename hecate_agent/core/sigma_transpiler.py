@@ -44,9 +44,9 @@ except ImportError:
     PYSIGMA_AVAILABLE = False
     LogScaleBackend = None  # type: ignore
     KustoBackend = None  # type: ignore
-    SplunkBackend = None  # type: ignore
-    EqlBackend = None  # type: ignore
-    SentinelOneBackend = None  # type: ignore
+    SplunkBackend = None
+    EqlBackend = None
+    SentinelOneBackend = None
     SigmaCollection = None  # type: ignore
     TextQueryBackend = object  # type: ignore
     ConversionState = Any  # type: ignore
@@ -404,7 +404,7 @@ class SigmaTranspiler:
 
         if target == self.TARGET_SENTINELONE:
             s1_pipeline = build_sentinelone_pipeline()
-            s1_backend: Any = SentinelOneBackend(processing_pipeline=s1_pipeline)  # type: ignore[arg-type]
+            s1_backend: Any = SentinelOneBackend(processing_pipeline=s1_pipeline)
             queries = s1_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from SentinelOne backend")
