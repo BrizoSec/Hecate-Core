@@ -279,9 +279,37 @@ class SigmaTranspiler:
         col = SigmaCollection.from_yaml(rule_yaml)
 
         if target == self.TARGET_MDE:
-            pipeline = microsoft_365_defender_pipeline()
+            query_table: Optional[str] = None
+            try:
+                first_rule = col.rules[0] if col.rules else None
+                logsource = getattr(first_rule, "logsource", None)
+                category = getattr(logsource, "category", None)
+                if category:
+                    cat = str(category).lower()
+                    if cat in {"webserver", "web", "apache", "nginx", "iis"}:
+                        query_table = "W3CIISLog"
+                    elif cat in {"firewall", "proxy"}:
+                        query_table = "CommonSecurityLog"
+                    elif cat in {"cloud", "azure", "office365", "o365"}:
+                        query_table = "CloudAppEvents"
+            except Exception:
+                pass
+
+            pipeline = (
+                microsoft_365_defender_pipeline(query_table=query_table)
+                if query_table
+                else microsoft_365_defender_pipeline()
+            )
             kusto_backend: Any = KustoBackend(processing_pipeline=pipeline)  # type: ignore[arg-type]
-            queries = kusto_backend.convert(col)
+            try:
+                queries = kusto_backend.convert(col)
+            except Exception as k_err:
+                if "Unable to determine table name" in str(k_err):
+                    fallback_pipeline = microsoft_365_defender_pipeline(query_table="DeviceEvents")
+                    kusto_backend = KustoBackend(processing_pipeline=fallback_pipeline)  # type: ignore[arg-type]
+                    queries = kusto_backend.convert(col)
+                else:
+                    raise
             if not queries:
                 raise ValueError("No query returned from Kusto/MDE backend")
             return "\n\n".join(queries)

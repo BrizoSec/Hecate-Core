@@ -208,6 +208,15 @@ def generate_sigma_with_metrics(
             path = target / filename
             path.write_text(rule.rule_yaml, encoding="utf-8")
             written_paths.append(path)
+            try:
+                trans_queries = transpile_sigma_rule(rule.rule_yaml)
+                for t_res in trans_queries.values():
+                    if getattr(t_res, "success", False) and getattr(t_res, "query", None):
+                        q_path = path.with_suffix(t_res.file_extension)
+                        q_path.write_text(t_res.query.strip() + "\n", encoding="utf-8")
+                        written_paths.append(q_path)
+            except Exception:
+                pass
 
     success = result.success and result.data is not None
     metadata = dict(result.metadata)

@@ -145,3 +145,30 @@ detection:
             assert res.success is False
             assert res.query is None
             assert res.error_message is not None
+
+    def test_transpile_webserver_category_kql_fallback(self):
+        web_rule = """
+title: Webserver Access Rule
+id: 4ad689ca-013c-4b3b-98ee-1a8f34a7e812
+status: experimental
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-stem|contains: '/api/v1/admin'
+    sc-status: 200
+  condition: selection
+level: medium
+"""
+        transpiler = SigmaTranspiler()
+        results = transpiler.transpile(web_rule)
+        mde = results[SigmaTranspiler.TARGET_MDE]
+        assert mde.success is True
+        assert "W3CIISLog" in mde.query
+        assert "/api/v1/admin" in mde.query
+        r7 = results[SigmaTranspiler.TARGET_RAPID7]
+        assert r7.success is True
+        assert "/api/v1/admin" in r7.query
+        cs = results[SigmaTranspiler.TARGET_CROWDSTRIKE]
+        assert cs.success is True
+        assert "api" in cs.query and "admin" in cs.query
