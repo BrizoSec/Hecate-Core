@@ -29,7 +29,7 @@ GOLD = Path(__file__).resolve().parents[2] / "evals" / "gold" / "vshell-fake-res
 
 PAGE = f"""The resume executable launches cmd.exe, which opens Word on the decoy.
 The decoy is saved to C:\\Windows\\Temp\\resume (2).docx before Word opens it.
-SNOWLIGHT connects to {IP.replace('.', '[.]', 1)}:50812, downloads 4.65 MB, XOR-decodes it with 0x99.
+SNOWLIGHT connects to {IP.replace(".", "[.]", 1)}:50812, downloads 4.65 MB, XOR-decodes it with 0x99.
 HIGH confidence 38.207.178[.]192:50813 HTTP staging and DOCX decoy
 Go loader SHA-256 {LOADER}
 Decoded SHA-256: {DECODED}
@@ -415,3 +415,22 @@ def test_the_model_cannot_call_an_address_inbound_without_the_wording() -> None:
     raw = {"value": "185.196.8.44", "kind": "ipv4", "role": "inbound", "status": "active", "evidence": page}
     artifact, _ = _checked(raw, normalise(page), " ".join(_words(page)))
     assert artifact is not None and artifact.role == "unknown"
+
+
+def test_fetch_page_text_uses_tavily_extract(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+    import httpx
+    from hecate_agent.core.source_evidence import fetch_page_text
+
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test-123")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": [{"url": "https://example.com/advisory", "raw_content": "Extracted threat intelligence content " * 10}]
+    }
+
+    mock_post = MagicMock(return_value=mock_resp)
+    monkeypatch.setattr(httpx, "post", mock_post)
+    text = fetch_page_text("https://example.com/advisory")
+    assert "Extracted threat intelligence content" in text
+    assert mock_post.called

@@ -45,7 +45,7 @@ _WINDOWS: Dict[str, str] = {
 #: Tokens that end a command in running text: a shell separator, or a colon
 #: introducing the report's explanation of it.
 _STOP_RE = re.compile(r"^(;|&&?|\|\|?|>|>>|2>|:|\)|->|—)$|^:")
-_PLACEHOLDER_RE = re.compile(r"^\[.*\]$|^<.*>$|^\$\(|^\$\{?\w+\}?$|^\.\.\.$|^\[|\]$")
+_PLACEHOLDER_RE = re.compile(r"^\[.*\]$|^<.*>$|^\$\(|^\$\{?\w+\}?$|\.\.\.|…|<[^>]+>|http\(s\)|^\[|\]$")
 _VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
 #: Explicit indicators of Linux / Unix tools or paths in CTI text, used for multi-platform fallback.
 LINUX_MARKERS = re.compile(
@@ -234,6 +234,9 @@ def command_candidates(text: str, platforms: Sequence[str] = (), primary_actor: 
     """Sigma candidates (category, title, detection, level, command, passage) for the observed commands."""
     out: List[Dict[str, Any]] = []
     for cmd in observed_commands(text, platforms, primary_actor=primary_actor):
+        arg = (cmd.argument or "").strip()
+        if not arg or _PLACEHOLDER_RE.search(arg):
+            continue
         image = f"/{cmd.program}" if cmd.platform == "unix" else f"\\{cmd.program.removesuffix('.exe')}.exe"
         out.append(
             {

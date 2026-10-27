@@ -55,6 +55,16 @@ def test_builtins_placeholders_and_prose_are_not_commands() -> None:
     assert "[payload URL]" not in str(selections)
 
 
+def test_elided_and_placeholder_arguments_are_excluded() -> None:
+    text = "The adversary executed curl http(s)://... to stage payloads and bash /dev/tcp/<ip>/<port> for reverse shells."
+    candidates = command_candidates(text, ["Linux"])
+    for c in candidates:
+        cmd_arg = c["detection"]["selection"]["CommandLine|contains"]
+        assert "..." not in cmd_arg
+        assert "<ip>" not in cmd_arg
+        assert "http(s)" not in cmd_arg
+
+
 def test_a_capability_sentence_is_not_a_command_that_ran() -> None:
     text = "The toolkit can run xattr -d com.apple.quarantine on any file it downloads."
     assert command_candidates(text, ["macOS"]) == []

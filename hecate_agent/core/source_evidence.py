@@ -53,13 +53,44 @@ _LINK_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 _CONFIDENCE_RE = re.compile(r"(?i)\b(high|medium|low)\s+confidence\b")
 
 _DISALLOWED_EXTENSIONS = {
-    ".bin", ".exe", ".dll", ".sys", ".ps1", ".sh", ".bat", ".cmd", ".vbs",
-    ".js", ".elf", ".so", ".zip", ".tar", ".gz", ".7z", ".rar", ".iso",
-    ".img", ".dmg", ".pkg", ".deb", ".rpm", ".apk", ".dat", ".payload",
-    ".scr", ".msi", ".hta", ".vbe", ".wsf", ".jar", ".class",
+    ".bin",
+    ".exe",
+    ".dll",
+    ".sys",
+    ".ps1",
+    ".sh",
+    ".bat",
+    ".cmd",
+    ".vbs",
+    ".js",
+    ".elf",
+    ".so",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".7z",
+    ".rar",
+    ".iso",
+    ".img",
+    ".dmg",
+    ".pkg",
+    ".deb",
+    ".rpm",
+    ".apk",
+    ".dat",
+    ".payload",
+    ".scr",
+    ".msi",
+    ".hta",
+    ".vbe",
+    ".wsf",
+    ".jar",
+    ".class",
 }
 _DISALLOWED_PATHS = {
-    "/gate.php", "/c2", "/beacon",
+    "/gate.php",
+    "/c2",
+    "/beacon",
 }
 
 
@@ -99,6 +130,7 @@ def is_safe_report_url(url: str) -> bool:
         if path.endswith(bad_path) or bad_path in path:
             return False
     return True
+
 
 INDICATOR_KINDS = {
     "sha256": "sha256",
@@ -239,16 +271,35 @@ def report_urls(threat_intel: str, source_url: str = "", limit: int = 1) -> List
 
 def fetch_page_text(url: str, timeout: float = 20.0) -> str:
     """Visible text of a report page, or raise on any failure."""
-    from bs4 import BeautifulSoup
+    import os
     import subprocess
+    from bs4 import BeautifulSoup
+
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if tavily_key:
+        try:
+            r = httpx.post(
+                "https://api.tavily.com/extract",
+                json={"urls": [url], "api_key": tavily_key},
+                timeout=min(timeout, 15.0),
+            )
+            if r.status_code == 200:
+                data = r.json()
+                results = data.get("results") if isinstance(data, dict) else []
+                if results and isinstance(results[0], dict) and results[0].get("raw_content"):
+                    content = str(results[0]["raw_content"]).strip()
+                    if len(content) >= 100:
+                        return strip_page_furniture(strip_repeated_body(content))[:MAX_PAGE_CHARS]
+        except Exception:
+            pass
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Sec-Ch-Ua": "\"Chromium\";v=\"130\", \"Google Chrome\";v=\"130\", \"Not?A_Brand\";v=\"99\"",
+        "Sec-Ch-Ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
         "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": "\"Windows\"",
+        "Sec-Ch-Ua-Platform": '"Windows"',
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "none",

@@ -918,6 +918,26 @@ def test_runner_panel_shows_cost_provider_and_pending_queries() -> None:
     assert "3 parked (2 commentary, 1 no_behavior)" in text
 
 
+def test_runner_panel_shows_daemon_mode() -> None:
+    runner = m.RunnerStatus(
+        installed=True,
+        daemon_active=True,
+        service_state="active",
+        cti_provider="multi",
+    )
+    events: list[m.TrailEvent] = []
+    c = Console(width=80, record=True, force_terminal=False)
+    panel = m._runner_panel(runner, events)
+    c.print(panel)
+    text = c.export_text()
+    assert "DAEMON ACTIVE" in text
+    assert "continuous loop" in text or "event loop" in text
+    assert "MODE" in text
+
+    compact = m._runner_compact_summary(runner, events)
+    assert "daemon (continuous)" in compact
+
+
 def test_detection_rules_panel_rendering() -> None:
     mock_metrics = m.HuntsMetrics(
         total_hunts=832,

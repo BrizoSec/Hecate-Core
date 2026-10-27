@@ -76,6 +76,7 @@ class DiskSample:
 class RunnerStatus:
     installed: bool = False
     timer_active: bool = False
+    daemon_active: bool = False
     service_state: str = "unknown"
     next_run: Optional[datetime] = None
     drafts_today: Optional[int] = None
@@ -98,6 +99,7 @@ class RunnerStatusSampler:
 
     SERVICE = "hecate-runner-orchestrator.service"
     TIMER = "hecate-runner-orchestrator.timer"
+    DAEMON = "hecate-runner-daemon.service"
 
     def __init__(self, workspace: Path):
         self.workspace = workspace
@@ -116,6 +118,7 @@ class RunnerStatusSampler:
                     "show",
                     self.TIMER,
                     self.SERVICE,
+                    self.DAEMON,
                     "-p",
                     "Id",
                     "-p",
@@ -141,14 +144,29 @@ class RunnerStatusSampler:
                 units[values["Id"]] = values
         timer = units.get(self.TIMER, {})
         service = units.get(self.SERVICE, {})
-        installed = timer.get("LoadState") not in {None, "not-found"} or service.get("LoadState") not in {None, "not-found"}
+        daemon = units.get(self.DAEMON, {})
+        installed = (
+            timer.get("LoadState") not in {None, "not-found"}
+            or service.get("LoadState") not in {None, "not-found"}
+            or daemon.get("LoadState") not in {None, "not-found"}
+        )
         if not installed:
             self._cached = RunnerStatus()
             return self._cached
 
-        timer_active = timer.get("ActiveState") == "active"
-        next_run = self._next_timer_run() if timer_active else None
-        runner_dir = Path(service.get("WorkingDirectory") or self.workspace.parent / "Hecate-Runner")
+        daemon_active = daemon.get("ActiveState") == "active"
+        if daemon_active:
+            timer_active = False
+            service_state = "active"
+            next_run = None
+        else:
+            timer_active = timer.get("ActiveState") == "active"
+            service_state = service.get("ActiveState", "unknown")
+            next_run = self._next_timer_run() if timer_active else None
+
+        runner_dir = Path(
+            daemon.get("WorkingDirectory") or service.get("WorkingDirectory") or self.workspace.parent / "Hecate-Runner"
+        )
         env: Dict[str, str] = {}
         # Unified environment discovery: loads workspace .env first, then runner .env as local override
         candidate_files = [
@@ -220,7 +238,8 @@ class RunnerStatusSampler:
         self._cached = RunnerStatus(
             installed=True,
             timer_active=timer_active,
-            service_state=service.get("ActiveState", "unknown"),
+            daemon_active=daemon_active,
+            service_state=service_state,
             next_run=next_run,
             drafts_today=(
                 int(state.get("drafts_today", 0)) if same_day and "drafts_today" in state else (0 if same_day else None)
@@ -2646,7 +2665,7 @@ def _detection_rules_panel(
 ) -> Panel:
     """A dedicated panel displaying Sigma detection rules, SIEM targets, and query pipeline status."""
     h_metrics = metrics or _collect_hunts_metrics(workspace)
-    q_prov = (runner.query_provider if runner and runner.query_provider else "mock")
+    q_prov = runner.query_provider if runner and runner.query_provider else "mock"
     pending = runner.pending_queries if runner else None
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
@@ -2872,7 +2891,12 @@ def _runner_compact_summary(status: RunnerStatus, events: List[TrailEvent]) -> s
         if status.service_state == "inactive"
         else status.service_state
     )
-    timer_text = f"+{_until_next_run(status.next_run)}" if status.timer_active else "timer off"
+    if status.daemon_active:
+        timer_text = "daemon (continuous)"
+    elif status.timer_active:
+        timer_text = f"+{_until_next_run(status.next_run)}"
+    else:
+        timer_text = "timer off"
     draft_quota = (
         f"{status.drafts_today}/{status.drafts_limit}"
         if status.drafts_today is not None and status.drafts_limit is not None
@@ -2892,16 +2916,26 @@ def _runner_compact_summary(status: RunnerStatus, events: List[TrailEvent]) -> s
 def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
     service_state = status.service_state.upper()
     service_style = "bright_green" if service_state in {"ACTIVE", "ACTIVATING"} else "bright_cyan"
-    service_parts = [
-        ("SERVICE  ", "dim"),
-        (service_state, service_style),
-        (" · timer " + ("active" if status.timer_active else "inactive"), "bright_cyan"),
-    ]
+    if status.daemon_active:
+        service_parts = [
+            ("SERVICE  ", "dim"),
+            ("DAEMON ACTIVE", "bright_green"),
+            (" · event loop", "bright_cyan"),
+        ]
+    else:
+        service_parts = [
+            ("SERVICE  ", "dim"),
+            (service_state, service_style),
+            (" · timer " + ("active" if status.timer_active else "inactive"), "bright_cyan"),
+        ]
     if status.cti_provider:
         service_parts.append((" · " + status.cti_provider, "dim"))
+    schedule_label = "MODE     " if status.daemon_active else "NEXT RUN "
+    schedule_text = "continuous event loop" if status.daemon_active else _until_next_run(status.next_run)
+    schedule_style = "bright_green" if status.daemon_active else "bright_magenta"
     rows = [
         Text.assemble(*service_parts, no_wrap=True),
-        Text.assemble(("NEXT RUN ", "dim"), (_until_next_run(status.next_run), "bright_magenta"), no_wrap=True),
+        Text.assemble((schedule_label, "dim"), (schedule_text, schedule_style), no_wrap=True),
     ]
     quota_parts = [
         ("QUOTA    ", "dim"),
@@ -2948,6 +2982,7 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
 def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
     try:
         import importlib
+
         hecate_graph = importlib.import_module("hecate_agent.orchestrator.graph").hecate_graph
         import sqlite3
 
@@ -3313,7 +3348,9 @@ def _render_dashboard(
             )
             layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
         else:
-            layout["operations"].split_column(Layout(main_panel, ratio=1), Layout(purple_team_panel, size=_PURPLE_PANEL_HEIGHT))
+            layout["operations"].split_column(
+                Layout(main_panel, ratio=1), Layout(purple_team_panel, size=_PURPLE_PANEL_HEIGHT)
+            )
     else:
         layout["operations"].update(main_panel)
     return layout
