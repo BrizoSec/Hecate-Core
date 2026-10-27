@@ -10,6 +10,7 @@ out a couple of genuinely relevant hits, while the same query unrestricted
 stayed relevant throughout (score 0.45-0.82).
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,7 +24,7 @@ def _raw_result(title: str, url: str, score: float) -> dict:
 
 @pytest.fixture
 def client() -> TavilySearchClient:
-    return TavilySearchClient(api_key="fake-key")
+    return TavilySearchClient(api_key="fake-key", cache_enabled=False)
 
 
 @pytest.mark.unit
@@ -245,3 +246,75 @@ class TestCreateSearchClient:
         result = create_search_client(api_key="fake-key")
         assert isinstance(result, TavilySearchClient)
         assert result.api_key == "fake-key"
+
+
+@pytest.mark.unit
+class TestWebSearchCache:
+    def test_cache_miss_populates_cache_and_hit_avoids_api_call(self, tmp_path: Path) -> None:
+        from hecate_agent.core.web_search import TavilySearchClient, WebSearchCache
+
+        db_file = tmp_path / "test_cache.sqlite"
+        cache = WebSearchCache(db_path=db_file, ttl_days=1, enabled=True)
+        cached_client = TavilySearchClient(api_key="fake-key", cache=cache)
+
+        fake_tavily = MagicMock()
+        fake_tavily.search.return_value = {
+            "results": [_raw_result("Lumma Analysis", "https://intel.example/lumma", 0.9)],
+            "answer": "Lumma is an infostealer.",
+            "images": [],
+        }
+
+        with patch.object(cached_client, "_get_client", return_value=fake_tavily):
+            # First call -> Cache MISS, calls API
+            resp1 = cached_client.search("Lumma Stealer analysis")
+            assert fake_tavily.search.call_count == 1
+            assert len(resp1.results) == 1
+            assert resp1.answer == "Lumma is an infostealer."
+
+            # Second identical call -> Cache HIT, DOES NOT call API
+            resp2 = cached_client.search("Lumma Stealer analysis")
+            assert fake_tavily.search.call_count == 1  # Still 1!
+            assert len(resp2.results) == 1
+            assert resp2.results[0].title == "Lumma Analysis"
+            assert resp2.answer == "Lumma is an infostealer."
+
+    def test_cache_expiration_re_queries(self, tmp_path: Path) -> None:
+        import time
+        from hecate_agent.core.web_search import TavilySearchClient, WebSearchCache
+
+        db_file = tmp_path / "test_cache_exp.sqlite"
+        # Zero-second TTL so it immediately expires
+        cache = WebSearchCache(db_path=db_file, ttl_days=0, enabled=True)
+        cached_client = TavilySearchClient(api_key="fake-key", cache=cache)
+
+        fake_tavily = MagicMock()
+        fake_tavily.search.return_value = {
+            "results": [_raw_result("Expired", "https://intel.example/exp", 0.8)],
+            "answer": None,
+            "images": [],
+        }
+
+        with patch.object(cached_client, "_get_client", return_value=fake_tavily):
+            cached_client.search("test expired query")
+            assert fake_tavily.search.call_count == 1
+
+            # Sleep slightly so expires_at < now
+            time.sleep(0.01)
+
+            cached_client.search("test expired query")
+            assert fake_tavily.search.call_count == 2
+
+    def test_cache_disabled_skips_caching(self, tmp_path: Path) -> None:
+        from hecate_agent.core.web_search import TavilySearchClient, WebSearchCache
+
+        db_file = tmp_path / "test_cache_off.sqlite"
+        cache = WebSearchCache(db_path=db_file, ttl_days=7, enabled=False)
+        client = TavilySearchClient(api_key="fake-key", cache=cache)
+
+        fake_tavily = MagicMock()
+        fake_tavily.search.return_value = {"results": [], "answer": None, "images": []}
+
+        with patch.object(client, "_get_client", return_value=fake_tavily):
+            client.search("query without cache")
+            client.search("query without cache")
+            assert fake_tavily.search.call_count == 2

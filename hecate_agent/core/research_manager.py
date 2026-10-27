@@ -607,6 +607,71 @@ class ResearchManager:
 
         return None
 
+    def find_recent_match(
+        self,
+        topic: str,
+        technique_id: Optional[str] = None,
+        max_age_days: int = 7,
+    ) -> Optional[Dict[str, Any]]:
+        """Find recent completed research for a topic or technique within max_age_days.
+
+        Avoids redundant LLM and Tavily calls when high-quality research on the same
+        threat actor, malware family, or technique already exists.
+        """
+        import datetime
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        clean_topic = topic.strip().lower()
+        candidates = []
+
+        for r in self.list_research(status="completed"):
+            r_topic = str(r.get("topic", "")).strip().lower()
+            r_path = r.get("file_path")
+
+            age_ok = False
+            if r_path:
+                try:
+                    mtime = datetime.datetime.fromtimestamp(Path(r_path).stat().st_mtime, tz=datetime.timezone.utc)
+                    if (now - mtime).total_seconds() <= max_age_days * 86400:
+                        age_ok = True
+                except Exception:
+                    pass
+            if not age_ok and r.get("created_date"):
+                try:
+                    dt = datetime.datetime.fromisoformat(str(r["created_date"]))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=datetime.timezone.utc)
+                    if (now - dt).total_seconds() <= max_age_days * 86400:
+                        age_ok = True
+                except Exception:
+                    pass
+
+            if not age_ok:
+                continue
+
+            topic_matched = False
+            if clean_topic and r_topic:
+                if clean_topic == r_topic:
+                    topic_matched = True
+                elif len(clean_topic) >= 4 and (clean_topic in r_topic or r_topic in clean_topic):
+                    topic_matched = True
+
+            technique_matched = False
+            if technique_id and technique_id in r.get("mitre_techniques", []):
+                technique_matched = True
+
+            if topic_matched or (technique_id and technique_matched and len(clean_topic) <= 6):
+                candidates.append((r, 2 if topic_matched else 1))
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda item: (item[1], item[0].get("created_date", "")), reverse=True)
+        best_id = candidates[0][0].get("research_id")
+        if best_id:
+            return self.get_research(best_id)
+        return None
+
     @staticmethod
     def _extract_markdown_blockquote(text: str) -> Optional[str]:
         """Extract the first blockquote line from markdown text.

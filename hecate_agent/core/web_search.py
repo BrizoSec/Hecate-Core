@@ -1,9 +1,16 @@
 """Web search integration for threat research."""
 
+import hashlib
+import json
+import logging
 import os
+import sqlite3
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,6 +33,153 @@ class SearchResponse:
     response_time_ms: int = 0
     search_depth: str = "basic"
     images: List[Dict[str, str]] = field(default_factory=list)
+
+
+class WebSearchCache:
+    """Persistent SQLite cache for web search responses to eliminate duplicate Tavily API calls."""
+
+    def __init__(
+        self,
+        db_path: Optional[Path | str] = None,
+        ttl_days: int = 7,
+        enabled: bool = True,
+    ) -> None:
+        self.enabled = enabled
+        self.ttl_seconds = ttl_days * 86400
+
+        if db_path is None:
+            env_path = os.getenv("HECATE_SEARCH_CACHE_PATH")
+            if env_path:
+                self.db_path = Path(env_path)
+            else:
+                workspace = os.getenv("HECATE_WORKSPACE")
+                if workspace:
+                    self.db_path = Path(workspace) / "hecate_search_cache.sqlite"
+                else:
+                    self.db_path = Path.cwd() / "hecate_search_cache.sqlite"
+        else:
+            self.db_path = Path(db_path)
+
+        if self.enabled:
+            self._init_db()
+
+    def _init_db(self) -> None:
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS search_cache (
+                        cache_key TEXT PRIMARY KEY,
+                        query TEXT NOT NULL,
+                        search_depth TEXT NOT NULL,
+                        response_json TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        expires_at REAL NOT NULL
+                    )
+                    """
+                )
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_search_cache_expires ON search_cache (expires_at)")
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Failed to initialize search cache at %s: %s", self.db_path, exc)
+
+    @staticmethod
+    def compute_cache_key(
+        query: str,
+        search_depth: str,
+        max_results: int,
+        include_domains: Optional[List[str]],
+        exclude_domains: Optional[List[str]],
+        include_answer: bool,
+        include_raw_content: bool,
+        min_score: float,
+    ) -> str:
+        key_data = [
+            query.strip().lower(),
+            search_depth,
+            max_results,
+            sorted(include_domains or []),
+            sorted(exclude_domains or []),
+            include_answer,
+            include_raw_content,
+            round(min_score, 3),
+        ]
+        return hashlib.sha256(json.dumps(key_data).encode("utf-8")).hexdigest()
+
+    def get(self, cache_key: str) -> Optional[SearchResponse]:
+        if not self.enabled:
+            return None
+        try:
+            now = time.time()
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT response_json, expires_at FROM search_cache WHERE cache_key = ?",
+                    (cache_key,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    response_json, expires_at = row
+                    if expires_at > now:
+                        data = json.loads(response_json)
+                        results = [
+                            SearchResult(
+                                title=r["title"],
+                                url=r["url"],
+                                content=r["content"],
+                                score=r.get("score", 0.0),
+                            )
+                            for r in data.get("results", [])
+                        ]
+                        return SearchResponse(
+                            query=data.get("query", ""),
+                            results=results,
+                            answer=data.get("answer"),
+                            response_time_ms=0,
+                            search_depth=data.get("search_depth", "basic"),
+                            images=data.get("images", []),
+                        )
+                    else:
+                        conn.execute("DELETE FROM search_cache WHERE cache_key = ?", (cache_key,))
+                        conn.commit()
+        except Exception as exc:
+            logger.debug("Search cache read error: %s", exc)
+        return None
+
+    def set(self, cache_key: str, query: str, search_depth: str, response: SearchResponse) -> None:
+        if not self.enabled:
+            return
+        try:
+            now = time.time()
+            expires_at = now + self.ttl_seconds
+            data = {
+                "query": response.query,
+                "answer": response.answer,
+                "search_depth": response.search_depth,
+                "images": response.images,
+                "results": [
+                    {
+                        "title": r.title,
+                        "url": r.url,
+                        "content": r.content,
+                        "score": r.score,
+                    }
+                    for r in response.results
+                ],
+            }
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO search_cache 
+                    (cache_key, query, search_depth, response_json, created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (cache_key, query, search_depth, json.dumps(data), now, expires_at),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.debug("Search cache write error: %s", exc)
 
 
 class TavilySearchClient:
@@ -94,11 +248,22 @@ class TavilySearchClient:
         "ow.ly",
     ]
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
-        """Initialize client with API key.
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        cache: Optional[WebSearchCache] = None,
+        cache_enabled: Optional[bool] = None,
+        cache_path: Optional[Path | str] = None,
+        cache_ttl_days: Optional[int] = None,
+    ) -> None:
+        """Initialize client with API key and local response cache.
 
         Args:
             api_key: Tavily API key (defaults to TAVILY_API_KEY env var)
+            cache: Pre-configured WebSearchCache instance
+            cache_enabled: Whether to enable SQLite search caching (defaults to env or True)
+            cache_path: Custom SQLite database path
+            cache_ttl_days: Cache retention TTL in days (defaults to 7)
 
         Raises:
             ValueError: If no API key is provided or found
@@ -107,6 +272,26 @@ class TavilySearchClient:
         if not self.api_key:
             raise ValueError("TAVILY_API_KEY not set. Get your API key from https://tavily.com")
         self._client: Optional[Any] = None
+
+        if cache is not None:
+            self.cache = cache
+        else:
+            if cache_enabled is None:
+                cache_enabled = os.getenv("HECATE_SEARCH_CACHE_ENABLED", "true").lower() in (
+                    "true",
+                    "1",
+                    "yes",
+                )
+            if cache_ttl_days is None:
+                try:
+                    cache_ttl_days = int(os.getenv("HECATE_SEARCH_CACHE_TTL_DAYS", "7"))
+                except ValueError:
+                    cache_ttl_days = 7
+            self.cache = WebSearchCache(
+                db_path=cache_path,
+                ttl_days=cache_ttl_days,
+                enabled=cache_enabled,
+            )
 
     def _get_client(self) -> Any:
         """Get or create Tavily client instance."""
@@ -157,6 +342,22 @@ class TavilySearchClient:
         Raises:
             Exception: If search fails
         """
+        cache_key = WebSearchCache.compute_cache_key(
+            query=query,
+            search_depth=search_depth,
+            max_results=max_results,
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            include_answer=include_answer,
+            include_raw_content=include_raw_content,
+            min_score=min_score,
+        )
+
+        cached_response = self.cache.get(cache_key)
+        if cached_response is not None:
+            logger.info("Search cache HIT for query: %s", query)
+            return cached_response
+
         client = self._get_client()
 
         start_time = time.time()
@@ -196,7 +397,7 @@ class TavilySearchClient:
                 )
             )
 
-        return SearchResponse(
+        search_resp = SearchResponse(
             query=query,
             results=results,
             answer=response.get("answer"),
@@ -204,6 +405,8 @@ class TavilySearchClient:
             search_depth=search_depth,
             images=response.get("images", []),
         )
+        self.cache.set(cache_key, query, search_depth, search_resp)
+        return search_resp
 
     def search_threat_intel(
         self,
@@ -359,11 +562,21 @@ class TavilySearchClient:
         )
 
 
-def create_search_client(api_key: Optional[str] = None) -> Optional[TavilySearchClient]:
+def create_search_client(
+    api_key: Optional[str] = None,
+    cache: Optional[WebSearchCache] = None,
+    cache_enabled: Optional[bool] = None,
+    cache_path: Optional[Path | str] = None,
+    cache_ttl_days: Optional[int] = None,
+) -> Optional[TavilySearchClient]:
     """Create a Tavily search client if API key is available.
 
     Args:
         api_key: Optional API key (defaults to TAVILY_API_KEY env var)
+        cache: Optional pre-configured WebSearchCache
+        cache_enabled: Whether to enable SQLite search caching
+        cache_path: Custom SQLite database path
+        cache_ttl_days: Cache retention TTL in days
 
     Returns:
         TavilySearchClient if API key is available, None otherwise
@@ -371,4 +584,10 @@ def create_search_client(api_key: Optional[str] = None) -> Optional[TavilySearch
     key = api_key or os.getenv("TAVILY_API_KEY")
     if not key:
         return None
-    return TavilySearchClient(api_key=key)
+    return TavilySearchClient(
+        api_key=key,
+        cache=cache,
+        cache_enabled=cache_enabled,
+        cache_path=cache_path,
+        cache_ttl_days=cache_ttl_days,
+    )
