@@ -63,41 +63,63 @@ Hecate-Core/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 5-Minute Quick Install & Getting Started
 
-### 1. Installation
+### Prerequisites
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- An LLM API key (Anthropic, OpenAI, AWS Bedrock) or a local [Ollama](https://ollama.com) instance
 
-Clone alongside its sibling repositories and install with [uv](https://docs.astral.sh/uv/):
-
+### Step 1: Clone Repositories Side-by-Side
 ```bash
-git clone https://github.com/BrizoSec/Hecate-Core.git
-cd Hecate-Core
+mkdir -p ~/betas && cd ~/betas
 
-# Install with all optional extras (ATT&CK STIX, pySigma backends, MCP)
+git clone https://github.com/BrizoSec/Hecate-Core.git
+git clone https://github.com/BrizoSec/Hecate-Runner.git
+git clone https://github.com/BrizoSec/Hecate-Content.git Hecate-Workspace
+```
+
+### Step 2: Install Dependencies with `uv`
+```bash
+# Install Hecate-Core with all extras (ATT&CK STIX, pySigma backends, MCP)
+cd ~/betas/Hecate-Core
 uv sync --all-extras
 ```
 
-### 2. Environment Configuration
-
-Copy the example configuration to your workspace `.env`:
-
+### Step 3: Configure Environment
+Copy the template configuration into `Hecate-Workspace/.env`:
 ```bash
+cd ~/betas/Hecate-Workspace
 cp .env.example .env
 ```
 
-Set your model and search API keys:
-
+Edit `.env` with your preferred AI provider:
 ```dotenv
-HECATE_AI_PROVIDER=anthropic      # or openai, bedrock, ollama
+HECATE_AI_PROVIDER=anthropic      # options: anthropic, openai, bedrock, ollama
 ANTHROPIC_API_KEY=sk-ant-...
-TAVILY_API_KEY=tvly-...          # For web-grounded research
-HECATE_WORKSPACE=/path/to/Hecate-Workspace
+TAVILY_API_KEY=tvly-...          # For web-grounded threat research
+HECATE_WORKSPACE=/home/chemch/betas/Hecate-Workspace
 ```
 
-Verify your environment dependencies:
-
+Verify your environment configuration:
 ```bash
+cd ~/betas/Hecate-Core
 uv run hecate-agent env check
+```
+
+### Step 4: Your First Hunt Commands
+```bash
+# 1. Zero-configuration demo: initialize an example hunt
+uv run hecate-agent demo init
+
+# 2. List all hunts in the workspace
+uv run hecate-agent hunt list
+
+# 3. Search MITRE ATT&CK techniques
+uv run hecate-agent attack search "lsass memory"
+
+# 4. Export validated Sigma logic to SIEM queries
+uv run hecate-agent hunt promote --hunt H-0001 --output splunk
 ```
 
 ---
