@@ -2789,7 +2789,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             lambda d: semantic_problem(
                 d,
                 category,
-                str(raw.get("description", "")),
+                f"{title}. {raw.get('description', '')}",
                 [
                     *input_data.observables,
                     *(v for values in input_data.indicators.values() for v in values),
@@ -3017,6 +3017,8 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         windows_only = [p for p in platforms if p.lower() == "windows"]
         if platforms and len(set(p.lower() for p in platforms)) == 1 and windows_only:
             block["product"] = "windows"
+        elif platforms and len(set(p.lower() for p in platforms)) == 1 and platforms[0].lower() in ("linux", "macos"):
+            block["product"] = platforms[0].lower()
         return block
 
     @staticmethod
@@ -3197,6 +3199,7 @@ Fields available in {logsource}: {fields}
 Standard Sigma Modifiers: `|contains`, `|endswith`, `|startswith`, `|all`, `|re`, `|cidr`. Do NOT invent modifiers like `|in` or `|regex`.
 {self._render_modifier_restrictions(logsource)}
 RULES OF THE TASK:
+Telemetry values must describe what the sensor records. Endpoint paths normally contain expanded directories, not literal %APPDATA% or %TEMP% variables; use an appropriate stable path fragment. Registry value modification is not CreateKey. Titles and descriptions must describe the actual selection: do not promise obfuscation, a named task, or a download when those properties are not tested.
 1. Return JSON only. Do NOT write YAML - the caller renders it.
 2. IRONCLAD DETECTION LOGIC: Never use placeholder paths or exact threat tracking names inside registry keys or execution paths. Malware developers do not name their artifacts after their industry marketing names. Do NOT invent strings.
 3. STRICT LOG SOURCE MAPPING: File events are ONLY for disk writes. Do NOT put process arguments in file events. Process creation events are for executions. Do not mix them.

@@ -761,6 +761,73 @@ def condition_names_missing_selection(detection: Dict[str, Any]) -> Optional[str
     return None
 
 
+def unexpanded_environment_path(detection: Dict[str, Any]) -> Optional[str]:
+    """Endpoint path fields normally contain expanded Windows paths."""
+    images = _field_values(detection, "image")
+    command_shell = any(re.search(r"(?i)(?:^|[\\/])cmd(?:\.exe)?$", value) for value in images)
+    for _, block in blocks(detection):
+        for key, raw in block.items():
+            field = base_field(key).lower()
+            if field not in {"image", "parentimage", "commandline", "targetfilename"}:
+                continue
+            if field == "commandline" and command_shell:
+                continue  # cmd itself can receive an unexpanded variable.
+            if any(re.search(r"(?i)%(?:appdata|localappdata|temp|tmp|userprofile|windir)%[\\/]", value) for value in _values(raw)):
+                return "path selection uses an unexpanded environment variable; match the expanded path or a stable path fragment"
+    return None
+
+
+def registry_operation_mismatch(detection: Dict[str, Any], category: str, description: str) -> Optional[str]:
+    if category != "registry_event" or not re.search(r"(?i)modif|value (?:set|writ)", description):
+        return None
+    event_types = {value.lower() for value in _field_values(detection, "eventtype")}
+    if event_types == {"createkey"}:
+        return "registry modification is described, but CreateKey misses writes to existing values; use a matching value-write event or describe key creation only"
+    return None
+
+
+def argument_obfuscation_mismatch(detection: Dict[str, Any], category: str, description: str) -> Optional[str]:
+    """A script location alone cannot establish obfuscated arguments."""
+    if category != "process_creation" or not re.search(r"(?i)\bobfuscat(?:ed|ion|ing)\b", description):
+        return None
+    arguments = [
+        (key, value)
+        for name, block in blocks(detection)
+        if name not in _negated_names(detection)
+        for key, raw in block.items()
+        if base_field(key).lower() == "commandline"
+        for value in _values(raw)
+    ]
+    if not arguments or all(
+        "re" not in _modifiers(key)
+        and re.fullmatch(r"[\w .:*?%/\\-]+", value)
+        and ("\\" in value or "/" in value)
+        for key, value in arguments
+    ):
+        return "obfuscated arguments are claimed, but only a script path or process is tested; describe temporary-path execution or test the claimed argument property"
+    return None
+
+
+def non_deployable_source_values(detection: Dict[str, Any], category: str) -> Optional[str]:
+    """Report redactions and pseudo-file reads cannot become literal endpoint detections."""
+    for _, block in blocks(detection):
+        for key, raw in block.items():
+            field = base_field(key).lower()
+            for value in _values(raw):
+                if re.search(r"(?i)\[(?:auth\b|[^\]]*redacted)|\.redacted\.|<[^>]+>", value):
+                    return "selection contains a report redaction, not an observed value; match the supported behavior without placeholder credentials or targets"
+                if category == "file_event" and field == "targetfilename":
+                    if (not _modifiers(key) or "endswith" in _modifiers(key)) and value.endswith(("/", "\\")):
+                        return "exact file-event selection names a directory, not a file; use a supported file artifact"
+                    if re.fullmatch(r"/proc/(?:self/|\d+/|/)?(?:exe|cmdline|maps|status|stat|net/(?:tcp6?|udp6?))", value):
+                        return "a read-only /proc lookup is a pseudo-file read, not a payload file creation; use telemetry for the actual operation"
+    images = _field_values(detection, "image")
+    if category == "process_creation" and any(v.endswith("/nc") for v in images):
+        if "echo" in _field_values(detection, "commandline"):
+            return "echo belongs to the sending side of the shell pipeline, not the nc argument list"
+    return None
+
+
 def semantic_problem(
     detection: Dict[str, Any], category: str, description: str = "", named: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -773,6 +840,10 @@ def semantic_problem(
         lambda: condition_names_missing_selection(detection),
         lambda: field_outside_category(detection, category),
         lambda: non_executable_image(detection),
+        lambda: non_deployable_source_values(detection, category),
+        lambda: unexpanded_environment_path(detection),
+        lambda: registry_operation_mismatch(detection, category, description),
+        lambda: argument_obfuscation_mismatch(detection, category, description),
         lambda: literal_wildcard(detection),
         lambda: api_in_command_line(detection),
         lambda: url_path_confusion(detection),

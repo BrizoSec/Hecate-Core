@@ -23,7 +23,7 @@ def _observed(text: str) -> Dict[str, str]:
         ("The stager XOR-decodes the payload with key 0x99.", "T1140"),
         ("It downloads 4.65 MB of data from the server.", "T1105"),
         ("It executes obfuscated WScript commands to download a secondary payload.", "T1105"),
-        ("WScript executing obfuscated JavaScript from temporary storage.", "T1059.005"),
+        ("WScript executing obfuscated JavaScript from temporary storage.", "T1059.007"),
         ("A Chinese-language executable disguised as a resume was sent to researchers.", "T1204.002"),
         ("The executable launches cmd.exe, which opens Word.", "T1059.003"),
         ("It connects over a raw TCP channel to the operator.", "T1095"),
@@ -36,6 +36,11 @@ def _observed(text: str) -> Dict[str, str]:
 )
 def test_described_behaviour_maps_to_its_technique(sentence: str, technique: str) -> None:
     assert technique in _observed(sentence)
+
+
+def test_windows_script_host_does_not_imply_visual_basic():
+    assert "T1059.005" not in _observed("WScript executing obfuscated JavaScript from temporary storage.")
+    assert "T1059.005" in _observed("The adversary executed a VBScript payload with wscript.exe.")
 
 
 def test_a_capability_list_is_not_observed_use() -> None:

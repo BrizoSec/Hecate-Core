@@ -15,6 +15,67 @@ def _problem(category: str, detection: Dict[str, Any], description: str = "") ->
     return semantic_problem(detection, category, description)
 
 
+def test_wscript_path_must_match_expanded_telemetry():
+    detection = {"selection": {"Image|endswith": r"\wscript.exe", "CommandLine|contains": r"%APPDATA%\Local\Temp"}, "condition": "selection"}
+    assert "unexpanded environment variable" in (_problem("process_creation", detection) or "")
+    detection["selection"]["CommandLine|contains"] = "\\Temp\\"
+    assert _problem("process_creation", detection) is None
+
+
+def test_cmd_can_receive_unexpanded_environment_variables():
+    detection = {"selection": {"Image|endswith": r"\cmd.exe", "CommandLine|contains": r"%TEMP%\script.cmd"}, "condition": "selection"}
+    assert _problem("process_creation", detection) is None
+
+
+def test_registry_key_creation_is_not_value_modification():
+    detection = {"selection": {"TargetObject|contains": r"\CurrentVersion\Run", "EventType": "CreateKey"}, "condition": "selection"}
+    assert "CreateKey misses writes" in (_problem("registry_event", detection, "Detects Run key modifications") or "")
+    assert _problem("registry_event", detection, "Detects creation of a new Run key") is None
+    detection["selection"]["EventType"] = "SetValue"
+    assert _problem("registry_event", detection, "Detects Run key modifications") is None
+
+
+@pytest.mark.parametrize("claim", ["WScript with Obfuscated Arguments", "WScript with Obfuscated Command Line", "Obfuscated script execution"])
+def test_temporary_script_path_does_not_test_obfuscated_arguments(claim):
+    detection = {"selection": {"Image|endswith": r"\wscript.exe", "CommandLine|contains": "\\AppData\\Local\\Temp\\"}, "condition": "selection"}
+    assert "only a script path" in (_problem("process_creation", detection, claim) or "")
+    assert _problem("process_creation", detection, "WScript execution from a temporary directory") is None
+    detection["selection"]["CommandLine|contains"] = ["\\Temp\\", "-EncodedCommand"]
+    assert _problem("process_creation", detection, "Execution with Obfuscated Arguments") is None
+
+
+def test_script_host_without_arguments_cannot_claim_argument_obfuscation():
+    detection = {"selection": {"Image|endswith": r"\wscript.exe"}, "condition": "selection"}
+    assert "only a script path or process" in (_problem("process_creation", detection, "Obfuscated command-line arguments") or "")
+
+
+@pytest.mark.parametrize("value", ["[auth key]", "-k https://gitea.redacted.com.ar/api/v1/metrics?k=[auth", "<target>"])
+def test_report_redactions_are_not_deployable_predicates(value):
+    detection = {"selection": {"CommandLine|contains": value}, "condition": "selection"}
+    assert "report redaction" in (_problem("process_creation", detection) or "")
+
+
+@pytest.mark.parametrize("value", ["/usr/lib//", "/proc/self/exe", "/proc/net/tcp", "/proc//cmdline"])
+def test_non_file_write_artifacts_do_not_become_file_creation_rules(value):
+    detection = {"selection": {"TargetFilename": value}, "condition": "selection"}
+    assert _problem("file_event", detection)
+    if value.endswith("/"):
+        detection["selection"] = {"TargetFilename|endswith": value}
+        assert _problem("file_event", detection)
+    if value.startswith("/proc/"):
+        detection["selection"] = {"TargetFilename|contains": value}
+        assert _problem("file_event", detection)
+    detection["selection"] = {"TargetFilename|startswith": "/usr/lib/"}
+    assert _problem("file_event", detection) is None
+
+
+def test_echo_is_not_an_argument_to_nc_on_the_other_side_of_a_pipe():
+    detection = {"selection": {"Image|endswith": "/nc", "CommandLine|contains": "echo"}, "condition": "selection"}
+    assert "shell pipeline" in (_problem("process_creation", detection) or "")
+    detection["selection"]["CommandLine|contains"] = "48931"
+    assert _problem("process_creation", detection) is None
+
+
 @pytest.mark.parametrize(
     ("category", "detection", "expected"),
     [

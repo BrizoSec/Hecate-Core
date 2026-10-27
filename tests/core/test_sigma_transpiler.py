@@ -55,6 +55,98 @@ level: high
 
 @pytest.mark.skipif(not PYSIGMA_AVAILABLE, reason="pySigma not installed in environment")
 class TestSigmaTranspiler:
+    def test_linux_eql_maps_file_paths_to_ecs(self):
+        rule = """title: Preload file
+id: c5da0b47-4dbb-4d3e-a23d-f59701709122
+logsource:
+  category: file_event
+  product: linux
+detection:
+  selection:
+    TargetFilename: /etc/ld.so.preload
+  condition: selection
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_ELASTIC])[SigmaTranspiler.TARGET_ELASTIC]
+        assert result.success
+        assert 'file.path' in result.query and 'TargetFilename' not in result.query
+        unmapped = rule.replace("TargetFilename: /etc/ld.so.preload", "Hashes: SHA256=abc")
+        result = SigmaTranspiler().transpile(unmapped, [SigmaTranspiler.TARGET_ELASTIC])[SigmaTranspiler.TARGET_ELASTIC]
+        assert not result.success
+        assert "Linux ECS mapping does not support field" in result.error_message
+
+    def test_http_kql_requires_real_column_mappings(self):
+        rule = """title: Metrics endpoint
+id: c5da0b47-4dbb-4d3e-a23d-f59701709123
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-stem: /api/v1/metrics
+  condition: selection
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert not result.success
+        assert "explicit deployed table and field mapping" in result.error_message
+
+    def test_leql_preserves_path_and_wildcard_matching(self):
+        import re
+        from sigma.conversion.state import ConversionState
+        from sigma.types import SigmaString
+        from hecate_agent.core.sigma_transpiler import InsightIDRBackend
+
+        backend = InsightIDRBackend()
+        for value, positive, negative in [
+            (r"*\\Temp\\*", r"C:\Users\Alice\Temp\sample.js", r"C:\Users\Alice\Templates\sample.js"),
+            ("*scheduled task*", "Create scheduled task", "Create scheduled job"),
+            ("example.com", "EXAMPLE.COM", "exampleXcom"),
+            ("/api/v1/*", "/api/v1/repos", "/api/v2/repos"),
+        ]:
+            encoded = backend.convert_value_str(SigmaString(value), ConversionState())
+            assert encoded.startswith("/^") and encoded.endswith("$/i")
+            pattern = encoded[1:-2]
+            assert re.search(pattern, positive, re.I)
+            assert not re.search(pattern, negative, re.I)
+
+    def test_dns_kql_uses_sentinel_asim_and_preserves_boolean_condition(self):
+        rule = """
+title: DNS domain and subdomain lookup
+id: c5da0b47-4dbb-4d3e-a23d-f59701709124
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  exact:
+    QueryName: example.com
+  subdomain:
+    QueryName|endswith: .example.com
+  exclusion:
+    QueryName: approved.example.com
+  condition: (exact or subdomain) and not exclusion
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert result.success, result.error_message
+        assert result.query.startswith("_Im_Dns | where ")
+        assert 'DnsQuery in~ ("example.com")' in result.query
+        assert 'DnsQuery endswith ".example.com"' in result.query
+        assert 'not(DnsQuery =~ "approved.example.com")' in result.query
+        assert "DeviceEvents" not in result.query
+
+    def test_dns_kql_rejects_fields_without_an_asim_mapping(self):
+        rule = """
+title: DNS with an unsupported field
+id: c5da0b47-4dbb-4d3e-a23d-f59701709125
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName: example.com
+    UnknownDnsField: value
+  condition: selection
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert not result.success
+        assert "UnknownDnsField" in result.error_message
+
     def test_transpile_process_creation_all_targets(self, sample_process_creation_rule):
         transpiler = SigmaTranspiler()
         results = transpiler.transpile(sample_process_creation_rule)
@@ -87,7 +179,7 @@ class TestSigmaTranspiler:
         assert r7.dialect == "leql"
         assert r7.file_extension == ".leql"
         assert r7.query.startswith("where(")
-        assert "DTHelper.exe" in r7.query
+        assert r"DTHelper\.exe" in r7.query
 
         # 4. SentinelOne S1QL
         s1 = results[SigmaTranspiler.TARGET_SENTINELONE]
@@ -126,7 +218,7 @@ class TestSigmaTranspiler:
         r7 = results[SigmaTranspiler.TARGET_RAPID7]
         assert r7.success is True
         assert "where(" in r7.query
-        assert "168.138.40.244" in r7.query
+        assert r"168\.138\.40\.244" in r7.query
 
         # SentinelOne should query DstIP / DstPort
         s1 = results[SigmaTranspiler.TARGET_SENTINELONE]
@@ -193,7 +285,7 @@ detection:
             assert res.query is None
             assert res.error_message is not None
 
-    def test_transpile_webserver_category_kql_fallback(self):
+    def test_webserver_fields_do_not_fall_back_to_unmapped_kql(self):
         web_rule = """
 title: Webserver Access Rule
 id: 4ad689ca-013c-4b3b-98ee-1a8f34a7e812
@@ -210,12 +302,12 @@ level: medium
         transpiler = SigmaTranspiler()
         results = transpiler.transpile(web_rule)
         mde = results[SigmaTranspiler.TARGET_MDE]
-        assert mde.success is True
-        assert "W3CIISLog" in mde.query
-        assert "/api/v1/admin" in mde.query
+        assert mde.success is False
+        assert "explicit deployed table and field mapping" in mde.error_message
+        assert mde.query is None
         r7 = results[SigmaTranspiler.TARGET_RAPID7]
         assert r7.success is True
-        assert "/api/v1/admin" in r7.query
+        assert r"\/api\/v1\/admin" in r7.query
         cs = results[SigmaTranspiler.TARGET_CROWDSTRIKE]
         assert cs.success is True
         assert "api" in cs.query and "admin" in cs.query

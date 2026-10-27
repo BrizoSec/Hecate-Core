@@ -271,3 +271,15 @@ class TestHelperMethods:
         """Test paragraph returns empty string when heading missing."""
         result = ResearchManager._extract_markdown_paragraph_under_heading("No heading", "Missing")
         assert result == ""
+
+
+def test_reuse_prefers_newest_same_day_research_not_first_match(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    manager = ResearchManager(tmp_path)
+    day = datetime.now(UTC).date().isoformat()
+    older = {'research_id': 'R-0959', 'topic': 'Election research', 'created_date': day}
+    newer = {'research_id': 'R-0961', 'topic': 'Election research', 'created_date': day}
+    monkeypatch.setattr(manager, 'list_research', lambda **kwargs: [older, newer])
+    monkeypatch.setattr(manager, 'get_research', lambda research_id: {'research_id': research_id})
+    assert manager.find_recent_match('Election research')['research_id'] == 'R-0961'

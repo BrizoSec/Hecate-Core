@@ -86,7 +86,10 @@ _GROUNDING_INSTRUCTION = (
     "Also weigh source quality: prioritize named security vendors, "
     "researchers, and established publications, and discount or ignore "
     "generic tutorial/explainer content, personal blogs, and other "
-    "low-authority material even when it's topically relevant."
+    "low-authority material even when it's topically relevant. "
+    "Documentation/example IP ranges (including RFC 5737 TEST-NET) are exercise data, "
+    "not live adversary infrastructure. Their reserved status is not misclassification "
+    "or an adversary evasion technique."
 )
 
 
@@ -1352,25 +1355,11 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
         telemetry: ResearchSkillOutput,
         environment_data: str = "",
     ) -> Dict[str, bool]:
-        """Derive data source availability from skill 3's actual telemetry
-        mapping (summary + key_findings), not a fixed stub.
+        """Availability comes from the configured estate, not the model's needs.
 
-        This used to unconditionally return the same hardcoded dict for
-        every research document regardless of topic, environment, or what
-        skill 3 actually found -- the `telemetry` parameter was accepted but
-        never read. Keyword presence in the LLM-generated text is a coarse
-        signal, not a full structured extraction, but it's genuinely derived
-        from the analysis rather than fabricated -- consistent with the
-        substring-based extraction already used elsewhere in this module
-        (_extract_hypothesis/_extract_gaps below).
+        Missing environment information leaves availability unconfirmed (false).
+        The research prose can still describe which sources the hunt requires.
         """
-        # The environment profile is the authority: "availability" is a
-        # property of what the estate collects, not of which words the model
-        # reached for. Deriving it from the model's own prose scored three of
-        # four sources unavailable on a hunt whose CTI carried nine C2 URLs
-        # and two C2 hostnames, and the hypothesis was then scoped to process
-        # telemetry alone -- while environment.md listed file, network and
-        # registry telemetry as collected.
         env_text = (environment_data or "").lower()
         if env_text and "not found" not in env_text[:60]:
             # Only what a configured telemetry section documents: the template's
@@ -1388,8 +1377,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             # fabricating from a failure.
             return dict.fromkeys(_DATA_SOURCE_KEYWORDS, False)
 
-        text = " ".join([telemetry.summary, *telemetry.key_findings]).lower()
-        return {category: any(kw in text for kw in keywords) for category, keywords in _DATA_SOURCE_KEYWORDS.items()}
+        # Required telemetry is not evidence that the estate collects it.
+        return dict.fromkeys(_DATA_SOURCE_KEYWORDS, False)
 
     def _estimate_complexity(
         self,

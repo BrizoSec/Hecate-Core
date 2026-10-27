@@ -113,7 +113,7 @@ class TestConfidenceReflectsLlmFailure:
 
 @pytest.mark.unit
 class TestExtractDataSources:
-    def test_derives_availability_from_telemetry_text_not_a_fixed_stub(self) -> None:
+    def test_missing_environment_does_not_turn_requirements_into_availability(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)
         telemetry_with_network = ResearchSkillOutput(
             skill_name="telemetry_mapping",
@@ -133,12 +133,14 @@ class TestExtractDataSources:
         with_network = agent._extract_data_sources(telemetry_with_network)
         without_network = agent._extract_data_sources(telemetry_without_network)
 
-        # The two calls must actually differ based on their input -- the old
-        # code returned the identical hardcoded dict regardless of input.
-        assert with_network != without_network
-        assert with_network["network_connections"] is True
-        assert without_network["network_connections"] is False
-        assert without_network["process_execution"] is True
+        assert all(value is False for value in with_network.values())
+        assert all(value is False for value in without_network.values())
+        documented = agent._extract_data_sources(
+            telemetry_without_network,
+            "### SIEM\n- **Platform:** Configured lab SIEM\n- Network connections collected",
+        )
+        assert documented["network_connections"] is True
+        assert documented["process_execution"] is False
 
     def test_returns_all_false_when_telemetry_skill_itself_failed(self) -> None:
         agent = HuntResearcherAgent(llm_enabled=False)

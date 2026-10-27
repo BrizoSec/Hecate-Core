@@ -150,6 +150,14 @@ class InsightIDRBackend(TextQueryBackend):
             processing_pipeline = build_insight_idr_pipeline()
         super().__init__(processing_pipeline=processing_pipeline)
 
+    def convert_value_str(self, value: Any, state: ConversionState) -> str:
+        # LEQL values do not interpret Sigma's wildcard syntax. Use its
+        # documented case-insensitive regex predicates to preserve exact,
+        # startswith, endswith, and contains semantics, including path escapes.
+        # https://docs.rapid7.com/insightidr/components-for-building-a-query/
+        pattern = value.to_regex(custom_escaped="/").regexp
+        return f"/^{pattern}$/i"
+
     def finalize_query_default(self, rule: Any, query: str, index: int, state: Any) -> str:
         return f"where({query})"
 
@@ -352,6 +360,31 @@ class SigmaTranspiler:
         col = SigmaCollection.from_yaml(rule_yaml)
 
         if target == self.TARGET_MDE:
+            if col.rules and col.rules[0].logsource.category in {"proxy", "webserver", "web", "apache", "nginx", "iis"}:
+                raise ValueError("HTTP KQL requires an explicit deployed table and field mapping; generic Sigma field names must not become quoted string constants")
+            if col.rules and col.rules[0].logsource.category == "dns_query":
+                # DNS is a Sentinel ASIM signal, not a generic DeviceEvents
+                # field. Preserve the condition AST while mapping only fields
+                # whose meaning is established by the ASIM DNS schema.
+                # https://learn.microsoft.com/azure/sentinel/normalization-schema-dns
+                for rule in col.rules:
+                    pending = list(rule.detection.detections.values())
+                    while pending:
+                        item = pending.pop()
+                        if hasattr(item, "detection_items"):
+                            pending.extend(item.detection_items)
+                        elif item.field != "QueryName":
+                            raise ValueError(
+                                f"Sentinel ASIM DNS mapping does not support field {item.field!r}"
+                            )
+                dns_pipeline = ProcessingPipeline(items=[ProcessingItem(
+                    transformation=FieldMappingTransformation({"QueryName": "DnsQuery"})
+                )])
+                queries = KustoBackend(processing_pipeline=dns_pipeline).convert(col)
+                if not queries:
+                    raise ValueError("No query returned from Sentinel ASIM DNS backend")
+                return "\n\n".join(f"_Im_Dns | where {query}" for query in queries)
+
             query_table: Optional[str] = None
             try:
                 first_rule = col.rules[0] if col.rules else None
@@ -419,7 +452,33 @@ class SigmaTranspiler:
             return "\n\n".join(queries)
 
         if target == self.TARGET_ELASTIC:
-            es_pipeline = ecs_windows()
+            if col.rules and col.rules[0].logsource.product == "linux":
+                # ecs_windows() leaves Linux Sigma fields unchanged. Use ECS
+                # fields explicitly and reject signals without a mapping.
+                # https://www.elastic.co/docs/reference/ecs/ecs-process
+                mapping = {
+                    "Image": "process.executable", "ParentImage": "process.parent.executable",
+                    "CommandLine": "process.command_line", "ParentCommandLine": "process.parent.command_line",
+                    "CurrentDirectory": "process.working_directory", "User": "user.name",
+                    "ProcessId": "process.pid", "ParentProcessId": "process.parent.pid",
+                    "TargetFilename": "file.path", "DestinationIp": "destination.ip",
+                    "DestinationHostname": "destination.domain", "DestinationPort": "destination.port",
+                    "SourceIp": "source.ip", "SourcePort": "source.port",
+                    "Protocol": "network.transport", "QueryName": "dns.question.name",
+                }
+                for rule in col.rules:
+                    pending = list(rule.detection.detections.values())
+                    while pending:
+                        item = pending.pop()
+                        if hasattr(item, "detection_items"):
+                            pending.extend(item.detection_items)
+                        elif item.field not in mapping:
+                            raise ValueError(f"Linux ECS mapping does not support field {item.field!r}")
+                es_pipeline = ProcessingPipeline(items=[ProcessingItem(
+                    transformation=FieldMappingTransformation(mapping)
+                )])
+            else:
+                es_pipeline = ecs_windows()
             es_backend: Any = EqlBackend(processing_pipeline=es_pipeline)
             queries = es_backend.convert(col)
             if not queries:

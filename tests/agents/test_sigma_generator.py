@@ -146,6 +146,10 @@ def test_multi_platform_hunt_does_not_pin_a_product():
     assert yaml.safe_load(rule.rule_yaml)["logsource"] == {"category": "process_creation"}
 
 
+def test_linux_file_rules_keep_the_hunt_platform():
+    assert SigmaGeneratorAgent._logsource_block("file_event", ["Linux"]) == {"category": "file_event", "product": "linux"}
+
+
 def test_rule_id_is_unique_per_rule():
     a, _ = _agent()._build_rule(_rule(), _input())
     assert a is not None

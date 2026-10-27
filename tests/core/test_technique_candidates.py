@@ -170,9 +170,10 @@ def test_format_candidates() -> None:
     assert format_candidates([("T1036", "Masquerading")]) == "  T1036: Masquerading"
 
 
-def test_tool_transfer_and_wscript_are_proposed() -> None:
+def test_tool_transfer_and_explicit_visual_basic_are_proposed() -> None:
     assert "T1105" in _ids("It executes commands to download a secondary payload.")
-    assert "T1059.005" in _ids("The loader executes WScript commands from the temporary folder.")
+    assert "T1059.005" not in _ids("The loader executes WScript commands from the temporary folder.")
+    assert "T1059.005" in _ids("The loader executes VBScript from the temporary folder.")
 
 
 def test_semantic_candidate_matching_with_stix() -> None:

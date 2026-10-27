@@ -249,13 +249,19 @@ def command_candidates(text: str, platforms: Sequence[str] = (), primary_actor: 
         if not arg or _PLACEHOLDER_RE.search(arg) or _LAB_HARNESS_RE.search(arg) or _LAB_HARNESS_RE.search(cmd.command):
             continue
         image = f"/{cmd.program}" if cmd.platform == "unix" else f"\\{cmd.program.removesuffix('.exe')}.exe"
+        selection: Dict[str, Any] = {"Image|endswith": image, "CommandLine|contains": cmd.argument}
+        if cmd.program == "schtasks":
+            action = re.search(r"(?i)(?:^|\s)(/(?:create|change|delete|query|run|end))\b", cmd.command)
+            if action:
+                selection.pop("CommandLine|contains")
+                selection["CommandLine|contains|all"] = [action.group(1).lower(), cmd.argument]
         out.append(
             {
                 "category": "process_creation",
                 "platform": cmd.platform,
                 "title": f"{cmd.program} {cmd.argument}"[:100],
                 "detection": {
-                    "selection": {"Image|endswith": image, "CommandLine|contains": cmd.argument},
+                    "selection": selection,
                     "condition": "selection",
                 },
                 "level": cmd.level,

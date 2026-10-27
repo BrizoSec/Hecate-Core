@@ -666,7 +666,17 @@ class ResearchManager:
         if not candidates:
             return None
 
-        candidates.sort(key=lambda item: (item[1], item[0].get("created_date", "")), reverse=True)
+        # Dates have day precision, so same-day regenerations need the
+        # monotonically allocated ID as a tie-breaker. File mtime is unsuitable:
+        # linking an old document to another hunt touches it without refreshing
+        # its research.
+        def freshness(item: Any) -> tuple[Any, ...]:
+            document, priority = item
+            suffix = str(document.get("research_id", "")).removeprefix("R-")
+            sequence = int(suffix) if suffix.isdigit() else -1
+            return priority, str(document.get("created_date", "")), sequence
+
+        candidates.sort(key=freshness, reverse=True)
         best_id = candidates[0][0].get("research_id")
         if best_id:
             return self.get_research(best_id)

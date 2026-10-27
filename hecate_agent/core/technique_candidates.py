@@ -169,7 +169,7 @@ _REPORT_WORDING: Dict[str, Tuple[str, ...]] = {
         "downloader",
         "ingress tool transfer",
     ),
-    "T1059.005": ("vbs", "vbscript", "wscript", "cscript"),
+    "T1059.005": ("vbs", "vbscript"),
 }
 
 

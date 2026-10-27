@@ -121,7 +121,7 @@ def test_schtasks_task_creation_generates_process_and_file_rules() -> None:
     proc = next(c for c in candidates if c["category"] == "process_creation")
     assert proc["detection"]["selection"] == {
         "Image|endswith": "\\schtasks.exe",
-        "CommandLine|contains": "UpdateCheck",
+        "CommandLine|contains|all": ["/create", "UpdateCheck"],
     }
     file_evt = next(c for c in candidates if c["category"] == "file_event")
     assert file_evt["detection"]["selection"] == {

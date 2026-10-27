@@ -61,17 +61,15 @@ def test_environment_that_omits_a_source_reports_it_unavailable():
     assert availability["registry_events"] is False
 
 
-def test_without_an_environment_profile_it_falls_back_to_the_telemetry_mapping():
+def test_without_an_environment_profile_it_leaves_coverage_unconfirmed():
     availability = _agent()._extract_data_sources(TELEMETRY, "")
-    assert availability["process_execution"] is True
-    # "file_paths" must now match; the old OCSF-only keyword list missed it.
-    assert availability["file_operations"] is True
+    assert set(availability.values()) == {False}
 
 
 def test_missing_environment_file_marker_is_not_treated_as_a_profile():
     """_load_environment returns this sentinel string rather than raising."""
     availability = _agent()._extract_data_sources(TELEMETRY, "Environment file not found")
-    assert availability["file_operations"] is True  # fell back, did not match the sentinel
+    assert set(availability.values()) == {False}
 
 
 def test_a_failed_telemetry_call_with_no_environment_claims_nothing():

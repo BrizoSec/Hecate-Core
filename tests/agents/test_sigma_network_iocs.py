@@ -102,7 +102,7 @@ def test_kapibala_addresses_and_host() -> None:
         "74.48.66.73",
         "172.245.247.21",
     ]
-    assert "product" not in net["logsource"]  # not pinned to Windows on a Linux hunt
+    assert net["logsource"]["product"] == "linux"
     assert "selection_subdomain" not in rules["dns_query"]["detection"]  # hostname: exact only
     assert "subdomain" not in rules["dns_query"]["description"]  # and the description says so
 
