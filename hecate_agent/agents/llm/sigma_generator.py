@@ -1700,6 +1700,54 @@ def _platform_legit_filters(platforms: Optional[List[str]]) -> List[str]:
     ]
 
 
+_PLATFORM_DIAGNOSTIC_RE = re.compile(
+    r"\b(?:run|runs|running|operating system|os is|platform is)\s+(?:an?\s+)?(?P<os>freebsd|bsd|linux|windows|macos|darwin|esxi)\b"
+    r"|(?:specifies|targets?)\s+[`']?logsource:\s*product:\s*(?:\w+)[`']?.*?(?:runs|is)\s+(?P<os2>freebsd|bsd|linux|windows|macos|esxi)",
+    re.IGNORECASE,
+)
+
+
+def _remediate_platform_contradiction(
+    rule_yaml_str: str, contradiction: str
+) -> Optional[Tuple[str, str, str]]:
+    """If reviewer rejected rule due to platform mismatch, return (updated_yaml, old_product, new_product)."""
+    if not contradiction:
+        return None
+    m = _PLATFORM_DIAGNOSTIC_RE.search(contradiction)
+    if not m:
+        return None
+    new_os = (m.group("os") or m.group("os2") or "").lower()
+    if not new_os:
+        return None
+    if new_os == "darwin":
+        new_os = "macos"
+    elif new_os == "bsd":
+        new_os = "freebsd"
+
+    try:
+        doc = yaml.safe_load(rule_yaml_str)
+        if not isinstance(doc, dict):
+            return None
+        logsource = doc.get("logsource")
+        if not isinstance(logsource, dict):
+            return None
+        old_prod = str(logsource.get("product") or "").lower()
+        if old_prod == new_os:
+            return None
+
+        logsource["product"] = new_os
+        doc["logsource"] = logsource
+        doc["hecate_review"] = {
+            "verdict": "remediated",
+            "remediation": f"Platform auto-remediated from {old_prod or 'unspecified'} to {new_os} based on reviewer diagnosis",
+            "original_contradiction": contradiction,
+        }
+        remediated_yaml = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, width=100)
+        return remediated_yaml, old_prod, new_os
+    except Exception:
+        return None
+
+
 class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput]):
     """Drafts Sigma rules covering each log source a hunt applies to."""
 
@@ -1891,6 +1939,17 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 kept.append(rule)
                 continue
             if rev.verdict == "reject" and rev.verified:
+                remediation = _remediate_platform_contradiction(rule.rule_yaml, rev.contradiction)
+                if remediation:
+                    remediated_yaml, old_prod, new_os = remediation
+                    rule.rule_yaml = remediated_yaml
+                    rule.rule_platform = new_os
+                    warnings.append(
+                        f"rule {rule.title!r} auto-remediated platform from {old_prod!r} to {new_os!r} "
+                        f"based on reviewer diagnostic"
+                    )
+                    kept.append(rule)
+                    continue
                 rejected.append(f'{rule.logsource_category}: reviewer: {rev.contradiction} (source: "{rev.quote[:160]}")')
                 continue
             document = yaml.safe_load(rule.rule_yaml)

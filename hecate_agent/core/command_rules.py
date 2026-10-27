@@ -47,6 +47,15 @@ _WINDOWS: Dict[str, str] = {
 _STOP_RE = re.compile(r"^(;|&&?|\|\|?|>|>>|2>|:|\)|->|—)$|^:")
 _PLACEHOLDER_RE = re.compile(r"^\[.*\]$|^<.*>$|^\$\(|^\$\{?\w+\}?$|\.\.\.|…|<[^>]+>|http\(s\)|^\[|\]$")
 _VARIABLE_PREFIX_RE = re.compile(r"^(\$\{?\w+\}?|~|%\w+%)(?=[/\\])")
+#: Commands that configure a local lab environment, test harness, or loopback probe
+#: rather than showing adversary execution.
+_LAB_HARNESS_RE = re.compile(
+    r"\b(localhost|127\.0\.0\.1|0\.0\.0\.0|::1)\b"
+    r"|/__lab/|/__test/|/lab/status"
+    r"|\b(?:docker-compose|docker\s+compose|podman-compose|docker\s+build|podman\s+build)\b"
+    r"|\b(?:npm\s+install|pip\s+install\s+-r|mvn\s+clean|gradle\s+build|cargo\s+build|npm\s+test|pytest)\b",
+    re.IGNORECASE,
+)
 #: Explicit indicators of Linux / Unix tools or paths in CTI text, used for multi-platform fallback.
 LINUX_MARKERS = re.compile(
     r"(?i)\b(nsenter|bpftool|ebpf|kprobe|cgroup|auditd|syslog|sys/fs/bpf|/bin/(?:bash|sh|zsh)|/usr/bin/|systemctl|journalctl)\b"
@@ -203,8 +212,10 @@ def observed_commands(
                 argument = _distinctive(tokens, program)
                 if not argument or (program, argument.lower()) in seen:
                     continue
-                seen.add((program, argument.lower()))
                 command = " ".join([match.group("prog"), *tokens])[:200]
+                if _LAB_HARNESS_RE.search(command) or _LAB_HARNESS_RE.search(argument):
+                    continue
+                seen.add((program, argument.lower()))
                 found.append(ObservedCommand(program, platform, argument, command, sentence[:300], catalog[program]))
     # Specific commands first; discovery and file utilities fill what room is left.
     rank = {"high": 0, "medium": 1, "low": 2}
@@ -235,7 +246,7 @@ def command_candidates(text: str, platforms: Sequence[str] = (), primary_actor: 
     out: List[Dict[str, Any]] = []
     for cmd in observed_commands(text, platforms, primary_actor=primary_actor):
         arg = (cmd.argument or "").strip()
-        if not arg or _PLACEHOLDER_RE.search(arg):
+        if not arg or _PLACEHOLDER_RE.search(arg) or _LAB_HARNESS_RE.search(arg) or _LAB_HARNESS_RE.search(cmd.command):
             continue
         image = f"/{cmd.program}" if cmd.platform == "unix" else f"\\{cmd.program.removesuffix('.exe')}.exe"
         out.append(
