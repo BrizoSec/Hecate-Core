@@ -30,38 +30,41 @@ Everything checkable (does this technique exist, does this indicator appear in
 the source, is this valid Sigma) is checked by ordinary code, and what fails is
 dropped.
 
-## The two repositories
+## The Three Repositories
 
 ```mermaid
 flowchart LR
-    FEEDS["CTI feeds<br/>RSS, OTX, MISP, ..."] --> RUNNER
+    FEEDS["CTI feeds<br/>RSS, OTX, MISP, KEV..."] --> RUNNER
     subgraph RUNNER["Hecate-Runner"]
-        R1["Picks what to hunt<br/>Enforces quotas<br/>Writes and audits drafts"]
+        R1["Daemon & Triage<br/>Enforces quotas<br/>Writes and audits drafts"]
     end
     subgraph CORE["Hecate-Core"]
-        C1["LLM agents<br/>ATT&CK data<br/>Hunt format and CLI"]
+        C1["LLM agents<br/>ATT&CK grounding<br/>Hunt format & pySigma"]
+    end
+    subgraph WS["Hecate-Workspace<br/>(BrizoSec/Hecate-Content)"]
+        W1["hunts/, queries/<br/>research/, playbooks/<br/>promotion-policy.yaml"]
     end
     RUNNER -- "calls as a library" --> CORE
     CORE --> LLM["LLM and web search"]
-    RUNNER --> WS["Workspace:<br/>hunts, research, rules, logs"]
-    WS --> YOU(["You review the draft"])
+    RUNNER --> WS
+    WS --> YOU(["You review the PR / draft"])
 ```
 
-| | Hecate-Core (this repo) | Hecate-Runner |
-|---|---|---|
-| Package | `hecate_agent` | `hecate_runner` |
-| CLI | `hecate-agent` | `hecate-runner` |
-| Job | The agents, the ATT&CK matrix, the hunt format, the manual CLI | The autonomous loop: intake, triage, quotas, drafting, auditing |
-| Knows about feeds and schedules | No | Yes |
-| Usable alone | Yes, for manual hunting | No, it drives Core |
+| | Hecate-Core (this repo) | Hecate-Runner | Hecate-Workspace |
+|---|---|---|---|
+| Package / Repo | `hecate_agent` | `hecate_runner` | `BrizoSec/Hecate-Content` |
+| CLI / Service | `hecate-agent` | `hecate-runner` (`hecate-runner-daemon.service`) | Git PR & Promotion Gate |
+| Primary Role | Reasoning library, ATT&CK matrix, Sigma generator, pySigma transpiler, CLI | Autonomous perpetual daemon: CTI intake, triage, adversary emulation, reviewer remediation, Slack bot | Central version-controlled content repo holding hunts, Sigma rules, SIEM queries, and research briefs |
+| Knows about feeds | No | Yes | No |
+| Usable alone | Yes, for manual hunting & CLI commands | No, it drives Core | Yes, for SIEM query consumption |
 
-Two facts trip people up:
+Key principles to remember:
 
-- **The Core checkout is also the workspace.** Drafted hunts land in its
-  `hunts/`, research in `research/`, rules in `queries/`, logs in `logs/`.
-- **The Runner imports Core; it does not shell out to it.** Core's optional
-  dependencies must be installed in the *Runner's* virtualenv. The Runner's
-  `pyproject.toml` does this for you, as long as the two clones are siblings.
+- **Hecate-Workspace is the single source of truth for detections.** Drafted hunts land in its
+  `hunts/`, research in `research/`, and transpiled SIEM queries in `queries/`.
+- **The Runner imports Core in-process; it does not shell out to it.** Core's optional
+  dependencies are installed in the *Runner's* virtualenv automatically via path dependency.
+- **For architecture and recipes**, see [ARCHITECTURE.md](ARCHITECTURE.md), [FEATURES.md](FEATURES.md), [CHALLENGES.md](CHALLENGES.md), and [HOW_TO.md](HOW_TO.md).
 
 ## Words you will hear
 
