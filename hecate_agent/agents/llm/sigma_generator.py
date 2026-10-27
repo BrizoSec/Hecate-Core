@@ -1943,7 +1943,6 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 if remediation:
                     remediated_yaml, old_prod, new_os = remediation
                     rule.rule_yaml = remediated_yaml
-                    rule.rule_platform = new_os
                     warnings.append(
                         f"rule {rule.title!r} auto-remediated platform from {old_prod!r} to {new_os!r} "
                         f"based on reviewer diagnostic"
