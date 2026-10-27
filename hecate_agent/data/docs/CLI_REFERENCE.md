@@ -2222,7 +2222,7 @@ table.
 | `--technique` | String | - | hunt-researcher, pivot-suggester | MITRE ATT&CK technique |
 | `--finding` | String | - | pivot-suggester | Suspicious finding, as JSON or plain text |
 | `--hunt` | String | - | pivot-suggester | Current hunt ID, for context |
-| `--input-json` | File | - | sigma-generator | JSON file of `SigmaGenerationInput` fields (hypothesis, techniques, indicators, platforms, references) — a file rather than a dozen flags, since the indicator map is nested and can be long |
+| `--input-json` | File | - | sigma-generator | JSON file of `SigmaGenerationInput` fields (hypothesis, techniques, indicators, indicator_records, detection_guidance, platforms, references) — a file rather than a dozen flags, since the indicator map is nested and can be long |
 | `--out-dir` | Directory | - | sigma-generator | Where to write generated `.yml` rules |
 | `--research` | String | - | any | Research document ID to load context from |
 | `--tactic` | String | - | any | MITRE tactic filter |
