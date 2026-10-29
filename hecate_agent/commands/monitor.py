@@ -1098,6 +1098,8 @@ def _integrations_panel(
     metrics: Optional[Dict[str, Any]] = None,
     live: Optional[Dict[str, Any]] = None,
     current: Optional[TrailEvent] = None,
+    grid: bool = False,
+    grid_compact_names: bool = False,
 ) -> Panel:
     """A dedicated panel displaying external API and service integration statuses and activity metrics."""
     checks = (
@@ -1598,7 +1600,38 @@ def _integrations_panel(
             services_data.append((label, True, detail, metric))
 
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    if narrow:
+    if grid:
+        # The wide dashboard places this panel beside other detail panels.
+        # Use a compact grid so every configured integration remains visible.
+        for column in ("one", "two", "three", "four"):
+            table.add_column(column, ratio=1, overflow="ellipsis", no_wrap=True)
+        aliases = {
+            "GreyNoise": "GreyN",
+            "AbuseIPDB": "Abuse",
+            "ThreatFox": "ThrtFx",
+            "MalBazaar": "MalBzr",
+            "Feodo C2": "Feodo",
+            "Tor/Proxy": "TorPrx",
+            "VulnCheck": "VulnCh",
+            "DFIR Rept": "DFIR",
+            "FIRST.org": "FIRST",
+            "URLhaus": "URLhs",
+            "URLScan": "URLScn",
+            "OSV.dev": "OSVdev",
+        }
+        display_items = [
+            (aliases.get(label, label) if grid_compact_names else label, is_set)
+            for label, is_set, _, _ in services_data
+            if is_set
+        ]
+        for start in range(0, len(display_items), 4):
+            row = [
+                Text(label, style="bold bright_green")
+                for label, _ in display_items[start : start + 4]
+            ]
+            row.extend(Text("") for _ in range(4 - len(row)))
+            table.add_row(*row)
+    elif narrow:
         table.add_column("label", style="dim", width=9, no_wrap=True)
         table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
         table.add_column("metric", justify="right", width=11, no_wrap=True)
@@ -3189,11 +3222,24 @@ def _render_dashboard(
     service_on_left = runner.installed and middle_height >= stages_height + service_height
     h_metrics = _collect_hunts_metrics(workspace)
     pt_metrics = _collect_purple_team_metrics(workspace, events)
+    left_width = min(52, max(46, console.size.width // 4)) if console.size.width >= 120 else None
+    ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
+    swap_detail_panels = usage_on_left and ops_width >= 85
     llm_panel = _usage_panel(
         metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left
     )
     integrations_panel = _integrations_panel(
         workspace=workspace, search_count=search_count, narrow=True, events=events, metrics=metrics, live=live, current=latest
+    )
+    integrations_grid_panel = _integrations_panel(
+        workspace=workspace,
+        search_count=search_count,
+        events=events,
+        metrics=metrics,
+        live=live,
+        current=latest,
+        grid=True,
+        grid_compact_names=ops_width < 160,
     )
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
@@ -3280,7 +3326,6 @@ def _render_dashboard(
         border_style="bright_magenta",
         box=box.ROUNDED,
     )
-    left_width = min(52, max(46, console.size.width // 4)) if console.size.width >= 120 else None
     if left_width:
         layout["middle"].split_row(
             Layout(name="stages", size=left_width),
@@ -3319,7 +3364,14 @@ def _render_dashboard(
         left.append(Layout(llm_panel, size=llm_height))
         left.append(Layout(hunts_panel, size=hunts_height))
         left.append(Layout(mitre_panel, size=mitre_height))
-        left.append(Layout(integrations_panel, ratio=1))
+        left.append(
+            Layout(
+                _detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner)
+                if swap_detail_panels
+                else integrations_panel,
+                ratio=1,
+            )
+        )
     else:
         left.append(Layout(purple_team_panel, ratio=1))
     if len(left) > 1:
@@ -3331,13 +3383,12 @@ def _render_dashboard(
             Layout(main_panel, ratio=2), Layout(_runner_panel(runner, events), size=service_height)
         )
     elif usage_on_left:
-        ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
         if ops_width >= 135:
             bottom_ops = Layout(name="bottom_ops", size=_BOTTOM_DETAIL_PANELS_HEIGHT)
             bottom_ops.split_row(
                 Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
                 Layout(Text(" "), size=1),
-                Layout(_detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner), ratio=1),
+                Layout(integrations_grid_panel, ratio=1),
                 Layout(Text(" "), size=1),
                 Layout(_threat_observables_panel(workspace=workspace, metrics=h_metrics), ratio=1),
             )
@@ -3347,7 +3398,7 @@ def _render_dashboard(
             bottom_ops.split_row(
                 Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
                 Layout(Text(" "), size=1),
-                Layout(_detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner), ratio=1),
+                Layout(integrations_grid_panel, ratio=1),
             )
             layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
         else:
