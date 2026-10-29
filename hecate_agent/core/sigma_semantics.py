@@ -461,6 +461,9 @@ def description_mismatch(detection: Dict[str, Any], description: str) -> Optiona
             return "the description promises subdomain or suffix matching, but every selection is an exact match"
     parents = _field_values(detection, "parentimage")
     children = _field_values(detection, "image")
+    if re.search(r"\b(spawned by|child process|parent[- ]child)\b", description, re.I):
+        if not (parents or _field_values(detection, "parentcommandline")):
+            return "the description claims a parent-child relationship, but no parent process field constrains the detection"
     if not parents or not children:
         return None
     for match in _CHAIN_RE.finditer(description):
@@ -772,8 +775,12 @@ def unexpanded_environment_path(detection: Dict[str, Any]) -> Optional[str]:
                 continue
             if field == "commandline" and command_shell:
                 continue  # cmd itself can receive an unexpanded variable.
-            if any(re.search(r"(?i)%(?:appdata|localappdata|temp|tmp|userprofile|windir)%[\\/]", value) for value in _values(raw)):
-                return "path selection uses an unexpanded environment variable; match the expanded path or a stable path fragment"
+            if any(
+                re.search(r"(?i)%(?:appdata|localappdata|temp|tmp|userprofile|windir)%[\\/]", value) for value in _values(raw)
+            ):
+                return (
+                    "path selection uses an unexpanded environment variable; match the expanded path or a stable path fragment"
+                )
     return None
 
 
@@ -851,6 +858,7 @@ def semantic_problem(
         lambda: number_as_path(detection),
         lambda: impossible_conjunction(detection),
         lambda: description_mismatch(detection, description),
+        lambda: installer_tampering_without_evidence(detection, category, description),
         lambda: filter_cancels_selection(detection),
         lambda: actor_only_selection(detection, category),
         lambda: filter_excludes_named_artifact(detection, named or []),
@@ -861,4 +869,15 @@ def semantic_problem(
         problem = check()
         if problem:
             return problem
+    return None
+
+
+def installer_tampering_without_evidence(detection: Dict[str, Any], category: str, description: str) -> Optional[str]:
+    """A familiar MSI filename cannot establish that its contents were altered."""
+    if category != "file_event" or not re.search(r"\b(tamper\w*|trojaniz\w*|modified|altered)\b", description, re.I):
+        return None
+    fields = {str(key).split("|")[0].lower() for _, block in blocks(detection) for key in block}
+    names = _field_values(detection, "targetfilename")
+    if fields == {"targetfilename"} and any(".msi" in name.lower() for name in names):
+        return "an MSI filename alone cannot establish installer tampering; use integrity or behavior evidence, or describe a filename lead"
     return None

@@ -24,7 +24,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 #: the C2's bearer token (``C2_TOKEN=f90c...``) as an MD5 and a pinned TLS
 #: certificate fingerprint as a SHA-256; no file has either hash.
 HASH_ROLES = (
-    "executable", "library", "script", "archive", "document", "memory_only", "network_content", "non_file", "unknown",
+    "executable", "library", "script", "archive", "installer", "document", "memory_only", "network_content", "non_file", "unknown",
 )  # fmt: skip
 #: What a network indicator does in the intrusion. ``target``: an address the
 #: actor attacked, scanned or tested against. It is a victim, not
@@ -432,10 +432,12 @@ def placements(record: IndicatorRecord) -> List[str]:
     Historical indicators are never placed: they describe what the
     infrastructure hosted before, not this intrusion. Nor are addresses the
     actor targeted: those are victims. A hash is placed only where a file with
-    that hash can be observed. Unknown roles keep the old
-    placements, since an unreviewed indicator is still worth sweeping for.
+    that hash can be observed. Unknown network roles route only for curated
+    feed indicators; a mention in a report does not establish infrastructure.
     """
     if record.status == "historical" or record.role in ("historical", "target"):
+        return []
+    if record.type in NETWORK_TYPES and record.role == "unknown" and record.source != "cti":
         return []
     if record.type in HASH_TYPES:
         if record.role in ("executable", "unknown"):
@@ -460,7 +462,7 @@ def placements(record: IndicatorRecord) -> List[str]:
     if record.type in ("domain", "hostname"):
         return ["dns_query.QueryName", "network_connection.DestinationHostname"]
     if record.type == "url":
-        return ["proxy.c-uri"]
+        return ["proxy.c-uri"] if url_parts(record.value)[0] else []
     return []
 
 
@@ -468,22 +470,38 @@ def hash_label(rtype: str) -> str:
     return {"md5": "MD5", "sha1": "SHA1", "sha256": "SHA256", "imphash": "IMPHASH"}[rtype]
 
 
+def scoped_placements(records: List[IndicatorRecord]) -> List[Tuple[IndicatorRecord, List[str]]]:
+    """Apply exclusions to exact values and descendants of excluded domains.
+
+    A historical parent also excludes its URLs and subdomains; a historical
+    child does not exclude a sibling or the whole parent domain.
+    """
+    excluded = [r for r in records if r.status == "historical" or r.role in ("historical", "target")]
+
+    def blocked(record: IndicatorRecord) -> bool:
+        value = refang(record.value).lower().rstrip(".")
+        host = url_parts(value)[0] if record.type == "url" else split_host_port(value)[0]
+        for other in excluded:
+            old = refang(other.value).lower().rstrip(".")
+            if value == old:
+                return True
+            if other.type in ("domain", "hostname") and (host == old or host.endswith("." + old)):
+                return True
+        return False
+
+    return [(r, [] if blocked(r) else placements(r)) for r in records]
+
+
 def routable_indicators(records: List[IndicatorRecord]) -> Dict[str, List[str]]:
     """``{type: [values]}`` for the records a rule may use, for prompts and checks.
 
     Historical indicators and hashes of things no telemetry sees as a file
     (archives, documents, network content, in-memory payloads) are left out,
-    so a model-drafted rule that reaches for them is rejected as invented.
+    so model drafts and deterministic rules use the same provenance boundary.
     """
-    historical_values = {
-        str(r.value).strip().lower()
-        for r in records
-        if getattr(r, "status", "") == "historical" or getattr(r, "role", "") in ("historical", "target")
-    }
     out: Dict[str, List[str]] = {}
-    for record in records:
-        val_lower = str(record.value).strip().lower()
-        if val_lower not in historical_values and placements(record):
+    for record, where in scoped_placements(records):
+        if where:
             out.setdefault(record.type, [])
             if record.value not in out[record.type]:
                 out[record.type].append(record.value)

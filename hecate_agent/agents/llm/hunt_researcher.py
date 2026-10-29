@@ -432,7 +432,8 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
 
         from hecate_agent.core.attack_matrix import search_groups_in_text
 
-        actor_profiles = [dict(p) for p in search_groups_in_text(f"{input_data.topic} {self._source_context}")]
+        primary_context = self._source_context.split("SECONDARY OSINT ENRICHMENT", 1)[0]
+        actor_profiles = [dict(p) for p in search_groups_in_text(f"{input_data.topic} {primary_context}")]
         self._actor_profiles = actor_profiles
 
         try:

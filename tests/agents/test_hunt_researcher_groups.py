@@ -37,3 +37,22 @@ def test_hunt_researcher_attaches_threat_actor_profiles():
     assert "APT29 (G0016)" in md
     assert "Midnight Blizzard" in md
     assert "Known Associated Toolkits & Malware" in md or "Key Observed Techniques" in md
+
+
+@pytest.mark.unit
+def test_secondary_enrichment_does_not_attribute_unrelated_actors():
+    agent = HuntResearcherAgent(llm_enabled=False)
+    result = agent.execute(
+        ResearchInput(
+            topic="Cotton Sandstorm election infrastructure activity",
+            source_context=(
+                "Cotton Sandstorm / Emennet Pasargad.\n"
+                "SECONDARY OSINT ENRICHMENT (context lead only; not source evidence):\n"
+                "Related Iranian operations include APT33, APT39 and APT42."
+            ),
+            depth="basic",
+            web_search_enabled=False,
+        )
+    )
+    assert result.success
+    assert result.data.threat_actor_profiles == []

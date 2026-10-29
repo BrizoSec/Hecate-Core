@@ -96,7 +96,7 @@ def test_a_verified_contradiction_drops_the_model_rule() -> None:
     assert rejected == [f'process_creation: reviewer: the source has cmd.exe starting Word (source: "{GUIDANCE}")']
 
 
-def test_an_unverified_verdict_is_kept_as_a_note_on_the_rule() -> None:
+def test_unresolved_revisions_are_deferred_with_an_actionable_reason() -> None:
     agent = _agent(
         [
             {"verdict": "revise", "issues": ["no command-line context"], "contradiction": "maybe reversed", "quote": ""},
@@ -104,12 +104,8 @@ def test_an_unverified_verdict_is_kept_as_a_note_on_the_rule() -> None:
         ]
     )
     kept, rejected, gaps, _ = agent._review_rules([_rule("Word spawning cmd")], _input())
-    assert rejected == [] and len(kept) == 1
-    assert yaml.safe_load(kept[0].rule_yaml)["hecate_review"] == {
-        "verdict": "revise",
-        "issues": ["no command-line context"],
-        "unverified_contradiction": "maybe reversed",
-    }
+    assert kept == []
+    assert rejected == ["process_creation: reviewer requested unresolved revisions: no command-line context"]
     assert gaps == [{"behaviour": "decoy opened in Word", "quote": "opens a decoy DOCX in Word"}]
 
 

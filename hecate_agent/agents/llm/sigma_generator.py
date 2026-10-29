@@ -1232,7 +1232,10 @@ def _invented_hash_problem(detection: dict, supplied: dict) -> str | None:
         cleaned = value.strip().lower()
         if len(cleaned) in (32, 40, 64) and re.match(r"^[0-9a-f]+$", cleaned):
             if cleaned not in known:
-                return f"detection matches the hash {cleaned!r}, which no supplied indicator names; an invented hash matches nothing the intel describes"
+                return (
+                    f"detection matches hash {cleaned!r}, which is absent from the supplied routable indicators; "
+                    "verify source extraction, provenance and file role before using it in this telemetry"
+                )
     return None
 
 
@@ -1370,6 +1373,36 @@ def _hash_role_problem(detection: Dict[str, Any], records: List[Dict[str, Any]],
                         return (
                             f"Hashes matches {record.value[:16]}…, which the source identifies as {record.role}; "
                             f"a {record.role} is never seen in {category}. It belongs in {where}"
+                        )
+    return None
+
+
+def _network_role_problem(detection: Dict[str, Any], records: List[Dict[str, Any]]) -> Optional[str]:
+    """Prevent model drafts from reintroducing network indicators routing excluded."""
+    from hecate_agent.core.provenance import NETWORK_TYPES, IndicatorRecord, scoped_placements, url_parts
+
+    typed = [IndicatorRecord.from_dict(r) for r in records]
+    blocked = [r for r, where in scoped_placements(typed) if r.type in NETWORK_TYPES and not where]
+    host_fields = {"queryname", "destinationhostname", "destinationip", "sourceip", "cs-host", "c-ip"}
+    for name, block in _blocks_of(detection):
+        # Exclusion filters may legitimately mention historical infrastructure.
+        if re.search(rf"\bnot\s+{re.escape(name)}\b", str(detection.get("condition", "")), re.I):
+            continue
+        for key, raw in block.items():
+            field = str(key).split("|")[0].lower()
+            if field not in host_fields and field != "c-uri":
+                continue
+            for value in raw if isinstance(raw, list) else [raw]:
+                value = str(value).lower().strip("*").rstrip(".")
+                for record in blocked:
+                    host = url_parts(record.value)[0] if record.type == "url" else record.value.lower().rstrip(".")
+                    matches = (field in host_fields and (value == host or value.endswith("." + host))) or (
+                        field == "c-uri" and record.type == "url" and value == record.value.lower()
+                    )
+                    if matches:
+                        return (
+                            f"{record.value!r} is excluded by source role/status or historical domain scope; "
+                            "establish its current infrastructure role before using it as an alert indicator"
                         )
     return None
 
@@ -1781,6 +1814,18 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         rules: List[SigmaRule] = []
         rejected: List[str] = []
         warnings: List[str] = []
+        from hecate_agent.core.provenance import NETWORK_TYPES, IndicatorRecord, placements, scoped_placements
+
+        for record, where in scoped_placements([IndicatorRecord.from_dict(r) for r in input_data.indicator_records]):
+            if where:
+                continue
+            if record.type in NETWORK_TYPES and record.role == "unknown" and record.source != "cti":
+                reason = "the primary source does not establish a current infrastructure role"
+            elif placements(record):
+                reason = "excluded by historical or target domain scope"
+            else:
+                reason = f"role={record.role}, status={record.status} has no supported telemetry placement"
+            warnings.append(f"indicator deferred: {record.value}: {reason} (source: {record.source})")
 
         # One call per log source rather than one call for all of them. The
         # combined prompt asked for six rules in a single response, which on a
@@ -1937,6 +1982,12 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 continue
             if rev is None:
                 kept.append(rule)
+                continue
+            if rev.verdict == "revise":
+                rejected.append(
+                    f"{rule.logsource_category}: reviewer requested unresolved revisions: "
+                    + ("; ".join(rev.issues) or rev.contradiction or "no revision details supplied")
+                )
                 continue
             if rev.verdict == "reject" and rev.verified:
                 remediation = _remediate_platform_contradiction(rule.rule_yaml, rev.contradiction)
@@ -2400,13 +2451,10 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         (AWS S3, Azure Blob, etc.) are bound to initiating suspicious processes
         rather than swept bare.
         """
-        from hecate_agent.core.provenance import IndicatorRecord, hash_label, placements, url_parts
+        from hecate_agent.core.provenance import IndicatorRecord, hash_label, scoped_placements, url_parts
 
         records = [IndicatorRecord.from_dict(r) for r in input_data.indicator_records]
-        historical_values = {
-            str(r.value).strip().lower() for r in records if r.status == "historical" or r.role in ("historical", "target")
-        }
-        placed = [(r, [] if str(r.value).strip().lower() in historical_values else placements(r)) for r in records]
+        placed = scoped_placements(records)
 
         def values_for(placement: str) -> List[IndicatorRecord]:
             return [r for r, where in placed if placement in where]
@@ -2553,18 +2601,23 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 )
             )
 
-        paths = sorted({path for r in values_for("proxy.c-uri") for path in [url_parts(r.value)[2]] if path and path != "/"})
-        if paths:
+        urls = sorted({url_parts(r.value) for r in values_for("proxy.c-uri")}, key=str)
+        selections = {
+            f"selection_{index}": {"cs-host": host, "c-uri|contains": path}
+            for index, (host, _, path) in enumerate(urls)
+            if host and path and path != "/"
+        }
+        if selections:
             results.append(
                 self._ioc_rule(
                     input_data,
                     category="proxy",
                     label="URL IOC",
-                    title="Request for a URL path named in the source intelligence",
-                    description="Matches a proxy or web request for a current URL path the source published. "
+                    title="Request for a URL host and path named in the source intelligence",
+                    description="Matches a proxy or web request for a current URL host and path the source published. "
                     "URL paths appear only in proxy and web logs, not in endpoint file or process events.",
-                    detection={"selection": {"c-uri|contains": paths}, "condition": "selection"},
-                    falsepositives="Other sites serving a file at the same path",
+                    detection={**selections, "condition": "1 of selection_*"},
+                    falsepositives="Authorized investigation or retrieval of the published URL",
                 )
             )
         return results
@@ -2784,6 +2837,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
             _breadth_problem,
             _or_branch_breadth_problem,
             lambda d: _hash_role_problem(d, input_data.indicator_records, category),
+            lambda d: _network_role_problem(d, input_data.indicator_records),
             lambda d: _literal_problem(d, literals),
             lambda d: _reversed_guidance_chain_problem(d, input_data.detection_guidance),
             lambda d: semantic_problem(

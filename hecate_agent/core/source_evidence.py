@@ -443,6 +443,7 @@ _HASH_ROLE_WORDS = (
     ("memory_only", r"\b(decoded|decrypted|shellcode|in[- ]memory|fileless|reflective(ly)?)\b"),
     ("network_content", r"\b(encoded|encrypted|http response|stream|download(ed)? blob)\b"),
     ("archive", r"\b(archive|zip|rar|7z)\b"),
+    ("installer", r"\.msi\b|\bwindows installer\b"),
     ("document", r"\b(docx?|decoy|document|pdf|lure file)\b"),
     # Before executable: the Huntress report's "Profiler/loader Bash script" is a loader, and a script.
     (
@@ -520,6 +521,8 @@ def _role_supported(role: str, evidence: str, value: str, page: str = "") -> boo
 def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[SourceArtifact], str]:
     value = refang(str(raw.get("value", ""))).strip()
     kind = str(raw.get("kind", "")).strip().lower()
+    if kind in _HASH_LENGTHS:
+        value = re.sub(r"\s+", "", value)
     if not value or kind not in (*INDICATOR_KINDS, *BEHAVIOUR_KINDS):
         return None, f"{value or '(empty)'}: unknown kind {kind!r}"
     if kind == "url":
@@ -534,7 +537,22 @@ def _checked(raw: Dict[str, Any], page: str, page_words: str) -> Tuple[Optional[
             pass
         elif port is not None and host in page:
             value = host
-    if normalise(value) not in page and not (kind == "ipv4" and split_host_port(value)[0] in page):
+    # PDF table cells wrap hashes. Join only complete, bounded hex chunks,
+    # never arbitrary document whitespace or a substring of a longer hash.
+    if kind in _HASH_LENGTHS:
+        found = False
+        for match in re.finditer(r"(?<![a-z0-9])[a-f0-9]{16,}(?:\s+[a-f0-9]{16,})*(?![a-z0-9])", page, re.I):
+            chunks = match.group().lower().split()
+            for start in range(len(chunks)):
+                candidate = ""
+                for chunk in chunks[start:]:
+                    candidate += chunk
+                    if len(candidate) >= len(value):
+                        found = found or candidate == value.lower()
+                        break
+    else:
+        found = normalise(value) in page or (kind == "ipv4" and split_host_port(value)[0] in page)
+    if not found:
         return None, f"{value}: not found verbatim in the source"
     if kind == "ipv4" and not _routable(value):
         # A bind address or a private one is no indicator: the Redis botnet's C2
@@ -942,20 +960,44 @@ def _to_record(artifact: SourceArtifact, url: str) -> IndicatorRecord:
         role=artifact.role,
         status=artifact.status,
         confidence=artifact.confidence,
-        source=url if artifact.evidence else "cti",
+        source=url,
         evidence=artifact.evidence,
         ports=[port] if port else [],
     )
 
 
-def _parse(text: str) -> List[Dict[str, Any]]:
+def _parse(text: str, diagnostics: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
+        if diagnostics is not None:
+            diagnostics.append("source extraction response contains no complete JSON object")
         return []
     try:
         data = json.loads(match.group(0))
     except json.JSONDecodeError:
-        return []
+        if diagnostics is not None:
+            diagnostics.append("source extraction response is incomplete or malformed; only complete artifacts were retained")
+        # Token limits may cut off the final artifact. Retain only complete
+        # preceding entries; every entry still goes through source checks.
+        start = re.match(r'\{\s*"artifacts"\s*:\s*\[', text[match.start() :])
+        if not start:
+            return []
+        remaining = text[match.start() + start.end() :].lstrip()
+        items = []
+        decoder = json.JSONDecoder()
+        while remaining:
+            try:
+                item, end = decoder.raw_decode(remaining)
+            except json.JSONDecodeError:
+                break
+            if not isinstance(item, dict):
+                break
+            items.append(item)
+            remaining = remaining[end:].lstrip()
+            if not remaining.startswith(","):
+                break
+            remaining = remaining[1:].lstrip()
+        return items
     items = data.get("artifacts") if isinstance(data, dict) else None
     return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
 
@@ -1019,7 +1061,7 @@ def classify_feed_indicators(
     page_words = " ".join(_words(evidence.text))
     wanted = {normalise(r.value): r.type for r in pending}
     classified: List[IndicatorRecord] = []
-    for raw in _parse(reply):
+    for raw in _parse(reply, evidence.dropped):
         value_key = normalise(str(raw.get("value", "")))
         rtype = wanted.get(value_key) or wanted.get(split_host_port(value_key)[0])
         if not rtype:
@@ -1075,14 +1117,29 @@ def extract_source_evidence(
     call = complete or partial(_default_complete, usage=evidence.usage)
     chunks = chunk_text(text)
     evidence.chunks = len(chunks)
-    for chunk in chunks:
+    extraction_incomplete = False
+    pending = [(chunk, 0) for chunk in chunks]
+    while pending:
+        chunk, depth = pending.pop(0)
         try:
             reply = call([{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk}])
         except Exception as exc:  # the provider raises its SDK's own error types
             logger.warning("Source evidence extraction call failed: %s", exc)
             evidence.error = evidence.error or f"extraction failed: {exc}"
             continue
-        for raw in _parse(reply):
+        diagnostics: List[str] = []
+        parsed = _parse(reply, diagnostics)
+        if diagnostics:
+            extraction_incomplete = True
+            retry = depth < 2 and len(chunk) >= 1200
+            action = "retrying smaller source sections" if retry else "section remains incomplete after bounded recovery"
+            evidence.dropped.extend(f"{message}; {action}" for message in diagnostics)
+            if retry:
+                midpoint = len(chunk) // 2
+                boundary = chunk.rfind("\n", len(chunk) // 3, midpoint)
+                boundary = boundary + 1 if boundary >= 0 else midpoint
+                pending[0:0] = [(chunk[:boundary], depth + 1), (chunk[boundary:], depth + 1)]
+        for raw in parsed:
             artifact, problem = _checked(raw, page, page_words)
             if artifact is None:
                 evidence.dropped.append(problem)
@@ -1100,6 +1157,8 @@ def extract_source_evidence(
     evidence.indicators = [_to_record(a, url) for a in evidence.artifacts if a.kind in INDICATOR_KINDS]
     if evidence.artifacts:
         evidence.error = ""  # a partial failure still produced verified evidence
+    elif extraction_incomplete:
+        evidence.error = "source extraction incomplete: no verified artifacts recovered; see dropped diagnostics"
     return evidence
 
 
@@ -1120,6 +1179,8 @@ def build_indicator_records(
     records = merge_records(cti, [*evidence.indicators, *extra])
     _apply_text_roles(records, evidence.text, lambda r: str(r.type))
     for record in records:
+        if record.source == "cti" and normalise(record.value) in normalise(evidence.text):
+            record.source = evidence.url
         if record.role in ("non_file", "target", "historical") and record.evidence and record.source == "cti":
             record.source = evidence.url
         if record.role in ("target", "historical"):
