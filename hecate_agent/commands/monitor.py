@@ -826,6 +826,9 @@ _INTEGRATIONS_PANEL_HEIGHT = 10
 _HUNTS_PANEL_HEIGHT = 7
 _MITRE_PANEL_HEIGHT = 12
 _PURPLE_PANEL_HEIGHT = 6
+# Give the lower detail panels four more rows; the main activity panel shares
+# the remaining height and becomes correspondingly shorter.
+_BOTTOM_DETAIL_PANELS_HEIGHT = _PURPLE_PANEL_HEIGHT + 4
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -3330,7 +3333,7 @@ def _render_dashboard(
     elif usage_on_left:
         ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
         if ops_width >= 135:
-            bottom_ops = Layout(name="bottom_ops", size=_PURPLE_PANEL_HEIGHT)
+            bottom_ops = Layout(name="bottom_ops", size=_BOTTOM_DETAIL_PANELS_HEIGHT)
             bottom_ops.split_row(
                 Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
                 Layout(Text(" "), size=1),
@@ -3340,7 +3343,7 @@ def _render_dashboard(
             )
             layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
         elif ops_width >= 85:
-            bottom_ops = Layout(name="bottom_ops", size=_PURPLE_PANEL_HEIGHT)
+            bottom_ops = Layout(name="bottom_ops", size=_BOTTOM_DETAIL_PANELS_HEIGHT)
             bottom_ops.split_row(
                 Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
                 Layout(Text(" "), size=1),
