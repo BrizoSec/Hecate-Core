@@ -221,9 +221,11 @@ def test_a_tall_screen_gives_the_stream_the_whole_right_column() -> None:
     runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
     tall, short = _render(_long_cycle(40), runner, height=60), _render(_long_cycle(40), runner, height=30)
     assert tall.count("rejected rule") > short.count("rejected rule")
-    for title in ("RUNNER SERVICE", "LLM STATS", "INTEGRATIONS"):
+    for title in ("RUNNER SERVICE", "LLM STATS", "DETECTION RULES"):
         line = next(line for line in tall.splitlines() if title in line)
         assert line.index(title) < 140 // 3
+    integrations_line = next(line for line in tall.splitlines() if "INTEGRATIONS" in line)
+    assert integrations_line.index("INTEGRATIONS") >= 140 // 3
     # Too short for that, the usage panel keeps its row under the stream.
     usage = next(line for line in short.splitlines() if "INTEGRATIONS" in line)
     assert usage.index("INTEGRATIONS") > 140 // 3
