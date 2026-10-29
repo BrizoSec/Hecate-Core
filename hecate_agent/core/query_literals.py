@@ -221,6 +221,16 @@ def ungrounded_value(detection: Dict[str, Any], literals: List[Dict[str, Any]]) 
             for value in raw if isinstance(raw, list) else [raw]:
                 text = str(value)
                 for piece in _pieces(text):
+                    # A path-boundary suffix does not invent a directory: the
+                    # source's bare pypa.py may match TargetFilename|endswith
+                    # "\\pypa.py", but not an invented full path or basename.
+                    field, *modifiers = str(key).lower().split("|")
+                    if (field == "targetfilename" and "endswith" in modifiers
+                            and re.fullmatch(r"[\\/][^\\/]+", piece)
+                            and piece[1:] in supplied):
+                        continue
+                    if field == "commandline" and _source_supported_task_action(block, piece, literals):
+                        continue
                     bare = piece.strip().lstrip("\\").lstrip("/")
                     if not bare or bare in SYSTEM_IMAGES or _is_extension(bare) or piece.strip() in SYSTEM_DIRECTORIES:
                         continue
@@ -231,6 +241,31 @@ def ungrounded_value(detection: Dict[str, Any], literals: List[Dict[str, Any]]) 
                     if not any(piece.strip() in s for s in supplied):
                         return text
     return ""
+
+
+def _source_supported_task_action(block: Dict[str, Any], piece: str, literals: List[Dict[str, Any]]) -> bool:
+    """Permit a documented tool switch for a source-supported behavior candidate.
+
+    This derives a task-creation predicate, not a claim that the report showed
+    this exact command. Task names and payload paths still need source values.
+    Require the binary in the same selection so an unrelated OR branch cannot
+    license an arbitrary command-line fragment.
+    """
+    if piece.strip() != "/create":
+        return False
+    images = [str(v).lower().replace("/", "\\") for k, raw in block.items()
+              if str(k).lower() in {"image", "image|endswith"}
+              for v in (raw if isinstance(raw, list) else [raw])]
+    if not any(v.rsplit("\\", 1)[-1] == "schtasks.exe" for v in images):
+        return False
+    from hecate_agent.core.technique_evidence import sentence_status
+
+    return any(
+        re.search(r"\bscheduled tasks?\b", str(lit.get("evidence", "")), re.I)
+        and re.search(r"\b(creat\w*|persist\w*)\b", str(lit.get("evidence", "")), re.I)
+        and sentence_status(str(lit.get("evidence", ""))) == "observed"
+        for lit in literals
+    )
 
 
 def _system_binary_path(piece: str) -> bool:

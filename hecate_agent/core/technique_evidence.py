@@ -105,7 +105,9 @@ _CATALOG: Tuple[Tuple[str, str, str], ...] = (
     ("T1218.011", "rundll32", r"\brundll32(\.exe)?\b"),
     ("T1218.007", "msiexec", r"\bmsiexec(\.exe)?\b"),
     ("T1218.005", "mshta", r"\bmshta(\.exe)?\b"),
-    ("T1055", "process injection", r"\bprocess injection\b|\binject(s|ed|ing)? (it |the \w+ )?into\b"),
+    ("T1055", "process injection",
+     r"\bprocess injection\b|\binject(s|ed|ing)? (it |the \w+ )?into\s+"
+     r"(?:(?:a|the|another|remote|target|running)\s+)*(?:process\b|[\w.-]+\.exe\b)"),
     ("T1055.012", "process hollowing", r"\bprocess hollowing\b|\bhollow(s|ed|ing) (out )?(a |the )?\w*\s?process\b"),
     ("T1574.001", "DLL side-loading or hijacking", r"\bdll (side[- ]?load\w*|hijack\w*|search order)\b|\bside[- ]?load\w*\b"),
     ("T1113", "screen capture", r"\bscreen ?(capture|shot)s?\b"),
@@ -277,6 +279,9 @@ def sentence_status(sentence: str, actor_material: bool = False, primary_actor: 
     ``actor_material``: the report was written from the actor's own files (:func:`actor_material_report`).
     """
     lowered = sentence.lower()
+    # Analyst constraints are not observations of the mentioned behavior.
+    if re.match(r"^(?:do not|never)\s+(?:infer|claim|label|manufacture|assert)\b", lowered):
+        return "context"
     ctx_match = _CONTEXT_RE.search(lowered)
     if ctx_match:
         matched_str = ctx_match.group(0).lower().replace("-", "")

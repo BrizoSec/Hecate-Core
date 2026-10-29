@@ -821,7 +821,7 @@ class HuntResearcherAgent(LLMAgent[ResearchInput, ResearchOutput]):
             similar_hunts = _find_similar_hunts(
                 topic,
                 limit=5,
-                threshold=0.1,
+                threshold=0.3,
             )
 
             for hunt in similar_hunts:
