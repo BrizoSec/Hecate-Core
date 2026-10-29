@@ -983,7 +983,7 @@ def _parse(text: str, diagnostics: Optional[List[str]] = None) -> List[Dict[str,
         if not start:
             return []
         remaining = text[match.start() + start.end() :].lstrip()
-        items = []
+        recovered: List[Dict[str, Any]] = []
         decoder = json.JSONDecoder()
         while remaining:
             try:
@@ -992,12 +992,12 @@ def _parse(text: str, diagnostics: Optional[List[str]] = None) -> List[Dict[str,
                 break
             if not isinstance(item, dict):
                 break
-            items.append(item)
+            recovered.append(item)
             remaining = remaining[end:].lstrip()
             if not remaining.startswith(","):
                 break
             remaining = remaining[1:].lstrip()
-        return items
+        return recovered
     items = data.get("artifacts") if isinstance(data, dict) else None
     return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
 
