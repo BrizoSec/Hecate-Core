@@ -360,6 +360,21 @@ class SigmaTranspiler:
         col = SigmaCollection.from_yaml(rule_yaml)
 
         if target == self.TARGET_MDE:
+            for rule in col.rules:
+                pending = list(rule.detection.detections.values())
+                while pending:
+                    item = pending.pop()
+                    if hasattr(item, "detection_items"):
+                        pending.extend(item.detection_items)
+                    elif item.field == "Initiated":
+                        raise ValueError(
+                            "MDE mapping cannot preserve the Initiated direction predicate; "
+                            "an explicit direction mapping is required"
+                        )
+                    elif any(":" in str(getattr(value, "cidr", "")) for value in item.value):
+                        raise ValueError(
+                            "Kusto backend uses IPv4 CIDR functions and cannot preserve IPv6 CIDRs"
+                        )
             if col.rules and col.rules[0].logsource.category in {"proxy", "webserver", "web", "apache", "nginx", "iis"}:
                 raise ValueError("HTTP KQL requires an explicit deployed table and field mapping; generic Sigma field names must not become quoted string constants")
             if col.rules and col.rules[0].logsource.category == "dns_query":
@@ -452,7 +467,29 @@ class SigmaTranspiler:
             return "\n\n".join(queries)
 
         if target == self.TARGET_ELASTIC:
-            if col.rules and col.rules[0].logsource.product == "linux":
+            if col.rules and col.rules[0].logsource.category == "proxy":
+                # Proxy fields do not pass through ecs_windows(). Preserve
+                # their meaning with an explicit ECS mapping instead of
+                # emitting raw fields such as c-useragent into EQL.
+                mapping = {
+                    "c-useragent": "user_agent.original", "cs-method": "http.request.method",
+                    "sc-status": "http.response.status_code", "cs-host": "url.domain",
+                    "cs-uri-stem": "url.path", "cs-uri-query": "url.query",
+                    "c-ip": "source.ip", "DestinationIp": "destination.ip",
+                    "DestinationPort": "destination.port",
+                }
+                for rule in col.rules:
+                    pending = list(rule.detection.detections.values())
+                    while pending:
+                        item = pending.pop()
+                        if hasattr(item, "detection_items"):
+                            pending.extend(item.detection_items)
+                        elif item.field not in mapping:
+                            raise ValueError(f"Proxy ECS mapping does not support field {item.field!r}")
+                es_pipeline = ProcessingPipeline(items=[ProcessingItem(
+                    transformation=FieldMappingTransformation(mapping)
+                )])
+            elif col.rules and col.rules[0].logsource.product == "linux":
                 # ecs_windows() leaves Linux Sigma fields unchanged. Use ECS
                 # fields explicitly and reject signals without a mapping.
                 # https://www.elastic.co/docs/reference/ecs/ecs-process

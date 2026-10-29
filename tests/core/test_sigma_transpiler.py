@@ -55,6 +55,63 @@ level: high
 
 @pytest.mark.skipif(not PYSIGMA_AVAILABLE, reason="pySigma not installed in environment")
 class TestSigmaTranspiler:
+    @pytest.mark.parametrize("initiated", [True, False])
+    def test_mde_rejects_silently_dropped_network_direction(self, initiated):
+        import yaml
+
+        rule = yaml.safe_dump({"title": "Directional network test", "logsource": {
+            "category": "network_connection", "product": "windows"}, "detection": {
+                "selection": {"Image|endswith": r"\wscript.exe", "Initiated": initiated},
+                "condition": "selection"}})
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert not result.success and result.query is None
+        assert "Initiated direction predicate" in result.error_message
+
+    @pytest.mark.parametrize("cidr", ["::/0", "fc00::/7"])
+    def test_mde_rejects_ipv6_in_cidr_filters(self, cidr):
+        import yaml
+
+        rule = yaml.safe_dump({"title": "Mixed address family test", "logsource": {
+            "category": "network_connection", "product": "windows"}, "detection": {
+                "selection": {"Image|endswith": r"\wscript.exe"},
+                "private": {"DestinationIp|cidr": ["10.0.0.0/8", cidr]},
+                "condition": "selection and not private"}})
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert not result.success and result.query is None
+        assert "cannot preserve IPv6" in result.error_message
+
+    def test_mde_still_converts_ipv4_only_cidr(self):
+        rule = """title: IPv4 network
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp|cidr: 10.0.0.0/8
+  condition: selection
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_MDE])[SigmaTranspiler.TARGET_MDE]
+        assert result.success, result.error_message
+        assert 'ipv4_is_in_range(RemoteIP, "10.0.0.0/8")' in result.query
+
+    def test_proxy_eql_maps_user_agent_and_rejects_unknown_fields(self):
+        rule = """title: WebDAV redirector
+logsource:
+  category: proxy
+detection:
+  selection:
+    c-useragent|startswith: Microsoft-WebDAV-MiniRedir/
+  condition: selection
+"""
+        result = SigmaTranspiler().transpile(rule, [SigmaTranspiler.TARGET_ELASTIC])[SigmaTranspiler.TARGET_ELASTIC]
+        assert result.success, result.error_message
+        assert "user_agent.original" in result.query and "c-useragent" not in result.query
+        assert "Microsoft-WebDAV-MiniRedir/*" in result.query
+        unmapped = rule.replace("c-useragent|startswith", "UnmappedProxyField|startswith")
+        result = SigmaTranspiler().transpile(unmapped, [SigmaTranspiler.TARGET_ELASTIC])[SigmaTranspiler.TARGET_ELASTIC]
+        assert not result.success and result.query is None
+        assert "Proxy ECS mapping does not support field" in result.error_message
+
     def test_linux_eql_maps_file_paths_to_ecs(self):
         rule = """title: Preload file
 id: c5da0b47-4dbb-4d3e-a23d-f59701709122

@@ -74,6 +74,19 @@ def test_a_negation_rules_the_behaviour_out() -> None:
     assert "T1113" not in _observed("Not observed: an operator taking a screen capture.")
 
 
+def test_website_script_injection_is_not_process_injection() -> None:
+    assert "T1055" not in _observed("Malicious JavaScript is injected into the website HTML.")
+    assert "T1055" in _observed("The loader injects into explorer.exe.")
+    assert "T1055" in _observed("The payload is injected into another process.")
+
+
+def test_analyst_instruction_does_not_become_observed_run_key_persistence() -> None:
+    text = "Do not infer a registry Run key from the infection marker."
+    assert "T1547.001" not in _observed(text)
+    assert sentence_status(text) == "context"
+    assert "T1547.001" in _observed("The operator creates a Run key for persistence.")
+
+
 def test_another_actors_tradecraft_is_context_not_evidence() -> None:
     text = "UAT-8302 used Windows SNOWLIGHT, government intrusions, sideloading and different malware; no lure match."
     assert map_behaviours([("primary source", text)]) == []

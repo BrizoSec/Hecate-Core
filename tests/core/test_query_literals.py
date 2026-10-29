@@ -76,6 +76,40 @@ def test_without_source_values_nothing_is_held_to_a_list() -> None:
     assert ungrounded_value({"selection": {"ImageLoaded|contains": "vshell"}, "condition": "selection"}, []) == ""
 
 
+def test_bare_source_filename_accepts_a_path_boundary_suffix_only() -> None:
+    literals = [lit.to_dict() for lit in literals_from_artifacts([
+        {"value": "pypa.py", "kind": "file_path", "status": "active"},
+    ])]
+    assert ungrounded_value({"selection": {"TargetFilename|endswith": r"\pypa.py"}}, literals) == ""
+    for key, value in [
+        ("TargetFilename|endswith", r"\evilpypa.py"),
+        ("TargetFilename|endswith", r"C:\Invented\pypa.py"),
+        ("TargetFilename", r"\pypa.py"),
+    ]:
+        assert ungrounded_value({"selection": {key: value}}, literals) == value
+
+
+def test_task_creation_switch_requires_source_behavior_and_same_selection_binary() -> None:
+    literals = [lit.to_dict() for lit in literals_from_artifacts([
+        {"value": "pypa.py", "kind": "file_path", "status": "active",
+         "evidence": "A scheduled task is created for persistence of pypa.py."},
+    ])]
+    selection = {"Image|endswith": r"\schtasks.exe", "CommandLine|contains": "/create"}
+    assert ungrounded_value({"selection": selection}, literals) == ""
+    assert ungrounded_value({"selection": {**selection, "CommandLine|contains": "/delete"}}, literals) == "/delete"
+    assert ungrounded_value({"selection": {**selection, "CommandLine|contains": "UpdateCheck"}}, literals) == "UpdateCheck"
+    assert ungrounded_value({"selection": {"Image|endswith": r"\schtasks.exe",
+                                          "TargetFilename|contains": "/create"}}, literals) == "/create"
+    assert ungrounded_value({"selection": {**selection, "Image|endswith": r"\cmd.exe"}}, literals) == "/create"
+    assert ungrounded_value({"binary": {"Image|endswith": r"\schtasks.exe"},
+                             "action": {"CommandLine|contains": "/create"},
+                             "condition": "binary or action"}, literals) == "/create"
+    literals[0]["evidence"] = "The report mentions an ordinary Python file."
+    assert ungrounded_value({"selection": selection}, literals) == "/create"
+    literals[0]["evidence"] = "No evidence of scheduled task creation was found."
+    assert ungrounded_value({"selection": selection}, literals) == "/create"
+
+
 def _input(**kwargs: Any) -> SigmaGenerationInput:
     return SigmaGenerationInput(hypothesis="x", platforms=["Windows"], hunt_id="H-0001", **kwargs)
 
