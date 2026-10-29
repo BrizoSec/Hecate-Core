@@ -467,12 +467,13 @@ class SigmaTranspiler:
             return "\n\n".join(queries)
 
         if target == self.TARGET_ELASTIC:
-            if col.rules and col.rules[0].logsource.category == "proxy":
-                # Proxy fields do not pass through ecs_windows(). Preserve
+            if col.rules and col.rules[0].logsource.category in {"proxy", "webserver"}:
+                # Proxy/webserver fields do not pass through ecs_windows(). Preserve
                 # their meaning with an explicit ECS mapping instead of
                 # emitting raw fields such as c-useragent into EQL.
                 mapping = {
-                    "c-useragent": "user_agent.original", "cs-method": "http.request.method",
+                    "c-useragent": "user_agent.original", "cs-user-agent": "user_agent.original",
+                    "cs-referrer": "http.request.referrer", "cs-method": "http.request.method",
                     "sc-status": "http.response.status_code", "cs-host": "url.domain",
                     "cs-uri-stem": "url.path", "cs-uri-query": "url.query",
                     "c-ip": "source.ip", "DestinationIp": "destination.ip",
@@ -485,7 +486,7 @@ class SigmaTranspiler:
                         if hasattr(item, "detection_items"):
                             pending.extend(item.detection_items)
                         elif item.field not in mapping:
-                            raise ValueError(f"Proxy ECS mapping does not support field {item.field!r}")
+                            raise ValueError(f"{col.rules[0].logsource.category.title()} ECS mapping does not support field {item.field!r}")
                 es_pipeline = ProcessingPipeline(items=[ProcessingItem(
                     transformation=FieldMappingTransformation(mapping)
                 )])

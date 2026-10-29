@@ -1005,3 +1005,43 @@ def test_dashboard_wide_screen_bottom_ribbon() -> None:
     assert "PURPLE TEAM ENGINE" in wide_text
     assert "DETECTION RULES" in wide_text
     assert "THREAT OBSERVABLES" in wide_text
+
+
+@pytest.mark.parametrize("grid", [False, True])
+def test_integrations_require_recent_confirmation_and_keep_disabled_red(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool) -> None:
+    from datetime import timedelta, timezone
+    import json
+
+    monkeypatch.setenv("HECATE_RUNNER_CTI_PROVIDER", "multi")
+    monkeypatch.setenv("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "lolbas,nuclei,cisa_advisories,cisa_ics,attack_deltas")
+    monkeypatch.setenv("TAVILY_API_KEY", "configured-does-not-confirm")
+    health = tmp_path / ".hecate" / "integrations"
+    health.mkdir(parents=True)
+    now = datetime.now(timezone.utc)
+    for name, healthy, checked in [("lolbas", True, now), ("nuclei", False, now),
+                                    ("gtfobins", True, now), ("attack_deltas", True, now - timedelta(hours=3))]:
+        (health / f"{name}.json").write_text(json.dumps({"enabled": True, "healthy": healthy, "checked_at": checked.isoformat()}))
+    panel = m._integrations_panel(tmp_path, grid=grid)
+    console = Console(width=150, force_terminal=True, color_system="standard")
+    segments = list(console.render(panel, console.options))
+    def color_for(word: str) -> list[str]:
+        return [str(segment.style) for segment in segments if word in segment.text]
+    if grid:
+        assert any("green" in style for style in color_for("LOLBAS"))
+        for label in ("Nuclei", "GTFOBins", "ATT&CK", "Tavily", "CISA ICS"):
+            assert any("red" in style for style in color_for(label))
+    text = "".join(segment.text for segment in segments)
+    for label in ("LOLBAS", "LOLDrivers", "GTFOBins", "Nuclei", "CISA AA", "CISA CSAF", "CISA ICS", "ATT&CK"):
+        assert label in text
+    assert m._confirmed_integration(tmp_path, "lolbas", True)[0]
+    assert not m._confirmed_integration(tmp_path, "gtfobins", False)[0]
+    assert not m._confirmed_integration(tmp_path, "attack_deltas", True)[0]
+    assert not m._confirmed_integration(tmp_path, "tavily", True)[0]
+
+
+def test_all_integration_rows_fit_the_wide_grid() -> None:
+    panel = m._integrations_panel(grid=True)
+    console = Console(width=110)
+    assert console.measure(panel).maximum <= 110
+    lines = console.render_lines(panel, console.options)
+    assert len(lines) <= m._BOTTOM_DETAIL_PANELS_HEIGHT

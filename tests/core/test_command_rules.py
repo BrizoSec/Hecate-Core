@@ -189,3 +189,39 @@ def test_lab_harness_and_setup_commands_are_filtered() -> None:
     # Legitimate malicious actions remain
     assert any("193.29.224.151" in cl for cl in cmd_lines)
     assert any("bash" in cl for cl in cmd_lines)
+
+
+def test_documented_reference_candidates_keep_exact_request_and_reference_wording() -> None:
+    import yaml
+
+    candidate = {"category": "webserver", "title": "Nuclei reference request: PATCH /api/probe", "command": "PATCH /api/probe",
+                 "detection": {"selection": {"cs-method": "PATCH", "cs-uri-stem": "/api/probe"}, "condition": "selection"},
+                 "behaviour": "PATCH /api/probe", "passage": "Documented probe request: PATCH /api/probe"}
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    data = SigmaGenerationInput(hypothesis="Look for documented exploit probes", reference_candidates=[candidate], references=["https://example.com/pinned-template"])
+    [(rule, problem)] = agent._command_rules(data)
+    assert problem is None and rule is not None
+    document = yaml.safe_load(rule.rule_yaml)
+    assert document["logsource"]["category"] == "webserver"
+    assert document["detection"] == candidate["detection"]
+    assert "not evidence of an observed intrusion" in document["description"]
+    assert "shows this command being run" not in document["description"]
+    assert candidate["passage"] in agent._source_passages(data)
+
+
+def test_reference_web_rule_transpiles_to_real_ecs_fields_and_fails_closed_without_http_tables() -> None:
+    from hecate_agent.core.sigma_transpiler import SigmaTranspiler
+
+    candidate = {"category": "webserver", "title": "Documented Nuclei request", "command": "PATCH /api/probe?x=1",
+                 "detection": {"selection": {"cs-method": "PATCH", "cs-uri-stem": "/api/probe", "cs-uri-query": "x=1"}, "condition": "selection"}}
+    agent = SigmaGeneratorAgent.__new__(SigmaGeneratorAgent)
+    [(rule, problem)] = agent._command_rules(SigmaGenerationInput(hypothesis="Reference probe", reference_candidates=[candidate]))
+    assert rule and not problem
+    results = SigmaTranspiler().transpile(rule.rule_yaml)
+    assert results[SigmaTranspiler.TARGET_SPLUNK].success
+    elastic = results[SigmaTranspiler.TARGET_ELASTIC]
+    assert elastic.success
+    assert 'http.request.method' in elastic.query and 'url.path' in elastic.query and 'url.query' in elastic.query
+    assert 'cs-method' not in elastic.query
+    mde = results[SigmaTranspiler.TARGET_MDE]
+    assert not mde.success and "explicit deployed table and field mapping" in mde.error_message

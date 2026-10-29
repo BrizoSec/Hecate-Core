@@ -440,6 +440,7 @@ class SigmaGenerationInput:
     # Commands the source shows being run (hecate_agent.core.command_rules
     # candidates): each becomes a deterministic process_creation rule.
     observed_commands: List[Dict[str, Any]] = field(default_factory=list)
+    reference_candidates: List[Dict[str, Any]] = field(default_factory=list)
     # A2: review each model-drafted rule against the hypothesis and the source
     # passages, and list behaviours no rule covers. Off unless asked: it costs
     # one model call per model rule plus one.
@@ -1919,6 +1920,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         passages: List[str] = []
         texts = [
             *(str(a.get("evidence", "")) for a in input_data.source_artifacts),
+            *(str(c.get("passage", "")) for c in input_data.reference_candidates),
             *(str(g.get("text", "")) for g in input_data.detection_guidance),
             *(str(r.get("evidence", "")) for r in input_data.indicator_records),
         ]
@@ -2036,7 +2038,8 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
         ``launchctl bootstrap ...``; the model turned them into at most one generic rule.
         """
         results: List[Tuple[Optional[SigmaRule], Optional[str]]] = []
-        for candidate in input_data.observed_commands:
+        for candidate in [*input_data.observed_commands, *input_data.reference_candidates]:
+            reference = candidate in input_data.reference_candidates
             cat = str(candidate.get("category", "process_creation"))
             title = str(candidate.get("title", ""))
             cand_platform = candidate.get("platform")
@@ -2049,7 +2052,7 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                     u in cmd_str or u in img for u in ("nsenter", "bpftool", "bash", "sh", "kprobe")
                 ):
                     cand_platform = "linux"
-            if not title.startswith(("Command", "File", "Scheduled")):
+            if not reference and not title.startswith(("Command", "File", "Scheduled")):
                 title = (
                     f"Command the source shows being run: {title}"
                     if cat == "process_creation"
@@ -2060,13 +2063,16 @@ class SigmaGeneratorAgent(LLMAgent[SigmaGenerationInput, SigmaGenerationOutput])
                 if cat == "process_creation"
                 else "Deterministic rule built for artifact written by a command quoted in the primary source, with no model involvement. "
             )
+            if reference:
+                preamble = "Deterministic candidate from a documented reference procedure; not evidence of an observed intrusion or successful exploitation. "
             results.append(
                 self._ioc_rule(
                     input_data,
                     category=cat,
-                    label="observed command" if cat == "process_creation" else "written file",
+                    label="documented reference" if reference else "observed command" if cat == "process_creation" else "written file",
                     title=title[:120],
-                    description=f'The source shows this command being run: "{candidate.get("command", "")}".',
+                    description=(f'The source documents this procedure: "{candidate.get("command", "")}".' if reference
+                                 else f'The source shows this command being run: "{candidate.get("command", "")}".'),
                     detection=dict(candidate.get("detection") or {}),
                     falsepositives="Administrators or software running the same command or creating the task for legitimate reasons",
                     preamble=preamble,
