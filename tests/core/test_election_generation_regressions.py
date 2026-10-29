@@ -5,6 +5,7 @@ no model or live SIEM is required to exercise the production gates.
 """
 
 import json
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -221,6 +222,7 @@ def test_proxy_host_binding_survives_conversion_and_unmapped_http_reports_why():
 def test_deferred_indicators_have_reasons_in_generation_output(monkeypatch):
     agent = SigmaGeneratorAgent(llm_enabled=True)
     monkeypatch.setattr(agent, "_call_llm_with_retry", lambda *args, **kwargs: '{"rules": []}')
+    monkeypatch.setattr(agent, "_get_provider", lambda: SimpleNamespace(provider_name="test", model="offline"))
     result = agent.execute(
         SigmaGenerationInput(
             hypothesis="Election infrastructure compromise",
