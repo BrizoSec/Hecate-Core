@@ -119,8 +119,11 @@ def test_every_ioc_rule_says_where_its_indicators_came_from() -> None:
     assert [(e["value"], e["role"], e["source"]) for e in provenance["process_creation"]] == [(LOADER, "executable", REPORT)]
     assert provenance["process_creation"][0]["evidence"] == f"Go loader SHA-256 {LOADER}"
     assert [e["value"] for e in provenance["network_connection"]] == ["38.207.178.192"]
-    # The URL is traced by its path, not re-attached to the network rule by its host.
-    assert [e["value"] for e in provenance["proxy"]] == ["http://38.207.178.192:50813/MySQL_LOG.txt"]
+    # Proxy rules bind host and path, so both the selected address and URL have provenance.
+    # A plain network rule above still does not inherit every URL on that address.
+    assert [e["value"] for e in provenance["proxy"]] == [
+        "38.207.178.192", "http://38.207.178.192:50813/MySQL_LOG.txt"
+    ]
     assert all("pan.qlam.cc" not in str(p) for p in provenance.values())  # historical: no rule, no entry
 
 

@@ -334,12 +334,12 @@ class TestSupersedingTechniqueId:
 
         assert provider._attack_data.src.query.call_count == 1
 
-    def test_fallback_provider_returns_none(self):
-        """Without STIX data there is no revoked-by relationship to read, so
-        the honest answer is 'no known replacement', not a guess."""
+    def test_fallback_provider_uses_known_replacements_only(self):
+        """The curated fallback knows historical replacements; unknown IDs stay unknown."""
         from hecate_agent.core.attack_matrix import FallbackProvider
 
-        assert FallbackProvider().get_superseding_technique_id("T1093") is None
+        assert FallbackProvider().get_superseding_technique_id("T1093") == "T1055.012"
+        assert FallbackProvider().get_superseding_technique_id("T9999") is None
 
 
 # ---------------------------------------------------------------------------

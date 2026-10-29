@@ -295,7 +295,11 @@ def test_a_name_given_only_its_registry_history_gets_no_rule() -> None:
     records = {r.value: r for r in se.build_indicator_records(feed, evidence, _no_reply)}
     assert records["ayakliborsa.net"].role == "historical" and not placements(records["ayakliborsa.net"])
     assert "registration history" in records["ayakliborsa.net"].evidence
-    assert placements(records["socket.ayakliborsa.net"])
+    # With no classification reply, the primary-source hostname is unclassified,
+    # rather than a curated feed IOC. It waits for a supported current role.
+    assert records["socket.ayakliborsa.net"].role == "unknown"
+    assert records["socket.ayakliborsa.net"].source == evidence.url
+    assert not placements(records["socket.ayakliborsa.net"])
 
 
 @pytest.mark.parametrize(
