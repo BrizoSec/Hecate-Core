@@ -822,13 +822,12 @@ def _narrow_usage_rows(
 #: Rows of the LLM panel in a side column, with its border.
 _NARROW_USAGE_PANEL_HEIGHT = 9
 _NARROW_LLM_PANEL_HEIGHT = 9
-_INTEGRATIONS_PANEL_HEIGHT = 10
+_INTEGRATIONS_PANEL_HEIGHT = 14
 _HUNTS_PANEL_HEIGHT = 7
 _MITRE_PANEL_HEIGHT = 12
 _PURPLE_PANEL_HEIGHT = 6
-# Give the lower detail panels four more rows; the main activity panel shares
-# the remaining height and becomes correspondingly shorter.
-_BOTTOM_DETAIL_PANELS_HEIGHT = _PURPLE_PANEL_HEIGHT + 4
+# Reserve enough rows for all integrations, including disabled sources, in the four-column grid.
+_BOTTOM_DETAIL_PANELS_HEIGHT = 14
 
 
 def _usage_rows(table: Table, llm: str, model: str, by_stage: str, latency: str) -> None:
@@ -1089,6 +1088,44 @@ def _credential_summary(workspace: Optional[Path] = None) -> str:
     return " · ".join([f"{item} ON" for item in on] + [f"{item} OFF" for item in off])
 
 
+_INTEGRATION_IDS = {
+    "LLM": "llm", "Tavily": "tavily", "OTX": "otx", "MISP": "misp", "VT": "vt",
+    "GreyNoise": "greynoise", "AbuseIPDB": "abuseipdb", "Shodan": "shodan", "Censys": "censys",
+    "ThreatFox": "threatfox", "MalBazaar": "malwarebazaar", "Feodo C2": "feodo", "SSLBL": "sslbl",
+    "URLhaus": "urlhaus", "URLScan": "urlscan", "Hybrid": "hybrid", "RDAP": "rdap", "crt.sh": "crtsh",
+    "PDNS": "pdns", "Spur": "spur", "Tor/Proxy": "tor_proxy", "EPSS": "epss", "OSV.dev": "osv",
+    "Slack": "slack", "VulnCheck": "vulncheck", "Triage": "triage", "Shadowsrv": "shadowserver",
+    "MSRC": "msrc", "CloudThrt": "cloud_threat", "DFIR Rept": "dfir_report", "FIRST.org": "first_org",
+    "ANY.RUN": "anyrun", "OpenCTI": "opencti", "LOLBAS": "lolbas", "LOLDrivers": "loldrivers",
+    "GTFOBins": "gtfobins", "Nuclei": "nuclei", "CISA AA": "cisa_narrative", "CISA CSAF": "cisa_advisories",
+    "CISA ICS": "cisa_ics", "ATT&CK": "attack_deltas", "CISA KEV": "cisa_kev",
+    "RSS": "rss", "GitHub PoC": "github_poc", "VXUG": "vxunderground", "CertStrm": "certstream",
+}
+_SOURCE_INTEGRATIONS = {
+    "otx", "misp", "vulncheck", "triage", "shadowserver", "msrc", "cloud_threat", "dfir_report",
+    "first_org", "anyrun", "opencti", "lolbas", "loldrivers", "gtfobins", "nuclei",
+    "cisa_advisories", "cisa_ics", "attack_deltas", "cisa_kev", "rss", "github_poc", "vxunderground", "certstream",
+}
+
+
+def _confirmed_integration(workspace: Optional[Path], name: str, enabled: bool) -> Tuple[bool, str]:
+    """Only a recent successful check plus current enablement can produce green."""
+    if not enabled:
+        return False, "disabled"
+    if workspace is None:
+        return False, "unconfirmed"
+    try:
+        record = json.loads((workspace / ".hecate" / "integrations" / f"{name}.json").read_text())
+        checked = datetime.fromisoformat(record["checked_at"])
+        age = (datetime.now(timezone.utc) - checked).total_seconds()
+        if not 0 <= age <= 7200:
+            return False, "check stale"
+        healthy = record.get("healthy") is True and record.get("enabled") is True
+        return healthy, "confirmed" if healthy else str(record.get("detail") or "failed")[:80]
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return False, "unconfirmed"
+
+
 def _integrations_panel(
     workspace: Optional[Path] = None,
     search_count: str = "pending",
@@ -1152,15 +1189,17 @@ def _integrations_panel(
     if workspace:
         env_files.append(workspace.parent / "Hecate-Runner" / ".env")
     file_keys = set()
+    file_values: Dict[str, str] = {}
     for env_file in env_files:
         try:
             for line in env_file.read_text(encoding="utf-8").splitlines():
                 key, sep, value = line.partition("=")
                 if sep and value.strip().strip("\"'"):
-                    file_keys.add(key.strip().removeprefix("export "))
+                    env_key = key.strip().removeprefix("export ")
+                    file_keys.add(env_key)
+                    file_values[env_key] = value.strip().strip("\"'")
         except OSError:
             continue
-
     cycle_events: List[TrailEvent] = []
     if current and events:
         cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
@@ -1599,6 +1638,20 @@ def _integrations_panel(
             metric = "active"
             services_data.append((label, True, detail, metric))
 
+    env_values = {**file_values, **os.environ}
+    provider = env_values.get("HECATE_RUNNER_CTI_PROVIDER", "file")
+    active_sources = set(env_values.get("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss,otx,misp").replace(" ", "").split(",")) if provider == "multi" else {provider}
+    for label in ("LOLBAS", "LOLDrivers", "GTFOBins", "Nuclei", "CISA AA", "CISA CSAF", "CISA ICS", "ATT&CK", "CISA KEV", "RSS", "GitHub PoC", "VXUG", "CertStrm"):
+        services_data.append((label, True, "source", "--"))
+    confirmed_data = []
+    for label, configured, detail, metric in services_data:
+        name = _INTEGRATION_IDS[label]
+        source_name = "cisa_advisories" if name == "cisa_narrative" else name
+        enabled = source_name in active_sources if source_name in _SOURCE_INTEGRATIONS else configured
+        ok, reason = _confirmed_integration(workspace, name, enabled)
+        confirmed_data.append((label, ok, detail if ok else reason, metric))
+    services_data = confirmed_data
+
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     if grid:
         # The wide dashboard places this panel beside other detail panels.
@@ -1622,17 +1675,16 @@ def _integrations_panel(
         display_items = [
             (aliases.get(label, label) if grid_compact_names else label, is_set)
             for label, is_set, _, _ in services_data
-            if is_set
         ]
         for start in range(0, len(display_items), 4):
             row = [
-                Text(label, style="bold bright_green")
-                for label, _ in display_items[start : start + 4]
+                Text(label, style="bold bright_green" if ok else "bold bright_red")
+                for label, ok in display_items[start : start + 4]
             ]
             row.extend(Text("") for _ in range(4 - len(row)))
             table.add_row(*row)
     elif narrow:
-        table.add_column("label", style="dim", width=9, no_wrap=True)
+        table.add_column("label", style="dim", width=11, no_wrap=True)
         table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
         table.add_column("metric", justify="right", width=11, no_wrap=True)
         for label, is_set, detail, metric in services_data:
@@ -1640,14 +1692,14 @@ def _integrations_panel(
                 st = Text.assemble(("ON", "bold bright_green"), (" · ", "dim"), (detail, "bright_white"))
                 m_style = "bright_cyan" if metric != "--" else "dim"
             else:
-                st = Text.assemble(("OFF", "dim yellow"), (" · ", "dim"), (detail, "dim"))
+                st = Text.assemble(("OFF", "bold bright_red"), (" · ", "dim"), (detail, "dim"))
                 m_style = "dim"
             table.add_row(label, st, Text(metric, style=m_style))
     else:
 
         def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
             st = "ON" if is_on else "OFF"
-            col = "bold bright_green" if is_on else "dim yellow"
+            col = "bold bright_green" if is_on else "bold bright_red"
             m_col = "bright_cyan" if is_on and met != "--" else "dim"
             return Text.assemble(
                 (f"{lbl:<9}", "dim"),
