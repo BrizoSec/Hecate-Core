@@ -2651,7 +2651,7 @@ def _purple_team_panel(
 
     return Panel(
         table,
-        title="[bold magenta]PURPLE TEAM ENGINE[/]",
+        title="[bold bright_cyan]PURPLE TEAM ENGINE[/]",
         border_style="magenta",
         box=box.ROUNDED,
     )
