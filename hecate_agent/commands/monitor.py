@@ -1767,6 +1767,10 @@ class HuntsMetrics:
     enterprise_ttps: Dict[str, int] = field(default_factory=dict)
     mobile_ttps: Dict[str, int] = field(default_factory=dict)
     ics_ttps: Dict[str, int] = field(default_factory=dict)
+    tactic_hunts: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    tactic_rules: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    matrix_hunts: Dict[str, int] = field(default_factory=dict)
+    matrix_rules: Dict[str, int] = field(default_factory=dict)
     enterprise_total: int = 0
     mobile_total: int = 0
     ics_total: int = 0
@@ -1833,7 +1837,7 @@ _HUNTS_METRICS_CACHE: Dict[Path, Tuple[float, int, float, HuntsMetrics]] = {}
 def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     """Collect summary metrics across all hunt drafts in the workspace.
 
-    Cached with a 10s cooldown and file count/mtime fingerprinting
+    Cached with a 10s cooldown and hunt/rule count/mtime fingerprinting
     so monitor refresh cycles remain instantaneous.
     """
     if not workspace:
@@ -1883,13 +1887,21 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         return cached[3]
 
     file_count = len(hunt_files)
+    queries_dir = workspace / "queries"
+    if not queries_dir.is_dir():
+        queries_dir = hunts_dir.parent / "queries"
     try:
-        max_mtime = max((f.stat().st_mtime for f in hunt_files), default=0.0)
+        sigma_files = sorted(p for p in queries_dir.rglob("*") if p.suffix.lower() in {".yml", ".yaml"} and p.is_file())
+    except OSError:
+        sigma_files = []
+    fingerprint_count = file_count + len(sigma_files)
+    try:
+        max_mtime = max((f.stat().st_mtime for f in [*hunt_files, *sigma_files]), default=0.0)
     except OSError:
         max_mtime = 0.0
 
-    if cached is not None and cached[1] == file_count and cached[2] == max_mtime:
-        _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, cached[3])
+    if cached is not None and cached[1] == fingerprint_count and cached[2] == max_mtime:
+        _HUNTS_METRICS_CACHE[resolved_path] = (now, fingerprint_count, max_mtime, cached[3])
         return cached[3]
 
     drafts_count = 0
@@ -1910,6 +1922,37 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     grounding_corroborated = 0
     grounding_derived = 0
     grounding_unsupported = 0
+    tactic_hunts: Dict[str, Dict[str, int]] = {}
+    tactic_rules: Dict[str, Dict[str, int]] = {}
+    matrix_hunts: Dict[str, int] = {}
+    matrix_rules: Dict[str, int] = {}
+
+    from hecate_agent.core.attack_matrix import canonical_tactic, categorize_techniques_by_matrix
+
+    classifications: Dict[frozenset[str], Dict[str, Any]] = {}
+
+    def record_tactic_document(
+        ids: Set[str], counts: Dict[str, Dict[str, int]], totals: Dict[str, int], declared: Optional[Set[str]] = None
+    ) -> None:
+        key = frozenset(ids)
+        if key not in classifications:
+            classifications[key] = categorize_techniques_by_matrix(ids)
+        classified = classifications[key]
+        active = {
+            domain: {tactic for tactic, count in classified.get(domain, {}).items() if count}
+            for domain in ("enterprise", "mobile", "ics")
+        }
+        if declared and not any(active.values()):
+            active["enterprise"].update(
+                canonical_tactic(tactic) for tactic in declared
+                if canonical_tactic(tactic) in classified.get("enterprise", {})
+            )
+        for domain, tactics in active.items():
+            if tactics:
+                totals[domain] = totals.get(domain, 0) + 1
+            for tactic in tactics:
+                domain_counts = counts.setdefault(domain, {})
+                domain_counts[tactic] = domain_counts.get(tactic, 0) + 1
 
     from hecate_agent.core.grounding import _ACRONYM_STOPWORDS
 
@@ -1948,6 +1991,7 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         except OSError:
             continue
 
+        hunt_techniques: Set[str] = set()
         m_fm = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
         if m_fm:
             try:
@@ -1964,6 +2008,7 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                     t_str = str(t).strip()
                     if _RE_TECHNIQUE.match(t_str):
                         techniques.add(t_str)
+                        hunt_techniques.add(t_str)
 
                 for k in ("threat", "threat_actor", "actor"):
                     val = fm.get(k)
@@ -1974,6 +2019,7 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
                 drafts_count += 1
         else:
             drafts_count += 1
+        record_tactic_document(hunt_techniques, tactic_hunts, matrix_hunts)
 
         m_act = _RE_ACTOR_ROW.search(text)
         if m_act:
@@ -2066,23 +2112,18 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
     actors.difference_update(malware | campaigns)
     all_threats = actors | campaigns | malware
 
-    queries_dir = workspace / "queries"
-    sigma_rules_count = 0
-    if queries_dir.is_dir():
+    sigma_rules_count = len(sigma_files)
+    for rule_file in sigma_files:
         try:
-            sigma_rules_count = sum(1 for _ in queries_dir.rglob("*.yml"))
-        except OSError:
-            sigma_rules_count = 0
-
-    if sigma_rules_count == 0:
-        fallback_queries_dir = hunts_dir.parent / "queries"
-        if fallback_queries_dir.is_dir():
-            try:
-                sigma_rules_count = sum(1 for _ in fallback_queries_dir.rglob("*.yml"))
-            except OSError:
-                sigma_rules_count = 0
-
-    from hecate_agent.core.attack_matrix import categorize_techniques_by_matrix
+            rule = yaml.safe_load(rule_file.read_text(encoding="utf-8"))
+            if not isinstance(rule, dict) or not isinstance(rule.get("tags"), list):
+                continue
+            tags = [str(tag) for tag in rule["tags"] if str(tag).lower().startswith("attack.")]
+            rule_techniques = {technique for tag in tags for technique in _RE_TECHNIQUE.findall(tag.upper())}
+            declared_tactics = {tag.split(".", 1)[1].lower().replace("_", "-") for tag in tags}
+            record_tactic_document(rule_techniques, tactic_rules, matrix_rules, declared_tactics)
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
 
     cat_metrics = categorize_techniques_by_matrix(techniques)
 
@@ -2107,6 +2148,10 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         enterprise_ttps=cat_metrics.get("enterprise", {}),
         mobile_ttps=cat_metrics.get("mobile", {}),
         ics_ttps=cat_metrics.get("ics", {}),
+        tactic_hunts=tactic_hunts,
+        tactic_rules=tactic_rules,
+        matrix_hunts=matrix_hunts,
+        matrix_rules=matrix_rules,
         enterprise_total=cat_metrics.get("enterprise_total", 0),
         mobile_total=cat_metrics.get("mobile_total", 0),
         ics_total=cat_metrics.get("ics_total", 0),
@@ -2117,7 +2162,7 @@ def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
         fingerprints_count=len(fingerprints),
         cloud_ops_count=len(cloud_ops),
     )
-    _HUNTS_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
+    _HUNTS_METRICS_CACHE[resolved_path] = (now, fingerprint_count, max_mtime, metrics)
     return metrics
 
 
@@ -2308,11 +2353,16 @@ def _mitre_metrics_panel(
     impact = ent.get("impact", 0)
 
     active_tactics = sum(1 for v in ent.values() if v > 0)
+    subtitle = None
 
     if detailed:
-        table.columns[0].width = 23
-        table.columns[0].min_width = 19
-        table.add_row("ENTERPRISE", Text(f"{ent_total} TTPs · {active_tactics} tactics", style="bright_cyan"))
+        table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
+        table.add_column("tactic", ratio=1, min_width=19, no_wrap=True, overflow="ellipsis")
+        for name in ("TTPs", "Hunts", "Rules"):
+            table.add_column(name, width=5, justify="right", no_wrap=True)
+        table.add_row(*(Text(label, style="bold bright_cyan") for label in ("ENTERPRISE", "TTPs", "Hunts", "Rules")))
+        unique = h_metrics.ttps_count or ent_total + mob_total + ics_total
+        subtitle = f"{unique} unique TTPs · {active_tactics}/15 tactics · {h_metrics.total_hunts} hunts · {h_metrics.sigma_rules_count} rules"
         for tactic, label in (
             ("reconnaissance", "Reconnaissance"),
             ("resource-development", "Resource Development"),
@@ -2331,9 +2381,23 @@ def _mitre_metrics_panel(
             ("impact", "Impact"),
         ):
             count = ent.get(tactic, 0)
-            table.add_row(label, Text(f"{count} TTPs", style="bright_white" if count else "dim"))
-        table.add_row("MOBILE", Text(f"{mob_total} TTPs · {sum(v > 0 for v in mob.values())}/14 tactics", style="bright_cyan"))
-        table.add_row("ICS", Text(f"{ics_total} TTPs · {sum(v > 0 for v in ics.values())}/12 tactics", style="bright_cyan"))
+            hunts = h_metrics.tactic_hunts.get("enterprise", {}).get(tactic, 0)
+            rules = h_metrics.tactic_rules.get("enterprise", {}).get(tactic, 0)
+            table.add_row(
+                Text(label, style="dim"),
+                Text(str(count), style="bright_white" if count else "dim"),
+                Text(str(hunts), style="bright_cyan" if hunts else "dim"),
+                Text(str(rules), style="bright_green" if rules else "dim"),
+            )
+        for domain, label, values, total, available in (
+            ("mobile", "MOBILE", mob, mob_total, 14), ("ics", "ICS", ics, ics_total, 12)
+        ):
+            table.add_row(
+                Text(f"{label} {sum(v > 0 for v in values.values())}/{available} tactics", style="bright_cyan"),
+                Text(str(total), style="bright_cyan"),
+                Text(str(h_metrics.matrix_hunts.get(domain, 0)), style="bright_cyan"),
+                Text(str(h_metrics.matrix_rules.get(domain, 0)), style="bright_cyan"),
+            )
     elif compact:
         if ent_total == 0 and h_metrics.ttps_count == 0:
             table.add_row("ENTERPRISE", Text("0 TTPs · 15 tactics ready", style="dim"))
@@ -2548,7 +2612,8 @@ def _mitre_metrics_panel(
 
     return Panel(
         table,
-        title="[bold bright_cyan]MITRE METRICS[/]",
+        title="[bold bright_cyan]MITRE[/]",
+        subtitle=subtitle,
         border_style="bright_magenta",
         box=box.ROUNDED,
     )

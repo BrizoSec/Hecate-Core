@@ -678,7 +678,7 @@ def test_mitre_metrics_panel_rendering(tmp_path: Path) -> None:
     c_wide.print(panel_wide)
     text_wide = c_wide.export_text()
 
-    assert "MITRE METRICS" in text_wide
+    assert "MITRE" in text_wide
     assert "ENTERPRISE" in text_wide and "346 TTPs" in text_wide
     assert "Recon 6" in text_wide and "ResDev 11" in text_wide
     assert "InitAcc 13" in text_wide and "Exec 33" in text_wide
@@ -718,7 +718,7 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     # Tall screen (height=60): HUNT SUMMARY is stacked on the left above INTEGRATIONS
     tall = _render(events, runner, height=60)
     assert "HUNT SUMMARY" in tall
-    assert "MITRE METRICS" in tall
+    assert "MITRE" in tall
     assert "VALIDATION" in tall
     tall_lines = tall.splitlines()
     tall_line = next(line for line in tall_lines if "HUNT SUMMARY" in line)
@@ -730,7 +730,7 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     # Short screen (height=30): HUNT SUMMARY is in the bottom usage row
     short = _render(events, runner, height=30)
     assert "HUNT SUMMARY" in short
-    assert "MITRE METRICS" in short
+    assert "MITRE" in short
     assert "VALIDATION" in short
     short_line = next(line for line in short.splitlines() if "HUNT SUMMARY" in line)
     assert short_line.index("HUNT SUMMARY") >= 140 // 5
@@ -1152,16 +1152,24 @@ def test_validation_combines_rule_replay_and_bas_outcomes(tmp_path: Path) -> Non
     assert "3/5 observed · 6 events" in text
 
 
-def test_detailed_mitre_has_one_row_per_enterprise_tactic() -> None:
-    metrics = m.HuntsMetrics(enterprise_ttps={"execution": 7, "credential-access": 3}, enterprise_total=10)
-    console = Console(width=60, record=True, force_terminal=False)
+@pytest.mark.parametrize("width", [48, 60, 80])
+def test_detailed_mitre_has_one_row_per_enterprise_tactic(width: int) -> None:
+    metrics = m.HuntsMetrics(
+        enterprise_ttps={"execution": 7, "credential-access": 3}, enterprise_total=10,
+        total_hunts=2, sigma_rules_count=4, ttps_count=10,
+        tactic_hunts={"enterprise": {"execution": 2}}, tactic_rules={"enterprise": {"execution": 4}},
+    )
+    console = Console(width=width, record=True, force_terminal=False)
     console.print(m._mitre_metrics_panel(metrics=metrics, detailed=True))
     text = console.export_text()
     assert len(text.splitlines()) == m._DETAILED_MITRE_PANEL_HEIGHT
     for label in ("Reconnaissance", "Resource Development", "Privilege Escalation", "Credential Access", "Command and Control"):
         assert label in text
     execution = next(line for line in text.splitlines() if "Execution" in line)
-    assert "7 TTPs" in execution
+    assert execution.split()[2:5] == ["7", "2", "4"]
+    assert "TTPs" in text and "Hunts" in text and "Rules" in text
+    assert "MITRE METRICS" not in text
+    assert "10 unique TTPs" in text
     assert "MOBILE" in text and "ICS" in text
 
 
@@ -1172,8 +1180,69 @@ def test_wide_dashboard_swaps_observables_and_expands_mitre(monkeypatch: pytest.
     console.print(m._render_dashboard(Path("/nonexistent/workspace"), _events("done: draft_created"), {}, _host(), START, runner, ""))
     lines = console.export_text().splitlines()
     observables = next(line for line in lines if "THREAT OBSERVABLES" in line)
-    mitre = next(line for line in lines if "MITRE METRICS" in line)
+    mitre = next(line for line in lines if "MITRE" in line)
     assert observables.index("THREAT OBSERVABLES") < 52
-    assert mitre.index("MITRE METRICS") > 150
+    assert mitre.index("MITRE") > 150
     assert any("Resource Development" in line for line in lines)
     assert any("BREACH SIM" in line for line in lines)
+
+
+@pytest.fixture
+def mitre_test_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    from hecate_agent.core import attack_matrix
+
+    tactics = {"T1059.001": ["execution"], "T1059.003": ["execution"], "T1082": ["discovery"]}
+    monkeypatch.setattr(
+        attack_matrix, "get_technique",
+        lambda technique: {"tactic_shortnames": tactics[technique]} if technique in tactics else None,
+    )
+
+
+def test_mitre_counts_hunts_and_sigma_rules_once_per_tactic(tmp_path: Path, mitre_test_metadata: None) -> None:
+    hunts = tmp_path / "hunts/2026/Q4"
+    hunts.mkdir(parents=True)
+    for hunt_id, ids in (
+        ("H-0001", "T1059.001, T1059.003, T1059.001"),
+        ("H-0002", "T1059.001, T1082"),
+    ):
+        (hunts / f"{hunt_id}.md").write_text(f"---\nhunt_id: {hunt_id}\nstatus: planning\ntechniques: [{ids}]\n---\n")
+    queries = tmp_path / "queries/H-0001"
+    queries.mkdir(parents=True)
+    for name, tags in (
+        ("execution.yml", "attack.t1059.001, attack.t1059.003, attack.execution"),
+        ("discovery.yaml", "attack.t1082"),
+        ("tactic-only.yml", "attack.discovery, attack.discovery"),
+        ("untagged.yml", ""),
+    ):
+        (queries / name).write_text(f"title: Example\ntags: [{tags}]\n")
+    (queries / "execution.spl").write_text("tags: [attack.t1059.001]\n")
+    metrics = m._collect_hunts_metrics(tmp_path)
+    assert metrics.ttps_count == 3
+    assert metrics.sigma_rules_count == 4
+    assert metrics.tactic_hunts["enterprise"]["execution"] == 2
+    assert metrics.tactic_hunts["enterprise"]["discovery"] == 1
+    assert metrics.tactic_rules["enterprise"]["execution"] == 1
+    assert metrics.tactic_rules["enterprise"]["discovery"] == 2
+    assert metrics.matrix_hunts["enterprise"] == 2
+    assert metrics.matrix_rules["enterprise"] == 3
+
+
+def test_mitre_rule_counts_refresh_without_hunt_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mitre_test_metadata: None
+) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(m.time, "monotonic", lambda: clock[0])
+    hunts = tmp_path / "hunts"
+    hunts.mkdir()
+    (hunts / "H-0001.md").write_text("---\nhunt_id: H-0001\ntechniques: [T1082]\n---\n")
+    queries = tmp_path / "queries/H-0001"
+    queries.mkdir(parents=True)
+    (queries / "discovery.yml").write_text("title: Discovery\ntags: [attack.t1082]\n")
+    first = m._collect_hunts_metrics(tmp_path)
+    assert first.sigma_rules_count == 1
+    (queries / "execution.yml").write_text("title: Execution\ntags: [attack.t1059.001]\n")
+    clock[0] += 20
+    second = m._collect_hunts_metrics(tmp_path)
+    assert second is not first
+    assert second.sigma_rules_count == 2
+    assert second.tactic_rules["enterprise"]["execution"] == 1
