@@ -1110,20 +1110,32 @@ _SOURCE_INTEGRATIONS = {
 
 def _confirmed_integration(workspace: Optional[Path], name: str, enabled: bool) -> Tuple[bool, str]:
     """Only a recent successful check plus current enablement can produce green."""
-    if not enabled:
-        return False, "disabled"
     if workspace is None:
-        return False, "unconfirmed"
+        return False, "unconfirmed" if enabled else "disabled"
     try:
         record = json.loads((workspace / ".hecate" / "integrations" / f"{name}.json").read_text())
         checked = datetime.fromisoformat(record["checked_at"])
         age = (datetime.now(timezone.utc) - checked).total_seconds()
         if not 0 <= age <= 7200:
-            return False, "check stale"
-        healthy = record.get("healthy") is True and record.get("enabled") is True
+            return False, "check stale" if enabled else "disabled"
+        if not enabled and record.get("healthy") is True:
+            return False, "reachable; disabled"
+        if not enabled:
+            return False, "disabled"
+        healthy = enabled and record.get("healthy") is True and record.get("enabled") is True
         return healthy, "confirmed" if healthy else str(record.get("detail") or "failed")[:80]
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        return False, "unconfirmed"
+        return False, "unconfirmed" if enabled else "disabled"
+
+
+def _integration_style(healthy: bool, detail: str) -> str:
+    if healthy:
+        return "bold bright_yellow" if detail == "output only" else "bold bright_green"
+    if detail == "reachable; disabled":
+        return "bold bright_magenta"
+    if detail == "disabled":
+        return "bold #ff69b4"
+    return "bold bright_red"
 
 
 def _integrations_panel(
@@ -1648,6 +1660,11 @@ def _integrations_panel(
         name = _INTEGRATION_IDS[label]
         source_name = "cisa_advisories" if name == "cisa_narrative" else name
         enabled = source_name in active_sources if source_name in _SOURCE_INTEGRATIONS else configured
+        if name == "misp" and str(env_values.get("HECATE_RUNNER_MISP_PUBLISHING_ENABLED", "false")).lower() in {"true", "1", "yes", "on"}:
+            name, enabled = "misp_output", True
+            detail = "output only" if source_name not in active_sources else "input/output"
+        if name == "slack" and str(env_values.get("HECATE_RUNNER_SLACK_INTERACTIVE_ENABLED", "false")).lower() not in {"true", "1", "yes", "on"}:
+            detail = "output only"
         ok, reason = _confirmed_integration(workspace, name, enabled)
         confirmed_data.append((label, ok, detail if ok else reason, metric))
     services_data = confirmed_data
@@ -1673,13 +1690,13 @@ def _integrations_panel(
             "OSV.dev": "OSVdev",
         }
         display_items = [
-            (aliases.get(label, label) if grid_compact_names else label, is_set)
-            for label, is_set, _, _ in services_data
+            (aliases.get(label, label) if grid_compact_names else label, is_set, detail)
+            for label, is_set, detail, _ in services_data
         ]
         for start in range(0, len(display_items), 4):
             row = [
-                Text(label, style="bold bright_green" if ok else "bold bright_red")
-                for label, ok in display_items[start : start + 4]
+                Text(label, style=_integration_style(ok, detail))
+                for label, ok, detail in display_items[start : start + 4]
             ]
             row.extend(Text("") for _ in range(4 - len(row)))
             table.add_row(*row)
@@ -1689,17 +1706,17 @@ def _integrations_panel(
         table.add_column("metric", justify="right", width=11, no_wrap=True)
         for label, is_set, detail, metric in services_data:
             if is_set:
-                st = Text.assemble(("ON", "bold bright_green"), (" · ", "dim"), (detail, "bright_white"))
+                st = Text.assemble(("ON", _integration_style(True, detail)), (" · ", "dim"), (detail, "bright_white"))
                 m_style = "bright_cyan" if metric != "--" else "dim"
             else:
-                st = Text.assemble(("OFF", "bold bright_red"), (" · ", "dim"), (detail, "dim"))
+                st = Text.assemble(("OFF", _integration_style(False, detail)), (" · ", "dim"), (detail, "dim"))
                 m_style = "dim"
             table.add_row(label, st, Text(metric, style=m_style))
     else:
 
         def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
             st = "ON" if is_on else "OFF"
-            col = "bold bright_green" if is_on else "bold bright_red"
+            col = _integration_style(is_on, det)
             m_col = "bright_cyan" if is_on and met != "--" else "dim"
             return Text.assemble(
                 (f"{lbl:<9}", "dim"),
