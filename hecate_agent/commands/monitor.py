@@ -825,7 +825,8 @@ _NARROW_LLM_PANEL_HEIGHT = 9
 _INTEGRATIONS_PANEL_HEIGHT = 14
 _HUNTS_PANEL_HEIGHT = 7
 _MITRE_PANEL_HEIGHT = 12
-_PURPLE_PANEL_HEIGHT = 6
+_DETAILED_MITRE_PANEL_HEIGHT = 20
+_PURPLE_PANEL_HEIGHT = 14
 # Reserve enough rows for all integrations, including disabled sources, in the four-column grid.
 _BOTTOM_DETAIL_PANELS_HEIGHT = 14
 
@@ -1130,11 +1131,11 @@ def _confirmed_integration(workspace: Optional[Path], name: str, enabled: bool) 
 
 def _integration_style(healthy: bool, detail: str) -> str:
     if healthy:
-        return "bold bright_yellow" if detail == "output only" else "bold bright_green"
+        return "bold #ff69b4" if detail == "output only" else "bold bright_green"
     if detail == "reachable; disabled":
         return "bold bright_magenta"
     if detail == "disabled":
-        return "bold #ff69b4"
+        return "bold grey62"
     return "bold bright_red"
 
 
@@ -2273,6 +2274,7 @@ def _mitre_metrics_panel(
     narrow: bool = False,
     compact: bool = False,
     metrics: Optional[HuntsMetrics] = None,
+    detailed: bool = False,
 ) -> Panel:
     """A dedicated panel displaying MITRE ATT&CK Enterprise, Mobile, and ICS coverage metrics."""
     h_metrics = metrics or _collect_hunts_metrics(workspace)
@@ -2307,7 +2309,32 @@ def _mitre_metrics_panel(
 
     active_tactics = sum(1 for v in ent.values() if v > 0)
 
-    if compact:
+    if detailed:
+        table.columns[0].width = 23
+        table.columns[0].min_width = 19
+        table.add_row("ENTERPRISE", Text(f"{ent_total} TTPs · {active_tactics} tactics", style="bright_cyan"))
+        for tactic, label in (
+            ("reconnaissance", "Reconnaissance"),
+            ("resource-development", "Resource Development"),
+            ("initial-access", "Initial Access"),
+            ("execution", "Execution"),
+            ("persistence", "Persistence"),
+            ("privilege-escalation", "Privilege Escalation"),
+            ("stealth", "Stealth"),
+            ("defense-impairment", "Defense Impairment"),
+            ("credential-access", "Credential Access"),
+            ("discovery", "Discovery"),
+            ("lateral-movement", "Lateral Movement"),
+            ("collection", "Collection"),
+            ("command-and-control", "Command and Control"),
+            ("exfiltration", "Exfiltration"),
+            ("impact", "Impact"),
+        ):
+            count = ent.get(tactic, 0)
+            table.add_row(label, Text(f"{count} TTPs", style="bright_white" if count else "dim"))
+        table.add_row("MOBILE", Text(f"{mob_total} TTPs · {sum(v > 0 for v in mob.values())}/14 tactics", style="bright_cyan"))
+        table.add_row("ICS", Text(f"{ics_total} TTPs · {sum(v > 0 for v in ics.values())}/12 tactics", style="bright_cyan"))
+    elif compact:
         if ent_total == 0 and h_metrics.ttps_count == 0:
             table.add_row("ENTERPRISE", Text("0 TTPs · 15 tactics ready", style="dim"))
             table.add_row(" Ingress", Text("Recon 0 · ResDev 0 · InitAcc 0", style="dim"))
@@ -2539,6 +2566,20 @@ class PurpleTeamMetrics:
     last_validated_count: int = 0
     last_tuned_count: int = 0
     last_duration_sec: float = 0.0
+    bas_runs: int = 0
+    bas_live_runs: int = 0
+    bas_mock_runs: int = 0
+    bas_verified: int = 0
+    bas_detection_misses: int = 0
+    bas_telemetry_missing: int = 0
+    bas_failures: int = 0
+    bas_detections: int = 0
+    bas_matched_events: int = 0
+    bas_telemetry_runs: int = 0
+    bas_techniques: int = 0
+    bas_providers: Dict[str, int] = field(default_factory=dict)
+    bas_last_status: str = ""
+    bas_last_duration_sec: float = 0.0
 
 
 _PURPLE_METRICS_CACHE: Dict[str, Tuple[float, int, float, PurpleTeamMetrics]] = {}
@@ -2598,6 +2639,8 @@ def _collect_purple_team_metrics(
     tuned_rules = 0
     hunts_val = 0
     telemetry = 0
+    bas_techniques: Set[str] = set()
+    last_bas_mtime = 0.0
 
     for hf in hunt_files:
         try:
@@ -2613,7 +2656,39 @@ def _collect_purple_team_metrics(
                 m_te = re.search(r"purple_team_telemetry_events:\s*(\d+)", content)
                 if m_te:
                     telemetry += int(m_te.group(1))
-        except OSError:
+            match = re.match(r"^---\s*\n(.*?)\n---(?:\s*\n|$)", content, re.DOTALL)
+            metadata = yaml.safe_load(match.group(1)) if match else {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            bas_status = str(metadata.get("bas_status") or "")
+            if bas_status:
+                metrics.bas_runs += 1
+                provider = str(metadata.get("bas_provider") or "unknown").lower()
+                metrics.bas_providers[provider] = metrics.bas_providers.get(provider, 0) + 1
+                metrics.bas_mock_runs += int(provider == "mock")
+                metrics.bas_live_runs += int(provider in {"caldera", "stratus", "local_sandbox", "live_lab"})
+                metrics.bas_verified += int(bas_status == "verified_true_positive")
+                metrics.bas_detection_misses += int(bas_status == "detection_miss")
+                metrics.bas_telemetry_missing += int(bas_status == "telemetry_missing")
+                metrics.bas_failures += int(bas_status in {"detonation_failed", "error"})
+                metrics.bas_detections += int(metadata.get("bas_detection_triggered") is True)
+                metrics.bas_telemetry_runs += int(
+                    bas_status in {"verified_true_positive", "detection_miss"}
+                    or bool(re.search(r"\*\*Telemetry Observed:\*\* Yes", content))
+                )
+                target = re.search(r"\*\*Target Technique:\*\* `([^`]+)`", content)
+                if target and _RE_TECHNIQUE.fullmatch(target.group(1)):
+                    bas_techniques.add(target.group(1))
+                hits = re.search(r"\*\*Detection Triggered:\*\* .*?\((\d+) hit\(s\)\)", content)
+                if hits:
+                    metrics.bas_matched_events += int(hits.group(1))
+                mtime = hf.stat().st_mtime
+                if mtime >= last_bas_mtime:
+                    last_bas_mtime = mtime
+                    metrics.bas_last_status = bas_status
+                    duration = re.search(r"\*\*Duration:\*\* ([\d.]+)s", content)
+                    metrics.bas_last_duration_sec = float(duration.group(1)) if duration else 0.0
+        except (OSError, ValueError, yaml.YAMLError):
             continue
 
     if val_rules == 0 and queries_dir.exists():
@@ -2627,26 +2702,6 @@ def _collect_purple_team_metrics(
             except OSError:
                 continue
 
-    if val_rules == 0:
-        eval_base = Path("/tmp/eval_runs")
-        if eval_base.exists():
-            for sub_hunts in eval_base.glob("*/hunts/**/*.md"):
-                try:
-                    content = sub_hunts.read_text(encoding="utf-8", errors="ignore")
-                    if "purple_team_validated: true" in content or "Purple-Team Validated" in content:
-                        hunts_val += 1
-                        m_ev = re.search(r"purple_team_rules_evaluated:\s*(\d+)", content)
-                        if m_ev:
-                            val_rules += int(m_ev.group(1))
-                        m_tu = re.search(r"purple_team_rules_tuned:\s*(\d+)", content)
-                        if m_tu:
-                            tuned_rules += int(m_tu.group(1))
-                        m_te = re.search(r"purple_team_telemetry_events:\s*(\d+)", content)
-                        if m_te:
-                            telemetry += int(m_te.group(1))
-                except OSError:
-                    continue
-
     if metrics.last_validated_count > val_rules:
         val_rules = max(val_rules, metrics.last_validated_count)
     if metrics.last_tuned_count > tuned_rules:
@@ -2656,6 +2711,7 @@ def _collect_purple_team_metrics(
     metrics.tuned_rules = tuned_rules
     metrics.hunts_validated = hunts_val
     metrics.total_telemetry_events = telemetry
+    metrics.bas_techniques = len(bas_techniques)
     _PURPLE_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
     return metrics
 
@@ -2667,99 +2723,51 @@ def _purple_team_panel(
     compact: bool = False,
     metrics: Optional[PurpleTeamMetrics] = None,
 ) -> Panel:
-    """A dedicated panel displaying Purple-Team validation and autonomous self-tuning metrics."""
-    pt_metrics = metrics or _collect_purple_team_metrics(workspace, events)
-
+    """Show rule replay and breach-and-attack simulation in one validation panel."""
+    measured = metrics or _collect_purple_team_metrics(workspace, events)
     table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
     table.add_column("label", style="dim", width=11, min_width=11, no_wrap=True)
     table.add_column("value", ratio=1, overflow="ellipsis", no_wrap=True)
-
-    if compact:
-        if pt_metrics.validated_rules == 0:
-            table.add_row("ENGINE", Text("ONLINE · standby", style="dim"))
-            table.add_row("VALIDATED", Text("0 rules tested", style="dim"))
-            table.add_row("SELF-TUNED", Text("0 tuned (0 FP)", style="dim"))
-            table.add_row("TELEMETRY", Text("ephemeral sandbox", style="dim"))
-        else:
-            table.add_row(
-                "ENGINE",
-                Text.assemble(("ONLINE", "bold bright_green"), (" · ", "dim"), ("closed-loop", "bright_cyan")),
-            )
-            val_txt = f"{pt_metrics.validated_rules} rules"
-            sub_val = "100% TPR" if pt_metrics.validated_rules else "none"
-            table.add_row(
-                "VALIDATED",
-                Text.assemble((val_txt, "bright_white"), (" · ", "dim"), (sub_val, "bright_cyan")),
-            )
-            tune_txt = f"{pt_metrics.tuned_rules} tuned"
-            table.add_row(
-                "SELF-TUNED",
-                Text.assemble((tune_txt, "bright_white"), (" · ", "dim"), ("0 FP noise", "bright_green")),
-            )
-            table.add_row(
-                "TELEMETRY",
-                Text.assemble(("Live sensors", "bright_white"), (" · ", "dim"), ("proc/net/file/k8s", "dim")),
-            )
-    else:
-        if pt_metrics.validated_rules == 0:
-            table.add_row(
-                "STATUS",
-                Text.assemble(("ONLINE", "bold bright_green"), (" · ", "dim"), ("ephemeral sandbox ready", "dim")),
-            )
-            table.add_row("VALIDATION", Text("0 rules tested · 0 hunts", style="dim"))
-            table.add_row("SELF-TUNING", Text("0 tuned · 0 FP noise", style="dim"))
-            table.add_row("PRECISION", Text("100% target · 0 FP", style="dim"))
-            if not narrow:
-                table.add_row("TELEMETRY", Text("proc, net, file, cloud, k8s events", style="dim"))
-                table.add_row("SANDBOX", Text("ephemeral execution runner", style="dim"))
-        else:
-            table.add_row(
-                "STATUS",
-                Text.assemble(("ACTIVE", "bold bright_green"), (" · ", "dim"), ("closed-loop engine", "bright_cyan")),
-            )
-            val_str = f"{pt_metrics.validated_rules} rules tested"
-            hunt_sub = f"{pt_metrics.hunts_validated} hunt(s)" if pt_metrics.hunts_validated else "100% TPR"
-            table.add_row(
-                "VALIDATION",
-                Text.assemble((val_str, "bright_white"), (" · ", "dim"), (hunt_sub, "bright_cyan")),
-            )
-            tune_str = f"{pt_metrics.tuned_rules} logic re-tuned"
-            table.add_row(
-                "SELF-TUNING",
-                Text.assemble((tune_str, "bright_white"), (" · ", "dim"), ("0 FP noise", "bright_green")),
-            )
-            table.add_row(
-                "PRECISION",
-                Text.assemble(("100% precision", "bold bright_green"), (" · ", "dim"), ("0 false positives", "bright_white")),
-            )
-            if not narrow:
-                telemetry_str = (
-                    f"{pt_metrics.total_telemetry_events:,} events" if pt_metrics.total_telemetry_events else "Live sensors"
-                )
-                table.add_row(
-                    "TELEMETRY",
-                    Text.assemble((telemetry_str, "bright_white"), (" · ", "dim"), ("proc / net / file / cloud / k8s", "dim")),
-                )
-                if pt_metrics.last_duration_sec > 0:
-                    last_str = f"{pt_metrics.last_validated_count} in {pt_metrics.last_duration_sec:.1f}s"
-                    table.add_row(
-                        "LAST RUN",
-                        Text.assemble(
-                            (last_str, "bright_white"), (" · ", "dim"), (f"{pt_metrics.last_tuned_count} tuned", "bright_cyan")
-                        ),
-                    )
-                else:
-                    table.add_row(
-                        "SANDBOX",
-                        Text.assemble(("Ephemeral VM/container", "bright_white"), (" · ", "dim"), ("sensor intercept", "dim")),
-                    )
-
-    return Panel(
-        table,
-        title="[bold bright_cyan]PURPLE TEAM ENGINE[/]",
-        border_style="magenta",
-        box=box.ROUNDED,
+    active = measured.validated_rules > 0 or measured.bas_runs > 0
+    table.add_row("STATUS", Text("ACTIVE" if active else "STANDBY", style="bold bright_green" if active else "dim"))
+    rules = f"{measured.validated_rules} rules" if compact else f"{measured.validated_rules} rules tested"
+    table.add_row("RULE TESTS", Text(f"{rules} · {measured.hunts_validated} hunts", style="bright_white" if active else "dim"))
+    tuned = f"{measured.tuned_rules} tuned" if compact else f"{measured.tuned_rules} logic re-tuned"
+    table.add_row("SELF-TUNING", Text(f"{tuned} · {measured.false_positive_count} FP", style="bright_cyan" if active else "dim"))
+    if not compact:
+        precision = f"{measured.precision_rate:.0%} precision" if measured.validated_rules else "awaiting rule results"
+        table.add_row("PRECISION", Text(precision, style="bright_green" if measured.validated_rules else "dim"))
+    table.add_row(
+        "BREACH SIM",
+        Text(f"{measured.bas_runs} runs · {measured.bas_live_runs} live, {measured.bas_mock_runs} mock", style="bright_white" if measured.bas_runs else "dim"),
     )
+    table.add_row(
+        "ATTACKS",
+        Text(f"{measured.bas_techniques} techniques · {measured.bas_detections} detections", style="bright_cyan" if measured.bas_runs else "dim"),
+    )
+    table.add_row(
+        "BAS RESULTS",
+        Text(f"{measured.bas_verified} verified · {measured.bas_detection_misses} missed", style="bright_white" if measured.bas_runs else "dim"),
+    )
+    if not compact:
+        gap_style = "bright_red" if measured.bas_telemetry_missing or measured.bas_failures else "dim"
+        table.add_row("BAS GAPS", Text(f"{measured.bas_telemetry_missing} sensor gaps · {measured.bas_failures} failed", style=gap_style))
+        table.add_row(
+            "BAS SENSORS",
+            Text(f"{measured.bas_telemetry_runs}/{measured.bas_runs} observed · {measured.bas_matched_events} events", style="bright_white" if measured.bas_runs else "dim"),
+        )
+    if not compact and not narrow:
+        table.add_row("REPLAY DATA", Text(f"{measured.total_telemetry_events:,} telemetry events", style="dim"))
+        if measured.last_duration_sec:
+            table.add_row("LAST REPLAY", Text(f"{measured.last_validated_count} in {measured.last_duration_sec:.1f}s", style="bright_cyan"))
+        providers = " · ".join(f"{name.upper()} {count}" for name, count in sorted(measured.bas_providers.items()))
+        table.add_row("BAS ENGINES", Text(providers or "no simulations yet", style="dim"))
+        if measured.bas_last_status:
+            last = measured.bas_last_status.replace("_", " ")
+            if measured.bas_last_duration_sec:
+                last += f" · {measured.bas_last_duration_sec:.1f}s"
+            table.add_row("LAST BAS", Text(last, style="bright_cyan"))
+    return Panel(table, title="[bold bright_cyan]VALIDATION[/]", border_style="magenta", box=box.ROUNDED)
 
 
 def _detection_rules_panel(
@@ -3294,6 +3302,7 @@ def _render_dashboard(
     left_width = min(52, max(46, console.size.width // 4)) if console.size.width >= 120 else None
     ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
     swap_detail_panels = usage_on_left and ops_width >= 85
+    expanded_mitre = usage_on_left and ops_width >= 135
     llm_panel = _usage_panel(
         metrics, latest, active, events, workspace=workspace, live=live, now=refreshed, narrow=usage_on_left
     )
@@ -3311,7 +3320,7 @@ def _render_dashboard(
         grid_compact_names=ops_width < 160,
     )
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
-    mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
+    mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics, detailed=expanded_mitre)
     purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=False, metrics=pt_metrics)
     if usage_on_left:
         layout.split_column(
@@ -3432,7 +3441,12 @@ def _render_dashboard(
     if usage_on_left:
         left.append(Layout(llm_panel, size=llm_height))
         left.append(Layout(hunts_panel, size=hunts_height))
-        left.append(Layout(mitre_panel, size=mitre_height))
+        left.append(
+            Layout(
+                _threat_observables_panel(workspace=workspace, metrics=h_metrics, narrow=True) if expanded_mitre else mitre_panel,
+                size=mitre_height,
+            )
+        )
         left.append(
             Layout(
                 _detection_rules_panel(workspace=workspace, metrics=h_metrics, runner=runner)
@@ -3453,13 +3467,13 @@ def _render_dashboard(
         )
     elif usage_on_left:
         if ops_width >= 135:
-            bottom_ops = Layout(name="bottom_ops", size=_BOTTOM_DETAIL_PANELS_HEIGHT)
+            bottom_ops = Layout(name="bottom_ops", size=_DETAILED_MITRE_PANEL_HEIGHT)
             bottom_ops.split_row(
                 Layout(_purple_team_panel(workspace=workspace, events=events, narrow=True, metrics=pt_metrics), ratio=1),
                 Layout(Text(" "), size=1),
                 Layout(integrations_grid_panel, ratio=1),
                 Layout(Text(" "), size=1),
-                Layout(_threat_observables_panel(workspace=workspace, metrics=h_metrics), ratio=1),
+                Layout(mitre_panel, ratio=1),
             )
             layout["operations"].split_column(Layout(main_panel, ratio=1), bottom_ops)
         elif ops_width >= 85:
