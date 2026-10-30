@@ -719,7 +719,7 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     tall = _render(events, runner, height=60)
     assert "HUNT SUMMARY" in tall
     assert "MITRE METRICS" in tall
-    assert "PURPLE TEAM ENGINE" in tall
+    assert "VALIDATION" in tall
     tall_lines = tall.splitlines()
     tall_line = next(line for line in tall_lines if "HUNT SUMMARY" in line)
     assert tall_line.index("HUNT SUMMARY") < 140 // 3
@@ -731,7 +731,7 @@ def test_dashboard_includes_hunts_summary_in_both_layouts() -> None:
     short = _render(events, runner, height=30)
     assert "HUNT SUMMARY" in short
     assert "MITRE METRICS" in short
-    assert "PURPLE TEAM ENGINE" in short
+    assert "VALIDATION" in short
     short_line = next(line for line in short.splitlines() if "HUNT SUMMARY" in line)
     assert short_line.index("HUNT SUMMARY") >= 140 // 5
 
@@ -776,7 +776,7 @@ def test_purple_team_panel_rendering() -> None:
     panel_wide = m._purple_team_panel(narrow=False, metrics=mock_metrics)
     c_wide.print(panel_wide)
     text_wide = c_wide.export_text()
-    assert "PURPLE TEAM ENGINE" in text_wide
+    assert "VALIDATION" in text_wide
     assert "12 rules tested" in text_wide
     assert "3 logic re-tuned" in text_wide
     assert "100% precision" in text_wide
@@ -787,9 +787,31 @@ def test_purple_team_panel_rendering() -> None:
     panel_compact = m._purple_team_panel(compact=True, metrics=mock_metrics)
     c_compact.print(panel_compact)
     text_compact = c_compact.export_text()
-    assert "PURPLE TEAM ENGINE" in text_compact
+    assert "VALIDATION" in text_compact
     assert "12 rules" in text_compact
     assert "3 tuned" in text_compact
+
+
+@pytest.mark.parametrize("own_rules", [0, 5])
+def test_purple_team_metrics_do_not_import_other_evaluation_workspaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, own_rules: int
+) -> None:
+    workspace = tmp_path / "public"
+    (workspace / "hunts").mkdir(parents=True)
+    foreign_evals = tmp_path / "other-evaluations"
+    foreign_hunts = foreign_evals / "old-run/hunts"
+    foreign_hunts.mkdir(parents=True)
+    (foreign_hunts / "H-0001.md").write_text(
+        "purple_team_validated: true\npurple_team_rules_evaluated: 37\n"
+    )
+    if own_rules:
+        (workspace / "hunts/H-0001.md").write_text(
+            f"purple_team_validated: true\npurple_team_rules_evaluated: {own_rules}\n"
+        )
+    monkeypatch.setattr(m, "Path", lambda path: foreign_evals if str(path) == "/tmp/eval_runs" else Path(path))
+    metrics = m._collect_purple_team_metrics(workspace)
+    assert metrics.validated_rules == own_rules
+    assert metrics.hunts_validated == (1 if own_rules else 0)
 
 
 def test_collect_purple_team_metrics_from_trail_events() -> None:
@@ -1002,7 +1024,7 @@ def test_dashboard_wide_screen_bottom_ribbon() -> None:
     now = START + timedelta(minutes=10)
     m.console.print(m._render_dashboard(Path("/nonexistent/workspace"), events, {}, _host(), now, runner, ""))
     wide_text = m.console.export_text()
-    assert "PURPLE TEAM ENGINE" in wide_text
+    assert "VALIDATION" in wide_text
     assert "DETECTION RULES" in wide_text
     assert "THREAT OBSERVABLES" in wide_text
 
@@ -1033,13 +1055,13 @@ def test_integrations_color_reachable_disabled_purple(tmp_path: Path, monkeypatc
         assert any("magenta" in style for style in color_for("GTFOBins"))
         for label in ("Nuclei", "ATT&CK", "Tavily", "CISA ICS"):
             assert any("red" in style for style in color_for(label))
-        assert any("#ff69b4" in style for style in color_for("LOLDrivers"))
-        assert any("#ff69b4" in style for style in color_for("OpenCTI"))
+        assert any("grey62" in style for style in color_for("LOLDrivers"))
+        assert any("grey62" in style for style in color_for("OpenCTI"))
     else:
         status_styles = [str(segment.style) for segment in segments if segment.text == "OFF"]
         assert any("magenta" in style for style in status_styles)
         assert any("red" in style for style in status_styles)
-        assert any("#ff69b4" in style for style in status_styles)
+        assert any("grey62" in style for style in status_styles)
     text = "".join(segment.text for segment in segments)
     for label in ("LOLBAS", "LOLDrivers", "GTFOBins", "Nuclei", "CISA AA", "CISA CSAF", "CISA ICS", "ATT&CK"):
         assert label in text
@@ -1061,7 +1083,7 @@ def test_all_integration_rows_fit_the_wide_grid() -> None:
 
 @pytest.mark.parametrize(("grid", "narrow"), [(True, True), (False, True), (False, False)])
 @pytest.mark.parametrize("state", ["healthy", "failed", "stale"])
-def test_misp_output_only_is_yellow_only_with_recent_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool, narrow: bool, state: str) -> None:
+def test_misp_output_only_is_pink_only_with_recent_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool, narrow: bool, state: str) -> None:
     monkeypatch.setenv("HECATE_RUNNER_CTI_PROVIDER", "multi")
     monkeypatch.setenv("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss")
     monkeypatch.setenv("HECATE_RUNNER_MISP_PUBLISHING_ENABLED", "true")
@@ -1076,7 +1098,7 @@ def test_misp_output_only_is_yellow_only_with_recent_success(tmp_path: Path, mon
         styles = [str(s.style) for s in segments if s.text.strip() == "MISP"]
     else:
         styles = [str(s.style) for s in segments if s.text == ("ON" if state == "healthy" else "OFF")]
-    assert any(("yellow" if state == "healthy" else "red") in style for style in styles)
+    assert any(("#ff69b4" if state == "healthy" else "red") in style for style in styles)
 
 
 @pytest.mark.parametrize("interactive", [False, True])
@@ -1088,4 +1110,70 @@ def test_slack_color_distinguishes_notifications_from_interactive_mode(tmp_path:
     (health / "slack.json").write_text(json.dumps({"enabled": True, "healthy": True, "checked_at": datetime.now(timezone.utc).isoformat()}))
     console = Console(width=150, force_terminal=True, color_system="standard")
     segments = list(console.render(m._integrations_panel(tmp_path, grid=True), console.options))
-    assert any(("green" if interactive else "yellow") in str(s.style) for s in segments if s.text.strip() == "Slack")
+    assert any(("green" if interactive else "#ff69b4") in str(s.style) for s in segments if s.text.strip() == "Slack")
+
+
+def test_validation_combines_rule_replay_and_bas_outcomes(tmp_path: Path) -> None:
+    hunts = tmp_path / "hunts/2026/Q4"
+    hunts.mkdir(parents=True)
+    records = [
+        ("caldera", "verified_true_positive", "T1059", True, 5),
+        ("stratus", "detection_miss", "T1530", False, 0),
+        ("mock", "verified_true_positive", "T1059", True, 1),
+        ("caldera", "telemetry_missing", "T1059", False, 0),
+        ("caldera", "detonation_failed", "T1003", False, 0),
+    ]
+    for index, (provider, status, technique, triggered, hits) in enumerate(records, 1):
+        text = (
+            f"---\nhunt_id: H-{index:04}\nbas_provider: {provider}\nbas_status: {status}\n"
+            f"bas_detection_triggered: {str(triggered).lower()}\n"
+            "purple_team_validated: true\npurple_team_rules_evaluated: 2\n---\n"
+            f"> - **Target Technique:** `{technique}`\n"
+            f"> - **Detection Triggered:** {'Yes' if triggered else 'No'} ({hits} hit(s))\n"
+            "> - **Duration:** 2.50s\n"
+        )
+        (hunts / f"H-{index:04}.md").write_text(text)
+    metrics = m._collect_purple_team_metrics(tmp_path)
+    assert metrics.validated_rules == 10 and metrics.hunts_validated == 5
+    assert metrics.bas_runs == 5
+    assert metrics.bas_live_runs == 4 and metrics.bas_mock_runs == 1
+    assert metrics.bas_verified == 2 and metrics.bas_detection_misses == 1
+    assert metrics.bas_telemetry_missing == 1 and metrics.bas_failures == 1
+    assert metrics.bas_detections == 2 and metrics.bas_matched_events == 6
+    assert metrics.bas_telemetry_runs == 3 and metrics.bas_techniques == 3
+    console = Console(width=80, record=True, force_terminal=False)
+    console.print(m._purple_team_panel(metrics=metrics, narrow=False))
+    text = console.export_text()
+    assert "VALIDATION" in text and "PURPLE TEAM ENGINE" not in text
+    assert "5 runs · 4 live, 1 mock" in text
+    assert "3 techniques · 2 detections" in text
+    assert "2 verified · 1 missed" in text
+    assert "1 sensor gaps · 1 failed" in text
+    assert "3/5 observed · 6 events" in text
+
+
+def test_detailed_mitre_has_one_row_per_enterprise_tactic() -> None:
+    metrics = m.HuntsMetrics(enterprise_ttps={"execution": 7, "credential-access": 3}, enterprise_total=10)
+    console = Console(width=60, record=True, force_terminal=False)
+    console.print(m._mitre_metrics_panel(metrics=metrics, detailed=True))
+    text = console.export_text()
+    assert len(text.splitlines()) == m._DETAILED_MITRE_PANEL_HEIGHT
+    for label in ("Reconnaissance", "Resource Development", "Privilege Escalation", "Credential Access", "Command and Control"):
+        assert label in text
+    execution = next(line for line in text.splitlines() if "Execution" in line)
+    assert "7 TTPs" in execution
+    assert "MOBILE" in text and "ICS" in text
+
+
+def test_wide_dashboard_swaps_observables_and_expands_mitre(monkeypatch: pytest.MonkeyPatch) -> None:
+    console = Console(width=220, height=65, record=True, force_terminal=False)
+    monkeypatch.setattr(m, "console", console)
+    runner = m.RunnerStatus(installed=True, service_state="inactive", workspace=Path("/nonexistent/workspace"))
+    console.print(m._render_dashboard(Path("/nonexistent/workspace"), _events("done: draft_created"), {}, _host(), START, runner, ""))
+    lines = console.export_text().splitlines()
+    observables = next(line for line in lines if "THREAT OBSERVABLES" in line)
+    mitre = next(line for line in lines if "MITRE METRICS" in line)
+    assert observables.index("THREAT OBSERVABLES") < 52
+    assert mitre.index("MITRE METRICS") > 150
+    assert any("Resource Development" in line for line in lines)
+    assert any("BREACH SIM" in line for line in lines)
