@@ -1007,8 +1007,8 @@ def test_dashboard_wide_screen_bottom_ribbon() -> None:
     assert "THREAT OBSERVABLES" in wide_text
 
 
-@pytest.mark.parametrize("grid", [False, True])
-def test_integrations_require_recent_confirmation_and_keep_disabled_red(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool) -> None:
+@pytest.mark.parametrize(("grid", "narrow"), [(True, True), (False, True), (False, False)])
+def test_integrations_color_reachable_disabled_purple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool, narrow: bool) -> None:
     from datetime import timedelta, timezone
     import json
 
@@ -1018,23 +1018,35 @@ def test_integrations_require_recent_confirmation_and_keep_disabled_red(tmp_path
     health = tmp_path / ".hecate" / "integrations"
     health.mkdir(parents=True)
     now = datetime.now(timezone.utc)
-    for name, healthy, checked in [("lolbas", True, now), ("nuclei", False, now),
-                                    ("gtfobins", True, now), ("attack_deltas", True, now - timedelta(hours=3))]:
-        (health / f"{name}.json").write_text(json.dumps({"enabled": True, "healthy": healthy, "checked_at": checked.isoformat()}))
-    panel = m._integrations_panel(tmp_path, grid=grid)
+    for name, enabled, healthy, checked in [("lolbas", True, True, now), ("nuclei", True, False, now),
+                                    ("gtfobins", False, True, now), ("loldrivers", False, False, now),
+                                    ("attack_deltas", True, True, now - timedelta(hours=3)),
+                                    ("cisa_ics", False, True, now - timedelta(hours=3))]:
+        (health / f"{name}.json").write_text(json.dumps({"enabled": enabled, "healthy": healthy, "checked_at": checked.isoformat()}))
+    panel = m._integrations_panel(tmp_path, grid=grid, narrow=narrow)
     console = Console(width=150, force_terminal=True, color_system="standard")
     segments = list(console.render(panel, console.options))
     def color_for(word: str) -> list[str]:
         return [str(segment.style) for segment in segments if word in segment.text]
     if grid:
         assert any("green" in style for style in color_for("LOLBAS"))
-        for label in ("Nuclei", "GTFOBins", "ATT&CK", "Tavily", "CISA ICS"):
+        assert any("magenta" in style for style in color_for("GTFOBins"))
+        for label in ("Nuclei", "ATT&CK", "Tavily", "CISA ICS"):
             assert any("red" in style for style in color_for(label))
+        assert any("#ff69b4" in style for style in color_for("LOLDrivers"))
+        assert any("#ff69b4" in style for style in color_for("OpenCTI"))
+    else:
+        status_styles = [str(segment.style) for segment in segments if segment.text == "OFF"]
+        assert any("magenta" in style for style in status_styles)
+        assert any("red" in style for style in status_styles)
+        assert any("#ff69b4" in style for style in status_styles)
     text = "".join(segment.text for segment in segments)
     for label in ("LOLBAS", "LOLDrivers", "GTFOBins", "Nuclei", "CISA AA", "CISA CSAF", "CISA ICS", "ATT&CK"):
         assert label in text
     assert m._confirmed_integration(tmp_path, "lolbas", True)[0]
-    assert not m._confirmed_integration(tmp_path, "gtfobins", False)[0]
+    assert m._confirmed_integration(tmp_path, "gtfobins", False) == (False, "reachable; disabled")
+    assert m._confirmed_integration(tmp_path, "cisa_ics", False) == (False, "disabled")
+    assert m._confirmed_integration(tmp_path, "loldrivers", False)[1] != "reachable; disabled"
     assert not m._confirmed_integration(tmp_path, "attack_deltas", True)[0]
     assert not m._confirmed_integration(tmp_path, "tavily", True)[0]
 
@@ -1045,3 +1057,35 @@ def test_all_integration_rows_fit_the_wide_grid() -> None:
     assert console.measure(panel).maximum <= 110
     lines = console.render_lines(panel, console.options)
     assert len(lines) <= m._BOTTOM_DETAIL_PANELS_HEIGHT
+
+
+@pytest.mark.parametrize(("grid", "narrow"), [(True, True), (False, True), (False, False)])
+@pytest.mark.parametrize("state", ["healthy", "failed", "stale"])
+def test_misp_output_only_is_yellow_only_with_recent_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grid: bool, narrow: bool, state: str) -> None:
+    monkeypatch.setenv("HECATE_RUNNER_CTI_PROVIDER", "multi")
+    monkeypatch.setenv("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss")
+    monkeypatch.setenv("HECATE_RUNNER_MISP_PUBLISHING_ENABLED", "true")
+    monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
+    health = tmp_path / ".hecate/integrations"
+    health.mkdir(parents=True)
+    checked = datetime.now(timezone.utc) - (timedelta(hours=3) if state == "stale" else timedelta())
+    (health / "misp_output.json").write_text(json.dumps({"enabled": True, "healthy": state != "failed", "checked_at": checked.isoformat()}))
+    console = Console(width=150, force_terminal=True, color_system="standard")
+    segments = list(console.render(m._integrations_panel(tmp_path, grid=grid, narrow=narrow), console.options))
+    if grid:
+        styles = [str(s.style) for s in segments if s.text.strip() == "MISP"]
+    else:
+        styles = [str(s.style) for s in segments if s.text == ("ON" if state == "healthy" else "OFF")]
+    assert any(("yellow" if state == "healthy" else "red") in style for style in styles)
+
+
+@pytest.mark.parametrize("interactive", [False, True])
+def test_slack_color_distinguishes_notifications_from_interactive_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interactive: bool) -> None:
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "configured-bot-token")
+    monkeypatch.setenv("HECATE_RUNNER_SLACK_INTERACTIVE_ENABLED", str(interactive).lower())
+    health = tmp_path / ".hecate/integrations"
+    health.mkdir(parents=True)
+    (health / "slack.json").write_text(json.dumps({"enabled": True, "healthy": True, "checked_at": datetime.now(timezone.utc).isoformat()}))
+    console = Console(width=150, force_terminal=True, color_system="standard")
+    segments = list(console.render(m._integrations_panel(tmp_path, grid=True), console.options))
+    assert any(("green" if interactive else "yellow") in str(s.style) for s in segments if s.text.strip() == "Slack")
