@@ -1283,3 +1283,155 @@ def test_mitre_rule_counts_refresh_without_hunt_changes(
     assert second is not first
     assert second.sigma_rules_count == 2
     assert second.tactic_rules["enterprise"]["execution"] == 1
+
+
+def test_render_dashboard_tab2_hunts_and_rules(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    c = Console(width=160, height=50, record=True, force_terminal=False)
+    monkeypatch.setattr(m, "console", c)
+    events = _events("source: reading report", "done: draft_created")
+    layout = m._render_dashboard(tmp_path, events, {}, _host(), START, active_tab=2)
+    c.print(layout)
+    text = c.export_text()
+    assert "ACTIVE & RECENT HUNTS" in text
+    assert "DETECTION RULES" in text
+    assert "MITRE" in text
+    assert "THREAT OBSERVABLES" in text
+
+
+def test_render_dashboard_tab3_feeds_and_outbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    c = Console(width=160, height=50, record=True, force_terminal=False)
+    monkeypatch.setattr(m, "console", c)
+    events = _events("source: reading report", "done: draft_created")
+    layout = m._render_dashboard(tmp_path, events, {}, _host(), START, active_tab=3)
+    c.print(layout)
+    text = c.export_text()
+    assert "INBOUND CTI FEEDS" in text
+    assert "CTI INGESTION FUNNEL" in text
+    assert "GITHUB PROMOTION OUTBOX" in text
+    assert "MISP EXPORT OUTBOX" in text
+
+
+def test_render_dashboard_tab4_bas_and_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    c = Console(width=160, height=50, record=True, force_terminal=False)
+    monkeypatch.setattr(m, "console", c)
+    events = _events("source: reading report", "done: draft_created")
+    layout = m._render_dashboard(tmp_path, events, {}, _host(), START, active_tab=4)
+    c.print(layout)
+    text = c.export_text()
+    assert "BAS CONTROLLER" in text
+    assert "SENSOR & BREACH SIMULATION LOGS" in text
+    assert "VALIDATION" in text
+
+
+def test_activity_table_errors_only_filter() -> None:
+    events = [
+        m.TrailEvent("2026-10-31 01:00:00", "c1", 1.0, "source", "normal source extraction"),
+        m.TrailEvent("2026-10-31 01:00:01", "c1", 2.0, "error", "connection refused by target host"),
+        m.TrailEvent("2026-10-31 01:00:02", "c1", 3.0, "hypothesis", "parked: ungrounded hypothesis"),
+        m.TrailEvent("2026-10-31 01:00:03", "c1", 4.0, "write", "normal draft writing"),
+    ]
+    c = Console(width=100, record=True, force_terminal=False)
+    t_all = m._activity_table(events, rows=10, width=100, errors_only=False)
+    c.print(t_all)
+    text_all = c.export_text()
+    assert "normal source extraction" in text_all
+    assert "connection refused" in text_all
+    assert "parked: ungrounded hypothesis" in text_all
+
+    c_err = Console(width=100, record=True, force_terminal=False)
+    t_err = m._activity_table(events, rows=10, width=100, errors_only=True)
+    c_err.print(t_err)
+    text_err = c_err.export_text()
+    assert "normal source extraction" not in text_err
+    assert "connection refused" in text_err
+    assert "parked: ungrounded hypothesis" in text_err
+
+
+def test_cooldown_countdown_calculation() -> None:
+    now = datetime(2026, 10, 31, 2, 30, 0)
+    event = m.TrailEvent(
+        timestamp="2026-10-31 02:00:00",
+        cycle_id="c1",
+        elapsed=10.0,
+        stage="done",
+        message="cycle parked: spacing_cooldown for 2.00h / 3.00h before next hunt draft",
+    )
+    cooldown_str = m._get_cooldown_str([event], now)
+    assert cooldown_str is not None
+    assert "30m 00s" in cooldown_str
+    assert "UTC" in cooldown_str
+
+
+def test_runner_status_sampler_queries_outboxes(tmp_path: Path, monkeypatch) -> None:
+    import sqlite3
+
+    def missing_systemd(*args, **kwargs):
+        raise FileNotFoundError("systemctl unavailable")
+
+    monkeypatch.setattr("hecate_agent.commands.monitor_samplers.subprocess.run", missing_systemd)
+
+    pub_dir = tmp_path / ".hecate" / "publisher"
+    pub_dir.mkdir(parents=True)
+    conn = sqlite3.connect(pub_dir / "promotion-outbox.sqlite3")
+    conn.execute("CREATE TABLE promotions (id TEXT PRIMARY KEY, status TEXT)")
+    conn.execute("INSERT INTO promotions VALUES ('p1', 'published'), ('p2', 'published'), ('p3', 'pending')")
+    conn.commit()
+    conn.close()
+
+    misp_dir = tmp_path / ".hecate" / "misp"
+    misp_dir.mkdir(parents=True)
+    conn = sqlite3.connect(misp_dir / "outbox.sqlite3")
+    conn.execute("CREATE TABLE exports (id TEXT PRIMARY KEY, status TEXT)")
+    conn.execute("INSERT INTO exports VALUES ('e1', 'confirmed'), ('e2', 'confirmed'), ('e3', 'pending'), ('e4', 'confirmed')")
+    conn.commit()
+    conn.close()
+
+    sampler = m.RunnerStatusSampler(tmp_path)
+    status = sampler.sample()
+    assert not status.installed
+    assert status.github_confirmed_promotions == 2
+    assert status.github_pending_prs == 1
+    assert status.misp_confirmed_exports == 3
+    assert status.misp_pending_exports == 1
+
+
+def test_runner_status_sampler_tiered_caching(tmp_path: Path, monkeypatch) -> None:
+    import sqlite3
+
+    def missing_systemd(*args, **kwargs):
+        raise FileNotFoundError("systemctl unavailable")
+
+    monkeypatch.setattr("hecate_agent.commands.monitor_samplers.subprocess.run", missing_systemd)
+
+    pub_dir = tmp_path / ".hecate" / "publisher"
+    pub_dir.mkdir(parents=True)
+    db_path = pub_dir / "promotion-outbox.sqlite3"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE promotions (id TEXT PRIMARY KEY, status TEXT)")
+    conn.execute("INSERT INTO promotions VALUES ('p1', 'published')")
+    conn.commit()
+    conn.close()
+
+    sampler = m.RunnerStatusSampler(tmp_path)
+    # First call samples heavy data
+    status1 = sampler.sample()
+    assert status1.github_confirmed_promotions == 1
+
+    # Insert a new record into DB directly
+    conn = sqlite3.connect(db_path)
+    conn.execute("INSERT INTO promotions VALUES ('p2', 'published')")
+    conn.commit()
+    conn.close()
+
+    # Immediate second call without force uses heavy cache (does not re-query SQLite)
+    status2 = sampler.sample(force=False)
+    assert status2.github_confirmed_promotions == 1
+
+    # Calling with force=True refreshes heavy data
+    status3 = sampler.sample(force=True)
+    assert status3.github_confirmed_promotions == 2
+
+
+def test_check_key_non_blocking_returns_none() -> None:
+    key = m._check_key(timeout=0.0)
+    assert key is None

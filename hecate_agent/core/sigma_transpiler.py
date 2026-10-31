@@ -10,8 +10,9 @@ deployment-ready search queries for major enterprise EDRs and SIEMs:
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 import yaml
 
@@ -58,6 +59,60 @@ except ImportError:
     IncludeFieldCondition = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+_BACKEND_CACHE: Dict[str, Any] = {}
+_CACHE_LOCK = threading.Lock()
+
+_ELASTIC_PROXY_MAPPING: Dict[str, str] = {
+    "c-useragent": "user_agent.original",
+    "cs-user-agent": "user_agent.original",
+    "cs-referrer": "http.request.referrer",
+    "cs-method": "http.request.method",
+    "sc-status": "http.response.status_code",
+    "cs-host": "url.domain",
+    "cs-uri-stem": "url.path",
+    "cs-uri-query": "url.query",
+    "c-ip": "source.ip",
+    "DestinationIp": "destination.ip",
+    "DestinationPort": "destination.port",
+}
+
+_ELASTIC_LINUX_MAPPING: Dict[str, str] = {
+    "Image": "process.executable",
+    "ParentImage": "process.parent.executable",
+    "CommandLine": "process.command_line",
+    "ParentCommandLine": "process.parent.command_line",
+    "CurrentDirectory": "process.working_directory",
+    "User": "user.name",
+    "ProcessId": "process.pid",
+    "ParentProcessId": "process.parent.pid",
+    "TargetFilename": "file.path",
+    "DestinationIp": "destination.ip",
+    "DestinationHostname": "destination.domain",
+    "DestinationPort": "destination.port",
+    "SourceIp": "source.ip",
+    "SourcePort": "source.port",
+    "Protocol": "network.transport",
+    "QueryName": "dns.question.name",
+}
+
+
+def _get_or_create_backend(key: str, builder: Callable[[], Any]) -> Any:
+    """Thread-safe cached pySigma backend lookup to avoid re-compiling processing pipelines."""
+    backend = _BACKEND_CACHE.get(key)
+    if backend is None:
+        with _CACHE_LOCK:
+            backend = _BACKEND_CACHE.get(key)
+            if backend is None:
+                backend = builder()
+                _BACKEND_CACHE[key] = backend
+    return backend
+
+
+def clear_backend_cache() -> None:
+    """Clear all cached pySigma backends and processing pipelines."""
+    with _CACHE_LOCK:
+        _BACKEND_CACHE.clear()
 
 
 def build_insight_idr_pipeline() -> Optional[Any]:
@@ -236,6 +291,11 @@ class SigmaTranspiler:
         if not PYSIGMA_AVAILABLE:
             logger.warning("pySigma and required backends not installed; transpilation will fail open.")
 
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached pySigma backends and processing pipelines."""
+        clear_backend_cache()
+
     def validate_query(self, target: str, query: str) -> QueryValidationResult:
         """Validate an arbitrary query against the target platform dialect rules."""
         return self.validator.validate(target, query)
@@ -392,10 +452,15 @@ class SigmaTranspiler:
                             raise ValueError(
                                 f"Sentinel ASIM DNS mapping does not support field {item.field!r}"
                             )
-                dns_pipeline = ProcessingPipeline(items=[ProcessingItem(
-                    transformation=FieldMappingTransformation({"QueryName": "DnsQuery"})
-                )])
-                queries = KustoBackend(processing_pipeline=dns_pipeline).convert(col)
+                kusto_backend = _get_or_create_backend(
+                    "mde_asim_dns",
+                    lambda: KustoBackend(
+                        processing_pipeline=ProcessingPipeline(items=[ProcessingItem(
+                            transformation=FieldMappingTransformation({"QueryName": "DnsQuery"})
+                        )])
+                    ),
+                )
+                queries = kusto_backend.convert(col)
                 if not queries:
                     raise ValueError("No query returned from Sentinel ASIM DNS backend")
                 return "\n\n".join(f"_Im_Dns | where {query}" for query in queries)
@@ -416,19 +481,28 @@ class SigmaTranspiler:
             except Exception:
                 pass
 
-            pipeline = (
-                microsoft_365_defender_pipeline(query_table=query_table)
-                if query_table
-                else microsoft_365_defender_pipeline()
+            mde_key = f"mde_table_{query_table}" if query_table else "mde_default"
+            kusto_backend = _get_or_create_backend(
+                mde_key,
+                lambda: KustoBackend(
+                    processing_pipeline=(
+                        microsoft_365_defender_pipeline(query_table=query_table)
+                        if query_table
+                        else microsoft_365_defender_pipeline()
+                    )
+                ),
             )
-            kusto_backend: Any = KustoBackend(processing_pipeline=pipeline)  # type: ignore[arg-type]
             try:
                 queries = kusto_backend.convert(col)
             except Exception as k_err:
                 if "Unable to determine table name" in str(k_err):
-                    fallback_pipeline = microsoft_365_defender_pipeline(query_table="DeviceEvents")
-                    kusto_backend = KustoBackend(processing_pipeline=fallback_pipeline)  # type: ignore[arg-type]
-                    queries = kusto_backend.convert(col)
+                    fallback_backend: Any = _get_or_create_backend(
+                        "mde_table_DeviceEvents",
+                        lambda: KustoBackend(
+                            processing_pipeline=microsoft_365_defender_pipeline(query_table="DeviceEvents")
+                        ),
+                    )
+                    queries = fallback_backend.convert(col)
                 else:
                     raise
             if not queries:
@@ -436,31 +510,40 @@ class SigmaTranspiler:
             return "\n\n".join(queries)
 
         if target == self.TARGET_CROWDSTRIKE:
-            cs_pipeline = crowdstrike_fdr_pipeline()
-            cs_backend: Any = LogScaleBackend(processing_pipeline=cs_pipeline)
+            cs_backend: Any = _get_or_create_backend(
+                "crowdstrike_cql",
+                lambda: LogScaleBackend(processing_pipeline=crowdstrike_fdr_pipeline()),
+            )
             queries = cs_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from CrowdStrike backend")
             return "\n\n".join(queries)
 
         if target == self.TARGET_RAPID7:
-            idr_backend: Any = InsightIDRBackend()
+            idr_backend: Any = _get_or_create_backend(
+                "rapid7_leql",
+                lambda: InsightIDRBackend(),
+            )
             queries = idr_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Rapid7 InsightIDR backend")
             return "\n\n".join(queries)
 
         if target == self.TARGET_SENTINELONE:
-            s1_pipeline = build_sentinelone_pipeline()
-            s1_backend: Any = SentinelOneBackend(processing_pipeline=s1_pipeline)  # type: ignore[arg-type]
+            s1_backend: Any = _get_or_create_backend(
+                "sentinelone_s1ql",
+                lambda: SentinelOneBackend(processing_pipeline=build_sentinelone_pipeline()),
+            )
             queries = s1_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from SentinelOne backend")
             return "\n\n".join(queries)
 
         if target == self.TARGET_SPLUNK:
-            sp_pipeline = splunk_windows_pipeline()
-            sp_backend: Any = SplunkBackend(processing_pipeline=sp_pipeline)
+            sp_backend: Any = _get_or_create_backend(
+                "splunk_spl",
+                lambda: SplunkBackend(processing_pipeline=splunk_windows_pipeline()),
+            )
             queries = sp_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Splunk backend")
@@ -471,53 +554,43 @@ class SigmaTranspiler:
                 # Proxy/webserver fields do not pass through ecs_windows(). Preserve
                 # their meaning with an explicit ECS mapping instead of
                 # emitting raw fields such as c-useragent into EQL.
-                mapping = {
-                    "c-useragent": "user_agent.original", "cs-user-agent": "user_agent.original",
-                    "cs-referrer": "http.request.referrer", "cs-method": "http.request.method",
-                    "sc-status": "http.response.status_code", "cs-host": "url.domain",
-                    "cs-uri-stem": "url.path", "cs-uri-query": "url.query",
-                    "c-ip": "source.ip", "DestinationIp": "destination.ip",
-                    "DestinationPort": "destination.port",
-                }
                 for rule in col.rules:
                     pending = list(rule.detection.detections.values())
                     while pending:
                         item = pending.pop()
                         if hasattr(item, "detection_items"):
                             pending.extend(item.detection_items)
-                        elif item.field not in mapping:
+                        elif item.field not in _ELASTIC_PROXY_MAPPING:
                             raise ValueError(f"{col.rules[0].logsource.category.title()} ECS mapping does not support field {item.field!r}")
-                es_pipeline = ProcessingPipeline(items=[ProcessingItem(
-                    transformation=FieldMappingTransformation(mapping)
-                )])
+                es_backend: Any = _get_or_create_backend(
+                    "elastic_proxy_webserver",
+                    lambda: EqlBackend(processing_pipeline=ProcessingPipeline(items=[ProcessingItem(
+                        transformation=FieldMappingTransformation(_ELASTIC_PROXY_MAPPING)
+                    )])),
+                )
             elif col.rules and col.rules[0].logsource.product == "linux":
                 # ecs_windows() leaves Linux Sigma fields unchanged. Use ECS
                 # fields explicitly and reject signals without a mapping.
                 # https://www.elastic.co/docs/reference/ecs/ecs-process
-                mapping = {
-                    "Image": "process.executable", "ParentImage": "process.parent.executable",
-                    "CommandLine": "process.command_line", "ParentCommandLine": "process.parent.command_line",
-                    "CurrentDirectory": "process.working_directory", "User": "user.name",
-                    "ProcessId": "process.pid", "ParentProcessId": "process.parent.pid",
-                    "TargetFilename": "file.path", "DestinationIp": "destination.ip",
-                    "DestinationHostname": "destination.domain", "DestinationPort": "destination.port",
-                    "SourceIp": "source.ip", "SourcePort": "source.port",
-                    "Protocol": "network.transport", "QueryName": "dns.question.name",
-                }
                 for rule in col.rules:
                     pending = list(rule.detection.detections.values())
                     while pending:
                         item = pending.pop()
                         if hasattr(item, "detection_items"):
                             pending.extend(item.detection_items)
-                        elif item.field not in mapping:
+                        elif item.field not in _ELASTIC_LINUX_MAPPING:
                             raise ValueError(f"Linux ECS mapping does not support field {item.field!r}")
-                es_pipeline = ProcessingPipeline(items=[ProcessingItem(
-                    transformation=FieldMappingTransformation(mapping)
-                )])
+                es_backend = _get_or_create_backend(
+                    "elastic_linux",
+                    lambda: EqlBackend(processing_pipeline=ProcessingPipeline(items=[ProcessingItem(
+                        transformation=FieldMappingTransformation(_ELASTIC_LINUX_MAPPING)
+                    )])),
+                )
             else:
-                es_pipeline = ecs_windows()
-            es_backend: Any = EqlBackend(processing_pipeline=es_pipeline)
+                es_backend = _get_or_create_backend(
+                    "elastic_windows",
+                    lambda: EqlBackend(processing_pipeline=ecs_windows()),
+                )
             queries = es_backend.convert(col)
             if not queries:
                 raise ValueError("No query returned from Elastic EQL backend")

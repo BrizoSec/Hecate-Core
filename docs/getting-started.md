@@ -4,7 +4,7 @@ This guide walks you through setting up Hecate, from your first documented hunt 
 
 **This framework is meant to be flexible.** Adapt it to your environment, data sources, and team structure. Use what works for you, modify what doesn't, and skip what isn't relevant.
 
-> **Configuration reference:** For a complete list of API keys, environment variables, `.hecateconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/CONFIGURATION.md).
+> **Configuration reference:** For a complete list of API keys, environment variables, `.hecateconfig.yaml` format, and the hunt template, see [CONFIGURATION.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/docs/CONFIGURATION.md).
 
 ## Step 1: Choose Your Setup Path
 
@@ -16,7 +16,7 @@ Install the Python CLI for convenience commands:
 
 ```bash
 # Clone and install
-git clone https://github.com/BrizoSec/Hecate-Core
+git clone https://github.com/Hecate-Org/Hecate-Core
 cd Hecate-Core
 pip install -e .
 
@@ -32,7 +32,7 @@ Use the framework structure without CLI tools:
 
 ```bash
 # Clone only
-git clone https://github.com/BrizoSec/Hecate-Core
+git clone https://github.com/Hecate-Org/Hecate-Core
 cd Hecate-Core
 ```
 
@@ -62,7 +62,7 @@ workspace. Exact folders vary with the commands and templates you use.
 
 - [templates/](../templates/) - Ready-to-use LOCK hunt templates
 - [hunts/](../hunts/) - Example hunts showing the LOCK pattern
-- [AGENTS.md](https://github.com/BrizoSec/Hecate-Core/blob/main/AGENTS.md) - Template for AI context (customize later)
+- [AGENTS.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/AGENTS.md) - Template for AI context (customize later)
 
 ## Step 3: Document Your First Hunt (Level 1)
 
@@ -115,7 +115,7 @@ hecate-agent hunt list
 
 ### Example Structure
 
-See [hunts/H-0001.md](https://github.com/BrizoSec/Hecate-Core/blob/main/hecate_agent/data/hunts/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
+See [hunts/H-0001.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/hecate_agent/data/hunts/2026/Q1/H-0001.md) for a complete example. Here's a simplified structure:
 
 ```markdown
 # H-0001: SSH Brute Force Detection
@@ -150,7 +150,7 @@ To make your hunts AI-accessible, add context files that describe your environme
 
 ### Customize AGENTS.md
 
-1. Open [AGENTS.md](https://github.com/BrizoSec/Hecate-Core/blob/main/AGENTS.md)
+1. Open [AGENTS.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/AGENTS.md)
 2. Update the following sections:
    - **Data Sources:** Replace placeholders with your actual SIEM indexes, EDR platforms, etc.
    - **Technology Stack:** List your security tools
@@ -215,7 +215,7 @@ export HECATE_LLM_PROVIDER=openai
 export HECATE_LLM_MODEL=gpt-4o
 ```
 
-See [`.env.example`](https://github.com/BrizoSec/Hecate-Core/blob/main/.env.example) for all supported variables.
+See [`.env.example`](https://github.com/Hecate-Org/Hecate-Core/blob/main/.env.example) for all supported variables.
 
 ### Try AI-Assisted Features
 
@@ -287,7 +287,7 @@ tags: [linux, cron, persistence]
 
 1. Keep the existing markdown metadata section below the title for human readability
 
-**Full documentation:** See [hunts/FORMAT_GUIDELINES.md](https://github.com/BrizoSec/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
+**Full documentation:** See [hunts/FORMAT_GUIDELINES.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md#yaml-frontmatter-optional-at-level-0-1-recommended-at-level-2)
 
 **Why Both YAML and Markdown Metadata?**
 
@@ -484,6 +484,6 @@ A: Yes! The CLI commands (`hecate-agent hunt list`, `hecate-agent hunt search`, 
 - Browse [docs/](.) for detailed guides
 - Check [integrations/](../integrations/) for tool-specific setup
 - Review [hunts/](../hunts/) for example hunts
-- Open an issue on [GitHub](https://github.com/BrizoSec/Hecate-Core/issues)
+- Open an issue on [GitHub](https://github.com/Hecate-Org/Hecate-Core/issues)
 
 Happy thrunting!

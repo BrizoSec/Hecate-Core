@@ -114,6 +114,7 @@ def _build_export_dict(
     sessions_dir: Path,
     include_content: bool,
     no_sessions: bool,
+    public_export: bool = False,
 ) -> Dict[str, Any]:
     """Build the export dictionary for a single hunt.
 
@@ -126,6 +127,10 @@ def _build_export_dict(
     Returns:
         Dict ready for JSON serialization
     """
+    if public_export:
+        from hecate_agent.core.public_artifacts import public_hunt_record
+
+        return public_hunt_record(hunt_data)
     frontmatter = hunt_data.get("frontmatter", {})
     hunt_id = frontmatter.get("hunt_id", "")
 
@@ -855,6 +860,8 @@ level: medium
 @click.argument("hunt_id", required=False)
 @click.option("--hunt", "-h", "hunt_opt", default=None, help="Hunt ID (e.g., H-0001)")
 @click.option(
+    "--format",
+    "-f",
     "--output",
     "-o",
     "output_format",
@@ -869,7 +876,7 @@ level: medium
     default=1,
     help="Index of query in CHECK section to use (1-based, default: 1).",
 )
-@click.option("--out", "out_file", type=click.Path(), default=None, help="Destination output file path.")
+@click.option("--out", "--output-file", "out_file", type=click.Path(), default=None, help="Destination output file path.")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 def promote_hunt(
     hunt_id: Optional[str],
@@ -1064,6 +1071,7 @@ level: medium
 @click.option("--output", "output_file", type=click.Path(), help="Write to file instead of stdout")
 @click.option("--include-content", is_flag=True, help="Include raw markdown content in output")
 @click.option("--no-sessions", is_flag=True, help="Exclude session data from export")
+@click.option("--public", "public_export", is_flag=True, help="Metadata only, for public review; excludes sessions and evidence")
 @click.option("--status", help="Filter by status when using --all (planning, active, completed)")
 def export_hunt(
     hunt_id: Optional[str],
@@ -1072,6 +1080,7 @@ def export_hunt(
     include_content: bool,
     no_sessions: bool,
     status: Optional[str],
+    public_export: bool = False,
 ) -> None:
     """Export hunt data as structured JSON.
 
@@ -1106,6 +1115,8 @@ def export_hunt(
       • Power graph databases and analytics pipelines
       • Archive hunts in structured format
     """
+    if public_export and include_content:
+        raise click.UsageError("--public excludes raw content; omit --include-content")
     if not hunt_id and not export_all:
         console.print("[red]Error: Provide a hunt ID or use --all[/red]")
         console.print("[dim]Example: hecate-agent hunt export H-0027[/dim]")
@@ -1129,7 +1140,7 @@ def export_hunt(
             hunt_data = manager.get_hunt(hid)
             if not hunt_data:
                 continue
-            export_data.append(_build_export_dict(hunt_data, sessions_dir, include_content, no_sessions))
+            export_data.append(_build_export_dict(hunt_data, sessions_dir, include_content, no_sessions, public_export))
 
         result = json.dumps(export_data, indent=2, default=_json_serializer)
 
@@ -1144,7 +1155,7 @@ def export_hunt(
             console.print(f"[red]Error: Hunt not found: {hunt_id}[/red]")
             raise click.Abort()
 
-        export_dict = _build_export_dict(hunt_data, sessions_dir, include_content, no_sessions)
+        export_dict = _build_export_dict(hunt_data, sessions_dir, include_content, no_sessions, public_export)
         result = json.dumps(export_dict, indent=2, default=_json_serializer)
 
     if output_file:

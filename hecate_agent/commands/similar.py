@@ -1,8 +1,9 @@
 """Semantic similarity search for past hunts."""
 
 import json
+import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import click
 import yaml
@@ -10,6 +11,49 @@ from rich.console import Console
 from rich.table import Table
 
 console = Console()
+
+
+class _CachedCorpus(NamedTuple):
+    signature: Tuple[Tuple[str, int], ...]
+    hunt_data: List[Dict[str, Any]]
+    session_data: List[Dict[str, Any]]
+    vectorizer: Any
+    doc_vectors: Any
+
+
+_CACHE_LOCK = threading.Lock()
+_CORPUS_CACHE: Dict[str, _CachedCorpus] = {}
+
+
+def _clear_tfidf_cache() -> None:
+    """Clear in-memory TF-IDF and corpus cache."""
+    with _CACHE_LOCK:
+        _CORPUS_CACHE.clear()
+
+
+def _get_corpus_signature(hunt_files: List[Path], sessions_dir: Path) -> Tuple[Tuple[str, int], ...]:
+    """Compute mtime signature for hunt files and session files."""
+    files: List[Tuple[str, int]] = []
+    for hf in hunt_files:
+        try:
+            files.append((str(hf.resolve()), hf.stat().st_mtime_ns))
+        except OSError:
+            pass
+    if sessions_dir.exists() and sessions_dir.is_dir():
+        try:
+            for item in sessions_dir.iterdir():
+                if item.is_dir():
+                    for name in ("decisions.yaml", "summary.md", "session.yaml"):
+                        p = item / name
+                        if p.exists():
+                            try:
+                                files.append((str(p.resolve()), p.stat().st_mtime_ns))
+                            except OSError:
+                                pass
+        except OSError:
+            pass
+    files.sort(key=lambda x: x[0])
+    return tuple(files)
 
 
 class SimilarityUnavailable(RuntimeError):
@@ -202,6 +246,56 @@ def _build_corpus(
     return hunt_data, session_data
 
 
+def _get_or_build_corpus_cache(
+    hunt_files: List[Path],
+    sessions_dir: Path,
+    workspace_key: str,
+    vectorizer_cls: Any,
+) -> Optional[_CachedCorpus]:
+    """Retrieve cached corpus and TF-IDF matrix or build a new one if stale."""
+    current_sig = _get_corpus_signature(hunt_files, sessions_dir)
+    with _CACHE_LOCK:
+        cached = _CORPUS_CACHE.get(workspace_key)
+        if cached is not None and cached.signature == current_sig:
+            return cached
+
+    # Rebuild corpus
+    hunt_data, session_data = _build_corpus(
+        hunt_files,
+        sessions_dir=sessions_dir,
+        exclude_hunt=None,
+        include_sessions=True,
+    )
+
+    if not hunt_data:
+        return None
+
+    all_docs = hunt_data + session_data
+    doc_texts = [d["searchable_text"] for d in all_docs]
+
+    vectorizer = vectorizer_cls(
+        max_features=1000,
+        stop_words="english",
+        ngram_range=(1, 2),
+    )
+
+    try:
+        doc_vectors = vectorizer.fit_transform(doc_texts)
+    except ValueError:
+        doc_vectors = None
+
+    entry = _CachedCorpus(
+        signature=current_sig,
+        hunt_data=hunt_data,
+        session_data=session_data,
+        vectorizer=vectorizer,
+        doc_vectors=doc_vectors,
+    )
+    with _CACHE_LOCK:
+        _CORPUS_CACHE[workspace_key] = entry
+    return entry
+
+
 def _find_similar_hunts(
     query_text: str,
     limit: int = 10,
@@ -248,38 +342,40 @@ def _find_similar_hunts(
     if not hunt_files:
         return []
 
+    workspace_path = workspace.resolve() if workspace else Path.cwd().resolve()
     sessions_dir = (workspace / "sessions") if workspace else Path("sessions")
 
-    hunt_data, session_data = _build_corpus(
-        hunt_files,
+    corpus_entry = _get_or_build_corpus_cache(
+        hunt_files=hunt_files,
         sessions_dir=sessions_dir,
-        exclude_hunt=exclude_hunt,
-        include_sessions=include_sessions,
+        workspace_key=str(workspace_path),
+        vectorizer_cls=TfidfVectorizer,
     )
 
-    if not hunt_data:
+    if not corpus_entry or corpus_entry.doc_vectors is None or not corpus_entry.hunt_data:
         return []
 
-    # Build document list: query + hunts + (optionally) sessions
-    all_docs = hunt_data + session_data
-    documents = [query_text] + [d["searchable_text"] for d in all_docs]
+    hunt_count = len(corpus_entry.hunt_data)
+    if include_sessions:
+        all_docs = corpus_entry.hunt_data + corpus_entry.session_data
+        doc_vectors = corpus_entry.doc_vectors
+    else:
+        all_docs = corpus_entry.hunt_data
+        doc_vectors = corpus_entry.doc_vectors[:hunt_count]
 
-    vectorizer = TfidfVectorizer(
-        max_features=1000,
-        stop_words="english",
-        ngram_range=(1, 2),
-    )
-
-    tfidf_matrix = vectorizer.fit_transform(documents)
-
-    query_vector = tfidf_matrix[0:1]
-    doc_vectors = tfidf_matrix[1:]
+    try:
+        query_vector = corpus_entry.vectorizer.transform([query_text])
+    except Exception:
+        return []
 
     similarities = cosine_similarity(query_vector, doc_vectors)[0]
 
     # Build results
     results = []
     for i, doc_info in enumerate(all_docs):
+        if exclude_hunt and doc_info.get("hunt_id") == exclude_hunt:
+            continue
+
         score = float(similarities[i])
         if score < threshold:
             continue

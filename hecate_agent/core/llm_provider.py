@@ -17,10 +17,12 @@ Usage:
 import json
 import logging
 import os
+import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,125 @@ class LLMResponse:
 
 
 # ---------------------------------------------------------------------------
+# Rate-limit exponential backoff
+# ---------------------------------------------------------------------------
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    """Check if an exception represents an HTTP 429 rate limit, 503, or transient throttling error."""
+    for attr in ("status_code", "http_status", "code"):
+        val = getattr(exc, attr, None)
+        if val in (429, 503, 502, 504):
+            return True
+
+    resp = getattr(exc, "response", None)
+    if isinstance(resp, dict):
+        err = resp.get("Error", {})
+        code = str(err.get("Code", ""))
+        if code in (
+            "ThrottlingException",
+            "ProvisionedThroughputExceededException",
+            "RequestLimitExceeded",
+            "TooManyRequestsException",
+            "Throttling",
+            "ServiceUnavailable",
+            "ModelNotReadyException",
+            "InternalServerException",
+        ):
+            return True
+        if resp.get("ResponseMetadata", {}).get("HTTPStatusCode") in (429, 503, 502, 504):
+            return True
+
+    cls_name = exc.__class__.__name__.lower()
+    if any(k in cls_name for k in ("ratelimit", "throttl", "serviceunavailable")):
+        return True
+
+    msg = str(exc).lower()
+    if any(
+        phrase in msg
+        for phrase in (
+            "429",
+            "503",
+            "rate limit",
+            "too many requests",
+            "throttling",
+            "throttled",
+            "quota exceeded",
+            "service unavailable",
+            "temporarily unavailable",
+        )
+    ):
+        return True
+
+    return False
+
+
+def _extract_retry_after(exc: BaseException) -> Optional[float]:
+    """Extract Retry-After header or delay hint if present on the exception."""
+    retry_after = getattr(exc, "retry_after", None)
+    if retry_after is not None:
+        try:
+            return float(retry_after)
+        except (ValueError, TypeError):
+            pass
+
+    headers = getattr(exc, "headers", None)
+    if isinstance(headers, dict):
+        ra = headers.get("retry-after") or headers.get("Retry-After")
+        if ra is not None:
+            try:
+                return float(ra)
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+def retry_on_rate_limit(
+    fn: Callable[..., Any],
+    max_retries: Optional[int] = None,
+    initial_backoff: Optional[float] = None,
+    backoff_factor: Optional[float] = None,
+    max_backoff: Optional[float] = None,
+) -> Callable[..., Any]:
+    """Decorator / wrapper that retries a function with exponential backoff on HTTP 429 rate limits."""
+
+    @wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        retries = 0
+        limit_retries = max_retries if max_retries is not None else int(os.getenv("HECATE_LLM_MAX_RETRIES", "5"))
+        cur_backoff = initial_backoff if initial_backoff is not None else float(os.getenv("HECATE_LLM_INITIAL_BACKOFF", "1.0"))
+        factor = backoff_factor if backoff_factor is not None else float(os.getenv("HECATE_LLM_BACKOFF_FACTOR", "2.0"))
+        cap = max_backoff if max_backoff is not None else float(os.getenv("HECATE_LLM_MAX_BACKOFF", "60.0"))
+
+        while True:
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                if not _is_rate_limit_error(exc) or retries >= limit_retries:
+                    raise
+                retries += 1
+                hint = _extract_retry_after(exc)
+                if hint is not None and hint > 0:
+                    wait_time = min(hint, cap)
+                else:
+                    jitter = random.uniform(0.0, 0.25 * cur_backoff)
+                    wait_time = min(cur_backoff + jitter, cap)
+                    cur_backoff = min(cur_backoff * factor, cap)
+
+                logger.warning(
+                    "LLM rate limit encountered (HTTP 429 / %s). Retrying in %.2fs (attempt %d/%d). Error: %s",
+                    exc.__class__.__name__,
+                    wait_time,
+                    retries,
+                    limit_retries,
+                    exc,
+                )
+                time.sleep(wait_time)
+
+    return wrapper
+
+
+# ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
 
@@ -87,11 +208,12 @@ class LLMProvider(ABC):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        # Every provider's calls are visible to the live call log, whoever makes them.
+        # Every provider's calls are visible to the live call log, whoever makes them,
+        # with automatic exponential backoff on HTTP 429 rate limits.
         if "complete" in cls.__dict__:
             from hecate_agent.core.llm_activity import recorded
 
-            cls.complete = recorded(cls.__dict__["complete"])  # type: ignore[method-assign]
+            cls.complete = recorded(retry_on_rate_limit(cls.__dict__["complete"]))  # type: ignore[method-assign]
 
     @abstractmethod
     def complete(

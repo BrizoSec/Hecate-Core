@@ -407,3 +407,111 @@ class TestCreateProvider:
         ):
             with pytest.raises(ValueError, match="Unknown LLM provider"):
                 create_provider({"provider": "unknown"})
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit exponential backoff
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRateLimitRetry:
+    """Test retry_on_rate_limit backoff behavior."""
+
+    def test_retry_on_rate_limit_succeeds_after_transient_429(self, monkeypatch):
+        from hecate_agent.core.llm_provider import retry_on_rate_limit
+
+        calls = [0]
+        slept = []
+        monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+        class Mock429(Exception):
+            status_code = 429
+
+        @retry_on_rate_limit
+        def flaky():
+            calls[0] += 1
+            if calls[0] < 3:
+                raise Mock429("Rate limit exceeded")
+            return "success"
+
+        result = flaky()
+        assert result == "success"
+        assert calls[0] == 3
+        assert len(slept) == 2
+
+    def test_retry_on_rate_limit_respects_retry_after(self, monkeypatch):
+        from hecate_agent.core.llm_provider import retry_on_rate_limit
+
+        slept = []
+        monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+        class MockRateLimit(Exception):
+            status_code = 429
+            retry_after = 2.5
+
+        calls = [0]
+
+        @retry_on_rate_limit
+        def with_header():
+            calls[0] += 1
+            if calls[0] == 1:
+                raise MockRateLimit("Rate limit")
+            return "ok"
+
+        res = with_header()
+        assert res == "ok"
+        assert len(slept) == 1
+        assert slept[0] == 2.5
+
+    def test_retry_on_rate_limit_exhausted(self, monkeypatch):
+        from hecate_agent.core.llm_provider import retry_on_rate_limit
+
+        slept = []
+        monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+        class Mock429(Exception):
+            status_code = 429
+
+        @retry_on_rate_limit
+        def always_fails():
+            raise Mock429("429 Too Many Requests")
+
+        with pytest.raises(Mock429):
+            always_fails()
+        assert len(slept) == 5
+
+    def test_non_rate_limit_error_not_retried(self, monkeypatch):
+        from hecate_agent.core.llm_provider import retry_on_rate_limit
+
+        slept = []
+        monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+        @retry_on_rate_limit
+        def bad_value():
+            raise ValueError("bad input")
+
+        with pytest.raises(ValueError, match="bad input"):
+            bad_value()
+        assert len(slept) == 0
+
+    def test_retry_on_503_service_unavailable(self, monkeypatch):
+        from hecate_agent.core.llm_provider import retry_on_rate_limit
+
+        calls = [0]
+        slept = []
+        monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+        class Mock503(Exception):
+            status_code = 503
+
+        @retry_on_rate_limit
+        def transient_503():
+            calls[0] += 1
+            if calls[0] < 2:
+                raise Mock503("503 Service Unavailable")
+            return "recovered"
+
+        assert transient_503() == "recovered"
+        assert calls[0] == 2
+        assert len(slept) == 1

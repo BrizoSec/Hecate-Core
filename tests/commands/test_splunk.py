@@ -122,6 +122,13 @@ class TestSplunkSearch:
         payload = json.loads(result.output[result.output.index("[") :])
         assert payload == RESULTS
 
+    def test_json_output_is_pure_json(self, runner, fake_client):
+        import json
+
+        result = runner.invoke(splunk, ["search", "index=main", "--format", "json"])
+        assert result.exit_code == 0
+        assert json.loads(result.output.strip()) == RESULTS
+
     def test_table_output_includes_every_field_across_results(self, runner, fake_client):
         """Results are heterogeneous — the union of keys becomes the columns."""
         result = runner.invoke(splunk, ["search", "index=main", "--format", "table"])

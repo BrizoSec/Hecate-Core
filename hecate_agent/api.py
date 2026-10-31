@@ -172,12 +172,14 @@ def generate_sigma(
     payload: Dict[str, Any],
     out_dir: Optional[Path] = None,
     hunt_id: Optional[str] = None,
+    workspace: Optional[Path] = None,
 ) -> Tuple[SigmaGenerationOutput, List[Path]]:
     """Generate Sigma rules and optionally write them to disk."""
     output, written_paths, metadata = generate_sigma_with_metrics(
         payload=payload,
         out_dir=out_dir,
         hunt_id=hunt_id,
+        workspace=workspace,
     )
     if not metadata.get("success", False):
         raise RuntimeError(f"Sigma generation failed: {metadata.get('error') or 'unknown error'}")
@@ -188,6 +190,7 @@ def generate_sigma_with_metrics(
     payload: Dict[str, Any],
     out_dir: Optional[Path] = None,
     hunt_id: Optional[str] = None,
+    workspace: Optional[Path] = None,
 ) -> Tuple[SigmaGenerationOutput, List[Path], Dict[str, Any]]:
     """Generate Sigma rules and return usage metadata, including failures."""
     known = set(SigmaGenerationInput.__dataclass_fields__)
@@ -195,12 +198,13 @@ def generate_sigma_with_metrics(
     if hunt_id and not agent_input.hunt_id:
         agent_input.hunt_id = hunt_id
 
-    result = SigmaGeneratorAgent(llm_enabled=True).execute(agent_input)
+    config = {"workspace": workspace} if workspace else None
+    result = SigmaGeneratorAgent(config=config, llm_enabled=True).execute(agent_input)
     output = result.data or SigmaGenerationOutput(logsources_considered=[])
 
     written_paths = []
     if result.success and out_dir:
-        target = Path(out_dir)
+        target = Path(workspace / out_dir) if (workspace and not Path(out_dir).is_absolute()) else Path(out_dir)
         target.mkdir(parents=True, exist_ok=True)
         from hecate_agent.agents.llm.sigma_generator import rule_filenames
 
@@ -580,3 +584,15 @@ def deploy_transpiled_query(
     deployer = QueryDeployer()
     result = deployer.deploy(payload, dry_run=dry_run)
     return result.to_dict()
+
+
+def tune_sigma_rule(
+    rule_yaml: str,
+    critique: str,
+    events: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[str, str]:
+    """Tune a Sigma rule using natural language analyst feedback and semantic validation."""
+    from hecate_agent.core.sigma_self_tuner import SigmaSelfTuner
+
+    tuner = SigmaSelfTuner()
+    return tuner.tune_rule(rule_yaml, critique, events=events)

@@ -88,7 +88,15 @@ def _render_progress_bar(covered: int, total: int, width: int = 20) -> str:
     "--type", "hunt_type", type=click.Choice(["hypothesis-driven", "baseline", "model-assisted"]), help="Filter by hunt type"
 )
 @click.option("--assignee", help="Filter by assigned team member")
-@click.option("--output", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    "--output",
+    "output",
+    type=click.Choice(["table", "json", "yaml"]),
+    default="table",
+    help="Output format (table, json, yaml)",
+)
 def list_hunts(
     status: str, tactic: str, technique: str, platform: str, directory: str, hunt_type: str, assignee: str, output: str
 ) -> None:
@@ -131,7 +139,7 @@ def list_hunts(
       • json: Machine-readable for scripts and automation
       • yaml: Structured format for configuration management
 
-    Note: Use --output instead of --format for specifying output format.
+    Note: --format and --output can be used interchangeably.
     """
     manager = HuntManager()
     hunts = manager.list_hunts(
@@ -145,16 +153,22 @@ def list_hunts(
     )
 
     if not hunts:
+        if output == "json":
+            click.echo("[]")
+            return
+        if output == "yaml":
+            click.echo("[]")
+            return
         console.print("[yellow]No hunts found.[/yellow]")
         console.print("\nCreate your first hunt: [cyan]hecate-agent hunt new[/cyan]")
         return
 
     if output == "json":
-        console.print(json.dumps(hunts, indent=2), soft_wrap=True)
+        click.echo(json.dumps(hunts, indent=2))
         return
 
     if output == "yaml":
-        console.print(yaml.dump(hunts, default_flow_style=False))
+        click.echo(yaml.dump(hunts, default_flow_style=False))
         return
 
     # Table format
@@ -617,6 +631,8 @@ def _print_detailed_coverage(tactics: List[str], by_tactic: dict, attack_tactics
 @click.option("--tactic", help="Filter by specific tactic (or 'all' for all tactics)")
 @click.option("--detailed", is_flag=True, help="Show detailed technique coverage with hunt references")
 @click.option(
+    "--format",
+    "-f",
     "--output",
     "output_format",
     type=click.Choice(["table", "json", "yaml"]),

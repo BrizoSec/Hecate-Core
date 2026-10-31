@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
-import json
-import os
 import re
-import shutil
-import subprocess
+import sqlite3
+import sys
 import textwrap
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import termios as _termios
+    import tty as _tty
+
+    termios: Any = _termios
+    tty: Any = _tty
+except ImportError:
+    termios = None
+    tty = None
 
 import click
 import yaml
@@ -24,8 +31,48 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from hecate_agent.commands.monitor_integrations import (
+    _INTEGRATION_IDS as _INTEGRATION_IDS,
+    _SOURCE_INTEGRATIONS as _SOURCE_INTEGRATIONS,
+    _confirmed_integration as _confirmed_integration,
+    _credential_status as _credential_status,
+    _credential_summary as _credential_summary,
+    _integration_style as _integration_style,
+    _integrations_panel,
+)
+
 from hecate_agent.core.llm_activity import summarize_calls
 from hecate_agent.core.workspace import workspace_root
+
+from hecate_agent.commands.monitor_metrics import (
+    HuntsMetrics,
+    PurpleTeamMetrics,
+    _collect_hunts_metrics,
+    _collect_purple_team_metrics,
+    _HUNTS_METRICS_CACHE as _HUNTS_METRICS_CACHE,
+    _PURPLE_METRICS_CACHE as _PURPLE_METRICS_CACHE,
+    _EXCLUDED_HUNT_DOCS as _EXCLUDED_HUNT_DOCS,
+)
+from hecate_agent.commands.monitor_samplers import (
+    DiskSample as DiskSample,
+    HostSample,
+    HostSampler,
+    RunnerStatus,
+    RunnerStatusSampler,
+    TrailEvent,
+    _check_key,
+    _duration,
+    _env_int as _env_int,
+    _is_runner_process_running,
+    _latest_metrics,
+    _percent,
+    _read_env_file as _read_env_file,
+    _read_events,
+    _read_recent_error,
+    _service_running,
+    _tail,
+    find_eval_workspace,
+)
 
 console = Console()
 
@@ -42,496 +89,6 @@ _STAGES: Tuple[Tuple[str, str], ...] = (
     ("sigma", "Rule generation"),
     ("review", "Review and finish"),
 )
-
-
-@dataclass
-class TrailEvent:
-    timestamp: str
-    cycle_id: str
-    elapsed: float
-    stage: str
-    message: str
-
-
-@dataclass
-class HostSample:
-    cpu_percent: Optional[float]
-    memory_used: Optional[int]
-    memory_total: Optional[int]
-    disks: List["DiskSample"]
-    gpu_name: str = "unavailable"
-    gpu_percent: Optional[float] = None
-    gpu_memory_used: Optional[int] = None
-    gpu_memory_total: Optional[int] = None
-
-
-@dataclass
-class DiskSample:
-    mount: str
-    used: int
-    total: int
-
-
-@dataclass
-class RunnerStatus:
-    installed: bool = False
-    timer_active: bool = False
-    daemon_active: bool = False
-    service_state: str = "unknown"
-    next_run: Optional[datetime] = None
-    drafts_today: Optional[int] = None
-    drafts_limit: Optional[int] = None
-    research_today: Optional[int] = None
-    research_limit: Optional[int] = None
-    total_drafts: Optional[int] = None
-    parked_items: Optional[int] = None
-    #: The workspace the service writes to; the service's state says nothing about any other.
-    workspace: Optional[Path] = None
-    cost_today: Optional[float] = None
-    pending_queries: Optional[int] = None
-    cti_provider: Optional[str] = None
-    parked_reasons: Dict[str, int] = field(default_factory=dict)
-    query_provider: str = "mock"
-
-
-class RunnerStatusSampler:
-    """Read service scheduling and quota state without starting Runner work."""
-
-    SERVICE = "hecate-runner-orchestrator.service"
-    TIMER = "hecate-runner-orchestrator.timer"
-    DAEMON = "hecate-runner-daemon.service"
-
-    def __init__(self, workspace: Path):
-        self.workspace = workspace
-        self._checked_at = 0.0
-        self._cached = RunnerStatus()
-
-    def sample(self) -> RunnerStatus:
-        now = time.monotonic()
-        if now - self._checked_at < 10:
-            return self._cached
-        self._checked_at = now
-        try:
-            result = subprocess.run(
-                [
-                    "systemctl",
-                    "show",
-                    self.TIMER,
-                    self.SERVICE,
-                    self.DAEMON,
-                    "-p",
-                    "Id",
-                    "-p",
-                    "LoadState",
-                    "-p",
-                    "ActiveState",
-                    "-p",
-                    "WorkingDirectory",
-                ],
-                capture_output=True,
-                check=True,
-                text=True,
-                timeout=1.5,
-            )
-        except (OSError, subprocess.SubprocessError):
-            self._cached = RunnerStatus()
-            return self._cached
-
-        units: Dict[str, Dict[str, str]] = {}
-        for block in result.stdout.split("\n\n"):
-            values = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
-            if values.get("Id"):
-                units[values["Id"]] = values
-        timer = units.get(self.TIMER, {})
-        service = units.get(self.SERVICE, {})
-        daemon = units.get(self.DAEMON, {})
-        installed = (
-            timer.get("LoadState") not in {None, "not-found"}
-            or service.get("LoadState") not in {None, "not-found"}
-            or daemon.get("LoadState") not in {None, "not-found"}
-        )
-        if not installed:
-            self._cached = RunnerStatus()
-            return self._cached
-
-        daemon_active = daemon.get("ActiveState") == "active"
-        if daemon_active:
-            timer_active = False
-            service_state = "active"
-            next_run = None
-        else:
-            timer_active = timer.get("ActiveState") == "active"
-            service_state = service.get("ActiveState", "unknown")
-            next_run = self._next_timer_run() if timer_active else None
-
-        runner_dir = Path(
-            daemon.get("WorkingDirectory") or service.get("WorkingDirectory") or self.workspace.parent / "Hecate-Runner"
-        )
-        env: Dict[str, str] = {}
-        # Unified environment discovery: loads workspace .env first, then runner .env as local override
-        candidate_files = [
-            self.workspace / ".env",
-            self.workspace / "Hecate-Workspace" / ".env",
-            Path.home() / "betas" / "Hecate-Workspace" / ".env",
-            runner_dir / ".env",
-        ]
-        seen_paths = set()
-        for cand in candidate_files:
-            try:
-                resolved = cand.resolve()
-            except OSError:
-                continue
-            if resolved not in seen_paths and cand.is_file():
-                seen_paths.add(resolved)
-                for k, v in _read_env_file(cand).items():
-                    env[k] = v
-        quota_workspace = Path(env.get("HECATE_WORKSPACE", str(self.workspace))).expanduser()
-        if not quota_workspace.is_absolute():
-            quota_workspace = runner_dir / quota_workspace
-        state: Dict[str, Any] = {}
-        try:
-            state = json.loads((quota_workspace / ".orchestrator_state.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError):
-            pass
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        same_day = state.get("date") == today
-        queue_dir = Path(env.get("HECATE_RUNNER_CTI_QUEUE_DIR", str(quota_workspace / "cti_queue")).strip("\"'"))
-        if not queue_dir.is_absolute():
-            queue_dir = runner_dir / queue_dir
-        parked_reasons: Dict[str, int] = {}
-        try:
-            parked_files = list((queue_dir / "parked").glob("*.json"))
-            parked = len(parked_files)
-            for pf in parked_files[:30]:
-                try:
-                    pdata = json.loads(pf.read_text(encoding="utf-8"))
-                    reason = str(pdata.get("reason", "unknown")).lower()
-                    if "commentary" in reason:
-                        cat = "commentary"
-                    elif "behavior" in reason:
-                        cat = "no_behavior"
-                    elif "unsupported" in reason:
-                        cat = "unsupported"
-                    elif "freshness" in reason or "age" in reason:
-                        cat = "stale"
-                    else:
-                        cat = reason.split()[0] if reason else "other"
-                    parked_reasons[cat] = parked_reasons.get(cat, 0) + 1
-                except Exception:
-                    pass
-        except OSError:
-            parked = None
-
-        pending_queries: Optional[int] = None
-        pending_dir = quota_workspace / ".pending_queries"
-        try:
-            if pending_dir.exists():
-                pending_queries = len(list(pending_dir.glob("*.json")))
-        except OSError:
-            pass
-
-        cti_provider = env.get("HECATE_RUNNER_CTI_PROVIDER")
-        if cti_provider == "multi":
-            sub_prov = env.get("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss,otx,misp")
-            cti_provider = f"multi ({sub_prov})"
-
-        self._cached = RunnerStatus(
-            installed=True,
-            timer_active=timer_active,
-            daemon_active=daemon_active,
-            service_state=service_state,
-            next_run=next_run,
-            drafts_today=(
-                int(state.get("drafts_today", 0)) if same_day and "drafts_today" in state else (0 if same_day else None)
-            ),
-            drafts_limit=_env_int(env, "HECATE_RUNNER_MAX_DRAFTS_PER_DAY"),
-            research_today=(
-                int(state.get("research_runs_today", 0))
-                if same_day and "research_runs_today" in state
-                else (0 if same_day else None)
-            ),
-            research_limit=_env_int(env, "HECATE_RUNNER_MAX_RESEARCH_RUNS_PER_DAY"),
-            total_drafts=int(state["total_drafts_ever"]) if "total_drafts_ever" in state else None,
-            parked_items=parked,
-            workspace=quota_workspace,
-            pending_queries=pending_queries,
-            cti_provider=cti_provider,
-            parked_reasons=parked_reasons,
-            query_provider=env.get("HECATE_RUNNER_QUERY_PROVIDER") or "mock",
-        )
-        return self._cached
-
-    @classmethod
-    def _next_timer_run(cls) -> Optional[datetime]:
-        try:
-            result = subprocess.run(
-                ["systemctl", "list-timers", "--all", "--no-pager", "--no-legend", cls.TIMER],
-                capture_output=True,
-                check=True,
-                text=True,
-                timeout=1.5,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        for line in result.stdout.splitlines():
-            fields = line.split()
-            if len(fields) < 5 or cls.TIMER not in fields:
-                continue
-            try:
-                scheduled = datetime.strptime(" ".join(fields[:3]), "%a %Y-%m-%d %H:%M:%S")
-                return scheduled.replace(tzinfo=datetime.now().astimezone().tzinfo)
-            except ValueError:
-                continue
-        return None
-
-
-def _read_env_file(path: Path) -> Dict[str, str]:
-    values: Dict[str, str] = {}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return values
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, value = line.split("=", 1)
-        values[name.strip()] = value.split("#", 1)[0].strip().strip("\"'")
-    return values
-
-
-def _env_int(env: Dict[str, str], key: str) -> Optional[int]:
-    try:
-        return int(env[key])
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-class HostSampler:
-    """Read inexpensive host metrics without requiring a monitoring package."""
-
-    def __init__(self, workspace: Path):
-        self.workspace = workspace
-        self._cpu_previous: Optional[Tuple[int, int]] = None
-        self._gpu_last_check = 0.0
-        self._gpu_cache: Dict[str, Any] = {}
-
-    def sample(self) -> HostSample:
-        cpu = self._cpu_percent()
-        memory_used, memory_total = self._memory()
-        disks = self._disks(self.workspace)
-        if time.monotonic() - self._gpu_last_check >= 3:
-            self._gpu_cache = self._gpu()
-            self._gpu_last_check = time.monotonic()
-        return HostSample(
-            cpu_percent=cpu,
-            memory_used=memory_used,
-            memory_total=memory_total,
-            disks=disks,
-            **self._gpu_cache,
-        )
-
-    @staticmethod
-    def _disks(workspace: Path) -> List[DiskSample]:
-        """Collect local filesystems backing Hecate's workspace and mounted data."""
-        disks: List[DiskSample] = []
-        seen_devices = set()
-        workspace_path = workspace.resolve()
-        try:
-            mounts = Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
-        except OSError:
-            return disks
-
-        for line in mounts:
-            fields = line.split()
-            if len(fields) < 3:
-                continue
-            source, target = fields[:2]
-            if not source.startswith("/dev/") or source.startswith("/dev/loop"):
-                continue
-            # /proc/mounts encodes spaces and tabs as octal escapes.
-            target = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match.group(1), 8)), target)
-            mount_path = Path(target)
-            if not (
-                workspace_path == mount_path
-                or workspace_path.is_relative_to(mount_path)
-                or mount_path.is_relative_to(workspace_path)
-            ):
-                continue
-            try:
-                device_id = os.stat(mount_path).st_dev
-                if device_id in seen_devices:
-                    continue
-                usage = shutil.disk_usage(mount_path)
-            except OSError:
-                continue
-            seen_devices.add(device_id)
-            label = target if target == "/" else str(mount_path)
-            disks.append(DiskSample(label, usage.used, usage.total))
-        return disks
-
-    def _cpu_percent(self) -> Optional[float]:
-        try:
-            fields = Path("/proc/stat").read_text(encoding="ascii").splitlines()[0].split()[1:]
-            values = [int(value) for value in fields]
-            idle = values[3] + (values[4] if len(values) > 4 else 0)
-            total = sum(values)
-        except (OSError, ValueError, IndexError):
-            return None
-        previous = self._cpu_previous
-        self._cpu_previous = (idle, total)
-        if previous is None:
-            return None
-        idle_delta = idle - previous[0]
-        total_delta = total - previous[1]
-        if total_delta <= 0:
-            return None
-        return max(0.0, min(100.0, 100.0 * (1 - idle_delta / total_delta)))
-
-    @staticmethod
-    def _memory() -> Tuple[Optional[int], Optional[int]]:
-        try:
-            values: Dict[str, int] = {}
-            for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
-                key, raw = line.split(":", 1)
-                values[key] = int(raw.strip().split()[0]) * 1024
-            total = values["MemTotal"]
-            available = values.get("MemAvailable", values.get("MemFree", total))
-            return max(0, total - available), total
-        except (OSError, ValueError, KeyError, IndexError):
-            return None, None
-
-    @staticmethod
-    def _gpu() -> Dict[str, Any]:
-        try:
-            result = subprocess.run(
-                [
-                    "nvidia-smi",
-                    "--query-gpu=name,utilization.gpu,memory.used,memory.total",
-                    "--format=csv,noheader,nounits",
-                ],
-                capture_output=True,
-                check=True,
-                text=True,
-                timeout=0.8,
-            )
-            fields = [field.strip() for field in result.stdout.splitlines()[0].split(",")]
-            return {
-                "gpu_name": fields[0],
-                "gpu_percent": float(fields[1]),
-                "gpu_memory_used": int(fields[2]) * 1024 * 1024,
-                "gpu_memory_total": int(fields[3]) * 1024 * 1024,
-            }
-        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-            return {"gpu_name": "not detected", "gpu_percent": None, "gpu_memory_used": None, "gpu_memory_total": None}
-
-
-def _tail(path: Path, limit: int = 180) -> List[str]:
-    """Read only the last part of an append-only log."""
-    try:
-        with path.open("rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - 160_000))
-            raw = handle.read().decode("utf-8", errors="replace")
-        return raw.splitlines()[-limit:]
-    except OSError:
-        return []
-
-
-def _read_events(log_path: Path) -> List[TrailEvent]:
-    events: List[TrailEvent] = []
-    for line in _tail(log_path):
-        match = _LOG_RE.match(line)
-        if not match or match.group(3) != "hecate_runner.trail":
-            continue
-        trail = _TRAIL_RE.match(match.group(4))
-        if not trail:
-            continue
-        cycle_id, elapsed, stage, message = trail.groups()
-        events.append(TrailEvent(match.group(1), cycle_id, float(elapsed), stage, message))
-    return events
-
-
-def _read_recent_error(log_path: Path) -> str:
-    error_block = []
-    in_error = False
-
-    for line in _tail(log_path, limit=300):
-        match = _LOG_RE.match(line)
-        if match:
-            level = match.group(2)
-            if level in {"ERROR", "CRITICAL"}:
-                in_error = True
-                error_block = [line]
-            else:
-                in_error = False
-        else:
-            if in_error or error_block:
-                error_block.append(line)
-
-    return "\n".join(error_block[-20:]) if error_block else ""
-
-
-def _latest_metrics(metrics_path: Path) -> Dict[str, Any]:
-    lines = _tail(metrics_path, limit=2000)
-    aggregate = {
-        "llm_calls": 0,
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "estimated_cost_usd": 0.0,
-        "completed_cycles": 0,
-        "cost_today_usd": 0.0,
-        "calls_today": 0,
-        "cycles_today": 0,
-    }
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    cost_today_usd = 0.0
-    calls_today = 0
-    cycles_today = 0
-    latest_val = {}
-    latest_with_llm = {}
-    for line in lines:
-        try:
-            val = json.loads(line)
-            if isinstance(val, dict) and isinstance(val.get("stages"), list):
-                aggregate["completed_cycles"] += 1
-                latest_val = val
-                started_at = str(val.get("started_at", ""))
-                is_today = started_at.startswith(today)
-                if is_today:
-                    cycles_today += 1
-                has_llm = any(isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in val["stages"])
-                if has_llm:
-                    latest_with_llm = val
-                for stage in val["stages"]:
-                    if isinstance(stage, dict):
-                        calls = int(stage.get("llm_calls") or 0)
-                        inp = int(stage.get("input_tokens") or 0)
-                        outp = int(stage.get("output_tokens") or 0)
-                        cost = float(stage.get("estimated_cost_usd") or 0.0)
-                        aggregate["llm_calls"] += calls
-                        aggregate["input_tokens"] += inp
-                        aggregate["output_tokens"] += outp
-                        aggregate["estimated_cost_usd"] += cost
-                        if is_today:
-                            calls_today += calls
-                            cost_today_usd += cost
-        except (json.JSONDecodeError, TypeError, ValueError):
-            continue
-    aggregate["cost_today_usd"] = cost_today_usd
-    aggregate["calls_today"] = calls_today
-    aggregate["cycles_today"] = cycles_today
-    if latest_with_llm and not any(
-        isinstance(s, dict) and (s.get("llm_calls") or 0) > 0 for s in latest_val.get("stages", [])
-    ):
-        latest_val = dict(latest_val)
-        latest_val["stages"] = latest_with_llm.get("stages", [])
-        latest_val["models"] = latest_with_llm.get("models", [])
-        latest_val["hunt_id"] = latest_with_llm.get("hunt_id")
-        latest_val["research_id"] = latest_with_llm.get("research_id")
-    latest_val["aggregate"] = aggregate
-    return latest_val
 
 
 def _bytes(value: Optional[int]) -> str:
@@ -557,6 +114,47 @@ def _bar(value: Optional[float], width: int = 22) -> Text:
 def _resource_panel(title: str, value: Optional[float], detail: str = "") -> Panel:
     body = Group(_bar(value), Text(detail or " ", style="dim"))
     return Panel(body, title=f"[bold bright_cyan]{title}[/]", border_style="bright_magenta", box=box.ROUNDED)
+
+
+def _host_telemetry_ribbon(host: HostSample) -> Panel:
+    cpu_pct = host.cpu_percent
+    cpu_str = f"{cpu_pct:.0f}%" if cpu_pct is not None else "n/a"
+    cpu_bar_str = _bar(cpu_pct, width=8).plain if cpu_pct is not None else "░░░░░░░░"
+
+    mem_pct = _percent(host.memory_used, host.memory_total)
+    mem_str = f"{mem_pct:.0f}%" if mem_pct is not None else "n/a"
+    mem_bar_str = _bar(mem_pct, width=8).plain if mem_pct is not None else "░░░░░░░░"
+    mem_detail = f"{_bytes(host.memory_used)}/{_bytes(host.memory_total)}"
+
+    gpu_pct = host.gpu_percent
+    gpu_str = f"{gpu_pct:.0f}%" if gpu_pct is not None else "0%"
+    gpu_name = host.gpu_name if host.gpu_name != "unavailable" else "GPU"
+    if host.gpu_memory_used and host.gpu_memory_total:
+        gpu_detail = f"{gpu_name} ({gpu_str} · {_bytes(host.gpu_memory_used)}/{_bytes(host.gpu_memory_total)})"
+    else:
+        gpu_detail = f"{gpu_name} ({gpu_str})"
+
+    disk_str = _disk_summary(host, compact=True)
+
+    table = Table(box=None, expand=True, show_header=False, padding=(0, 1))
+    table.add_column("CPU", ratio=1)
+    table.add_column("RAM", ratio=1)
+    table.add_column("GPU", ratio=1)
+    table.add_column("STORAGE", ratio=1)
+
+    c_cpu = Text.assemble(("CPU ", "bold bright_cyan"), (f"{cpu_str} ", "bright_white"), (f"[{cpu_bar_str}]", "dim bright_cyan"), (" host", "dim"))
+    c_mem = Text.assemble(("RAM ", "bold bright_cyan"), (f"{mem_str} ", "bright_white"), (f"[{mem_bar_str}] ", "dim bright_cyan"), (f"{mem_detail}", "dim"))
+    c_gpu = Text.assemble(("GPU ", "bold bright_cyan"), (gpu_detail, "bright_white"))
+    c_disk = Text.assemble(("DRIVES ", "bold bright_cyan"), (disk_str, "bright_white"))
+
+    table.add_row(c_cpu, c_mem, c_gpu, c_disk)
+    return Panel(
+        table,
+        title="[bold bright_cyan]HOST TELEMETRY[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+        padding=(0, 0),
+    )
 
 
 #: With no service to ask, a cycle whose log has been quiet this long is taken as stopped.
@@ -722,11 +320,28 @@ def _recent_events(events: List[TrailEvent], rows: int, width: int) -> List[Tupl
     return chosen[::-1]
 
 
-def _activity_table(events: List[TrailEvent], rows: int = 8, width: int = 100) -> Table:
+def _activity_table(events: List[TrailEvent], rows: int = 8, width: int = 100, errors_only: bool = False) -> Table:
     table = Table(box=None, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
     table.add_column("TIME", width=10, style="dim")
     table.add_column("STAGE", width=10)
     table.add_column("ACTIVITY", ratio=1, overflow="ellipsis", no_wrap=True)
+
+    if errors_only:
+        filtered = [
+            e
+            for e in events
+            if e.stage in ("error", "fail", "warn", "warning")
+            or "error" in e.message.lower()
+            or "exception" in e.message.lower()
+            or "fail" in e.message.lower()
+            or "warn" in e.message.lower()
+            or "parked" in e.message.lower()
+        ]
+        if not filtered:
+            table.add_row("--:--:--", "[bold green]CLEAN[/]", "[green]No error events detected in current log stream[/]")
+            return table
+        events = filtered
+
     for event, message in _recent_events(events, rows, width):
         color = _get_stage_color(event.stage)
         table.add_row(event.timestamp[-8:], f"[{color}]{event.stage[:10]}[/]", message)
@@ -925,9 +540,25 @@ def _search_count(current: Optional[TrailEvent], events: List[TrailEvent]) -> st
     return "pending"
 
 
+_LIVE_USAGE_CACHE: Dict[str, Tuple[int, int, Dict[str, Any]]] = {}
+
+
 def _live_usage(call_log: Path) -> Dict[str, Any]:
     """The running cycle's provider calls so far; empty when the Runner keeps no call log."""
-    return summarize_calls(_tail(call_log, limit=2000))
+    try:
+        stat = call_log.stat()
+        mtime_ns = stat.st_mtime_ns
+        size = stat.st_size
+        key = str(call_log.resolve())
+        cached = _LIVE_USAGE_CACHE.get(key)
+        if cached is not None and cached[0] == mtime_ns and cached[1] == size:
+            return cached[2]
+    except OSError:
+        return summarize_calls([])
+
+    res = summarize_calls(_tail(call_log, limit=2000))
+    _LIVE_USAGE_CACHE[key] = (mtime_ns, size, res)
+    return res
 
 
 def _live_usage_panel(
@@ -1028,1142 +659,6 @@ def _live_usage_panel(
         )
     return Panel(table, title="[bold bright_cyan]LLM STATS[/]", border_style="bright_magenta", box=box.ROUNDED)
 
-
-def _credential_status(workspace: Optional[Path] = None) -> Tuple[List[str], List[str]]:
-    """Return lists of active (configured) and inactive service labels."""
-    checks = (
-        (
-            "LLM",
-            (
-                "HECATE_LLM_PROVIDER",
-                "OPENAI_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "GEMINI_API_KEY",
-                "GOOGLE_API_KEY",
-                "AWS_PROFILE",
-                "OLLAMA_HOST",
-            ),
-        ),
-        ("Tavily", ("TAVILY_API_KEY",)),
-        ("OTX", ("OTX_API_KEY",)),
-        ("MISP", ("MISP_API_KEY",)),
-        ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
-        ("GreyNoise", ("GREYNOISE_API_KEY",)),
-        ("AbuseIPDB", ("ABUSEIPDB_API_KEY",)),
-        ("Shodan", ("SHODAN_API_KEY",)),
-        ("Censys", ("CENSYS_API_TOKEN",)),
-        ("ThreatFox", ("ABUSECH_API_KEY",)),
-        ("MalBazaar", ("ABUSECH_API_KEY",)),
-        ("VulnCheck", ("VULNCHECK_API_KEY",)),
-        ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
-        ("Shadowserver", ("SHADOWSERVER_API_KEY",)),
-        ("ANY.RUN", ("ANYRUN_API_KEY",)),
-        ("OpenCTI", ("OPENCTI_TOKEN", "OPENCTI_URL")),
-        ("Slack", ("SLACK_BOT_TOKEN", "HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
-    )
-    env_files = [workspace / ".env"] if workspace else []
-    if workspace:
-        env_files.append(workspace.parent / "Hecate-Runner" / ".env")
-    file_keys = set()
-    for env_file in env_files:
-        try:
-            for line in env_file.read_text(encoding="utf-8").splitlines():
-                key, sep, value = line.partition("=")
-                if sep and value.strip().strip("\"'"):
-                    file_keys.add(key.strip().removeprefix("export "))
-        except OSError:
-            continue
-    on, off = [], []
-    for label, names in checks:
-        is_set = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
-        if is_set:
-            on.append(label)
-        else:
-            off.append(label)
-    return on, off
-
-
-def _credential_summary(workspace: Optional[Path] = None) -> str:
-    """Show configured status only; never read or render credential values."""
-    on, off = _credential_status(workspace)
-    return " · ".join([f"{item} ON" for item in on] + [f"{item} OFF" for item in off])
-
-
-_INTEGRATION_IDS = {
-    "LLM": "llm", "Tavily": "tavily", "OTX": "otx", "MISP": "misp", "VT": "vt",
-    "GreyNoise": "greynoise", "AbuseIPDB": "abuseipdb", "Shodan": "shodan", "Censys": "censys",
-    "ThreatFox": "threatfox", "MalBazaar": "malwarebazaar", "Feodo C2": "feodo", "SSLBL": "sslbl",
-    "URLhaus": "urlhaus", "URLScan": "urlscan", "Hybrid": "hybrid", "RDAP": "rdap", "crt.sh": "crtsh",
-    "PDNS": "pdns", "Spur": "spur", "Tor/Proxy": "tor_proxy", "EPSS": "epss", "OSV.dev": "osv",
-    "Slack": "slack", "VulnCheck": "vulncheck", "Triage": "triage", "Shadowsrv": "shadowserver",
-    "MSRC": "msrc", "CloudThrt": "cloud_threat", "DFIR Rept": "dfir_report", "FIRST.org": "first_org",
-    "ANY.RUN": "anyrun", "OpenCTI": "opencti", "LOLBAS": "lolbas", "LOLDrivers": "loldrivers",
-    "GTFOBins": "gtfobins", "Nuclei": "nuclei", "CISA AA": "cisa_narrative", "CISA CSAF": "cisa_advisories",
-    "CISA ICS": "cisa_ics", "ATT&CK": "attack_deltas", "CISA KEV": "cisa_kev",
-    "RSS": "rss", "GitHub PoC": "github_poc", "VXUG": "vxunderground", "CertStrm": "certstream",
-}
-_SOURCE_INTEGRATIONS = {
-    "otx", "misp", "vulncheck", "triage", "shadowserver", "msrc", "cloud_threat", "dfir_report",
-    "first_org", "anyrun", "opencti", "lolbas", "loldrivers", "gtfobins", "nuclei",
-    "cisa_advisories", "cisa_ics", "attack_deltas", "cisa_kev", "rss", "github_poc", "vxunderground", "certstream",
-}
-
-
-def _confirmed_integration(workspace: Optional[Path], name: str, enabled: bool) -> Tuple[bool, str]:
-    """Only a recent successful check plus current enablement can produce green."""
-    if workspace is None:
-        return False, "unconfirmed" if enabled else "disabled"
-    try:
-        record = json.loads((workspace / ".hecate" / "integrations" / f"{name}.json").read_text())
-        checked = datetime.fromisoformat(record["checked_at"])
-        age = (datetime.now(timezone.utc) - checked).total_seconds()
-        if not 0 <= age <= 7200:
-            return False, "check stale" if enabled else "disabled"
-        if not enabled and record.get("healthy") is True:
-            return False, "reachable; disabled"
-        if not enabled:
-            return False, "disabled"
-        healthy = enabled and record.get("healthy") is True and record.get("enabled") is True
-        return healthy, "confirmed" if healthy else str(record.get("detail") or "failed")[:80]
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        return False, "unconfirmed" if enabled else "disabled"
-
-
-def _integration_style(healthy: bool, detail: str) -> str:
-    if healthy:
-        return "bold #ff69b4" if detail == "output only" else "bold bright_green"
-    if detail == "reachable; disabled":
-        return "bold bright_magenta"
-    if detail == "disabled":
-        return "bold grey62"
-    return "bold bright_red"
-
-
-def _integrations_panel(
-    workspace: Optional[Path] = None,
-    search_count: str = "pending",
-    narrow: bool = True,
-    compact: bool = False,
-    events: Optional[List[TrailEvent]] = None,
-    metrics: Optional[Dict[str, Any]] = None,
-    live: Optional[Dict[str, Any]] = None,
-    current: Optional[TrailEvent] = None,
-    grid: bool = False,
-    grid_compact_names: bool = False,
-) -> Panel:
-    """A dedicated panel displaying external API and service integration statuses and activity metrics."""
-    checks = (
-        (
-            "LLM",
-            (
-                "HECATE_LLM_PROVIDER",
-                "OPENAI_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "GEMINI_API_KEY",
-                "GOOGLE_API_KEY",
-                "AWS_PROFILE",
-                "OLLAMA_HOST",
-            ),
-        ),
-        ("Tavily", ("TAVILY_API_KEY",)),
-        ("OTX", ("OTX_API_KEY",)),
-        ("MISP", ("MISP_API_KEY",)),
-        ("VT", ("HECATE_RUNNER_VT_API_KEY", "VT_API_KEY")),
-        ("GreyNoise", ("GREYNOISE_API_KEY",)),
-        ("AbuseIPDB", ("ABUSEIPDB_API_KEY",)),
-        ("Shodan", ("SHODAN_API_KEY",)),
-        ("Censys", ("CENSYS_API_TOKEN",)),
-        ("ThreatFox", ("ABUSECH_API_KEY",)),
-        ("MalBazaar", ("ABUSECH_API_KEY",)),
-        ("Feodo C2", ()),
-        ("SSLBL", ()),
-        ("URLhaus", ("ABUSECH_API_KEY",)),
-        ("URLScan", ("URLSCAN_API_KEY",)),
-        ("Hybrid", ("HYBRID_ANALYSIS_API_KEY", "HA_API_KEY", "FALCON_SANDBOX_API_KEY")),
-        ("RDAP", ()),
-        ("crt.sh", ()),
-        ("PDNS", ("VT_API_KEY", "MNEMONIC_API_KEY", "OTX_API_KEY")),
-        ("Spur", ("SPUR_API_KEY",)),
-        ("Tor/Proxy", ("IPINFO_TOKEN", "IPINFO_API_KEY")),
-        ("EPSS", ()),
-        ("OSV.dev", ()),
-        ("Slack", ("SLACK_BOT_TOKEN", "HECATE_RUNNER_SLACK_WEBHOOK_URL", "SLACK_WEBHOOK_URL")),
-        ("VulnCheck", ("VULNCHECK_API_KEY",)),
-        ("Triage", ("TRIAGE_API_KEY", "HATCHING_TRIAGE_API_KEY")),
-        ("Shadowsrv", ("SHADOWSERVER_API_KEY",)),
-        ("MSRC", ()),
-        ("CloudThrt", ()),
-        ("DFIR Rept", ()),
-        ("FIRST.org", ()),
-        ("ANY.RUN", ("ANYRUN_API_KEY",)),
-        ("OpenCTI", ("OPENCTI_TOKEN", "OPENCTI_URL")),
-    )
-    env_files = [workspace / ".env"] if workspace else []
-    if workspace:
-        env_files.append(workspace.parent / "Hecate-Runner" / ".env")
-    file_keys = set()
-    file_values: Dict[str, str] = {}
-    for env_file in env_files:
-        try:
-            for line in env_file.read_text(encoding="utf-8").splitlines():
-                key, sep, value = line.partition("=")
-                if sep and value.strip().strip("\"'"):
-                    env_key = key.strip().removeprefix("export ")
-                    file_keys.add(env_key)
-                    file_values[env_key] = value.strip().strip("\"'")
-        except OSError:
-            continue
-    cycle_events: List[TrailEvent] = []
-    if current and events:
-        cycle_events = [e for e in events if e.cycle_id == current.cycle_id]
-    elif events:
-        last_cid = events[-1].cycle_id if events else None
-        if last_cid:
-            cycle_events = [e for e in events if e.cycle_id == last_cid]
-
-    # For enrichment services, preserve metrics from the latest active cycle that performed
-    # enrichment across idle polling cycles (similar to _latest_metrics for LLM calls).
-    active_enrichment_events: List[TrailEvent] = cycle_events
-    if not any(e.stage == "enrichment" for e in cycle_events) and events:
-        for e in reversed(events):
-            if e.stage == "enrichment":
-                last_enrich_cid = e.cycle_id
-                active_enrichment_events = [ev for ev in events if ev.cycle_id == last_enrich_cid]
-                break
-
-    services_data = []
-    for label, names in checks:
-        is_set = (
-            any(os.environ.get(name) for name in names)
-            or any(name in file_keys for name in names)
-            or (
-                label
-                in (
-                    "RDAP",
-                    "EPSS",
-                    "OSV.dev",
-                    "Feodo C2",
-                    "SSLBL",
-                    "Feodo/SSLBL",
-                    "URLScan",
-                    "crt.sh",
-                    "PDNS",
-                    "Tor/Proxy",
-                    "MSRC",
-                    "CloudThrt",
-                    "DFIR Rept",
-                    "FIRST.org",
-                    "ANY.RUN",
-                    "OpenCTI",
-                )
-            )
-        )
-        if label == "LLM":
-            if is_set:
-                provider_name = os.environ.get("HECATE_LLM_PROVIDER")
-                if not provider_name:
-                    if any(os.environ.get(k) or k in file_keys for k in ("ANTHROPIC_API_KEY",)):
-                        provider_name = "anthropic"
-                    elif any(os.environ.get(k) or k in file_keys for k in ("OPENAI_API_KEY",)):
-                        provider_name = "openai"
-                    elif any(os.environ.get(k) or k in file_keys for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY")):
-                        provider_name = "gemini"
-                    elif any(os.environ.get(k) or k in file_keys for k in ("AWS_PROFILE",)):
-                        provider_name = "bedrock"
-                    else:
-                        provider_name = "ollama"
-                else:
-                    provider_name = provider_name.lower().split()[0]
-                detail = str(provider_name)
-                calls = 0
-                if live and live.get("llm_calls") is not None:
-                    calls = int(live.get("llm_calls") or 0)
-                elif metrics:
-                    llm_stages = [
-                        s for s in (metrics.get("stages") or []) if isinstance(s, dict) and s.get("llm_calls") is not None
-                    ]
-                    calls = sum(int(s.get("llm_calls") or 0) for s in llm_stages)
-                metric = f"{calls} calls"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Tavily":
-            if is_set:
-                detail = "web search"
-                searches = None
-                in_prog = False
-                for e in reversed(cycle_events):
-                    m = re.search(r"(\d+)\s+web\s+search(?:es|\(es\))?", e.message)
-                    if m:
-                        searches = int(m.group(1))
-                        break
-                    if e.stage == "research" and "web search on" in e.message:
-                        in_prog = True
-                if searches is None and not in_prog and active_enrichment_events != cycle_events:
-                    for e in reversed(active_enrichment_events):
-                        m = re.search(r"(\d+)\s+web\s+search(?:es|\(es\))?", e.message)
-                        if m:
-                            searches = int(m.group(1))
-                            break
-                if searches is not None:
-                    metric = f"{searches} searches"
-                elif in_prog:
-                    metric = "searching..."
-                elif search_count.isdigit():
-                    metric = f"{search_count} searches"
-                elif search_count in ("in progress...", "searching..."):
-                    metric = "searching..."
-                else:
-                    metric = "0 searches"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "OTX":
-            if is_set:
-                detail = "feed/ioc" if narrow else "pulses"
-                otx_found = any(
-                    e.stage in ("intake", "route", "research")
-                    and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower())
-                    for e in cycle_events
-                )
-                if not otx_found and active_enrichment_events != cycle_events:
-                    otx_found = any(
-                        e.stage in ("intake", "route", "research")
-                        and ("otx:" in e.message.lower() or "otx pulse:" in e.message.lower())
-                        for e in active_enrichment_events
-                    )
-                if otx_found:
-                    metric = "1 pulse"
-                else:
-                    obs_count = 0
-                    for e in active_enrichment_events:
-                        if e.stage == "enrichment":
-                            m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
-                            if m_obs:
-                                obs_count = int(m_obs.group(1))
-                                break
-                    if obs_count > 0:
-                        metric = f"{obs_count} queries"
-                    else:
-                        backlog = _backlog_observation(events or [])
-                        if backlog and backlog[0] > 0:
-                            metric = f"{backlog[0]} queued"
-                        else:
-                            metric = "0 queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "MISP":
-            if is_set:
-                detail = "threat sharing" if narrow else "threat share"
-                misp_found = any(e.stage == "intake" and "misp:" in e.message.lower() for e in cycle_events)
-                if not misp_found and active_enrichment_events != cycle_events:
-                    misp_found = any(e.stage == "intake" and "misp:" in e.message.lower() for e in active_enrichment_events)
-                metric = "1 event" if misp_found else "0 events"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "VT":
-            if is_set:
-                detail = "enrichment"
-                ioc_count = 0
-                for e in active_enrichment_events:
-                    m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
-                    if m_obs:
-                        ioc_count = max(ioc_count, int(m_obs.group(1)))
-                    m = re.search(r"(\d+)\s+indicator\(s\)", e.message)
-                    if m:
-                        ioc_count = max(ioc_count, int(m.group(1)))
-                    m_typed = re.search(r"(\d+)/\d+\s+indicator\(s\)\s+typed", e.message)
-                    if m_typed:
-                        ioc_count = max(ioc_count, int(m_typed.group(1)))
-                    m_intake = re.search(r"indicators:\s*([^\);]+)", e.message)
-                    if m_intake and "none" not in m_intake.group(1).lower():
-                        nums = [int(n) for n in re.findall(r"\b(\d+)\b", m_intake.group(1))]
-                        if nums:
-                            ioc_count = max(ioc_count, sum(nums))
-                metric = f"{ioc_count} checked"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "GreyNoise":
-            if is_set:
-                detail = "noise" if narrow else "noise filter"
-                ip_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                    if m:
-                        ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "AbuseIPDB":
-            if is_set:
-                detail = "ip abuse"
-                ip_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                    if m:
-                        ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Shodan":
-            if is_set:
-                detail = "recon"
-                ip_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                    if m:
-                        ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Censys":
-            if is_set:
-                detail = "surface" if narrow else "attack surface"
-                ip_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                    if m:
-                        ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "ThreatFox":
-            if is_set:
-                detail = "abuse.ch"
-                tf_count = 0
-                for e in active_enrichment_events:
-                    if e.stage == "enrichment":
-                        m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
-                        if m_obs:
-                            tf_count = int(m_obs.group(1))
-                            break
-                    m_obs = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
-                    if m_obs:
-                        tf_count = max(tf_count, int(m_obs.group(1)))
-                    elif tf_count == 0:
-                        m_ind = re.search(r"(\d+)\s+indicator\(s\)", e.message, re.IGNORECASE)
-                        if m_ind:
-                            tf_count = max(tf_count, int(m_ind.group(1)))
-                metric = f"{tf_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "MalBazaar":
-            if is_set:
-                detail = "malware"
-                hash_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
-                    if m:
-                        hash_count = max(hash_count, int(m.group(1)))
-                metric = f"{hash_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label in ("Feodo C2", "Feodo"):
-            detail = "botnet c2" if narrow else "botnet"
-            ip_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                if m:
-                    ip_count = max(ip_count, int(m.group(1)))
-            metric = f"{ip_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "SSLBL":
-            detail = "ssl/ja3"
-            hash_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
-                if m:
-                    hash_count = max(hash_count, int(m.group(1)))
-            metric = f"{hash_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "URLhaus":
-            if is_set:
-                detail = "urls" if narrow else "malware urls"
-                url_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+url", e.message, re.IGNORECASE)
-                    if m:
-                        url_count = max(url_count, int(m.group(1)))
-                metric = f"{url_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "URLScan":
-            has_key = any(os.environ.get(name) for name in names) or any(name in file_keys for name in names)
-            detail = "web lures" if has_key else "lures"
-            url_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+url", e.message, re.IGNORECASE)
-                if m:
-                    url_count = max(url_count, int(m.group(1)))
-            metric = f"{url_count} scans"
-            services_data.append((label, True, detail, metric))
-        elif label == "Hybrid":
-            if is_set:
-                detail = "sandbox"
-                hash_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+hash", e.message, re.IGNORECASE)
-                    if m:
-                        hash_count = max(hash_count, int(m.group(1)))
-                metric = f"{hash_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "RDAP":
-            detail = "whois/age"
-            dom_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)
-                if m:
-                    dom_count = max(dom_count, int(m.group(1)))
-            metric = f"{dom_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "crt.sh":
-            detail = "ct logs"
-            dom_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+domain", e.message, re.IGNORECASE)
-                if m:
-                    dom_count = max(dom_count, int(m.group(1)))
-            metric = f"{dom_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "PDNS":
-            detail = "passive dns"
-            obs_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+observable\(s\)", e.message, re.IGNORECASE)
-                if m:
-                    obs_count = max(obs_count, int(m.group(1)))
-            metric = f"{obs_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "Spur":
-            if is_set:
-                detail = "proxy/vpn"
-                ip_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                    if m:
-                        ip_count = max(ip_count, int(m.group(1)))
-                metric = f"{ip_count} queries"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Tor/Proxy":
-            detail = "tor/vpn"
-            ip_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+ip", e.message, re.IGNORECASE)
-                if m:
-                    ip_count = max(ip_count, int(m.group(1)))
-            metric = f"{ip_count} queries"
-            services_data.append((label, True, detail, metric))
-        elif label == "EPSS":
-            detail = "cve score" if narrow else "exploit prediction"
-            cve_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
-                if m:
-                    cve_count = max(cve_count, int(m.group(1)))
-            metric = f"{cve_count} CVEs"
-            services_data.append((label, True, detail, metric))
-        elif label in ("OSV.dev", "OSV"):
-            detail = "supply chain" if narrow else "osv/pkg"
-            cve_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
-                if m:
-                    cve_count = max(cve_count, int(m.group(1)))
-            metric = f"{cve_count} CVEs"
-            services_data.append((label, True, detail, metric))
-        elif label == "Slack":
-            if is_set:
-                detail = "alerts"
-                draft_created = any("draft_created" in e.message for e in cycle_events)
-                if not draft_created and active_enrichment_events != cycle_events:
-                    draft_created = any("draft_created" in e.message for e in active_enrichment_events)
-                metric = "1 sent" if draft_created else "0 sent"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "VulnCheck":
-            if is_set:
-                detail = "kev/cve" if narrow else "kev exploit"
-                cve_count = 0
-                for e in active_enrichment_events:
-                    m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
-                    if m:
-                        cve_count = max(cve_count, int(m.group(1)))
-                metric = f"{cve_count} KEVs" if cve_count > 0 else "active"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Triage":
-            if is_set:
-                detail = "sandbox"
-                metric = "active"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "Shadowsrv":
-            if is_set:
-                detail = "c2/botnet"
-                metric = "active"
-                services_data.append((label, True, detail, metric))
-            else:
-                services_data.append((label, False, "unconfigured", "--"))
-        elif label == "MSRC":
-            detail = "cvrf/cve"
-            cve_count = 0
-            for e in active_enrichment_events:
-                m = re.search(r"(\d+)\s+cve", e.message, re.IGNORECASE)
-                if m:
-                    cve_count = max(cve_count, int(m.group(1)))
-            metric = f"{cve_count} CVEs" if cve_count > 0 else "advisories"
-            services_data.append((label, True, detail, metric))
-        elif label == "CloudThrt":
-            detail = "iam/cloud"
-            metric = "3 feeds"
-            services_data.append((label, True, detail, metric))
-        elif label == "DFIR Rept":
-            detail = "reports"
-            metric = "feed"
-            services_data.append((label, True, detail, metric))
-        elif label == "FIRST.org":
-            detail = "epss spike"
-            metric = "active"
-            services_data.append((label, True, detail, metric))
-        elif label == "ANY.RUN":
-            detail = "sandbox"
-            metric = "active"
-            services_data.append((label, True, detail, metric))
-        elif label == "OpenCTI":
-            detail = "stix/intel"
-            metric = "active"
-            services_data.append((label, True, detail, metric))
-
-    env_values = {**file_values, **os.environ}
-    provider = env_values.get("HECATE_RUNNER_CTI_PROVIDER", "file")
-    active_sources = set(env_values.get("HECATE_RUNNER_CTI_MULTI_PROVIDERS", "rss,otx,misp").replace(" ", "").split(",")) if provider == "multi" else {provider}
-    for label in ("LOLBAS", "LOLDrivers", "GTFOBins", "Nuclei", "CISA AA", "CISA CSAF", "CISA ICS", "ATT&CK", "CISA KEV", "RSS", "GitHub PoC", "VXUG", "CertStrm"):
-        services_data.append((label, True, "source", "--"))
-    confirmed_data = []
-    for label, configured, detail, metric in services_data:
-        name = _INTEGRATION_IDS[label]
-        source_name = "cisa_advisories" if name == "cisa_narrative" else name
-        enabled = source_name in active_sources if source_name in _SOURCE_INTEGRATIONS else configured
-        if name == "misp" and str(env_values.get("HECATE_RUNNER_MISP_PUBLISHING_ENABLED", "false")).lower() in {"true", "1", "yes", "on"}:
-            name, enabled = "misp_output", True
-            detail = "output only" if source_name not in active_sources else "input/output"
-        if name == "slack" and str(env_values.get("HECATE_RUNNER_SLACK_INTERACTIVE_ENABLED", "false")).lower() not in {"true", "1", "yes", "on"}:
-            detail = "output only"
-        ok, reason = _confirmed_integration(workspace, name, enabled)
-        confirmed_data.append((label, ok, detail if ok else reason, metric))
-    services_data = confirmed_data
-
-    table = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-    if grid:
-        # The wide dashboard places this panel beside other detail panels.
-        # Use a compact grid so every configured integration remains visible.
-        for column in ("one", "two", "three", "four"):
-            table.add_column(column, ratio=1, overflow="ellipsis", no_wrap=True)
-        aliases = {
-            "GreyNoise": "GreyN",
-            "AbuseIPDB": "Abuse",
-            "ThreatFox": "ThrtFx",
-            "MalBazaar": "MalBzr",
-            "Feodo C2": "Feodo",
-            "Tor/Proxy": "TorPrx",
-            "VulnCheck": "VulnCh",
-            "DFIR Rept": "DFIR",
-            "FIRST.org": "FIRST",
-            "URLhaus": "URLhs",
-            "URLScan": "URLScn",
-            "OSV.dev": "OSVdev",
-        }
-        display_items = [
-            (aliases.get(label, label) if grid_compact_names else label, is_set, detail)
-            for label, is_set, detail, _ in services_data
-        ]
-        for start in range(0, len(display_items), 4):
-            row = [
-                Text(label, style=_integration_style(ok, detail))
-                for label, ok, detail in display_items[start : start + 4]
-            ]
-            row.extend(Text("") for _ in range(4 - len(row)))
-            table.add_row(*row)
-    elif narrow:
-        table.add_column("label", style="dim", width=11, no_wrap=True)
-        table.add_column("status", ratio=1, overflow="ellipsis", no_wrap=True)
-        table.add_column("metric", justify="right", width=11, no_wrap=True)
-        for label, is_set, detail, metric in services_data:
-            if is_set:
-                st = Text.assemble(("ON", _integration_style(True, detail)), (" · ", "dim"), (detail, "bright_white"))
-                m_style = "bright_cyan" if metric != "--" else "dim"
-            else:
-                st = Text.assemble(("OFF", _integration_style(False, detail)), (" · ", "dim"), (detail, "dim"))
-                m_style = "dim"
-            table.add_row(label, st, Text(metric, style=m_style))
-    else:
-
-        def format_item(lbl: str, is_on: bool, det: str, met: str) -> Text:
-            st = "ON" if is_on else "OFF"
-            col = _integration_style(is_on, det)
-            m_col = "bright_cyan" if is_on and met != "--" else "dim"
-            return Text.assemble(
-                (f"{lbl:<9}", "dim"),
-                (" ", "default"),
-                (st, col),
-                (" · ", "dim"),
-                (f"{det[:7]:<7}", "bright_white" if is_on else "dim"),
-                (" ", "default"),
-                (f"{met:>9}", m_col),
-            )
-
-        table = Table(box=None, show_header=False, expand=True, padding=(0, 0))
-        table.add_column("col1", ratio=1, no_wrap=True)
-        table.add_column("col2", ratio=1, no_wrap=True)
-        pairs = [
-            (services_data[i], services_data[i + 1] if i + 1 < len(services_data) else None)
-            for i in range(0, len(services_data), 2)
-        ]
-        for d1, d2 in pairs:
-            if d2:
-                table.add_row(format_item(*d1), format_item(*d2))
-            else:
-                table.add_row(format_item(*d1), Text(""))
-
-    return Panel(table, title="[bold bright_cyan]INTEGRATIONS[/]", border_style="bright_magenta", box=box.ROUNDED)
-
-
-@dataclass
-class HuntsMetrics:
-    total_hunts: int = 0
-    drafts_count: int = 0
-    active_count: int = 0
-    completed_count: int = 0
-    threats_count: int = 0
-    actors_count: int = 0
-    campaigns_count: int = 0
-    malware_count: int = 0
-    ttps_count: int = 0
-    sigma_rules_count: int = 0
-    network_total: int = 0
-    network_ips: int = 0
-    network_domains: int = 0
-    network_urls: int = 0
-    host_total: int = 0
-    host_hashes: int = 0
-    host_paths: int = 0
-    enterprise_ttps: Dict[str, int] = field(default_factory=dict)
-    mobile_ttps: Dict[str, int] = field(default_factory=dict)
-    ics_ttps: Dict[str, int] = field(default_factory=dict)
-    tactic_hunts: Dict[str, Dict[str, int]] = field(default_factory=dict)
-    tactic_rules: Dict[str, Dict[str, int]] = field(default_factory=dict)
-    matrix_hunts: Dict[str, int] = field(default_factory=dict)
-    matrix_rules: Dict[str, int] = field(default_factory=dict)
-    enterprise_total: int = 0
-    mobile_total: int = 0
-    ics_total: int = 0
-    grounding_asserted: int = 0
-    grounding_corroborated: int = 0
-    grounding_derived: int = 0
-    grounding_unsupported: int = 0
-    fingerprints_count: int = 0
-    cloud_ops_count: int = 0
-
-
-_EXCLUDED_HUNT_DOCS = {"README.md", "FORMAT_GUIDELINES.md", "INDEX.md", "AGENTS.md", "WEEKLY_SUMMARY_TEMPLATE.md"}
-_RE_TECHNIQUE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
-_RE_IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_RE_SHA256 = re.compile(r"\b[a-fA-F0-9]{64}\b")
-_RE_SHA1 = re.compile(r"\b[a-fA-F0-9]{40}\b")
-_RE_MD5 = re.compile(r"\b[a-fA-F0-9]{32}\b")
-_RE_HEX = re.compile(r"^[a-fA-F0-9]{32,64}$")
-_RE_DOMAIN = re.compile(
-    r"\b(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|xyz|ru|cn|io|top|biz|info|cc|co|kg|lv|dev|online|store|site|club|app|vip|pro|mobi|tech)\b",
-    re.IGNORECASE,
-)
-_RE_ACTOR_ROW = re.compile(r"\|\s*\*\*Actor\*\*\s*\|\s*([^|\n]+)\|")
-_RE_THREAT_CONTEXT = re.compile(r"\*\*Threat(?:\s+Actor)?:\*\*\s*([^\n]+)")
-_RE_GROUNDING_ENTITY = re.compile(r"\|\s*`([^`]+)`\s*\|\s*entity\s*\|\s*asserted by CTI")
-_RE_GROUNDING_SUMMARY = re.compile(
-    r"\*(\d+)\s+asserted(?: by CTI)?\s*·\s*(\d+)\s+(?:research-only|corroborated)\s*·\s*(\d+)\s+(?:inferred|derived)\s*·\s*(\d+)\s+unsupported\*",
-    re.IGNORECASE,
-)
-_RE_ROLE_INDICATOR = re.compile(r"\|\s*`([^`]+)`\s*\|\s*([\w_]+)\s*\|")
-_RE_MALWARE_TERMS = re.compile(
-    r"\b(trojan|ransomware|stealer|loader|backdoor|rat|botnet|wiper|rootkit|infostealer|dropper|implant|spyware|worm|malware|keylogger|miner|vshell)\b",
-    re.I,
-)
-_RE_CAMEL_MALWARE = re.compile(r"\b[A-Z][a-z0-9]+(?:RAT|Bot|Loader|Stealer|Locker)\b")
-_RE_ACTOR_TERMS = re.compile(
-    r"\b(apt\d+|fin\d+|unc\d+|ta\d+|storm-\d+|group|team|crew|cartel|operators?|syndicate|threat cluster)\b",
-    re.I,
-)
-_RE_CAMPAIGN_TERMS = re.compile(
-    r"\b(campaign|operation|op\s+[a-z0-9_-]+)\b",
-    re.I,
-)
-_GENERIC_THREAT_NAMES = {
-    "unknown",
-    "none",
-    "n/a",
-    "various",
-    "threat actor",
-    "adversary",
-    "unspecified",
-    "tbd",
-    "actor",
-    "attacker",
-    "malware",
-    "not specified",
-    "hkcu",
-    "hklm",
-}
-
-_HUNTS_METRICS_CACHE: Dict[Path, Tuple[float, int, float, HuntsMetrics]] = {}
-
-
-def _collect_hunts_metrics(workspace: Optional[Path] = None) -> HuntsMetrics:
-    """Collect summary metrics across all hunt drafts in the workspace.
-
-    Cached with a 10s cooldown and hunt/rule count/mtime fingerprinting
-    so monitor refresh cycles remain instantaneous.
-    """
-    if not workspace:
-        return HuntsMetrics()
-
-    hunts_dir = workspace / "hunts"
-    hunt_files: List[Path] = []
-    if hunts_dir.exists() and hunts_dir.is_dir():
-        try:
-            hunt_files = sorted(f for f in hunts_dir.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
-        except OSError:
-            hunt_files = []
-
-    # If this workspace has no hunt files yet (e.g. an eval run still in early stages),
-    # fall back to the primary knowledge base in Hecate-Workspace so the operator
-    # sees the cumulative hunt repository metrics instead of blank zeros.
-    is_eval_or_special = (
-        "/tmp/eval_runs" in str(workspace.resolve())
-        or "eval" in workspace.name.lower()
-        or workspace == Path("/home/chemch/betas")
-    )
-    if not hunt_files and is_eval_or_special:
-        alt_candidates = [
-            Path("/home/chemch/betas/Hecate-Workspace/hunts"),
-            Path.home() / "betas" / "Hecate-Workspace" / "hunts",
-            workspace.parent / "Hecate-Workspace" / "hunts",
-        ]
-        for alt in alt_candidates:
-            if alt.exists() and alt.is_dir():
-                try:
-                    alt_files = sorted(f for f in alt.rglob("*.md") if f.name not in _EXCLUDED_HUNT_DOCS)
-                    if alt_files:
-                        hunts_dir = alt
-                        hunt_files = alt_files
-                        break
-                except OSError:
-                    continue
-
-    if not hunts_dir or not hunts_dir.exists() or not hunt_files:
-        return HuntsMetrics()
-
-    resolved_path = hunts_dir.resolve()
-    now = time.monotonic()
-    cached = _HUNTS_METRICS_CACHE.get(resolved_path)
-
-    if cached is not None and (now - cached[0] < 10.0):
-        return cached[3]
-
-    file_count = len(hunt_files)
-    queries_dir = workspace / "queries"
-    if not queries_dir.is_dir():
-        queries_dir = hunts_dir.parent / "queries"
-    try:
-        sigma_files = sorted(p for p in queries_dir.rglob("*") if p.suffix.lower() in {".yml", ".yaml"} and p.is_file())
-    except OSError:
-        sigma_files = []
-    fingerprint_count = file_count + len(sigma_files)
-    try:
-        max_mtime = max((f.stat().st_mtime for f in [*hunt_files, *sigma_files]), default=0.0)
-    except OSError:
-        max_mtime = 0.0
-
-    if cached is not None and cached[1] == fingerprint_count and cached[2] == max_mtime:
-        _HUNTS_METRICS_CACHE[resolved_path] = (now, fingerprint_count, max_mtime, cached[3])
-        return cached[3]
-
-    drafts_count = 0
-    active_count = 0
-    completed_count = 0
-    actors: Set[str] = set()
-    campaigns: Set[str] = set()
-    malware: Set[str] = set()
-    techniques: Set[str] = set()
-    network_ips: Set[str] = set()
-    network_domains: Set[str] = set()
-    network_urls: Set[str] = set()
-    host_hashes: Set[str] = set()
-    host_paths: Set[str] = set()
-    fingerprints: Set[str] = set()
-    cloud_ops: Set[str] = set()
-    grounding_asserted = 0
-    grounding_corroborated = 0
-    grounding_derived = 0
-    grounding_unsupported = 0
-    tactic_hunts: Dict[str, Dict[str, int]] = {}
-    tactic_rules: Dict[str, Dict[str, int]] = {}
-    matrix_hunts: Dict[str, int] = {}
-    matrix_rules: Dict[str, int] = {}
-
-    from hecate_agent.core.attack_matrix import canonical_tactic, categorize_techniques_by_matrix
-
-    classifications: Dict[frozenset[str], Dict[str, Any]] = {}
-
-    def record_tactic_document(
-        ids: Set[str], counts: Dict[str, Dict[str, int]], totals: Dict[str, int], declared: Optional[Set[str]] = None
-    ) -> None:
-        key = frozenset(ids)
-        if key not in classifications:
-            classifications[key] = categorize_techniques_by_matrix(ids)
-        classified = classifications[key]
-        active = {
-            domain: {tactic for tactic, count in classified.get(domain, {}).items() if count}
-            for domain in ("enterprise", "mobile", "ics")
-        }
-        if declared and not any(active.values()):
-            active["enterprise"].update(
-                canonical_tactic(tactic) for tactic in declared
-                if canonical_tactic(tactic) in classified.get("enterprise", {})
-            )
-        for domain, tactics in active.items():
-            if tactics:
-                totals[domain] = totals.get(domain, 0) + 1
-            for tactic in tactics:
-                domain_counts = counts.setdefault(domain, {})
-                domain_counts[tactic] = domain_counts.get(tactic, 0) + 1
-
-    from hecate_agent.core.grounding import _ACRONYM_STOPWORDS
-
-    def _is_valid_threat(val: str) -> bool:
-        if not val or len(val) < 2:
-            return False
-        lowered = val.lower()
-        if lowered in _GENERIC_THREAT_NAMES or lowered in _ACRONYM_STOPWORDS:
-            return False
-        if lowered.startswith("[review") or lowered.startswith("review cti"):
-            return False
-        if "/" in val or "\\" in val:
-            return False
-        if _RE_HEX.match(val) or _RE_IP.match(val):
-            return False
-        return True
-
-    def _record_threat(name: str, hint: str = "") -> None:
-        clean = name.strip().strip("*_`# ")
-        if not _is_valid_threat(clean):
-            return
-        if _RE_ACTOR_TERMS.search(clean) or hint == "actor":
-            actors.add(clean)
-        elif _RE_CAMPAIGN_TERMS.search(clean) or hint == "campaign":
-            campaigns.add(clean)
-        elif _RE_MALWARE_TERMS.search(clean) or _RE_CAMEL_MALWARE.search(clean) or hint == "malware":
-            malware.add(clean)
-        elif hint == "attribution":
-            actors.add(clean)
-        else:
-            malware.add(clean)
-
-    for hunt_file in hunt_files:
-        try:
-            text = hunt_file.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-
-        hunt_techniques: Set[str] = set()
-        m_fm = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
-        if m_fm:
-            try:
-                fm = yaml.safe_load(m_fm.group(1)) or {}
-                st = str(fm.get("status", "")).lower()
-                if st in {"active", "in_progress", "in-progress"}:
-                    active_count += 1
-                elif st in {"completed", "done", "closed"}:
-                    completed_count += 1
-                else:
-                    drafts_count += 1
-
-                for t in fm.get("techniques", []):
-                    t_str = str(t).strip()
-                    if _RE_TECHNIQUE.match(t_str):
-                        techniques.add(t_str)
-                        hunt_techniques.add(t_str)
-
-                for k in ("threat", "threat_actor", "actor"):
-                    val = fm.get(k)
-                    if val and isinstance(val, str):
-                        for p in re.split(r",\s*|\s*;\s*|\s+and\s+", val):
-                            _record_threat(p, hint="attribution")
-            except Exception:
-                drafts_count += 1
-        else:
-            drafts_count += 1
-        record_tactic_document(hunt_techniques, tactic_hunts, matrix_hunts)
-
-        m_act = _RE_ACTOR_ROW.search(text)
-        if m_act:
-            for p in re.split(r",\s*|\s*;\s*|\s+and\s+", m_act.group(1)):
-                _record_threat(p, hint="actor")
-
-        m_ta = _RE_THREAT_CONTEXT.search(text)
-        if m_ta:
-            for p in re.split(r",\s*|\s*;\s*|\s+and\s+", m_ta.group(1)):
-                _record_threat(p, hint="attribution")
-
-        m_tags = re.search(r"Tags:\s*([^\n]+)", text)
-        if m_tags:
-            for tag in m_tags.group(1).split(","):
-                clean_tag = tag.strip().strip("*_`# ")
-                if _is_valid_threat(clean_tag):
-                    if _RE_CAMPAIGN_TERMS.search(clean_tag):
-                        campaigns.add(clean_tag)
-                    elif _RE_MALWARE_TERMS.search(clean_tag) or _RE_CAMEL_MALWARE.search(clean_tag):
-                        malware.add(clean_tag)
-
-        for m_ge in _RE_GROUNDING_ENTITY.finditer(text):
-            _record_threat(m_ge.group(1).strip())
-
-        for m_ir in _RE_ROLE_INDICATOR.finditer(text):
-            val, itype = m_ir.group(1).strip(), m_ir.group(2).lower()
-            if itype in {"malware_family", "malware"}:
-                _record_threat(val, hint="malware")
-            elif itype in {"threat_actor", "actor"}:
-                _record_threat(val, hint="actor")
-            elif itype == "campaign":
-                _record_threat(val, hint="campaign")
-            elif itype in {"ip", "ipv4", "ipv6"}:
-                clean_ip = val.replace("[", "").replace("]", "")
-                if _RE_IP.match(clean_ip):
-                    network_ips.add(clean_ip)
-            elif itype in {"domain", "hostname"}:
-                network_domains.add(val.replace("[", "").replace("]", "").lower())
-            elif itype == "url":
-                network_urls.add(val.replace("[", "").replace("]", ""))
-            elif itype in {"hash", "file_hash", "sha256", "md5", "sha1"}:
-                host_hashes.add(val.lower())
-            elif itype in {"file_path", "path", "file", "registry", "process"}:
-                host_paths.add(val)
-            elif itype in {"ja4", "jarm", "ssl_fingerprint", "tls_hash", "fingerprint"}:
-                fingerprints.add(val.lower())
-            elif itype in {"iam_operation", "cloud_role", "k8s_action", "cloud_action"}:
-                cloud_ops.add(val)
-
-        m_ioc = re.search(r"###\s+Indicators of Compromise.*?(?=\n###\s+[A-Z]|\n## |\Z)", text, re.DOTALL | re.IGNORECASE)
-        if m_ioc:
-            ioc_txt = m_ioc.group(0)
-            for ip in _RE_IP.findall(ioc_txt):
-                network_ips.add(ip)
-            for d in _RE_DOMAIN.findall(ioc_txt):
-                network_domains.add(d.lower())
-            for hsh in _RE_SHA256.findall(ioc_txt):
-                host_hashes.add(hsh.lower())
-            for hsh in _RE_MD5.findall(ioc_txt):
-                host_hashes.add(hsh.lower())
-            for hsh in _RE_SHA1.findall(ioc_txt):
-                host_hashes.add(hsh.lower())
-            m_fp = re.search(r"####\s+File Paths.*?(?=####|\Z)", ioc_txt, re.DOTALL | re.IGNORECASE)
-            if m_fp:
-                for p in re.findall(r"`([^`]+)`", m_fp.group(0)):
-                    host_paths.add(p)
-
-        m_gs = _RE_GROUNDING_SUMMARY.search(text)
-        if m_gs:
-            grounding_asserted += int(m_gs.group(1))
-            grounding_corroborated += int(m_gs.group(2))
-            grounding_derived += int(m_gs.group(3))
-            grounding_unsupported += int(m_gs.group(4))
-        else:
-            m_gsec = re.search(r"###\s+Grounding.*?(?=\n###\s+[A-Z]|\n## |\Z)", text, re.DOTALL | re.IGNORECASE)
-            if m_gsec:
-                for line in m_gsec.group(0).splitlines():
-                    if not line.startswith("|") or "---" in line or "Claim" in line:
-                        continue
-                    l_lower = line.lower()
-                    if "unsupported" in l_lower:
-                        grounding_unsupported += 1
-                    elif "asserted" in l_lower:
-                        grounding_asserted += 1
-                    elif "inferred" in l_lower or "derived" in l_lower:
-                        grounding_derived += 1
-                    elif "research" in l_lower or "corroborated" in l_lower:
-                        grounding_corroborated += 1
-
-    actors.difference_update(malware | campaigns)
-    all_threats = actors | campaigns | malware
-
-    sigma_rules_count = len(sigma_files)
-    for rule_file in sigma_files:
-        try:
-            rule = yaml.safe_load(rule_file.read_text(encoding="utf-8"))
-            if not isinstance(rule, dict) or not isinstance(rule.get("tags"), list):
-                continue
-            tags = [str(tag) for tag in rule["tags"] if str(tag).lower().startswith("attack.")]
-            rule_techniques = {technique for tag in tags for technique in _RE_TECHNIQUE.findall(tag.upper())}
-            declared_tactics = {tag.split(".", 1)[1].lower().replace("_", "-") for tag in tags}
-            record_tactic_document(rule_techniques, tactic_rules, matrix_rules, declared_tactics)
-        except (OSError, UnicodeError, yaml.YAMLError):
-            continue
-
-    cat_metrics = categorize_techniques_by_matrix(techniques)
-
-    metrics = HuntsMetrics(
-        total_hunts=file_count,
-        drafts_count=drafts_count,
-        active_count=active_count,
-        completed_count=completed_count,
-        threats_count=len(all_threats),
-        actors_count=len(actors),
-        campaigns_count=len(campaigns),
-        malware_count=len(malware),
-        ttps_count=len(techniques),
-        sigma_rules_count=sigma_rules_count,
-        network_total=len(network_ips | network_domains | network_urls),
-        network_ips=len(network_ips),
-        network_domains=len(network_domains),
-        network_urls=len(network_urls),
-        host_total=len(host_hashes | host_paths),
-        host_hashes=len(host_hashes),
-        host_paths=len(host_paths),
-        enterprise_ttps=cat_metrics.get("enterprise", {}),
-        mobile_ttps=cat_metrics.get("mobile", {}),
-        ics_ttps=cat_metrics.get("ics", {}),
-        tactic_hunts=tactic_hunts,
-        tactic_rules=tactic_rules,
-        matrix_hunts=matrix_hunts,
-        matrix_rules=matrix_rules,
-        enterprise_total=cat_metrics.get("enterprise_total", 0),
-        mobile_total=cat_metrics.get("mobile_total", 0),
-        ics_total=cat_metrics.get("ics_total", 0),
-        grounding_asserted=grounding_asserted,
-        grounding_corroborated=grounding_corroborated,
-        grounding_derived=grounding_derived,
-        grounding_unsupported=grounding_unsupported,
-        fingerprints_count=len(fingerprints),
-        cloud_ops_count=len(cloud_ops),
-    )
-    _HUNTS_METRICS_CACHE[resolved_path] = (now, fingerprint_count, max_mtime, metrics)
-    return metrics
 
 
 def _hunts_summary_panel(
@@ -2619,220 +1114,6 @@ def _mitre_metrics_panel(
     )
 
 
-@dataclass
-class PurpleTeamMetrics:
-    validated_rules: int = 0
-    tuned_rules: int = 0
-    total_telemetry_events: int = 0
-    precision_rate: float = 1.0
-    false_positive_count: int = 0
-    hunts_validated: int = 0
-    last_status: str = "IDLE"
-    last_validated_count: int = 0
-    last_tuned_count: int = 0
-    last_duration_sec: float = 0.0
-    bas_runs: int = 0
-    bas_live_runs: int = 0
-    bas_mock_runs: int = 0
-    bas_verified: int = 0
-    bas_detection_misses: int = 0
-    bas_telemetry_missing: int = 0
-    bas_failures: int = 0
-    bas_detections: int = 0
-    bas_matched_events: int = 0
-    bas_telemetry_runs: int = 0
-    bas_techniques: int = 0
-    bas_providers: Dict[str, int] = field(default_factory=dict)
-    bas_last_status: str = ""
-    bas_last_duration_sec: float = 0.0
-    bas_mode_label: str = ""
-    bas_scope_label: str = ""
-    bas_skipped: int = 0
-    bas_last_skip_reason: str = ""
-    bas_control_runs: int = 0
-
-
-_PURPLE_METRICS_CACHE: Dict[str, Tuple[float, int, float, PurpleTeamMetrics]] = {}
-
-
-def _collect_purple_team_metrics(
-    workspace: Optional[Path] = None,
-    events: Optional[List[TrailEvent]] = None,
-) -> PurpleTeamMetrics:
-    """Collect purple-team validation metrics from workspace artifacts and trail events."""
-    metrics = PurpleTeamMetrics()
-    now = time.time()
-
-    # 1. Parse from active/recent trail events
-    if events:
-        for ev in reversed(events):
-            if ev.stage == "purple_team":
-                m = re.search(
-                    r"validated\s+(\d+)\s+rule\(s\)\s+in\s+([\d\.]+)s:\s+(\d+)\s+tuned,\s+(\d+)\s+FP",
-                    ev.message,
-                )
-                if m:
-                    metrics.last_validated_count = int(m.group(1))
-                    metrics.last_duration_sec = float(m.group(2))
-                    metrics.last_tuned_count = int(m.group(3))
-                    metrics.false_positive_count = int(m.group(4))
-                    metrics.last_status = "COMPLETED"
-                    break
-            elif "purple" in ev.message.lower() and "validat" in ev.message.lower():
-                metrics.last_status = "ACTIVE"
-
-    if not workspace or not workspace.exists():
-        return metrics
-
-    resolved_path = str(workspace.resolve())
-    hunts_dir = workspace / "hunts"
-    queries_dir = workspace / "queries"
-
-    hunt_files: List[Path] = []
-    if hunts_dir.exists():
-        hunt_files = [f for f in hunts_dir.glob("**/*.md") if f.name not in _EXCLUDED_HUNT_DOCS]
-
-    bas_root = workspace / ".hecate" / "bas"
-    bas_files = list((bas_root / "runs").glob("*.json"))
-    state_file = bas_root / "state.json"
-    metric_files = hunt_files + bas_files + ([state_file] if state_file.exists() else [])
-    file_count = len(metric_files)
-    max_mtime = max((f.stat().st_mtime for f in metric_files), default=0.0)
-
-    cached = _PURPLE_METRICS_CACHE.get(resolved_path)
-    if cached and (now - cached[0] < 5.0) and cached[1] == file_count and cached[2] == max_mtime:
-        cached_m = cached[3]
-        if metrics.last_validated_count > 0:
-            cached_m.last_validated_count = metrics.last_validated_count
-            cached_m.last_tuned_count = metrics.last_tuned_count
-            cached_m.last_duration_sec = metrics.last_duration_sec
-            cached_m.last_status = metrics.last_status
-        return cached_m
-
-    val_rules = 0
-    tuned_rules = 0
-    hunts_val = 0
-    telemetry = 0
-    bas_techniques: Set[str] = set()
-    last_bas_mtime = 0.0
-    seen_bas_ids: Set[str] = set()
-
-    def include_bas(record: Dict[str, Any], mtime: float) -> None:
-        nonlocal last_bas_mtime
-        status = str(record.get("status") or "")
-        if status == "skipped":
-            metrics.bas_skipped += 1
-            metrics.bas_last_skip_reason = str(record.get("reason") or "No approved procedure")
-            return
-        if status not in {"verified_true_positive", "detection_miss", "telemetry_missing", "detonation_failed", "error"}:
-            return
-        metrics.bas_runs += 1
-        metrics.bas_control_runs += int(record.get("purpose") == "sensor_control" or record.get("hunt_id") == "LAB-CHECK")
-        provider = str(record.get("provider") or "unknown").lower()
-        metrics.bas_providers[provider] = metrics.bas_providers.get(provider, 0) + 1
-        metrics.bas_mock_runs += int(provider == "mock")
-        metrics.bas_live_runs += int(provider in {"caldera", "stratus", "local_sandbox", "live_lab"})
-        metrics.bas_verified += int(status == "verified_true_positive")
-        metrics.bas_detection_misses += int(status == "detection_miss")
-        metrics.bas_telemetry_missing += int(status == "telemetry_missing")
-        metrics.bas_failures += int(status in {"detonation_failed", "error"})
-        metrics.bas_detections += int(record.get("rule_triggered") is True)
-        metrics.bas_telemetry_runs += int(record.get("telemetry_arrived") is True)
-        metrics.bas_matched_events += int(record.get("sensor_events_count", record.get("matched_events_count", 0)))
-        technique = str(record.get("technique_id") or "")
-        if _RE_TECHNIQUE.fullmatch(technique):
-            bas_techniques.add(technique)
-        if mtime >= last_bas_mtime:
-            last_bas_mtime = mtime
-            metrics.bas_last_status = status
-            metrics.bas_last_duration_sec = float(record.get("duration_seconds", 0.0))
-
-    for bas_file in sorted(bas_files, key=lambda f: f.stat().st_mtime):
-        try:
-            record = json.loads(bas_file.read_text(encoding="utf-8"))
-            if not isinstance(record, dict):
-                continue
-            run_id = str(record.get("run_id") or "")
-            if not run_id or run_id in seen_bas_ids:
-                continue
-            include_bas(record, bas_file.stat().st_mtime)
-            seen_bas_ids.add(run_id)
-        except (OSError, ValueError, TypeError):
-            continue
-    try:
-        state = json.loads(state_file.read_text(encoding="utf-8"))
-        metrics.bas_mode_label = (
-            "DISABLED" if not state.get("enabled") else
-            "AUTO · approved Linux lab" if state.get("auto_execute_live") else "MANUAL ONLY"
-        )
-        if state.get("telemetry") == "lab_process":
-            metrics.bas_scope_label = "Local process sensor + Sigma"
-    except (OSError, ValueError, AttributeError):
-        pass
-
-    for hf in hunt_files:
-        try:
-            content = hf.read_text(encoding="utf-8", errors="ignore")
-            if "purple_team_validated: true" in content or "Purple-Team Validated" in content:
-                hunts_val += 1
-                m_ev = re.search(r"purple_team_rules_evaluated:\s*(\d+)", content)
-                if m_ev:
-                    val_rules += int(m_ev.group(1))
-                m_tu = re.search(r"purple_team_rules_tuned:\s*(\d+)", content)
-                if m_tu:
-                    tuned_rules += int(m_tu.group(1))
-                m_te = re.search(r"purple_team_telemetry_events:\s*(\d+)", content)
-                if m_te:
-                    telemetry += int(m_te.group(1))
-            match = re.match(r"^---\s*\n(.*?)\n---(?:\s*\n|$)", content, re.DOTALL)
-            metadata = yaml.safe_load(match.group(1)) if match else {}
-            if not isinstance(metadata, dict):
-                metadata = {}
-            bas_status = str(metadata.get("bas_status") or "")
-            if bas_status and metadata.get("bas_run_id") not in seen_bas_ids:
-                observed = (
-                    bas_status in {"verified_true_positive", "detection_miss"}
-                    or bool(re.search(r"\*\*Telemetry Observed:\*\* Yes", content))
-                )
-                target = re.search(r"\*\*Target Technique:\*\* `([^`]+)`", content)
-                hits = re.search(r"\*\*Detection Triggered:\*\* .*?\((\d+) hit\(s\)\)", content)
-                duration = re.search(r"\*\*Duration:\*\* ([\d.]+)s", content)
-                include_bas({
-                    "status": bas_status, "provider": metadata.get("bas_provider"),
-                    "rule_triggered": metadata.get("bas_detection_triggered"),
-                    "telemetry_arrived": observed,
-                    "technique_id": target.group(1) if target else "",
-                    "matched_events_count": int(hits.group(1)) if hits else 0,
-                    "duration_seconds": float(duration.group(1)) if duration else 0.0,
-                }, hf.stat().st_mtime)
-        except (OSError, ValueError, yaml.YAMLError):
-            continue
-
-    if val_rules == 0 and queries_dir.exists():
-        for qf in queries_dir.glob("**/*.yml"):
-            try:
-                qc = qf.read_text(encoding="utf-8", errors="ignore")
-                if "x_hecate_purple_team_validated: true" in qc:
-                    val_rules += 1
-                    if "x_hecate_tuned: true" in qc:
-                        tuned_rules += 1
-            except OSError:
-                continue
-
-    if metrics.last_validated_count > val_rules:
-        val_rules = max(val_rules, metrics.last_validated_count)
-    if metrics.last_tuned_count > tuned_rules:
-        tuned_rules = max(tuned_rules, metrics.last_tuned_count)
-
-    metrics.validated_rules = val_rules
-    metrics.tuned_rules = tuned_rules
-    metrics.hunts_validated = hunts_val
-    metrics.total_telemetry_events = telemetry
-    metrics.bas_techniques = len(bas_techniques)
-    _PURPLE_METRICS_CACHE[resolved_path] = (now, file_count, max_mtime, metrics)
-    return metrics
-
-
 def _purple_team_panel(
     workspace: Optional[Path] = None,
     events: Optional[List[TrailEvent]] = None,
@@ -3150,6 +1431,367 @@ def _runner_compact_summary(status: RunnerStatus, events: List[TrailEvent]) -> s
     return f"Runner{prov_text} {service_state} {timer_text} · D{draft_quota} R{research_quota}{cost_text} · {backlog_text} {parked_text}{query_text}"
 
 
+def _get_cooldown_str(events: List[TrailEvent], now: datetime) -> Optional[str]:
+    for event in reversed(events):
+        msg = event.message or ""
+        if "spacing_cooldown" in msg or "spacing cooldown" in msg:
+            m = re.search(r"(\d+(?:\.\d+)?)h\s*/\s*(\d+(?:\.\d+)?)h", msg)
+            if m:
+                elapsed_h = float(m.group(1))
+                target_h = float(m.group(2))
+                rem_sec = max(0.0, (target_h - elapsed_h) * 3600.0)
+                evt_time = _parse_time(event.timestamp)
+                if evt_time:
+                    passed = max(0.0, (now - evt_time).total_seconds())
+                    rem_sec = max(0.0, rem_sec - passed)
+                if rem_sec <= 0:
+                    return "eligible now"
+                m_rem = int(rem_sec // 60)
+                s_rem = int(rem_sec % 60)
+                h_rem = m_rem // 60
+                m_rem = m_rem % 60
+                target_dt = (now + timedelta(seconds=rem_sec)).strftime("%H:%M UTC")
+                if h_rem > 0:
+                    return f"{h_rem}h {m_rem:02d}m (at {target_dt})"
+                return f"{m_rem:02d}m {s_rem:02d}s (at {target_dt})"
+    return None
+
+
+def _tab_nav_bar(active_tab: int = 1, errors_only: bool = False, paused: bool = False) -> Text:
+    tabs = [
+        (1, "1: Overview"),
+        (2, "2: Hunts & Rules"),
+        (3, "3: Feeds & Outbox"),
+        (4, "4: BAS & Validation"),
+    ]
+    bar = Text()
+    bar.append(" VIEWS: ", style="bold bright_white")
+    for tab_id, label in tabs:
+        if tab_id == active_tab:
+            bar.append(f" ◀ {label} ▶ ", style="bold bright_black on bright_cyan")
+        else:
+            bar.append(f"  {label}  ", style="bright_white on grey23")
+        bar.append(" ")
+    bar.append("│  CONTROLS: ", style="dim")
+    if errors_only:
+        bar.append("[e] ERRORS ONLY", style="bold bright_white on red")
+    else:
+        bar.append("[e] Errors", style="dim")
+    bar.append("  ")
+    if paused:
+        bar.append("[p] PAUSED", style="bold bright_white on bright_yellow")
+    else:
+        bar.append("[p] Pause", style="dim")
+    bar.append("  [q] Quit", style="dim")
+    return bar
+
+
+def _hunts_table(workspace: Path, metrics: HuntsMetrics) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("HUNT ID", width=10, style="bright_cyan")
+    table.add_column("STATUS", width=12)
+    table.add_column("TITLE", ratio=1, overflow="ellipsis", no_wrap=True)
+    table.add_column("TACTICS", width=18, style="dim")
+    table.add_column("TECHNIQUES", width=16, style="dim")
+
+    hunts_dir = workspace / "hunts"
+    if not hunts_dir.exists():
+        for candidate in [
+            workspace.parent / "Hecate-Workspace" / "hunts",
+            workspace.parent / "Hecate-Public" / "hunts",
+            Path("/home/chemch/betas/Hecate-Public/hunts"),
+        ]:
+            if candidate.exists():
+                hunts_dir = candidate
+                break
+
+    hunt_files = []
+    if hunts_dir.exists():
+        try:
+            hunt_files = sorted(hunts_dir.rglob("H-*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+        except OSError:
+            hunt_files = []
+
+    status_styles = {
+        "promoted": "bold bright_green",
+        "published": "bold bright_green",
+        "completed": "bright_green",
+        "active": "bright_cyan",
+        "in_progress": "bright_cyan",
+        "in_review": "bold bright_yellow",
+        "planning": "dim bright_yellow",
+        "draft": "dim yellow",
+    }
+
+    count = 0
+    for hf in hunt_files[:15]:
+        try:
+            content = hf.read_text(encoding="utf-8", errors="ignore")
+            title = hf.stem
+            status = "planning"
+            tactics = []
+            techniques = []
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    fm = yaml.safe_load(parts[1])
+                    if isinstance(fm, dict):
+                        title = str(fm.get("title") or title)
+                        if title.startswith("DRAFT - "):
+                            title = title[8:].strip()
+                        status = str(fm.get("status") or "planning").lower()
+                        tactics = [str(t).title() for t in (fm.get("tactics") or [])]
+                        techniques = [str(t).upper() for t in (fm.get("techniques") or [])]
+            style = status_styles.get(status, "bright_white")
+            table.add_row(
+                hf.stem,
+                Text(status.upper(), style=style),
+                title,
+                ", ".join(tactics[:2]) if tactics else "--",
+                ", ".join(techniques[:2]) if techniques else "--",
+            )
+            count += 1
+        except Exception:
+            continue
+
+    if count == 0:
+        table.add_row("--", "--", "No hunt drafts found in workspace", "--", "--")
+
+    return Panel(
+        table,
+        title=f"[bold bright_cyan]ACTIVE & RECENT HUNTS ({metrics.total_hunts} total)[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _cti_feeds_panel(workspace: Path, events: List[TrailEvent]) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("FEED SOURCE", width=16, style="bright_cyan")
+    table.add_column("CATEGORY", width=18, style="dim")
+    table.add_column("LAST INTAKE", width=12, style="dim")
+    table.add_column("ACTIVITY TODAY", ratio=1, overflow="ellipsis", no_wrap=True)
+    table.add_column("STATUS", width=10)
+
+    feeds = [
+        ("cisa_kev", "CISA KEV", "Exploited Vulns"),
+        ("otx", "Abuse.ch OTX", "Threat Pulses"),
+        ("threatfox", "ThreatFox", "Threat Indicators"),
+        ("malwarebazaar", "MalwareBazaar", "Malware Hashes"),
+        ("shadowserver", "Shadowserver", "C2 Infrastructure"),
+        ("misp", "MISP Inbound", "Community Events"),
+        ("cisa_advisories", "CISA Advisories", "Alerts & ICS"),
+        ("github_poc", "GitHub PoC", "Exploit Advisories"),
+        ("rss", "Threat RSS", "Security Blogs"),
+        ("certstream", "CertStream", "Live TLS Stream"),
+    ]
+
+    for key, name, category in feeds:
+        last_time = "--"
+        activity = "Standby"
+        status = "STANDBY"
+        status_style = "dim"
+
+        for e in reversed(events):
+            if key in e.message.lower() or (e.stage == "intake" and key in e.message.lower()):
+                last_time = e.timestamp[-8:]
+                status = "ACTIVE"
+                status_style = "bold bright_green"
+                activity = e.message[:55]
+                break
+
+        table.add_row(name, category, last_time, activity, Text(status, style=status_style))
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]INBOUND CTI FEEDS & POLLER STATUS[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _ingestion_funnel_panel(events: List[TrailEvent], runner: RunnerStatus) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("PIPELINE FUNNEL STAGE", width=24, style="bright_cyan")
+    table.add_column("COUNT", width=8, justify="right", style="bold bright_white")
+    table.add_column("PROGRESS / CONVERSION", ratio=1)
+
+    intake_count = sum(1 for e in events if e.stage == "intake" or "intake:" in e.message)
+    triage_count = sum(1 for e in events if e.stage == "triage" and "pass" in e.message)
+    hypothesis_count = sum(1 for e in events if e.stage == "hypothesis" or "hypothesis:" in e.message)
+    draft_count = runner.drafts_today or sum(1 for e in events if "draft_created" in e.message or "draft_written" in e.message)
+    promoted_count = runner.github_confirmed_promotions
+
+    base = max(intake_count, 1)
+    stages = [
+        ("1. Raw CTI Ingested", intake_count, 100.0 if intake_count else 0.0),
+        ("2. Triage Validated", triage_count, (triage_count / base * 100.0)),
+        ("3. Hypotheses Formed", hypothesis_count, (hypothesis_count / base * 100.0)),
+        ("4. Drafts Created", draft_count, (draft_count / base * 100.0)),
+        ("5. Hunts Published", promoted_count, (promoted_count / base * 100.0)),
+    ]
+
+    for label, cnt, pct in stages:
+        bar = _bar(pct, width=16).plain
+        table.add_row(label, str(cnt), f"[{bar}] {pct:.1f}%")
+
+    if runner.parked_reasons:
+        p_str = ", ".join(f"{cnt} {k}" for k, cnt in sorted(runner.parked_reasons.items())[:3])
+        table.add_row("PARKED ITEMS QUEUE", str(runner.parked_items or 0), f"Reasons: {p_str}")
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]CTI INGESTION FUNNEL & CONVERSION (TODAY)[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _github_outbox_panel(workspace: Path) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("ID", width=4, style="dim")
+    table.add_column("HUNT", width=8, style="bright_cyan")
+    table.add_column("STATUS", width=11)
+    table.add_column("PR / BRANCH", ratio=1, overflow="ellipsis", no_wrap=True)
+    table.add_column("UPDATED", width=9, style="dim")
+
+    db_path = workspace / ".hecate" / "publisher" / "promotion-outbox.sqlite3"
+    if not db_path.exists():
+        db_path = workspace / ".hecate" / "github" / "outbox.sqlite3"
+
+    rows = []
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(db_path, timeout=2.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute("SELECT * FROM promotions ORDER BY id DESC LIMIT 8").fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
+    for r in rows:
+        st = str(r["status"]).lower()
+        if st in ("published", "merged"):
+            st_style = "bold bright_green"
+        elif st in ("queued", "publishing"):
+            st_style = "bold bright_yellow"
+        elif st == "retry":
+            st_style = "bold red"
+        else:
+            st_style = "bright_white"
+
+        pr = f"PR #{r['pr_number']}" if r["pr_number"] else str(r["branch"] or "--")
+        upd = str(r["updated_at"] or "")[-14:-6] if r["updated_at"] else "--"
+        table.add_row(str(r["id"]), str(r["hunt_id"]), Text(st.upper(), style=st_style), pr, upd)
+
+    if not rows:
+        table.add_row("--", "--", "EMPTY", "No promotions in GitHub outbox", "--")
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]GITHUB PROMOTION OUTBOX[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _misp_outbox_panel(workspace: Path) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("HUNT", width=8, style="bright_cyan")
+    table.add_column("EVENT ID", width=10, style="dim")
+    table.add_column("STATUS", width=11)
+    table.add_column("TARGET", ratio=1, overflow="ellipsis", no_wrap=True)
+    table.add_column("CONFIRMED", width=12, style="dim")
+
+    db_path = workspace / ".hecate" / "misp" / "outbox.sqlite3"
+    rows = []
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(db_path, timeout=2.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute("SELECT * FROM exports ORDER BY next_attempt DESC LIMIT 8").fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
+    for r in rows:
+        st = str(r["status"]).lower()
+        st_style = "bold bright_green" if st == "confirmed" else "bold bright_yellow" if st in ("queued", "publishing") else "bold red"
+        conf = str(r["confirmed_at"] or "")[:10] if r["confirmed_at"] else "--"
+        table.add_row(
+            str(r["hunt_id"]),
+            str(r["event_id"] or "--"),
+            Text(st.upper(), style=st_style),
+            str(r["target"]),
+            conf,
+        )
+
+    if not rows:
+        table.add_row("--", "--", "EMPTY", "No exports in MISP outbox", "--")
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]MISP EXPORT OUTBOX[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _bas_status_panel(workspace: Path, events: List[TrailEvent], metrics: Any) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=False, padding=(0, 1))
+    table.add_column("KEY", width=20, style="dim")
+    table.add_column("VALUE", style="bright_white")
+
+    table.add_row("CONTROLLER ENGINE", Text("Caldera Controller (Non-Root)", style="bright_green"))
+    table.add_row("TARGET SENSOR", Text("Ubuntu Local Process Sensor + Sigma", style="bright_cyan"))
+    table.add_row("ATTACK AUTOMATION", Text(getattr(metrics, "bas_mode_label", "AUTO · approved Linux lab"), style="bright_white"))
+    table.add_row("VALIDATION SCOPE", Text(getattr(metrics, "bas_scope_label", "Local process sensor + Sigma"), style="bright_white"))
+
+    runs = getattr(metrics, "bas_runs", 0)
+    live_runs = getattr(metrics, "bas_live_runs", 0)
+    mock_runs = getattr(metrics, "bas_mock_runs", 0)
+    table.add_row("SIMULATION RUNS", f"{runs} runs ({live_runs} live, {mock_runs} mock)")
+
+    events_count = getattr(metrics, "bas_matched_events", 0)
+    table.add_row("SENSOR TELEMETRY", f"{events_count} events captured & correlated")
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]BAS CONTROLLER & SENSOR STATUS[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
+def _bas_events_panel(events: List[TrailEvent]) -> Panel:
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
+    table.add_column("TIME", width=9, style="dim")
+    table.add_column("STAGE", width=12)
+    table.add_column("VALIDATION ACTIVITY", ratio=1, overflow="ellipsis", no_wrap=True)
+
+    bas_events = [
+        e
+        for e in events
+        if any(k in e.message.lower() or k in e.stage.lower() for k in ("bas", "sensor", "caldera", "stratus", "validation", "telemetry", "replay"))
+    ]
+    for e in bas_events[-8:]:
+        table.add_row(e.timestamp[-8:], e.stage, e.message)
+
+    if not bas_events:
+        table.add_row("--:--:--", "standby", "No recent breach simulation events in log stream")
+
+    return Panel(
+        table,
+        title="[bold bright_cyan]RECENT SENSOR & BREACH SIMULATION LOGS[/]",
+        border_style="bright_magenta",
+        box=box.ROUNDED,
+    )
+
+
 def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
     service_state = status.service_state.upper()
     service_style = "bright_green" if service_state in {"ACTIVE", "ACTIVATING"} else "bright_cyan"
@@ -3174,13 +1816,20 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
         Text.assemble(*service_parts, no_wrap=True),
         Text.assemble((schedule_label, "dim"), (schedule_text, schedule_style), no_wrap=True),
     ]
+
+    cooldown_str = _get_cooldown_str(events, datetime.now())
+    if cooldown_str:
+        rows.append(Text.assemble(("COOLDOWN ", "dim"), (f"next draft in {cooldown_str}", "bright_yellow"), no_wrap=True))
+
     quota_parts = [
         ("QUOTA    ", "dim"),
         ("drafts " + _quota_text(status.drafts_today, status.drafts_limit), "bright_white"),
         (" · research " + _quota_text(status.research_today, status.research_limit), "bright_white"),
     ]
     if status.cost_today is not None and status.cost_today > 0.0:
-        quota_parts.append((f" · ${status.cost_today:.2f} today", "bright_green"))
+        cost_limit = status.cost_limit or 20.0
+        pct = (status.cost_today / cost_limit * 100.0) if cost_limit > 0 else 0.0
+        quota_parts.append((f" · ${status.cost_today:.2f} today (${cost_limit:.2f} cap · {pct:.0f}%)", "bright_green"))
     rows.append(Text.assemble(*quota_parts, no_wrap=True))
     backlog = _backlog_observation(events)
     if backlog:
@@ -3208,6 +1857,21 @@ def _runner_panel(status: RunnerStatus, events: List[TrailEvent]) -> Panel:
             details.append(f"{status.pending_queries} pending")
         queue_style = "bold yellow" if status.pending_queries else "bright_white"
         rows.append(Text.assemble(("QUEUE    ", "dim"), (" · ".join(details), queue_style), no_wrap=True))
+
+    outbox_parts = []
+    if status.github_pending_prs or status.github_confirmed_promotions:
+        if status.github_pending_prs:
+            outbox_parts.append(f"{status.github_pending_prs} PR pending")
+        if status.github_confirmed_promotions:
+            outbox_parts.append(f"{status.github_confirmed_promotions} GitHub published")
+    if status.misp_pending_exports or status.misp_confirmed_exports:
+        if status.misp_pending_exports:
+            outbox_parts.append(f"{status.misp_pending_exports} MISP pending")
+        if status.misp_confirmed_exports:
+            outbox_parts.append(f"{status.misp_confirmed_exports} MISP confirmed")
+    if outbox_parts:
+        rows.append(Text.assemble(("OUTBOX   ", "dim"), (" · ".join(outbox_parts), "bright_cyan"), no_wrap=True))
+
     return Panel(
         Group(*rows),
         title="[bold bright_cyan]RUNNER SERVICE[/]",
@@ -3286,6 +1950,9 @@ def _render_dashboard(
     runner: Optional[RunnerStatus] = None,
     recent_error: str = "",
     live: Optional[Dict[str, Any]] = None,
+    active_tab: int = 1,
+    errors_only: bool = False,
+    paused: bool = False,
 ) -> Layout:
     runner = runner or RunnerStatus()
     if runner.cost_today is None:
@@ -3328,14 +1995,26 @@ def _render_dashboard(
         subline = f"[{status}] cycle {cycle} · stopped in {working_on} · seen {time_str} · {why}{queue_str}"
     elif latest:
         outcome_str = _format_cycle_outcome(latest.message)
+        cooldown_str = _get_cooldown_str(events, refreshed)
+        if cooldown_str and "spacing_cooldown" in latest.message:
+            outcome_str = f"{outcome_str} (next in {cooldown_str})"
         subline = f"[{status}] last cycle {cycle} · {outcome_str}{queue_str}"
     else:
         subline = f"[{status}] monitoring {workspace} · waiting for a pipeline cycle{queue_str}"
 
     layout = Layout()
     title.append(" " + subline, style="dim")
-    header_panel = Panel(title, border_style="bright_cyan", box=box.DOUBLE)
     compact = console.size.height < 40
+    header_height = 3 if compact else 4
+    if compact:
+        header_panel = Panel(title, border_style="bright_cyan", box=box.DOUBLE)
+    else:
+        header_panel = Panel(
+            Group(title, _tab_nav_bar(active_tab, errors_only, paused)),
+            border_style="bright_cyan",
+            box=box.DOUBLE,
+        )
+
     if compact:
         activity = Table(box=None, expand=True, show_header=True, header_style="bold bright_cyan", padding=(0, 1))
         activity.add_column("TIME", width=8, style="dim")
@@ -3404,28 +2083,115 @@ def _render_dashboard(
         )
         return layout
 
-    resources_height = 4 if len(host.disks) <= 1 else 4 + len(host.disks)
-    stages_height = len(_STAGES) + 3
-    service_height = 7 if runner.installed else 0
     footer = Layout(
         Text(
-            f"Updated {refreshed:%H:%M:%S}   ·   Ctrl-C to exit   ·   log: {workspace / 'logs' / 'orchestrator.log'}",
+            f"Updated {refreshed:%H:%M:%S}   ·   [1] Overview   [2] Hunts & Rules   [3] Feeds & Outbox   [4] BAS & Validation   ·   [e] Errors   [p] Pause   [q] Quit",
             style="dim",
             justify="center",
         ),
         name="footer",
         size=1,
     )
-    body_height = console.size.height - 3 - resources_height - 1
+
+    h_metrics = _collect_hunts_metrics(workspace)
+    pt_metrics = _collect_purple_team_metrics(workspace, events)
+
+    # Tab 2: Hunts & Rules View
+    if not compact and active_tab == 2:
+        tab2_layout = Layout()
+        tab2_layout.split_column(
+            Layout(header_panel, name="header", size=header_height),
+            Layout(_host_telemetry_ribbon(host), name="resources", size=3),
+            Layout(name="middle", ratio=1),
+            footer,
+        )
+        tab2_layout["middle"].split_row(
+            Layout(name="hunts_left", ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(name="hunts_right", ratio=1),
+        )
+        tab2_layout["hunts_left"].split_column(
+            Layout(_hunts_table(workspace, h_metrics), ratio=2),
+            Layout(_detection_rules_panel(workspace, h_metrics, runner), size=7),
+        )
+        tab2_layout["hunts_right"].split_column(
+            Layout(_mitre_metrics_panel(workspace, metrics=h_metrics, detailed=True), ratio=2),
+            Layout(_threat_observables_panel(workspace, metrics=h_metrics), size=7),
+        )
+        return tab2_layout
+
+    # Tab 3: CTI Feeds & Outbox View
+    if not compact and active_tab == 3:
+        tab3_layout = Layout()
+        tab3_layout.split_column(
+            Layout(header_panel, name="header", size=header_height),
+            Layout(_host_telemetry_ribbon(host), name="resources", size=3),
+            Layout(name="middle", ratio=1),
+            footer,
+        )
+        tab3_layout["middle"].split_row(
+            Layout(name="feeds_left", ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(name="feeds_right", ratio=1),
+        )
+        tab3_layout["feeds_left"].split_column(
+            Layout(_cti_feeds_panel(workspace, events), ratio=1),
+            Layout(_ingestion_funnel_panel(events, runner), ratio=1),
+        )
+        tab3_layout["feeds_right"].split_column(
+            Layout(_github_outbox_panel(workspace), ratio=1),
+            Layout(_misp_outbox_panel(workspace), ratio=1),
+        )
+        return tab3_layout
+
+    # Tab 4: BAS & Validation View
+    if not compact and active_tab == 4:
+        tab4_layout = Layout()
+        tab4_layout.split_column(
+            Layout(header_panel, name="header", size=header_height),
+            Layout(_host_telemetry_ribbon(host), name="resources", size=3),
+            Layout(name="middle", ratio=1),
+            footer,
+        )
+        tab4_layout["middle"].split_column(
+            Layout(name="val_top", ratio=1),
+            Layout(name="val_bottom", ratio=1),
+        )
+        tab4_layout["val_top"].split_row(
+            Layout(_bas_status_panel(workspace, events, pt_metrics), ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(_purple_team_panel(workspace, events, narrow=False, metrics=pt_metrics), ratio=1),
+        )
+        tab4_layout["val_bottom"].split_row(
+            Layout(_bas_events_panel(events), ratio=1),
+            Layout(Text(" "), size=1),
+            Layout(
+                _integrations_panel(
+                    workspace=workspace,
+                    search_count="",
+                    events=events,
+                    metrics=metrics,
+                    live=live,
+                    current=latest,
+                    grid=True,
+                ),
+                ratio=1,
+            ),
+        )
+        return tab4_layout
+
+    # Tab 1: Operations Overview (Default)
+    resources_height = 3
+    stages_height = len(_STAGES) + 3
+    service_height = (8 if (runner.github_confirmed_promotions or runner.misp_confirmed_exports) else 7) if runner.installed else 0
+    body_height = console.size.height - header_height - resources_height - 1
     llm_height = _NARROW_LLM_PANEL_HEIGHT
     hunts_height = _HUNTS_PANEL_HEIGHT
     mitre_height = _MITRE_PANEL_HEIGHT
     search_count = _search_count(latest, events)
-    usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 5
+    usage_on_left = body_height >= stages_height + service_height + llm_height + hunts_height + mitre_height + 4
     middle_height = body_height if usage_on_left else max(10, body_height - _BOTTOM_ROW_HEIGHT)
     service_on_left = runner.installed and middle_height >= stages_height + service_height
-    h_metrics = _collect_hunts_metrics(workspace)
-    pt_metrics = _collect_purple_team_metrics(workspace, events)
     left_width = min(52, max(46, console.size.width // 4)) if console.size.width >= 120 else None
     ops_width = (console.size.width - left_width - 2) if left_width else (console.size.width * 2 // 3)
     swap_detail_panels = usage_on_left and ops_width >= 85
@@ -3449,17 +2215,18 @@ def _render_dashboard(
     hunts_panel = _hunts_summary_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics)
     mitre_panel = _mitre_metrics_panel(workspace=workspace, narrow=usage_on_left, metrics=h_metrics, detailed=expanded_mitre)
     purple_team_panel = _purple_team_panel(workspace=workspace, events=events, narrow=False, metrics=pt_metrics)
+
     if usage_on_left:
         layout.split_column(
-            Layout(header_panel, name="header", size=3),
-            Layout(name="resources", size=resources_height),
+            Layout(header_panel, name="header", size=header_height),
+            Layout(_host_telemetry_ribbon(host), name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
             footer,
         )
     else:
         layout.split_column(
-            Layout(header_panel, name="header", size=3),
-            Layout(name="resources", size=resources_height),
+            Layout(header_panel, name="header", size=header_height),
+            Layout(_host_telemetry_ribbon(host), name="resources", size=resources_height),
             Layout(name="middle", ratio=2),
             Layout(name="usage", size=_BOTTOM_ROW_HEIGHT),
             footer,
@@ -3473,58 +2240,7 @@ def _render_dashboard(
             Layout(Text(" "), size=1),
             Layout(integrations_panel, ratio=1),
         )
-    if len(host.disks) <= 1:
-        layout["resources"].split_row(
-            Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
-            Layout(
-                _resource_panel(
-                    "MEMORY",
-                    _percent(host.memory_used, host.memory_total),
-                    f"{_bytes(host.memory_used)} / {_bytes(host.memory_total)}",
-                ),
-                ratio=1,
-            ),
-            Layout(
-                _resource_panel(
-                    "GPU",
-                    host.gpu_percent,
-                    f"{host.gpu_name} · {_bytes(host.gpu_memory_used)} / {_bytes(host.gpu_memory_total)}",
-                ),
-                ratio=1,
-            ),
-            Layout(
-                _resource_panel(
-                    "STORAGE",
-                    _percent(host.disks[0].used, host.disks[0].total) if host.disks else None,
-                    f"{_bytes(host.disks[0].used)} / {_bytes(host.disks[0].total)} used" if host.disks else "not detected",
-                ),
-                ratio=1,
-            ),
-        )
-    else:
-        layout["resources"].split_column(
-            Layout(name="compute", size=4),
-            Layout(_disk_panel(host), size=len(host.disks) + 2),
-        )
-        layout["compute"].split_row(
-            Layout(_resource_panel("CPU", host.cpu_percent, "host utilization"), ratio=1),
-            Layout(
-                _resource_panel(
-                    "MEMORY",
-                    _percent(host.memory_used, host.memory_total),
-                    f"{_bytes(host.memory_used)} / {_bytes(host.memory_total)}",
-                ),
-                ratio=1,
-            ),
-            Layout(
-                _resource_panel(
-                    "GPU",
-                    host.gpu_percent,
-                    f"{host.gpu_name} · {_bytes(host.gpu_memory_used)} / {_bytes(host.gpu_memory_total)}",
-                ),
-                ratio=1,
-            ),
-        )
+
     stages_panel = Panel(
         _stage_table(latest, active, stale, in_progress),
         title="[bold bright_cyan]PIPELINE SEQUENCE[/]",
@@ -3543,9 +2259,7 @@ def _render_dashboard(
             Layout(Text(" "), name="gutter", size=1),
             Layout(name="operations", ratio=2),
         )
-    # The stage list is short and its column was half empty, so the service
-    # panel sits under it when there is room and the stream gets the whole
-    # right-hand column.
+
     service_on_left = runner.installed and middle_height >= stages_height + service_height
     stream_height = middle_height if service_on_left or not runner.installed else middle_height - service_height
     if recent_error and stale:
@@ -3554,11 +2268,12 @@ def _render_dashboard(
         )
     else:
         act_width = (console.size.width - left_width - 6) if left_width else (console.size.width * 2 // 3 - 30)
+        stream_title = "[bold red]ACTION STREAM (ERRORS ONLY)[/]" if errors_only else "[bold bright_cyan]ACTION STREAM[/]"
+        stream_border = "red" if errors_only else "bright_magenta"
         main_panel = Panel(
-            # Inside the panel: two border lines and the table's header; two fixed columns and the padding.
-            _activity_table(events, rows=max(1, stream_height - 3), width=max(40, act_width)),
-            title="[bold bright_cyan]ACTION STREAM[/]",
-            border_style="bright_magenta",
+            _activity_table(events, rows=max(1, stream_height - 3), width=max(40, act_width), errors_only=errors_only),
+            title=stream_title,
+            border_style=stream_border,
             box=box.ROUNDED,
         )
 
@@ -3618,110 +2333,6 @@ def _render_dashboard(
     else:
         layout["operations"].update(main_panel)
     return layout
-
-
-def _is_runner_process_running(workspace: Optional[Path] = None) -> bool:
-    """Check if any hecate-runner process is currently running on the host for the given workspace."""
-    try:
-        current_pid = os.getpid()
-        ws_resolved = workspace.resolve() if workspace else None
-        for pid_dir in Path("/proc").glob("[0-9]*"):
-            try:
-                pid = int(pid_dir.name)
-                if pid == current_pid:
-                    continue
-                cmdline = (pid_dir / "cmdline").read_bytes().decode("utf-8", errors="ignore").replace("\x00", " ")
-                cmdline_lower = cmdline.lower()
-                if (
-                    "hecate-runner" in cmdline_lower
-                    or "replay.py" in cmdline_lower
-                    or "run_two_evals.py" in cmdline_lower
-                    or "run_three_evals.py" in cmdline_lower
-                    or ("hecate-agent" in cmdline_lower and "monitor" not in cmdline_lower)
-                ):
-                    if ws_resolved is None:
-                        return True
-                    parts = cmdline.split()
-                    for idx, part in enumerate(parts):
-                        if part in ("--workspace", "-w") and idx + 1 < len(parts):
-                            try:
-                                if Path(parts[idx + 1]).resolve() == ws_resolved:
-                                    return True
-                            except OSError:
-                                pass
-                    try:
-                        cwd = Path(f"/proc/{pid}/cwd").resolve()
-                        if cwd == ws_resolved:
-                            return True
-                    except (OSError, ValueError):
-                        pass
-            except (OSError, ValueError):
-                continue
-    except Exception:
-        pass
-    return False
-
-
-def find_eval_workspace(eval_base: Path = Path("/tmp/eval_runs"), check_procs: bool = True) -> Optional[Path]:
-    """Find the actively running evaluation workspace, or the most recent one in eval_base."""
-    if not eval_base.exists():
-        return None
-    if check_procs:
-        try:
-            for pid_dir in Path("/proc").glob("[0-9]*"):
-                try:
-                    cmdline = (pid_dir / "cmdline").read_bytes().decode("utf-8", errors="ignore").replace("\x00", " ")
-                    if "replay.py" in cmdline:
-                        parts = cmdline.split()
-                        for i, p in enumerate(parts):
-                            if p == "--workspace" and i + 1 < len(parts):
-                                ws = Path(parts[i + 1])
-                                if ws.is_dir() and (ws / "logs" / "orchestrator.log").exists():
-                                    return ws
-                except (OSError, ValueError):
-                    continue
-        except Exception:
-            pass
-
-    candidates = [p for p in eval_base.iterdir() if p.is_dir() and (p / "logs" / "orchestrator.log").exists()]
-    if candidates:
-        candidates.sort(key=lambda p: (p / "logs" / "orchestrator.log").stat().st_mtime, reverse=True)
-        return candidates[0]
-    return None
-
-
-def _service_running(runner: RunnerStatus, workspace: Path) -> Optional[bool]:
-    """Whether the Runner service or process is working, or None when it is not writing to ``workspace``."""
-    if runner.installed and runner.workspace is not None:
-        try:
-            if runner.workspace.resolve() == workspace.resolve() and runner.service_state in {"active", "activating"}:
-                return True
-        except OSError:
-            pass
-
-    if _is_runner_process_running(workspace):
-        return True
-
-    if not runner.installed or runner.workspace is None:
-        return None
-    try:
-        if runner.workspace.resolve() != workspace.resolve():
-            return None
-    except OSError:
-        return None
-    return False
-
-
-def _duration(seconds: Optional[float]) -> str:
-    total = int(seconds or 0)
-    minutes, secs = divmod(total, 60)
-    return f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
-
-
-def _percent(used: Optional[int], total: Optional[int]) -> Optional[float]:
-    if used is None or not total:
-        return None
-    return max(0.0, min(100.0, used * 100 / total))
 
 
 @click.command()
@@ -3800,6 +2411,24 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
     call_log = root / "logs" / "llm_calls.jsonl"
     sampler = HostSampler(root)
     runner_sampler = RunnerStatusSampler(root)
+
+    active_tab = 1
+    errors_only = False
+    paused = False
+
+    events: List[TrailEvent] = []
+    recent_error: str = ""
+    metrics: Dict[str, Any] = {}
+    calls: Optional[Dict[str, Any]] = None
+
+    old_term_settings = None
+    if sys.stdin.isatty() and termios is not None and tty is not None:
+        try:
+            old_term_settings = termios.tcgetattr(sys.stdin.fileno())
+            tty.setcbreak(sys.stdin.fileno())
+        except Exception:
+            old_term_settings = None
+
     try:
         with Live(console=console, screen=True, refresh_per_second=4, transient=False) as live:
             while True:
@@ -3810,15 +2439,57 @@ def monitor(workspace: Optional[Path], eval_mode: bool = False, interval: float 
                     call_log = root / "logs" / "llm_calls.jsonl"
                     sampler = HostSampler(root)
                     runner_sampler = RunnerStatusSampler(root)
-                events = _read_events(log_path)
-                recent_error = _read_recent_error(log_path)
-                metrics = _latest_metrics(metrics_path)
+                if not paused:
+                    events = _read_events(log_path)
+                    recent_error = _read_recent_error(log_path)
+                    metrics = _latest_metrics(metrics_path)
+                    calls = _live_usage(call_log)
                 host = sampler.sample()
                 runner = runner_sampler.sample()
-                calls = _live_usage(call_log)
                 live.update(
-                    _render_dashboard(root, events, metrics, host, datetime.now(), runner, recent_error, calls), refresh=True
+                    _render_dashboard(
+                        root,
+                        events,
+                        metrics,
+                        host,
+                        datetime.now(),
+                        runner,
+                        recent_error,
+                        calls,
+                        active_tab=active_tab,
+                        errors_only=errors_only,
+                        paused=paused,
+                    ),
+                    refresh=True,
                 )
-                time.sleep(interval)
+                deadline = time.monotonic() + interval
+                while time.monotonic() < deadline:
+                    wait_time = max(0.0, min(0.1, deadline - time.monotonic()))
+                    key = _check_key(wait_time)
+                    if key is not None:
+                        if key in ("q", "Q", "\x03", "\x04"):
+                            raise KeyboardInterrupt
+                        elif key in ("1", "2", "3", "4"):
+                            active_tab = int(key)
+                            break
+                        elif key in ("\t", "\x1b[C"):
+                            active_tab = (active_tab % 4) + 1
+                            break
+                        elif key == "\x1b[D":
+                            active_tab = 4 if active_tab == 1 else (active_tab - 1)
+                            break
+                        elif key in ("e", "E"):
+                            errors_only = not errors_only
+                            break
+                        elif key in ("p", "P", " "):
+                            paused = not paused
+                            break
     except KeyboardInterrupt:
+        pass
+    finally:
+        if old_term_settings is not None and termios is not None:
+            try:
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_term_settings)
+            except Exception:
+                pass
         console.show_cursor(True)

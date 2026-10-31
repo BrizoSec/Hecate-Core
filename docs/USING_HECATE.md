@@ -15,7 +15,7 @@ Hecate teaches systems how to hunt with memory, learning, and augmentation.
 ### 1. Clone and Customize
 
 ```bash
-git clone https://github.com/BrizoSec/Hecate-Core
+git clone https://github.com/Hecate-Org/Hecate-Core
 cd Hecate-Core
 
 # Option A: With CLI (Recommended)
@@ -200,7 +200,7 @@ We'd love to hear how you're using Hecate:
 - Blog about your experience
 - Share anonymized metrics
 - Present at conferences
-- Open an issue at [github.com/BrizoSec/Hecate-Core/issues](https://github.com/BrizoSec/Hecate-Core/issues)
+- Open an issue at [github.com/Hecate-Org/Hecate-Core/issues](https://github.com/Hecate-Org/Hecate-Core/issues)
 
 Your hunts, data, and lessons stay **yours**.
 

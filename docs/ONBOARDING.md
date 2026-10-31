@@ -41,7 +41,7 @@ flowchart LR
     subgraph CORE["Hecate-Core"]
         C1["LLM agents<br/>ATT&CK grounding<br/>Hunt format & pySigma"]
     end
-    subgraph WS["Hecate-Workspace<br/>(BrizoSec/Hecate-Content)"]
+    subgraph WS["Hecate-Workspace<br/>(Hecate-Org/Hecate-Public)"]
         W1["hunts/, queries/<br/>research/, playbooks/<br/>promotion-policy.yaml"]
     end
     RUNNER -- "calls as a library" --> CORE
@@ -52,7 +52,7 @@ flowchart LR
 
 | | Hecate-Core (this repo) | Hecate-Runner | Hecate-Workspace |
 |---|---|---|---|
-| Package / Repo | `hecate_agent` | `hecate_runner` | `BrizoSec/Hecate-Content` |
+| Package / Repo | `hecate_agent` | `hecate_runner` | `Hecate-Org/Hecate-Public` |
 | CLI / Service | `hecate-agent` | `hecate-runner` (`hecate-runner-daemon.service`) | Git PR & Promotion Gate |
 | Primary Role | Reasoning library, ATT&CK matrix, Sigma generator, pySigma transpiler, CLI | Autonomous perpetual daemon: CTI intake, triage, adversary emulation, reviewer remediation, Slack bot | Central version-controlled content repo holding hunts, Sigma rules, SIEM queries, and research briefs |
 | Knows about feeds | No | Yes | No |
@@ -90,12 +90,13 @@ either an API key (Anthropic, OpenAI, Bedrock) or a local
 [Ollama](https://ollama.com). A [Tavily](https://tavily.com) key is needed for
 web-grounded research; the free tier is enough to start.
 
-### 1. Clone both repositories side by side
+### 1. Clone repositories side by side
 
 ```bash
-mkdir hecate && cd hecate
-git clone https://github.com/BrizoSec/Hecate-Core.git
-git clone https://github.com/BrizoSec/Hecate-Runner.git
+mkdir -p ~/betas && cd ~/betas
+git clone https://github.com/Hecate-Org/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Runner.git
+git clone https://github.com/Hecate-Org/Hecate-Public.git Hecate-Workspace
 ```
 
 They must be siblings: the Runner depends on `../Hecate-Core`.
@@ -280,8 +281,8 @@ Every cycle ends with an outcome. The common ones:
 
 | If you want to | Read |
 |---|---|
-| Understand the design in depth, with diagrams | [Hecate-Runner: ARCHITECTURE.md](https://github.com/BrizoSec/Hecate-Runner/blob/main/docs/ARCHITECTURE.md) |
-| Operate the Runner: feeds, quotas, scheduling | [Hecate-Runner: README](https://github.com/BrizoSec/Hecate-Runner/blob/main/README.md) |
+| Understand the design in depth, with diagrams | [Hecate-Runner: ARCHITECTURE.md](https://github.com/Hecate-Org/Hecate-Runner/blob/main/docs/ARCHITECTURE.md) |
+| Operate the Runner: feeds, quotas, scheduling | [Hecate-Runner: README](https://github.com/Hecate-Org/Hecate-Runner/blob/main/README.md) |
 | Configure models, keys and the workspace | [CONFIGURATION.md](CONFIGURATION.md) |
 | Hunt manually with the CLI | [getting-started.md](getting-started.md), [CLI_REFERENCE.md](CLI_REFERENCE.md) |
 | Understand the hunt format | [lock-pattern.md](lock-pattern.md) |

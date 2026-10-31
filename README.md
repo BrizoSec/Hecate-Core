@@ -26,13 +26,13 @@ flowchart LR
     CTI["Threat Feeds<br/>(20+ Sources)"] --> RUNNER["Hecate-Runner<br/>(Autonomous Daemon)"]
     RUNNER -- "imports in-process" --> CORE["Hecate-Core<br/>(Reasoning & Sigma Engine)"]
     CORE --> LLM["LLM & Web Search"]
-    RUNNER -- "commits / publishes PRs" --> WS["Hecate-Workspace<br/>(BrizoSec/Hecate-Content)"]
+    RUNNER -- "commits / publishes PRs" --> WS["Hecate-Workspace<br/>(Hecate-Org/Hecate-Public)"]
     WS --> SOC["SOC / SIEM Deployment<br/>(Splunk, Sentinel, CrowdStrike...)"]
 ```
 
-- **[Hecate-Core](https://github.com/BrizoSec/Hecate-Core)** *(this repo)*: Detection reasoning library, CLI, Sigma generation, MITRE ATT&CK STIX grounder, pySigma transpiler.
-- **[Hecate-Runner](https://github.com/BrizoSec/Hecate-Runner)**: Autonomous perpetual daemon, 20+ CTI intake feeds, purple team emulation, automated reviewer self-remediation, GitHub PR publisher, Slack bot.
-- **[Hecate-Workspace](https://github.com/BrizoSec/Hecate-Content)**: Version-controlled detection repository holding hunts (`hunts/`), queries (`queries/`), research briefs (`research/`), and promotion policies.
+- **[Hecate-Core](https://github.com/Hecate-Org/Hecate-Core)** *(this repo)*: Detection reasoning library, CLI, Sigma generation, MITRE ATT&CK STIX grounder, pySigma transpiler.
+- **[Hecate-Runner](https://github.com/Hecate-Org/Hecate-Runner)**: Autonomous perpetual daemon, 20+ CTI intake feeds, purple team emulation, automated reviewer self-remediation, GitHub PR publisher, Slack bot.
+- **[Hecate-Workspace](https://github.com/Hecate-Org/Hecate-Public)**: Version-controlled detection repository holding hunts (`hunts/`), queries (`queries/`), research briefs (`research/`), and promotion policies.
 
 ---
 
@@ -58,7 +58,7 @@ Hecate-Core/
 ├── evals/                       # Ground-truth evaluation pulses and replay scripts
 ├── knowledge/                   # OCSF schemas, ATT&CK STIX cache, hunting knowledge
 ├── prompts/                     # System prompts and few-shot templates
-└── tests/                       # 1,900+ unit and integration tests
+└── tests/                       # 2,000+ unit and integration tests
 ```
 
 ---
@@ -74,9 +74,9 @@ Hecate-Core/
 ```bash
 mkdir -p ~/betas && cd ~/betas
 
-git clone https://github.com/BrizoSec/Hecate-Core.git
-git clone https://github.com/BrizoSec/Hecate-Runner.git
-git clone https://github.com/BrizoSec/Hecate-Content.git Hecate-Workspace
+git clone https://github.com/Hecate-Org/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Runner.git
+git clone https://github.com/Hecate-Org/Hecate-Public.git Hecate-Workspace
 ```
 
 ### Step 2: Install Dependencies with `uv`
@@ -216,3 +216,12 @@ uv run pytest --cov=hecate_agent tests/
 ## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+## Public metadata exports
+
+`hecate-agent hunt export H-0001 --public` produces a versioned metadata-only
+profile for review. It excludes sessions, raw content, research, operator paths
+and claimed validation results. Titles and tags still need privacy and source
+rights review before publication. General internal exports keep their existing
+behavior. Runner owns approved downstream delivery; the legacy direct Core
+MISP writer has been retired. See LICENSES.md for attribution scope.
