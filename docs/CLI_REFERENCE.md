@@ -97,12 +97,12 @@ version's complete, authoritative command and option list.
 ## Installation
 
 ```bash
-git clone https://github.com/BrizoSec/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Core.git
 cd Hecate-Core
 pip install -e .
 ```
 
-See [INSTALL.md](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/INSTALL.md) for detailed installation instructions.
+See [INSTALL.md](https://github.com/Hecate-Org/Hecate-Core/blob/main/docs/INSTALL.md) for detailed installation instructions.
 
 ---
 
@@ -3175,7 +3175,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - run: pip install "git+https://github.com/BrizoSec/Hecate-Core.git"
+      - run: pip install "git+https://github.com/Hecate-Org/Hecate-Core.git"
       - run: hecate-agent hunt validate
 ```
 
@@ -3202,8 +3202,8 @@ done
 ## See Also
 
 - [Getting Started Guide](getting-started.md)
-- [Installation Guide](https://github.com/BrizoSec/Hecate-Core/blob/main/docs/INSTALL.md)
-- [Hunt Format Guidelines](https://github.com/BrizoSec/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md)
+- [Installation Guide](https://github.com/Hecate-Org/Hecate-Core/blob/main/docs/INSTALL.md)
+- [Hunt Format Guidelines](https://github.com/Hecate-Org/Hecate-Core/blob/main/hunts/FORMAT_GUIDELINES.md)
 - [MITRE ATT&CK Framework](https://attack.mitre.org/)
 
 ---
@@ -3211,5 +3211,5 @@ done
 ## Need Help?
 
 - **CLI help**: `hecate-agent --help` or `hecate-agent <command> --help`
-- **GitHub Issues**: [Report bugs or request features](https://github.com/BrizoSec/Hecate-Core/issues)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/Hecate-Org/Hecate-Core/issues)
 - **Documentation**: [docs/getting-started.md](getting-started.md)

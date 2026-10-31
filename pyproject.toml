@@ -152,10 +152,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/BrizoSec/Hecate-Core"
-Documentation = "https://github.com/BrizoSec/Hecate-Core/tree/main/docs"
-Repository = "https://github.com/BrizoSec/Hecate-Core"
-Issues = "https://github.com/BrizoSec/Hecate-Core/issues"
+Homepage = "https://github.com/Hecate-Org/Hecate-Core"
+Documentation = "https://github.com/Hecate-Org/Hecate-Core/tree/main/docs"
+Repository = "https://github.com/Hecate-Org/Hecate-Core"
+Issues = "https://github.com/Hecate-Org/Hecate-Core/issues"
 
 [project.scripts]
 hecate-agent = "hecate_agent.cli:main"

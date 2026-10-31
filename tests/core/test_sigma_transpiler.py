@@ -379,3 +379,26 @@ level: medium
         assert s1.success is False
         assert s1.query is None
         assert s1.error_message is not None
+
+    def test_backend_caching_and_clear_cache(self, sample_process_creation_rule):
+        SigmaTranspiler.clear_cache()
+        from hecate_agent.core.sigma_transpiler import _BACKEND_CACHE
+
+        assert len(_BACKEND_CACHE) == 0
+
+        transpiler = SigmaTranspiler()
+        res1 = transpiler.transpile(sample_process_creation_rule)
+        cache_size_after_first = len(_BACKEND_CACHE)
+        assert cache_size_after_first > 0
+
+        # Second transpile reuses cached backends
+        res2 = transpiler.transpile(sample_process_creation_rule)
+        assert len(_BACKEND_CACHE) == cache_size_after_first
+
+        for target in SigmaTranspiler.SUPPORTED_TARGETS:
+            assert res1[target].query == res2[target].query
+            assert res1[target].success == res2[target].success
+
+        # clear_cache clears the dictionary
+        SigmaTranspiler.clear_cache()
+        assert len(_BACKEND_CACHE) == 0

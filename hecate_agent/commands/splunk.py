@@ -173,7 +173,10 @@ def indexes(host: Optional[str], token: Optional[str], verify_ssl: Optional[bool
         index_list = client.get_indexes()
 
         if not index_list:
-            console.print("[yellow]No indexes found[/yellow]")
+            if output_format == "json":
+                click.echo(json.dumps({"indexes": []}, indent=2))
+            else:
+                console.print("[yellow]No indexes found[/yellow]")
             return
 
         if output_format == "json":
@@ -254,25 +257,29 @@ def search(
     try:
         client = get_client(host, token, verify_ssl)
 
-        console.print(f"\n[bold]Executing query:[/bold] {query}")
-        console.print(f"[bold]Time range:[/bold] {earliest} to {latest}")
-        console.print(f"[bold]Max results:[/bold] {count}\n")
+        if output_format != "json":
+            console.print(f"\n[bold]Executing query:[/bold] {query}")
+            console.print(f"[bold]Time range:[/bold] {earliest} to {latest}")
+            console.print(f"[bold]Max results:[/bold] {count}\n")
 
         # Execute search
         if use_async:
-            console.print("[dim]Using async search (for longer queries)...[/dim]")
+            if output_format != "json":
+                console.print("[dim]Using async search (for longer queries)...[/dim]")
             results = client.search_async(
                 query=query, earliest_time=earliest, latest_time=latest, max_results=count, max_wait=max_wait
             )
         else:
-            console.print("[dim]Using oneshot search (fast for small queries)...[/dim]")
+            if output_format != "json":
+                console.print("[dim]Using oneshot search (fast for small queries)...[/dim]")
             results = client.search(query=query, earliest_time=earliest, latest_time=latest, max_count=count)
 
         if not results:
             console.print("[yellow]No results found[/yellow]")
             return
 
-        console.print(f"[green]✓ Found {len(results)} results[/green]\n")
+        if output_format != "json":
+            console.print(f"[green]✓ Found {len(results)} results[/green]\n")
 
         _render_results(results, output_format, count)
 

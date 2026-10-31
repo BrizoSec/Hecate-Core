@@ -18,6 +18,7 @@ Closed-Loop Tuning Workflow:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
@@ -29,6 +30,53 @@ from hecate_agent.core.sigma_evaluator import EvaluationReport, SigmaEvaluator
 from hecate_agent.core.sigma_semantics import semantic_problem
 
 logger = logging.getLogger(__name__)
+
+FIELD_ALIASES: Dict[str, str] = {
+    "image": "Image",
+    "process": "Image",
+    "binary": "Image",
+    "executable": "Image",
+    "path": "Image",
+    "filepath": "Image",
+    "file_path": "Image",
+    "directory": "Image",
+    "folder": "Image",
+    "commandline": "CommandLine",
+    "command": "CommandLine",
+    "cmd": "CommandLine",
+    "args": "CommandLine",
+    "arguments": "CommandLine",
+    "user": "User",
+    "username": "User",
+    "account": "User",
+    "parentimage": "ParentImage",
+    "parent": "ParentImage",
+    "parent_image": "ParentImage",
+    "parentprocess": "ParentImage",
+    "parent_process": "ParentImage",
+    "parentcommandline": "ParentCommandLine",
+    "parent_commandline": "ParentCommandLine",
+    "parent_cmd": "ParentCommandLine",
+    "currentdirectory": "CurrentDirectory",
+    "originalfilename": "OriginalFileName",
+    "targetfilename": "TargetFilename",
+    "destinationip": "DestinationIp",
+    "ip": "DestinationIp",
+    "dest_ip": "DestinationIp",
+    "destinationhostname": "DestinationHostname",
+    "destinationport": "DestinationPort",
+    "port": "DestinationPort",
+    "dest_port": "DestinationPort",
+    "hashes": "Hashes",
+    "hash": "Hashes",
+    "sha256": "Hashes",
+    "md5": "Hashes",
+    "scriptblocktext": "ScriptBlockText",
+    "scriptblock": "ScriptBlockText",
+    "eventid": "EventID",
+    "provider_name": "Provider_Name",
+    "queryname": "QueryName",
+}
 
 
 @dataclass
@@ -316,3 +364,257 @@ class SigmaSelfTuner:
             intrusion_events=emulation_result.events,
             baseline_events=baseline_events,
         )
+
+    def _parse_single_clause(self, clause_text: str, default_action: str = "exclude") -> Tuple[str, str, str]:
+        """Parse a single clause into (field_name, modifier, target_val)."""
+        text = clause_text.strip()
+        text = re.sub(r"(?i)^(?:where\s+|having\s+|with\s+|and\s+)", "", text).strip()
+        tokens = text.split()
+        if not tokens:
+            return "", "", ""
+
+        matched_alias = None
+        val_part = ""
+        explicit_mod = ""
+
+        # Check two-word aliases first
+        if len(tokens) >= 2:
+            two_word = f"{tokens[0]} {tokens[1]}".lower()
+            if two_word in FIELD_ALIASES:
+                matched_alias = two_word
+                val_part = text[len(tokens[0]) + 1 + len(tokens[1]):].strip()
+
+        if not matched_alias:
+            first_raw = tokens[0].rstrip(":=")
+            first_base = first_raw.split("|")[0].lower()
+            if first_base in FIELD_ALIASES:
+                matched_alias = first_base
+                explicit_mod = first_raw.split("|")[1] if "|" in first_raw else ""
+                val_part = text[len(tokens[0]):].strip()
+
+        if matched_alias:
+            field_name = FIELD_ALIASES[matched_alias]
+            mod = explicit_mod
+            # Remove filler phrases
+            val_clean = re.sub(
+                r"(?i)^(?:to\s+include\s+|is\s+|equals?\s+|containing\s+|contains\s+|endswith\s+|ends\s+with\s+|startswith\s+|starts\s+with\s+|[:=]\s*)",
+                "",
+                val_part,
+            ).strip()
+
+            if not mod:
+                if re.search(r"(?i)\b(?:containing|contains)\b", val_part):
+                    mod = "contains"
+                elif re.search(r"(?i)\b(?:endswith|ends\s+with)\b", val_part):
+                    mod = "endswith"
+                elif re.search(r"(?i)\b(?:startswith|starts\s+with)\b", val_part):
+                    mod = "startswith"
+                elif re.search(r"(?i)\b(?:equals?|is)\b", val_part):
+                    mod = ""
+
+            target_val = val_clean.strip(" :=\"'").strip()
+
+            if not mod:
+                if matched_alias in ("path", "filepath", "directory", "folder"):
+                    mod = "startswith"
+                elif field_name in ("Image", "ParentImage"):
+                    if any(target_val.lower().endswith(ext) for ext in (".exe", ".dll", ".sys", ".ps1", ".bat", ".cmd", ".vbs", ".sh")):
+                        mod = "endswith"
+                    elif any(sep in target_val for sep in ("\\", "/")) and not target_val.endswith((".exe", ".dll")):
+                        mod = "startswith"
+                    else:
+                        mod = "contains"
+                elif field_name in ("CommandLine", "ParentCommandLine", "User"):
+                    mod = "contains"
+        else:
+            target_val = text.strip(" :=\"'").strip()
+            if any(target_val.lower().endswith(ext) for ext in (".exe", ".dll", ".sys", ".ps1", ".bat", ".cmd", ".vbs", ".sh")):
+                field_name = "Image"
+                mod = "endswith"
+            elif any(target_val.startswith(p) for p in ("C:\\", "D:\\", "/usr/", "/bin/", "/etc/")) or ("\\" in target_val and not target_val.endswith(".exe")):
+                field_name = "Image"
+                mod = "startswith"
+            elif any(u in target_val.upper() for u in ("SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", "ADMIN")):
+                field_name = "User"
+                mod = "contains"
+            elif target_val.startswith(("/", "-")):
+                field_name = "CommandLine"
+                mod = "contains"
+            else:
+                field_name = "CommandLine"
+                mod = "contains"
+
+        return field_name, mod, target_val
+
+    def _parse_critique(self, critique: str) -> Tuple[str, List[Tuple[str, str, str]]]:
+        """Parse analyst natural language critique into action and list of (field, mod, val)."""
+        clean = critique.strip()
+        clean = re.sub(r"<@[A-Za-z0-9]+>|@[\w.-]+", "", clean).strip()
+        clean = re.sub(r"(?i)^(?:for\s+H-\d{4,}[,:\s]+)?(?:please\s+)?", "", clean).strip()
+        clean = re.sub(r"(?i)^tune\s+", "", clean).strip()
+
+        match_verb = re.match(
+            r"(?i)^(exclude|filter\s+out|filter|ignore|suppress|omit|drop|broaden\s+to|expand\s+to|broaden|expand|include|add|allow)\b\s*(.*)",
+            clean,
+        )
+        if match_verb:
+            verb = match_verb.group(1).lower()
+            rest = match_verb.group(2).strip()
+            action_type = (
+                "exclude"
+                if any(v in verb for v in ["exclude", "filter", "ignore", "suppress", "omit", "drop"])
+                else "include"
+            )
+        else:
+            action_type = "exclude"
+            rest = clean
+
+        if not rest:
+            return "unknown", []
+
+        # Split compound clauses on secondary connectors like 'with parent', 'and parent', 'where parent'
+        pattern = r"(?i)\s+(?:with|where|and|having)\s+(?=(?:parent(?:image|\s+process|\s+binary)?|commandline|cmd|user|image|path|process)\b)"
+        raw_clauses = re.split(pattern, rest)
+
+        clauses: List[Tuple[str, str, str]] = []
+        for raw in raw_clauses:
+            raw = raw.strip()
+            if not raw:
+                continue
+            fld, mod, val = self._parse_single_clause(raw, default_action=action_type)
+            if fld and val:
+                clauses.append((fld, mod, val))
+
+        return action_type, clauses
+
+    def tune_rule(
+        self,
+        rule: Union[str, Dict[str, Any]],
+        critique: str,
+        events: Optional[Sequence[Dict[str, Any]]] = None,
+    ) -> Tuple[str, str]:
+        """Mutate a Sigma rule using natural language analyst feedback.
+
+        Supports compound multi-field exclusion filters (e.g. 'exclude svchost.exe with parent services.exe',
+        'filter path C:\\Program Files\\AdminTools'), inclusion broadening, and validates semantic
+        integrity via `sigma_semantics.semantic_problem`.
+
+        Returns:
+            (updated_rule_yaml: str, action_summary: str)
+        """
+        rule_dict = self._normalize_rule_dict(rule)
+        if not rule_dict:
+            raise ValueError("Rule is not a valid YAML mapping")
+
+        action_type, clauses = self._parse_critique(critique)
+        if action_type == "unknown" or not clauses:
+            raise ValueError(
+                f"Could not understand tuning instruction: '{critique}'. "
+                "Try instructions like 'Exclude svchost.exe with parent services.exe', "
+                "'Filter path C:\\Program Files\\AdminTools', or 'Add Image pwsh.exe'."
+            )
+
+        detection = rule_dict.setdefault("detection", {})
+        if not isinstance(detection, dict):
+            raise ValueError("Rule 'detection' block is missing or not a mapping")
+
+        if action_type == "exclude":
+            filter_dict: Dict[str, Any] = {}
+            name_parts: List[str] = []
+
+            for fld, mod, val in clauses:
+                fmt_val = val
+                if mod == "endswith" and not fmt_val.startswith(("\\", "/")) and any(
+                    fmt_val.lower().endswith(ext)
+                    for ext in (".exe", ".dll", ".sys", ".ps1", ".bat", ".cmd", ".vbs", ".sh")
+                ):
+                    fmt_val = f"\\{fmt_val}"
+
+                full_key = f"{fld}|{mod}" if mod else fld
+                filter_dict[full_key] = fmt_val
+
+                # Derive descriptive filter name from target values
+                base = fmt_val.rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+                base = base.rsplit(".", 1)[0] if "." in base else base
+                clean_base = re.sub(r"[^a-zA-Z0-9_]", "_", base).strip("_").lower()
+                if clean_base and clean_base not in name_parts:
+                    name_parts.append(clean_base)
+
+            base_name = "_".join(name_parts[:2]) if name_parts else "exclusion"
+            filter_name = f"filter_{base_name[:20]}"
+            counter = 1
+            while filter_name in detection:
+                filter_name = f"filter_{base_name[:15]}_{counter}"
+                counter += 1
+
+            detection[filter_name] = filter_dict
+
+            curr_cond = str(detection.get("condition", "selection")).strip()
+            if "not " in curr_cond:
+                new_cond = f"{curr_cond} and not {filter_name}"
+            else:
+                new_cond = f"({curr_cond}) and not {filter_name}"
+            detection["condition"] = new_cond
+
+            constraints_str = ", ".join(f"`{k}: {v}`" for k, v in filter_dict.items())
+            summary = f"Added exclusion filter `{filter_name}`: {constraints_str}"
+
+        else:  # action_type == "include"
+            target_block = None
+            for key in ["selection", "selection_main", "selection_1"]:
+                if key in detection and isinstance(detection[key], dict):
+                    target_block = detection[key]
+                    break
+
+            if not target_block:
+                for key, val in detection.items():
+                    if key not in ("condition", "timeframe") and isinstance(val, dict):
+                        target_block = val
+                        break
+
+            actions: List[str] = []
+            for fld, mod, val in clauses:
+                full_key = f"{fld}|{mod}" if mod else fld
+                if not target_block:
+                    detection["selection_custom"] = {full_key: val}
+                    curr_cond = str(detection.get("condition", "selection")).strip()
+                    detection["condition"] = f"{curr_cond} or selection_custom"
+                    actions.append(f"Added new selection block with `{full_key}: {val}`")
+                    target_block = detection["selection_custom"]
+                else:
+                    existing_key = None
+                    for k in target_block:
+                        if k.split("|")[0].lower() == fld.lower():
+                            existing_key = k
+                            break
+
+                    key_to_use = existing_key or full_key
+                    curr_val = target_block.get(key_to_use)
+                    if curr_val is None:
+                        target_block[key_to_use] = val
+                    elif isinstance(curr_val, list):
+                        if val not in curr_val:
+                            curr_val.append(val)
+                    else:
+                        if curr_val != val:
+                            target_block[key_to_use] = [curr_val, val]
+
+                    actions.append(f"Expanded `{key_to_use}` with `{val}`")
+
+            summary = "; ".join(actions)
+
+        # Semantic validation
+        if self.strict_semantics:
+            category = rule_dict.get("logsource", {}).get("category", "")
+            sem_err = semantic_problem(detection, category)
+            if sem_err:
+                logger.warning("Tuned rule failed semantic validation: %s", sem_err)
+                summary += f" (Semantic validation warning: {sem_err})"
+
+        # Telemetry evaluation if events supplied
+        if events:
+            eval_res = SigmaEvaluator.evaluate_rule(rule_dict, intrusion_events=events, baseline_events=[])
+            summary += f" (Evaluated: {eval_res.true_positives} TP hits on {len(events)} events)"
+
+        updated_yaml = yaml.dump(rule_dict, sort_keys=False)
+        return updated_yaml, summary

@@ -157,3 +157,92 @@ detection:
     assert "attacker" not in report.final_rule  # Attack user is not filtered
     assert report.final_metrics.true_positives == 1
     assert report.final_metrics.false_positives == 0
+
+
+def test_tune_rule_compound_exclude_with_parent() -> None:
+    rule = """title: Cmd Execution
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\\cmd.exe'
+    condition: selection
+"""
+    tuner = SigmaSelfTuner()
+    updated_yaml, summary = tuner.tune_rule(rule, "exclude svchost.exe with parent services.exe")
+
+    assert "filter_svchost_services" in updated_yaml
+    assert "Image|endswith: \\svchost.exe" in updated_yaml
+    assert "ParentImage|endswith: \\services.exe" in updated_yaml
+    assert "condition: (selection) and not filter_svchost_services" in updated_yaml
+    assert "Added exclusion filter `filter_svchost_services`" in summary
+
+
+def test_tune_rule_filter_path() -> None:
+    rule = """title: Suspicious Tool
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains: 'mimikatz'
+    condition: selection
+"""
+    tuner = SigmaSelfTuner()
+    updated_yaml, summary = tuner.tune_rule(rule, "filter path C:\\Program Files\\AdminTools")
+
+    assert "filter_admintools" in updated_yaml
+    assert "Image|startswith: C:\\Program Files\\AdminTools" in updated_yaml
+    assert "condition: (selection) and not filter_admintools" in updated_yaml
+    assert "Added exclusion filter `filter_admintools`" in summary
+
+
+def test_tune_rule_filter_commandline_containing() -> None:
+    rule = """title: Broad Script
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\\powershell.exe'
+    condition: selection
+"""
+    tuner = SigmaSelfTuner()
+    updated_yaml, summary = tuner.tune_rule(rule, "filter out CommandLine containing /update")
+
+    assert "filter_update" in updated_yaml
+    assert "CommandLine|contains: /update" in updated_yaml
+    assert "condition: (selection) and not filter_update" in updated_yaml
+    assert "Added exclusion filter `filter_update`" in summary
+
+
+def test_tune_rule_broaden_inclusion() -> None:
+    rule = """title: Shell Execution
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\\cmd.exe'
+    condition: selection
+"""
+    tuner = SigmaSelfTuner()
+    updated_yaml, summary = tuner.tune_rule(rule, "broaden Image to include pwsh.exe")
+
+    assert "pwsh.exe" in updated_yaml
+    assert "\\cmd.exe" in updated_yaml
+    assert "Expanded `Image|endswith` with `pwsh.exe`" in summary
+
+
+def test_tune_sigma_rule_api() -> None:
+    from hecate_agent.api import tune_sigma_rule
+
+    rule = """title: API Test Rule
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\\cmd.exe'
+    condition: selection
+"""
+    new_yaml, summary = tune_sigma_rule(rule, "@hecate tune exclude svchost.exe with parent services.exe")
+    assert "filter_svchost_services" in new_yaml
+    assert "services.exe" in new_yaml
+    assert "Added exclusion filter" in summary

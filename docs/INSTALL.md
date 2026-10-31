@@ -42,10 +42,10 @@ hecate-agent --version
 
 **Best for**: Environments without direct PyPI access or requiring fixed release artifacts.
 
-Download the latest `.whl` from [GitHub Releases](https://github.com/BrizoSec/Hecate-Core/releases):
+Download the latest `.whl` from [GitHub Releases](https://github.com/Hecate-Org/Hecate-Core/releases):
 
 ```bash
-pip install https://github.com/BrizoSec/Hecate-Core/releases/latest/download/hecate_agent-latest-py3-none-any.whl
+pip install https://github.com/Hecate-Org/Hecate-Core/releases/latest/download/hecate_agent-latest-py3-none-any.whl
 ```
 
 ---
@@ -55,7 +55,7 @@ pip install https://github.com/BrizoSec/Hecate-Core/releases/latest/download/hec
 **Best for**: Developers contributing to Hecate or dogfooding locally.
 
 ```bash
-git clone https://github.com/BrizoSec/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Core.git
 cd Hecate-Core
 pip install -e .
 
@@ -89,7 +89,7 @@ pip install -e /path/to/Hecate-Core
 
 ```bash
 # Clone the repository
-git clone https://github.com/BrizoSec/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Core.git
 cd Hecate-Core
 
 # Everything the agents and the Runner use
@@ -110,7 +110,7 @@ hecate-agent --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/BrizoSec/Hecate-Core.git
+git clone https://github.com/Hecate-Org/Hecate-Core.git
 cd Hecate-Core
 
 # Copy the template structure
@@ -606,7 +606,7 @@ After installation:
 
 - **CLI help**: `hecate-agent --help` or `hecate-agent <command> --help`
 - **Documentation**: [getting-started.md](getting-started.md)
-- **Issues**: [GitHub Issues](https://github.com/BrizoSec/Hecate-Core/issues)
+- **Issues**: [GitHub Issues](https://github.com/Hecate-Org/Hecate-Core/issues)
 
 ---
 

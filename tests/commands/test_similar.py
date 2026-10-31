@@ -396,3 +396,64 @@ class TestSessionsFlag:
 
         sources = [r["source"] for r in results]
         assert "session" not in sources
+
+
+@requires_sklearn
+class TestTfidfCaching:
+    """Tests for TF-IDF matrix caching in similarity search."""
+
+    def test_cache_hit_avoids_rebuilding(self, tmp_path, monkeypatch):
+        """Consecutive queries reuse cached TF-IDF matrix and vectorizer."""
+        from unittest.mock import patch
+        from hecate_agent.commands.similar import _clear_tfidf_cache, _find_similar_hunts
+
+        _clear_tfidf_cache()
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        (hunts_dir / "H-0001.md").write_text(
+            "---\nhunt_id: H-0001\ntitle: Kerberoasting Attack\n"
+            "status: completed\ntactics: [credential-access]\n"
+            "techniques: [T1558.003]\nplatform: [Active Directory]\n---\n\n"
+            "## Hypothesis\n\nSPN requests for Kerberos ticket cracking\n"
+        )
+
+        # First call builds cache
+        res1 = _find_similar_hunts("kerberos SPN ticket", workspace=tmp_path, threshold=0.0)
+        assert len(res1) == 1
+
+        # Second call should reuse cache without calling _build_corpus again
+        with patch("hecate_agent.commands.similar._build_corpus") as mock_build:
+            res2 = _find_similar_hunts("kerberos SPN ticket", workspace=tmp_path, threshold=0.0)
+            mock_build.assert_not_called()
+            assert len(res2) == 1
+            assert res2[0]["hunt_id"] == "H-0001"
+
+    def test_cache_invalidates_on_hunt_file_update(self, tmp_path):
+        """Updating a hunt file modifies mtime and causes cache refresh."""
+        import time
+        from hecate_agent.commands.similar import _clear_tfidf_cache, _find_similar_hunts
+
+        _clear_tfidf_cache()
+        hunts_dir = tmp_path / "hunts"
+        hunts_dir.mkdir()
+        h1 = hunts_dir / "H-0001.md"
+        h1.write_text(
+            "---\nhunt_id: H-0001\ntitle: Alpha Initial\n"
+            "status: completed\ntactics: [initial-access]\n"
+            "---\n\n## Hypothesis\n\nInitial query test\n"
+        )
+
+        res1 = _find_similar_hunts("Initial", workspace=tmp_path, threshold=0.0)
+        assert len(res1) == 1
+
+        # Sleep slightly so mtime changes, then update file
+        time.sleep(0.02)
+        h1.write_text(
+            "---\nhunt_id: H-0001\ntitle: Updated Password Spraying\n"
+            "status: completed\ntactics: [credential-access]\n"
+            "---\n\n## Hypothesis\n\nBrute force login attempts\n"
+        )
+
+        res2 = _find_similar_hunts("Password Spraying", workspace=tmp_path, threshold=0.0)
+        assert len(res2) == 1
+        assert res2[0]["title"] == "Updated Password Spraying"
