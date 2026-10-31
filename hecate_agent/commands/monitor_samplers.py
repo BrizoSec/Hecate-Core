@@ -318,10 +318,6 @@ class RunnerStatusSampler:
             or service.get("LoadState") not in {None, "not-found"}
             or daemon.get("LoadState") not in {None, "not-found"}
         )
-        if not installed:
-            self._cached = RunnerStatus()
-            return self._cached
-
         daemon_active = daemon.get("ActiveState") == "active"
         if daemon_active:
             timer_active = False
@@ -343,7 +339,7 @@ class RunnerStatusSampler:
 
         hd = self._heavy_data
         self._cached = RunnerStatus(
-            installed=True,
+            installed=installed,
             timer_active=timer_active,
             daemon_active=daemon_active,
             service_state=service_state,

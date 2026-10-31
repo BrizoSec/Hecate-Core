@@ -1362,8 +1362,13 @@ def test_cooldown_countdown_calculation() -> None:
     assert "UTC" in cooldown_str
 
 
-def test_runner_status_sampler_queries_outboxes(tmp_path: Path) -> None:
+def test_runner_status_sampler_queries_outboxes(tmp_path: Path, monkeypatch) -> None:
     import sqlite3
+
+    def missing_systemd(*args, **kwargs):
+        raise FileNotFoundError("systemctl unavailable")
+
+    monkeypatch.setattr("hecate_agent.commands.monitor_samplers.subprocess.run", missing_systemd)
 
     pub_dir = tmp_path / ".hecate" / "publisher"
     pub_dir.mkdir(parents=True)
@@ -1383,14 +1388,20 @@ def test_runner_status_sampler_queries_outboxes(tmp_path: Path) -> None:
 
     sampler = m.RunnerStatusSampler(tmp_path)
     status = sampler.sample()
+    assert not status.installed
     assert status.github_confirmed_promotions == 2
     assert status.github_pending_prs == 1
     assert status.misp_confirmed_exports == 3
     assert status.misp_pending_exports == 1
 
 
-def test_runner_status_sampler_tiered_caching(tmp_path: Path) -> None:
+def test_runner_status_sampler_tiered_caching(tmp_path: Path, monkeypatch) -> None:
     import sqlite3
+
+    def missing_systemd(*args, **kwargs):
+        raise FileNotFoundError("systemctl unavailable")
+
+    monkeypatch.setattr("hecate_agent.commands.monitor_samplers.subprocess.run", missing_systemd)
 
     pub_dir = tmp_path / ".hecate" / "publisher"
     pub_dir.mkdir(parents=True)
