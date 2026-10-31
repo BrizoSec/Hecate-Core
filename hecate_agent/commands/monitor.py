@@ -2858,7 +2858,7 @@ def _purple_team_panel(
         table.add_row("BAS MODE", Text(measured.bas_mode_label, style="bright_cyan"))
     if measured.bas_scope_label:
         table.add_row("BAS SCOPE", Text(measured.bas_scope_label, style="dim"))
-        table.add_row("BAS COVERAGE", Text(f"{measured.bas_runs - measured.bas_control_runs} hunt checks · {measured.bas_control_runs} sensor controls", style="dim"))
+        table.add_row("BAS CHECKS", Text(f"{measured.bas_runs - measured.bas_control_runs} hunt checks · {measured.bas_control_runs} sensor controls", style="dim"))
     table.add_row(
         "BREACH SIM",
         Text(f"{measured.bas_runs} runs · {measured.bas_live_runs} live, {measured.bas_mock_runs} mock", style="bright_white" if measured.bas_runs else "dim"),
