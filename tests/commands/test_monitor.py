@@ -1113,6 +1113,43 @@ def test_slack_color_distinguishes_notifications_from_interactive_mode(tmp_path:
     assert any(("green" if interactive else "#ff69b4") in str(s.style) for s in segments if s.text.strip() == "Slack")
 
 
+def test_validation_reads_private_sensor_runs_and_deduplicates_hunt_results(tmp_path: Path) -> None:
+    root = tmp_path / ".hecate/bas"
+    (root / "runs").mkdir(parents=True)
+    state = {"enabled": True, "auto_execute_live": True, "telemetry": "lab_process"}
+    (root / "state.json").write_text(json.dumps(state))
+    record = {
+        "run_id": "run-1", "hunt_id": "H-0001", "provider": "caldera",
+        "status": "verified_true_positive", "technique_id": "T1033",
+        "telemetry_arrived": True, "rule_triggered": True, "sensor_events_count": 3,
+        "matched_events_count": 1,
+    }
+    (root / "runs/one.json").write_text(json.dumps(record))
+    hunts = tmp_path / "hunts"
+    hunts.mkdir()
+    (hunts / "H-0001.md").write_text(
+        "---\nhunt_id: H-0001\nbas_status: verified_true_positive\n"
+        "bas_provider: caldera\nbas_run_id: run-1\nbas_detection_triggered: true\n---\n"
+    )
+    metrics = m._collect_purple_team_metrics(tmp_path)
+    assert metrics.bas_runs == 1 and metrics.bas_live_runs == 1
+    assert metrics.bas_verified == 1 and metrics.bas_matched_events == 3
+    assert metrics.bas_mode_label == "AUTO · approved Linux lab"
+    assert metrics.bas_scope_label == "Local process sensor + Sigma"
+    # A new runtime record invalidates the cache even when no hunt changed.
+    (root / "runs/two.json").write_text(json.dumps({
+        "run_id": "run-2", "status": "skipped", "reason": "No approved Linux procedure",
+    }))
+    metrics = m._collect_purple_team_metrics(tmp_path)
+    assert metrics.bas_runs == 1 and metrics.bas_skipped == 1
+    console = Console(width=100, record=True, force_terminal=False)
+    console.print(m._purple_team_panel(metrics=metrics, narrow=False))
+    text = console.export_text()
+    assert "AUTO · approved Linux lab" in text and "Local process sensor + Sigma" in text
+    assert "BAS SKIPPED" in text and "No approved Linux procedure" in text
+    assert "1 rule matches" in text
+
+
 def test_validation_combines_rule_replay_and_bas_outcomes(tmp_path: Path) -> None:
     hunts = tmp_path / "hunts/2026/Q4"
     hunts.mkdir(parents=True)

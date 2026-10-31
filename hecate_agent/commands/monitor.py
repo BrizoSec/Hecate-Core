@@ -2645,6 +2645,11 @@ class PurpleTeamMetrics:
     bas_providers: Dict[str, int] = field(default_factory=dict)
     bas_last_status: str = ""
     bas_last_duration_sec: float = 0.0
+    bas_mode_label: str = ""
+    bas_scope_label: str = ""
+    bas_skipped: int = 0
+    bas_last_skip_reason: str = ""
+    bas_control_runs: int = 0
 
 
 _PURPLE_METRICS_CACHE: Dict[str, Tuple[float, int, float, PurpleTeamMetrics]] = {}
@@ -2687,8 +2692,12 @@ def _collect_purple_team_metrics(
     if hunts_dir.exists():
         hunt_files = [f for f in hunts_dir.glob("**/*.md") if f.name not in _EXCLUDED_HUNT_DOCS]
 
-    file_count = len(hunt_files)
-    max_mtime = max((f.stat().st_mtime for f in hunt_files), default=0.0)
+    bas_root = workspace / ".hecate" / "bas"
+    bas_files = list((bas_root / "runs").glob("*.json"))
+    state_file = bas_root / "state.json"
+    metric_files = hunt_files + bas_files + ([state_file] if state_file.exists() else [])
+    file_count = len(metric_files)
+    max_mtime = max((f.stat().st_mtime for f in metric_files), default=0.0)
 
     cached = _PURPLE_METRICS_CACHE.get(resolved_path)
     if cached and (now - cached[0] < 5.0) and cached[1] == file_count and cached[2] == max_mtime:
@@ -2706,6 +2715,60 @@ def _collect_purple_team_metrics(
     telemetry = 0
     bas_techniques: Set[str] = set()
     last_bas_mtime = 0.0
+    seen_bas_ids: Set[str] = set()
+
+    def include_bas(record: Dict[str, Any], mtime: float) -> None:
+        nonlocal last_bas_mtime
+        status = str(record.get("status") or "")
+        if status == "skipped":
+            metrics.bas_skipped += 1
+            metrics.bas_last_skip_reason = str(record.get("reason") or "No approved procedure")
+            return
+        if status not in {"verified_true_positive", "detection_miss", "telemetry_missing", "detonation_failed", "error"}:
+            return
+        metrics.bas_runs += 1
+        metrics.bas_control_runs += int(record.get("purpose") == "sensor_control" or record.get("hunt_id") == "LAB-CHECK")
+        provider = str(record.get("provider") or "unknown").lower()
+        metrics.bas_providers[provider] = metrics.bas_providers.get(provider, 0) + 1
+        metrics.bas_mock_runs += int(provider == "mock")
+        metrics.bas_live_runs += int(provider in {"caldera", "stratus", "local_sandbox", "live_lab"})
+        metrics.bas_verified += int(status == "verified_true_positive")
+        metrics.bas_detection_misses += int(status == "detection_miss")
+        metrics.bas_telemetry_missing += int(status == "telemetry_missing")
+        metrics.bas_failures += int(status in {"detonation_failed", "error"})
+        metrics.bas_detections += int(record.get("rule_triggered") is True)
+        metrics.bas_telemetry_runs += int(record.get("telemetry_arrived") is True)
+        metrics.bas_matched_events += int(record.get("sensor_events_count", record.get("matched_events_count", 0)))
+        technique = str(record.get("technique_id") or "")
+        if _RE_TECHNIQUE.fullmatch(technique):
+            bas_techniques.add(technique)
+        if mtime >= last_bas_mtime:
+            last_bas_mtime = mtime
+            metrics.bas_last_status = status
+            metrics.bas_last_duration_sec = float(record.get("duration_seconds", 0.0))
+
+    for bas_file in sorted(bas_files, key=lambda f: f.stat().st_mtime):
+        try:
+            record = json.loads(bas_file.read_text(encoding="utf-8"))
+            if not isinstance(record, dict):
+                continue
+            run_id = str(record.get("run_id") or "")
+            if not run_id or run_id in seen_bas_ids:
+                continue
+            include_bas(record, bas_file.stat().st_mtime)
+            seen_bas_ids.add(run_id)
+        except (OSError, ValueError, TypeError):
+            continue
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+        metrics.bas_mode_label = (
+            "DISABLED" if not state.get("enabled") else
+            "AUTO · approved Linux lab" if state.get("auto_execute_live") else "MANUAL ONLY"
+        )
+        if state.get("telemetry") == "lab_process":
+            metrics.bas_scope_label = "Local process sensor + Sigma"
+    except (OSError, ValueError, AttributeError):
+        pass
 
     for hf in hunt_files:
         try:
@@ -2726,33 +2789,22 @@ def _collect_purple_team_metrics(
             if not isinstance(metadata, dict):
                 metadata = {}
             bas_status = str(metadata.get("bas_status") or "")
-            if bas_status:
-                metrics.bas_runs += 1
-                provider = str(metadata.get("bas_provider") or "unknown").lower()
-                metrics.bas_providers[provider] = metrics.bas_providers.get(provider, 0) + 1
-                metrics.bas_mock_runs += int(provider == "mock")
-                metrics.bas_live_runs += int(provider in {"caldera", "stratus", "local_sandbox", "live_lab"})
-                metrics.bas_verified += int(bas_status == "verified_true_positive")
-                metrics.bas_detection_misses += int(bas_status == "detection_miss")
-                metrics.bas_telemetry_missing += int(bas_status == "telemetry_missing")
-                metrics.bas_failures += int(bas_status in {"detonation_failed", "error"})
-                metrics.bas_detections += int(metadata.get("bas_detection_triggered") is True)
-                metrics.bas_telemetry_runs += int(
+            if bas_status and metadata.get("bas_run_id") not in seen_bas_ids:
+                observed = (
                     bas_status in {"verified_true_positive", "detection_miss"}
                     or bool(re.search(r"\*\*Telemetry Observed:\*\* Yes", content))
                 )
                 target = re.search(r"\*\*Target Technique:\*\* `([^`]+)`", content)
-                if target and _RE_TECHNIQUE.fullmatch(target.group(1)):
-                    bas_techniques.add(target.group(1))
                 hits = re.search(r"\*\*Detection Triggered:\*\* .*?\((\d+) hit\(s\)\)", content)
-                if hits:
-                    metrics.bas_matched_events += int(hits.group(1))
-                mtime = hf.stat().st_mtime
-                if mtime >= last_bas_mtime:
-                    last_bas_mtime = mtime
-                    metrics.bas_last_status = bas_status
-                    duration = re.search(r"\*\*Duration:\*\* ([\d.]+)s", content)
-                    metrics.bas_last_duration_sec = float(duration.group(1)) if duration else 0.0
+                duration = re.search(r"\*\*Duration:\*\* ([\d.]+)s", content)
+                include_bas({
+                    "status": bas_status, "provider": metadata.get("bas_provider"),
+                    "rule_triggered": metadata.get("bas_detection_triggered"),
+                    "telemetry_arrived": observed,
+                    "technique_id": target.group(1) if target else "",
+                    "matched_events_count": int(hits.group(1)) if hits else 0,
+                    "duration_seconds": float(duration.group(1)) if duration else 0.0,
+                }, hf.stat().st_mtime)
         except (OSError, ValueError, yaml.YAMLError):
             continue
 
@@ -2802,13 +2854,18 @@ def _purple_team_panel(
     if not compact:
         precision = f"{measured.precision_rate:.0%} precision" if measured.validated_rules else "awaiting rule results"
         table.add_row("PRECISION", Text(precision, style="bright_green" if measured.validated_rules else "dim"))
+    if measured.bas_mode_label:
+        table.add_row("BAS MODE", Text(measured.bas_mode_label, style="bright_cyan"))
+    if measured.bas_scope_label:
+        table.add_row("BAS SCOPE", Text(measured.bas_scope_label, style="dim"))
+        table.add_row("BAS COVERAGE", Text(f"{measured.bas_runs - measured.bas_control_runs} hunt checks · {measured.bas_control_runs} sensor controls", style="dim"))
     table.add_row(
         "BREACH SIM",
         Text(f"{measured.bas_runs} runs · {measured.bas_live_runs} live, {measured.bas_mock_runs} mock", style="bright_white" if measured.bas_runs else "dim"),
     )
     table.add_row(
         "ATTACKS",
-        Text(f"{measured.bas_techniques} techniques · {measured.bas_detections} detections", style="bright_cyan" if measured.bas_runs else "dim"),
+        Text(f"{measured.bas_techniques} techniques · {measured.bas_detections} " + ("rule matches" if measured.bas_scope_label else "detections"), style="bright_cyan" if measured.bas_runs else "dim"),
     )
     table.add_row(
         "BAS RESULTS",
@@ -2821,6 +2878,8 @@ def _purple_team_panel(
             "BAS SENSORS",
             Text(f"{measured.bas_telemetry_runs}/{measured.bas_runs} observed · {measured.bas_matched_events} events", style="bright_white" if measured.bas_runs else "dim"),
         )
+        if measured.bas_skipped:
+            table.add_row("BAS SKIPPED", Text(f"{measured.bas_skipped} · {measured.bas_last_skip_reason}", style="dim"))
     if not compact and not narrow:
         table.add_row("REPLAY DATA", Text(f"{measured.total_telemetry_events:,} telemetry events", style="dim"))
         if measured.last_duration_sec:
