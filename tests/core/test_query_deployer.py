@@ -94,6 +94,58 @@ class TestQueryDeployer:
             assert res.remote_id == "rule-12345"
             assert mock_post.called
 
+    def test_deploy_splunk_ssl_verification(self, monkeypatch):
+        monkeypatch.delenv("SPLUNK_VERIFY_SSL", raising=False)
+        deployer = QueryDeployer()
+        payload = DeploymentPayload(
+            hunt_id="H-0868",
+            rule_title="Splunk SSL Test",
+            target=QueryDeployer.TARGET_SPLUNK,
+            dialect="spl",
+            query="index=main EventCode=1",
+        )
+
+        fake_resp = mock.MagicMock()
+        fake_resp.status_code = 200
+
+        with (
+            mock.patch.dict(
+                "os.environ",
+                {"SPLUNK_HOST": "https://splunk.example.com:8089", "SPLUNK_TOKEN": "secret-token"},
+            ),
+            mock.patch("httpx.Client") as mock_client_cls,
+        ):
+            mock_client_instance = mock.MagicMock()
+            mock_client_instance.__enter__.return_value = mock_client_instance
+            mock_client_instance.post.return_value = fake_resp
+            mock_client_cls.return_value = mock_client_instance
+
+            # Default: SPLUNK_VERIFY_SSL not set -> verify=True
+            res = deployer.deploy(payload, dry_run=False)
+            assert res.status == "deployed"
+            mock_client_cls.assert_called_with(timeout=deployer.timeout_sec, verify=True)
+
+        with (
+            mock.patch.dict(
+                "os.environ",
+                {
+                    "SPLUNK_HOST": "https://splunk.example.com:8089",
+                    "SPLUNK_TOKEN": "secret-token",
+                    "SPLUNK_VERIFY_SSL": "false",
+                },
+            ),
+            mock.patch("httpx.Client") as mock_client_cls,
+        ):
+            mock_client_instance = mock.MagicMock()
+            mock_client_instance.__enter__.return_value = mock_client_instance
+            mock_client_instance.post.return_value = fake_resp
+            mock_client_cls.return_value = mock_client_instance
+
+            # Explicit SPLUNK_VERIFY_SSL=false -> verify=False
+            res = deployer.deploy(payload, dry_run=False)
+            assert res.status == "deployed"
+            mock_client_cls.assert_called_with(timeout=deployer.timeout_sec, verify=False)
+
     def test_api_deploy_transpiled_query(self):
         result = deploy_transpiled_query(
             target="splunk_spl",

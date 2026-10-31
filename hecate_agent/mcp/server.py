@@ -105,11 +105,16 @@ def reset_server() -> None:
     _workspace = None
 
 
-def main(workspace_path: Optional[str] = None, transport: str = "stdio", port: int = 3100) -> None:
+def main(
+    workspace_path: Optional[str] = None,
+    transport: str = "stdio",
+    port: int = 3100,
+    host: str = "127.0.0.1",
+) -> None:
     """Entry point for running the MCP server."""
     server = create_server(workspace_path)
     if transport in ("sse", "streamable-http"):
-        server.settings.host = "0.0.0.0"
+        server.settings.host = host
         server.settings.port = port
     server.run(transport=transport)
 
@@ -121,6 +126,7 @@ def cli() -> None:
     parser = argparse.ArgumentParser(description="Hecate MCP Server")
     parser.add_argument("--workspace", default=None, help="Workspace path")
     parser.add_argument("--transport", default="stdio", choices=["stdio", "sse", "streamable-http"])
+    parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=3100, help="HTTP port for SSE/HTTP transport")
     args = parser.parse_args()
-    main(workspace_path=args.workspace, transport=args.transport, port=args.port)
+    main(workspace_path=args.workspace, transport=args.transport, host=args.host, port=args.port)

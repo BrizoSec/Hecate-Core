@@ -361,7 +361,8 @@ class QueryDeployer:
                 dry_run=True,
             )
 
-        with httpx.Client(timeout=self.timeout_sec, verify=False) as client:
+        verify_ssl = os.getenv("SPLUNK_VERIFY_SSL", "true").lower() in ("true", "1", "yes")
+        with httpx.Client(timeout=self.timeout_sec, verify=verify_ssl) as client:
             resp = client.post(endpoint, data=data, headers={"Authorization": f"Bearer {token}"})
             resp.raise_for_status()
             return DeploymentResult(
@@ -389,7 +390,9 @@ class QueryDeployer:
             "type": "eql",
             "language": "eql",
             "query": payload.query.strip(),
-            "severity": payload.severity.lower() if payload.severity.lower() in {"low", "medium", "high", "critical"} else "high",
+            "severity": payload.severity.lower()
+            if payload.severity.lower() in {"low", "medium", "high", "critical"}
+            else "high",
             "risk_score": 73 if payload.severity == "high" else 47,
             "description": f"Hecate threat hunt {payload.hunt_id} detection rule ({payload.rule_title})",
             "tags": ["hecate", payload.hunt_id] + payload.techniques,
