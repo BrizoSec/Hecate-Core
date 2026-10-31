@@ -13,8 +13,9 @@ def mcp() -> None:
 @click.option(
     "--transport", default="stdio", type=click.Choice(["stdio", "sse", "streamable-http"]), help="Transport protocol"
 )
+@click.option("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
 @click.option("--port", default=3100, type=int, help="HTTP port for SSE transport")
-def serve(workspace: str, transport: str, port: int) -> None:
+def serve(workspace: str, transport: str, host: str, port: int) -> None:
     """Start the Hecate MCP server.
 
     This exposes Hecate operations as MCP tools that AI assistants
@@ -43,4 +44,4 @@ def serve(workspace: str, transport: str, port: int) -> None:
         click.echo("Error: MCP dependencies not installed. Install with: pip install -e '.[mcp]'", err=True)
         raise SystemExit(1) from None
 
-    mcp_main(workspace_path=workspace, transport=transport, port=port)
+    mcp_main(workspace_path=workspace, transport=transport, host=host, port=port)

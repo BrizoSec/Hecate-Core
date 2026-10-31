@@ -182,3 +182,42 @@ class TestPluginToolDiscovery:
         tools = asyncio.run(server.list_tools())
         tool_names = [t.name for t in tools]
         assert "hecate_hunt_list" in tool_names
+
+
+class TestServerMainAndCli:
+    def test_main_sse_binds_localhost_by_default(self):
+        from unittest.mock import MagicMock
+        from hecate_agent.mcp.server import main
+
+        mock_server = MagicMock()
+        with patch("hecate_agent.mcp.server.create_server", return_value=mock_server):
+            main(transport="sse")
+            assert mock_server.settings.host == "127.0.0.1"
+            assert mock_server.settings.port == 3100
+            mock_server.run.assert_called_once_with(transport="sse")
+
+    def test_main_custom_host_and_port(self):
+        from unittest.mock import MagicMock
+        from hecate_agent.mcp.server import main
+
+        mock_server = MagicMock()
+        with patch("hecate_agent.mcp.server.create_server", return_value=mock_server):
+            main(transport="sse", host="0.0.0.0", port=8080)
+            assert mock_server.settings.host == "0.0.0.0"
+            assert mock_server.settings.port == 8080
+            mock_server.run.assert_called_once_with(transport="sse")
+
+    def test_cli_passes_host_and_port(self):
+        from hecate_agent.mcp.server import cli
+
+        with (
+            patch("sys.argv", ["hecate-agent-mcp", "--transport", "sse", "--host", "10.0.0.1", "--port", "4000"]),
+            patch("hecate_agent.mcp.server.main") as mock_main,
+        ):
+            cli()
+            mock_main.assert_called_once_with(
+                workspace_path=None,
+                transport="sse",
+                host="10.0.0.1",
+                port=4000,
+            )

@@ -1,5 +1,6 @@
 """Web search integration for threat research."""
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -8,7 +9,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,19 @@ class WebSearchCache:
         if self.enabled:
             self._init_db()
 
+    @contextlib.contextmanager
+    def _connect(self, timeout: float = 5.0) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(self.db_path, timeout=timeout)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+            with self._connect(timeout=10.0) as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS search_cache (
@@ -80,7 +90,6 @@ class WebSearchCache:
                     """
                 )
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_search_cache_expires ON search_cache (expires_at)")
-                conn.commit()
         except Exception as exc:
             logger.warning("Failed to initialize search cache at %s: %s", self.db_path, exc)
 
@@ -112,7 +121,7 @@ class WebSearchCache:
             return None
         try:
             now = time.time()
-            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+            with self._connect(timeout=5.0) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT response_json, expires_at FROM search_cache WHERE cache_key = ?",
@@ -142,7 +151,6 @@ class WebSearchCache:
                         )
                     else:
                         conn.execute("DELETE FROM search_cache WHERE cache_key = ?", (cache_key,))
-                        conn.commit()
         except Exception as exc:
             logger.debug("Search cache read error: %s", exc)
         return None
@@ -168,7 +176,7 @@ class WebSearchCache:
                     for r in response.results
                 ],
             }
-            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+            with self._connect(timeout=5.0) as conn:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO search_cache 
@@ -177,7 +185,6 @@ class WebSearchCache:
                     """,
                     (cache_key, query, search_depth, json.dumps(data), now, expires_at),
                 )
-                conn.commit()
         except Exception as exc:
             logger.debug("Search cache write error: %s", exc)
 

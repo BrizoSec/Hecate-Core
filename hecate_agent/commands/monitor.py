@@ -3227,9 +3227,12 @@ def _get_inbox_counts(workspace: Path) -> Tuple[int, int, int]:
         if not db_path.exists():
             return 0, 0, 0
         conn = sqlite3.connect(db_path)
-        c = conn.cursor()
-        c.execute("SELECT DISTINCT thread_id FROM checkpoints")
-        threads = [row[0] for row in c.fetchall()]
+        try:
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT thread_id FROM checkpoints")
+            threads = [row[0] for row in c.fetchall()]
+        finally:
+            conn.close()
         pending, completed, failed = 0, 0, 0
         for thread_id in threads:
             try:
