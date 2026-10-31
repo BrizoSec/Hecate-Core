@@ -12,11 +12,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    import termios
-    import tty
+    import termios as _termios
+    import tty as _tty
+
+    termios: Any = _termios
+    tty: Any = _tty
 except ImportError:
-    termios = None  # type: ignore
-    tty = None  # type: ignore
+    termios = None
+    tty = None
 
 import click
 import yaml
